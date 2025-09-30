@@ -1,0 +1,617 @@
+# Stonecaster API Reference
+
+Base URL: `http://localhost:3000` (development) or your deployed backend URL
+
+All endpoints require authentication via the `x-user-id` header with the user's UUID from Supabase Auth.
+
+## Authentication
+
+All protected endpoints expect a `x-user-id` header:
+
+```http
+x-user-id: <user-uuid-from-supabase>
+```
+
+## Characters
+
+### List Characters
+
+Get all characters for the authenticated user.
+
+**Endpoint:** `GET /api/characters`
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "userId": "uuid",
+    "name": "Aragorn",
+    "race": "Human",
+    "class": "Ranger",
+    "level": 5,
+    "experience": 12000,
+    "attributes": {
+      "strength": 16,
+      "dexterity": 14,
+      "constitution": 15,
+      "intelligence": 12,
+      "wisdom": 13,
+      "charisma": 14
+    },
+    "skills": ["Survival", "Tracking", "Swordsmanship"],
+    "inventory": [
+      {
+        "id": "item-1",
+        "name": "Longsword",
+        "description": "A well-crafted blade",
+        "quantity": 1
+      }
+    ],
+    "currentHealth": 65,
+    "maxHealth": 75,
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+### Get Character
+
+Get a specific character by ID.
+
+**Endpoint:** `GET /api/characters/:id`
+
+**Parameters:**
+- `id`: Character UUID
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+
+**Response:** `200 OK` (same structure as list)
+
+**Error:** `404 Not Found`
+```json
+{
+  "error": "Character not found"
+}
+```
+
+### Create Character
+
+Create a new character.
+
+**Endpoint:** `POST /api/characters`
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "name": "Gandalf",
+  "race": "Human",
+  "class": "Mage",
+  "level": 1,
+  "experience": 0,
+  "attributes": {
+    "strength": 10,
+    "dexterity": 12,
+    "constitution": 14,
+    "intelligence": 18,
+    "wisdom": 16,
+    "charisma": 15
+  },
+  "skills": [],
+  "inventory": [],
+  "currentHealth": 20,
+  "maxHealth": 20
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": "generated-uuid",
+  "userId": "user-uuid",
+  "name": "Gandalf",
+  ...
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z"
+}
+```
+
+### Update Character
+
+Update an existing character.
+
+**Endpoint:** `PUT /api/characters/:id`
+
+**Parameters:**
+- `id`: Character UUID
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+- `Content-Type`: application/json
+
+**Request Body:** (partial updates supported)
+```json
+{
+  "level": 6,
+  "experience": 15000,
+  "currentHealth": 70
+}
+```
+
+**Response:** `200 OK` (updated character)
+
+### Delete Character
+
+Delete a character.
+
+**Endpoint:** `DELETE /api/characters/:id`
+
+**Parameters:**
+- `id`: Character UUID
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+
+**Response:** `204 No Content`
+
+### Generate Character Suggestions
+
+Get AI-generated character backstory and personality.
+
+**Endpoint:** `POST /api/characters/suggest`
+
+**Headers:**
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "race": "Elf",
+  "class": "Ranger"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "backstory": "Born in the ancient forests...",
+  "personality": "Stoic and observant with a deep connection to nature",
+  "goals": [
+    "Protect the forest from dark forces",
+    "Find the legendary bow of the ancients",
+    "Avenge fallen kin"
+  ]
+}
+```
+
+## Game Saves
+
+### List Game Saves
+
+Get all game saves for the authenticated user.
+
+**Endpoint:** `GET /api/games`
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "userId": "uuid",
+    "characterId": "uuid",
+    "worldTemplateId": "uuid",
+    "name": "Epic Fantasy Adventure",
+    "storyState": {
+      "currentScene": "tavern",
+      "history": [
+        {
+          "role": "narrator",
+          "content": "You enter a dimly lit tavern...",
+          "timestamp": "2024-01-01T00:00:00Z",
+          "emotion": "neutral"
+        }
+      ],
+      "npcs": [
+        {
+          "id": "npc-1",
+          "name": "Bartender",
+          "personality": "Gruff but fair",
+          "relationship": 50,
+          "lastInteraction": "2024-01-01T00:00:00Z"
+        }
+      ],
+      "worldState": {
+        "tavern_visited": true,
+        "quest_accepted": false
+      }
+    },
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z",
+    "lastPlayedAt": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+### Get Game Save
+
+Get a specific game save by ID.
+
+**Endpoint:** `GET /api/games/:id`
+
+**Parameters:**
+- `id`: Game save UUID
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+
+**Response:** `200 OK` (same structure as list)
+
+### Create Game Save
+
+Create a new game save.
+
+**Endpoint:** `POST /api/games`
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "characterId": "character-uuid",
+  "worldTemplateId": "world-uuid",
+  "name": "My Adventure",
+  "storyState": {
+    "currentScene": "beginning",
+    "history": [],
+    "npcs": [],
+    "worldState": {}
+  }
+}
+```
+
+**Response:** `201 Created` (created game save)
+
+### Update Game Save
+
+Update an existing game save (typically used to update story state).
+
+**Endpoint:** `PUT /api/games/:id`
+
+**Parameters:**
+- `id`: Game save UUID
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "storyState": {
+    "currentScene": "forest",
+    "history": [...],
+    "npcs": [...],
+    "worldState": {...}
+  }
+}
+```
+
+**Response:** `200 OK` (updated game save)
+
+### Delete Game Save
+
+Delete a game save.
+
+**Endpoint:** `DELETE /api/games/:id`
+
+**Parameters:**
+- `id`: Game save UUID
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+
+**Response:** `204 No Content`
+
+## World Templates
+
+### List World Templates
+
+Get all public world templates and user's private templates.
+
+**Endpoint:** `GET /api/worlds`
+
+**Headers:**
+- `x-user-id`: User UUID (optional - if provided, includes user's private templates)
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "name": "Classic Fantasy Adventure",
+    "description": "A traditional high-fantasy world...",
+    "genre": "fantasy",
+    "setting": "A vast medieval kingdom...",
+    "themes": ["heroism", "magic", "exploration"],
+    "availableRaces": ["Human", "Elf", "Dwarf", "Halfling"],
+    "availableClasses": ["Warrior", "Mage", "Rogue", "Cleric"],
+    "startingPrompt": "You find yourself in...",
+    "rules": {
+      "allowMagic": true,
+      "allowTechnology": false,
+      "difficultyLevel": "medium",
+      "combatSystem": "d20"
+    },
+    "isPublic": true,
+    "createdBy": null,
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+### Get World Template
+
+Get a specific world template by ID.
+
+**Endpoint:** `GET /api/worlds/:id`
+
+**Parameters:**
+- `id`: World template UUID
+
+**Response:** `200 OK` (same structure as list)
+
+### Create World Template
+
+Create a custom world template.
+
+**Endpoint:** `POST /api/worlds`
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "name": "My Custom World",
+  "description": "A unique setting...",
+  "genre": "custom",
+  "setting": "Description of the world...",
+  "themes": ["adventure", "mystery"],
+  "availableRaces": ["Human", "Robot"],
+  "availableClasses": ["Hacker", "Soldier"],
+  "startingPrompt": "You wake up in...",
+  "rules": {
+    "allowMagic": false,
+    "allowTechnology": true,
+    "difficultyLevel": "hard",
+    "combatSystem": "custom"
+  },
+  "isPublic": false
+}
+```
+
+**Response:** `201 Created` (created world template)
+
+## Story Actions
+
+### Process Story Action
+
+Process a player action and get AI-generated narrative response.
+
+**Endpoint:** `POST /api/story`
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "gameSaveId": "game-save-uuid",
+  "type": "action",
+  "content": "I approach the bartender and ask about rumors",
+  "skillCheck": {
+    "skill": "Persuasion",
+    "difficulty": 12
+  },
+  "targetNpcId": "npc-uuid"
+}
+```
+
+**Action Types:**
+- `dialogue` - Talking to NPCs
+- `action` - General actions
+- `skill_check` - Actions requiring skill checks
+- `combat` - Combat actions
+- `exploration` - Exploring the environment
+
+**Response:** `200 OK`
+```json
+{
+  "aiResponse": {
+    "narrative": "The bartender eyes you suspiciously before leaning in close...",
+    "emotion": "suspicious",
+    "npcResponses": [
+      {
+        "npcId": "npc-1",
+        "response": "I might know something, but information ain't free...",
+        "emotion": "neutral"
+      }
+    ],
+    "worldStateChanges": {
+      "bartender_talked": true
+    },
+    "suggestedActions": [
+      "Offer to pay for information",
+      "Try to intimidate the bartender",
+      "Order a drink and wait"
+    ]
+  },
+  "skillCheckResult": {
+    "rolls": [15],
+    "total": 15,
+    "modifier": 2,
+    "finalResult": 17,
+    "criticalSuccess": false,
+    "criticalFailure": false,
+    "narration": "You speak with confidence...",
+    "success": true
+  }
+}
+```
+
+## Dice Rolling
+
+### Roll Dice
+
+Roll one or more dice.
+
+**Endpoint:** `POST /api/dice`
+
+**Headers:**
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "type": "d20",
+  "count": 1,
+  "modifier": 5,
+  "advantage": false,
+  "disadvantage": false
+}
+```
+
+**Dice Types:**
+- `d4`, `d6`, `d8`, `d10`, `d12`, `d20`, `d100`
+
+**Response:** `200 OK`
+```json
+{
+  "rolls": [15],
+  "total": 15,
+  "modifier": 5,
+  "finalResult": 20,
+  "criticalSuccess": false,
+  "criticalFailure": false
+}
+```
+
+### Roll Multiple Dice
+
+Roll multiple different dice at once.
+
+**Endpoint:** `POST /api/dice/multiple`
+
+**Headers:**
+- `Content-Type`: application/json
+
+**Request Body:**
+```json
+{
+  "rolls": [
+    {
+      "type": "d20",
+      "count": 1,
+      "modifier": 3
+    },
+    {
+      "type": "d6",
+      "count": 3,
+      "modifier": 0
+    }
+  ]
+}
+```
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "rolls": [18],
+    "total": 18,
+    "modifier": 3,
+    "finalResult": 21,
+    "criticalSuccess": false,
+    "criticalFailure": false
+  },
+  {
+    "rolls": [4, 6, 2],
+    "total": 12,
+    "modifier": 0,
+    "finalResult": 12,
+    "criticalSuccess": false,
+    "criticalFailure": false
+  }
+]
+```
+
+## Health Check
+
+### System Health
+
+Check if the API is running.
+
+**Endpoint:** `GET /health`
+
+**Response:** `200 OK`
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}
+```
+
+## Error Responses
+
+All endpoints may return these error responses:
+
+### 401 Unauthorized
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+### 404 Not Found
+```json
+{
+  "error": "Resource not found"
+}
+```
+
+### 500 Internal Server Error
+```json
+{
+  "error": "Internal server error"
+}
+```
+
+## Rate Limiting
+
+Currently no rate limiting is implemented. In production, consider:
+- Rate limiting per user
+- Special limits on AI endpoints
+- Cost monitoring for OpenAI API
+
+## CORS
+
+The API allows requests from the configured `CORS_ORIGIN` (default: `http://localhost:5173`).
+
+In production, update this to your frontend domain.
