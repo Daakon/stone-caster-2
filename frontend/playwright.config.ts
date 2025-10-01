@@ -17,6 +17,9 @@ export default defineConfig({
     navigationTimeout: 30000,
   },
 
+  // Global setup for accessibility testing
+  globalSetup: './e2e/global-setup.ts',
+
   projects: [
     {
       name: 'chromium',

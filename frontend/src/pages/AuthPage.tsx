@@ -19,6 +19,18 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    // Client-side validation
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -57,6 +69,7 @@ export default function AuthPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 aria-required="true"
+                aria-invalid={!!error}
                 autoComplete="email"
                 placeholder="Enter your email"
               />
@@ -71,6 +84,7 @@ export default function AuthPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 aria-required="true"
+                aria-invalid={!!error}
                 autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                 minLength={6}
                 placeholder="Enter your password"
@@ -98,6 +112,7 @@ export default function AuthPage() {
               variant="link"
               onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
               className="text-sm"
+              aria-label={mode === 'signin' ? 'Switch to sign up mode' : 'Switch to sign in mode'}
             >
               {mode === 'signin'
                 ? "Don't have an account? Sign up"

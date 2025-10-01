@@ -6,17 +6,17 @@ export default function HomePage() {
   const { user } = useAuthStore();
 
   return (
-    <div role="main" className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background">
       <Header />
       
-      <section className="container mx-auto px-4 py-8 text-center">
+      <main id="main-content" role="main" className="container mx-auto px-4 py-8 text-center">
         <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-4">
           🎲 Stonecaster
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground mb-8">
           AI-Driven Role-Playing Adventures
         </p>
-      </section>
+      </main>
 
       <section className="container mx-auto px-4 py-8" aria-label="Features">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -91,7 +91,7 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <footer className="container mx-auto px-4 py-8 text-center border-t border-border">
+      <footer id="footer" role="contentinfo" className="container mx-auto px-4 py-8 text-center border-t border-border">
         <p className="text-sm text-muted-foreground">
           Mobile-first design • Accessible • Powered by AI
         </p>

@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth';
 import { ThemeProvider } from './contexts/theme-context';
+import { ToastProvider } from './components/ui/toast-provider';
+import { SkipNavigation } from './components/ui/skip-navigation';
 import HomePage from './pages/HomePage';
 import AuthPage from './pages/AuthPage';
 import CharacterCreationPage from './pages/CharacterCreationPage';
@@ -37,6 +39,13 @@ function App() {
     <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
+          <SkipNavigation 
+            links={[
+              { href: '#main-content', label: 'Skip to main content' },
+              { href: '#navigation', label: 'Skip to navigation' },
+              { href: '#footer', label: 'Skip to footer' },
+            ]}
+          />
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/auth" element={<AuthPage />} />
@@ -57,6 +66,7 @@ function App() {
               element={user ? <GamePlayPage /> : <Navigate to="/auth" />}
             />
           </Routes>
+          <ToastProvider />
         </BrowserRouter>
       </QueryClientProvider>
     </ThemeProvider>
