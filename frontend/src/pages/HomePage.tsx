@@ -5,29 +5,49 @@ export default function HomePage() {
   const { user } = useAuthStore();
 
   return (
-    <div className="min-h-screen bg-background text-foreground" role="main">
+    <div role="main" className="min-h-screen bg-background">
       <header className="container mx-auto px-4 py-8 text-center">
-        <h1 className="text-4xl md:text-6xl font-bold mb-4">🎲 Stonecaster</h1>
-        <p className="text-lg md:text-xl text-muted-foreground mb-8">AI-Driven Role-Playing Adventures</p>
+        <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-4">
+          🎲 Stonecaster
+        </h1>
+        <p className="text-lg md:text-xl text-muted-foreground mb-8">
+          AI-Driven Role-Playing Adventures
+        </p>
       </header>
 
       <section className="container mx-auto px-4 py-8" aria-label="Features">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-card text-card-foreground p-6 rounded-lg border">
-            <h2 className="text-xl font-semibold mb-2">📖 AI Storytelling</h2>
-            <p className="text-muted-foreground">Experience dynamic narratives powered by advanced AI</p>
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-card-foreground mb-3">
+              📖 AI Storytelling
+            </h2>
+            <p className="text-muted-foreground">
+              Experience dynamic narratives powered by advanced AI
+            </p>
           </div>
-          <div className="bg-card text-card-foreground p-6 rounded-lg border">
-            <h2 className="text-xl font-semibold mb-2">⚔️ Character Creation</h2>
-            <p className="text-muted-foreground">Create unique characters with rich backstories</p>
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-card-foreground mb-3">
+              ⚔️ Character Creation
+            </h2>
+            <p className="text-muted-foreground">
+              Create unique characters with rich backstories
+            </p>
           </div>
-          <div className="bg-card text-card-foreground p-6 rounded-lg border">
-            <h2 className="text-xl font-semibold mb-2">🌍 World Templates</h2>
-            <p className="text-muted-foreground">Explore diverse settings from fantasy to sci-fi</p>
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-card-foreground mb-3">
+              🌍 World Templates
+            </h2>
+            <p className="text-muted-foreground">
+              Explore diverse settings from fantasy to sci-fi
+            </p>
           </div>
-          <div className="bg-card text-card-foreground p-6 rounded-lg border">
-            <h2 className="text-xl font-semibold mb-2">💾 Persistent Saves</h2>
-            <p className="text-muted-foreground">Your adventures are always saved and ready</p>
+          <div className="bg-card border border-border rounded-lg p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-card-foreground mb-3">
+              💾 Persistent Saves
+            </h2>
+            <p className="text-muted-foreground">
+              Your adventures are always saved and ready
+            </p>
           </div>
         </div>
       </section>
@@ -38,13 +58,13 @@ export default function HomePage() {
             <>
               <Link 
                 to="/characters" 
-                className="bg-primary text-primary-foreground px-6 py-3 rounded-md font-medium hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 My Characters
               </Link>
               <Link 
                 to="/worlds" 
-                className="bg-secondary text-secondary-foreground px-6 py-3 rounded-md font-medium hover:bg-secondary/90 transition-colors"
+                className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 Start Adventure
               </Link>
@@ -53,13 +73,13 @@ export default function HomePage() {
             <>
               <Link 
                 to="/auth" 
-                className="bg-primary text-primary-foreground px-6 py-3 rounded-md font-medium hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 Get Started
               </Link>
               <Link 
                 to="/auth?mode=signin" 
-                className="bg-secondary text-secondary-foreground px-6 py-3 rounded-md font-medium hover:bg-secondary/90 transition-colors"
+                className="inline-flex items-center justify-center rounded-md border border-input bg-background px-6 py-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 Sign In
               </Link>
@@ -68,8 +88,8 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <footer className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-        <p>
+      <footer className="container mx-auto px-4 py-8 text-center border-t border-border">
+        <p className="text-sm text-muted-foreground">
           Mobile-first design • Accessible • Powered by AI
         </p>
       </footer>

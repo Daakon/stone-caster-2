@@ -1,0 +1,128 @@
+---
+title: Package Scripts Only Rule
+description: All operations must use package.json scripts - no direct command execution
+---
+
+# Package Scripts Only Rule
+
+**ALWAYS use package.json scripts for all operations. Never execute commands directly.**
+
+## Why This Rule Exists
+
+- **Consistency**: All team members use the same commands
+- **Documentation**: Scripts serve as living documentation of available operations
+- **Maintainability**: Changes to build/test/deploy processes are centralized
+- **CI/CD Compatibility**: Scripts work the same locally and in CI environments
+- **Error Prevention**: Reduces typos and ensures correct command sequences
+
+## Required Patterns
+
+### ✅ CORRECT - Use Package Scripts
+
+```bash
+# Development
+npm run dev                    # Start both client and server
+npm run dev:client            # Start frontend only
+npm run dev:server:local      # Start backend with local defaults
+npm run dev:server:prod       # Start backend with production env
+
+# Building
+npm run build                 # Build all workspaces
+npm run build:client          # Build frontend only
+npm run build:server          # Build backend only
+
+# Testing
+npm run test                  # Run all tests
+npm run test:ci               # Run tests in CI mode
+npm run test:e2e              # Run e2e tests
+npm run test:e2e:ci           # Run e2e tests in CI mode
+
+# Setup & Configuration
+npm run setup                 # Full setup (env + config)
+npm run setup:env             # Create environment template
+npm run setup:config          # Setup database configuration
+npm run verify:config         # Verify configuration
+
+# Linting & Type Checking
+npm run lint                  # Lint all workspaces
+npm run type-check            # Type check all workspaces
+```
+
+### ❌ INCORRECT - Direct Command Execution
+
+```bash
+# DON'T DO THIS
+tsx watch src/index.ts        # Use npm run dev instead
+node dist/index.js            # Use npm run start instead
+vitest run                    # Use npm run test instead
+eslint src/**/*.ts            # Use npm run lint instead
+tsc --noEmit                  # Use npm run type-check instead
+npx playwright test           # Use npm run test:e2e instead
+```
+
+## Script Naming Conventions
+
+- **dev**: Development mode with hot reload
+- **build**: Production build
+- **start**: Production start
+- **test**: Test execution
+- **test:ci**: CI-optimized test execution
+- **lint**: Code linting
+- **type-check**: TypeScript type checking
+- **setup**: Initial setup operations
+- **verify**: Verification operations
+
+## Workspace Scripts
+
+For workspace-specific operations, use the workspace flag:
+
+```bash
+npm run <script> --workspace=frontend
+npm run <script> --workspace=backend
+npm run <script> --workspace=shared
+```
+
+## Environment-Specific Scripts
+
+- **:local**: Uses local development defaults (safe for development)
+- **:prod**: Uses production environment variables
+- **:ci**: Optimized for CI/CD environments
+
+## Error Handling
+
+If a required script doesn't exist:
+
+1. **Add the script** to the appropriate package.json
+2. **Document the script** in comments
+3. **Test the script** works correctly
+4. **Never bypass** by running commands directly
+
+## Examples of Adding New Scripts
+
+```json
+{
+  "scripts": {
+    "new-operation": "node scripts/new-operation.js",
+    "new-operation:ci": "CI=1 node scripts/new-operation.js --non-interactive"
+  }
+}
+```
+
+## Enforcement
+
+- **AI Agents**: Must always use package scripts
+- **Documentation**: Must reference package scripts, not direct commands
+- **Code Reviews**: Reject PRs that use direct commands
+- **CI/CD**: Must use package scripts exclusively
+
+## Benefits
+
+1. **Onboarding**: New developers can see all available operations
+2. **Debugging**: Easier to trace issues to specific scripts
+3. **Automation**: Scripts can be easily automated
+4. **Consistency**: Same commands work across all environments
+5. **Maintenance**: Centralized command management
+
+---
+
+**Remember: If you need to run a command, there should be a package script for it. If there isn't, create one.**

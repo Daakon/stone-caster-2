@@ -70,7 +70,7 @@ interface ConfigSnapshot {
   meta: { version: number };
 }
 
-type Logger = Pick<typeof console, 'info' | 'warn' | 'error'>;
+type Logger = Pick<typeof console, 'info' | 'warn' | 'error' | 'debug'>;
 
 interface ConfigServiceOptions {
   env?: NodeJS.ProcessEnv;
@@ -207,17 +207,29 @@ class ConfigServiceImpl implements ConfigService {
   private loadEnv(envSource?: NodeJS.ProcessEnv): EnvConfig {
     const source = envSource ?? process.env;
     const serviceKey = source.SUPABASE_SERVICE_KEY ?? source.SUPABASE_SERVICE_ROLE_KEY;
-    const required: Array<[string, string | undefined]> = [
-      ['SUPABASE_URL', source.SUPABASE_URL],
-      ['SUPABASE_SERVICE_KEY', serviceKey],
-      ['SUPABASE_ANON_KEY', source.SUPABASE_ANON_KEY],
-      ['OPENAI_API_KEY', source.OPENAI_API_KEY],
-      ['PRIMARY_AI_MODEL', source.PRIMARY_AI_MODEL],
-      ['SESSION_SECRET', source.SESSION_SECRET],
-    ];
-    const missing = required.filter(([, value]) => !value).map(([key]) => key);
-    if (missing.length > 0) {
-      throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    
+    // Provide safe defaults for local development when environment variables are missing
+    const supabaseUrl = source.SUPABASE_URL || 'http://localhost:54321';
+    const supabaseAnonKey = source.SUPABASE_ANON_KEY || 'anon-local';
+    const supabaseServiceKey = serviceKey || 'service-local';
+    const openaiApiKey = source.OPENAI_API_KEY || 'openai-local';
+    const primaryAiModel = source.PRIMARY_AI_MODEL || 'gpt-4';
+    const sessionSecret = source.SESSION_SECRET || 'dev-session-secret';
+    
+    // Only throw error for truly required variables in production
+    if (source.NODE_ENV === 'production') {
+      const required: Array<[string, string | undefined]> = [
+        ['SUPABASE_URL', source.SUPABASE_URL],
+        ['SUPABASE_SERVICE_KEY', serviceKey],
+        ['SUPABASE_ANON_KEY', source.SUPABASE_ANON_KEY],
+        ['OPENAI_API_KEY', source.OPENAI_API_KEY],
+        ['PRIMARY_AI_MODEL', source.PRIMARY_AI_MODEL],
+        ['SESSION_SECRET', source.SESSION_SECRET],
+      ];
+      const missing = required.filter(([, value]) => !value).map(([key]) => key);
+      if (missing.length > 0) {
+        throw new Error(`Missing required environment variables in production: ${missing.join(', ')}`);
+      }
     }
 
     const port = Number.parseInt(source.PORT ?? '3000', 10);
@@ -226,12 +238,12 @@ class ConfigServiceImpl implements ConfigService {
     }
 
     return {
-      supabaseUrl: source.SUPABASE_URL!,
-      supabaseAnonKey: source.SUPABASE_ANON_KEY!,
-      supabaseServiceKey: serviceKey!,
-      openaiApiKey: source.OPENAI_API_KEY!,
-      primaryAiModel: source.PRIMARY_AI_MODEL!,
-      sessionSecret: source.SESSION_SECRET!,
+      supabaseUrl,
+      supabaseAnonKey,
+      supabaseServiceKey,
+      openaiApiKey,
+      primaryAiModel,
+      sessionSecret,
       nodeEnv: source.NODE_ENV ?? 'development',
       port,
       corsOrigin: source.CORS_ORIGIN ?? 'http://localhost:5173',
@@ -245,42 +257,54 @@ class ConfigServiceImpl implements ConfigService {
     }
 
     const loadOperation = (async () => {
-      const [pricingRes, aiRes, appRes, featuresRes, metaRes] = await Promise.all([
-        this.adminClient.from('pricing_config').select('*'),
-        this.adminClient.from('ai_config').select('*'),
-        this.adminClient.from('app_config').select('*'),
-        this.adminClient.from('feature_flags').select('*'),
-        this.adminClient.from('config_meta').select('version').single(),
-      ]);
+      try {
+        const [pricingRes, aiRes, appRes, featuresRes, metaRes] = await Promise.all([
+          this.adminClient.from('pricing_config').select('*'),
+          this.adminClient.from('ai_config').select('*'),
+          this.adminClient.from('app_config').select('*'),
+          this.adminClient.from('feature_flags').select('*'),
+          this.adminClient.from('config_meta').select('version').single(),
+        ]);
 
-      this.assertNoError('pricing_config', pricingRes.error);
-      this.assertNoError('ai_config', aiRes.error);
-      this.assertNoError('app_config', appRes.error);
-      this.assertNoError('feature_flags', featuresRes.error);
-      this.assertNoError('config_meta', metaRes.error);
+        this.assertNoError('pricing_config', pricingRes.error);
+        this.assertNoError('ai_config', aiRes.error);
+        this.assertNoError('app_config', appRes.error);
+        this.assertNoError('feature_flags', featuresRes.error);
+        this.assertNoError('config_meta', metaRes.error);
 
-      const pricing = this.buildPricingConfig((pricingRes.data ?? []) as ConfigRow[]);
-      const ai = this.buildAiConfig((aiRes.data ?? []) as ConfigRow[]);
-      const app = this.buildAppConfig((appRes.data ?? []) as ConfigRow[]);
-      const features = this.buildFeatureFlags((featuresRes.data ?? []) as FeatureRow[]);
+        const pricing = this.buildPricingConfig((pricingRes.data ?? []) as ConfigRow[]);
+        const ai = this.buildAiConfig((aiRes.data ?? []) as ConfigRow[]);
+        const app = this.buildAppConfig((appRes.data ?? []) as ConfigRow[]);
+        const features = this.buildFeatureFlags((featuresRes.data ?? []) as FeatureRow[]);
 
-      const meta = (metaRes.data ?? {}) as ConfigMetaRow;
-      const version = this.parseNumber(meta.version);
-      if (version === null) {
-        throw new Error('Invalid configuration version');
+        const meta = (metaRes.data ?? {}) as ConfigMetaRow;
+        const version = this.parseNumber(meta.version);
+        if (version === null) {
+          throw new Error('Invalid configuration version');
+        }
+
+        const snapshot: ConfigSnapshot = {
+          pricing,
+          ai,
+          app,
+          features,
+          meta: { version },
+        };
+
+        this.config = snapshot;
+        this.lastVersion = version;
+        this.etag = this.computeEtag(snapshot);
+        
+        this.logger.info('[config] Configuration loaded successfully from Supabase');
+      } catch (error) {
+        // If Supabase is not available (e.g., local development), use default configuration
+        if (this.isSupabaseUnavailable(error)) {
+          this.logger.warn('[config] Supabase unavailable, using default configuration for local development');
+          this.loadDefaultConfig();
+        } else {
+          throw error;
+        }
       }
-
-      const snapshot: ConfigSnapshot = {
-        pricing,
-        ai,
-        app,
-        features,
-        meta: { version },
-      };
-
-      this.config = snapshot;
-      this.lastVersion = version;
-      this.etag = this.computeEtag(snapshot);
     })();
 
     this.loadingPromise = loadOperation
@@ -309,6 +333,11 @@ class ConfigServiceImpl implements ConfigService {
           .single();
 
         if (error) {
+          // If Supabase is unavailable, don't spam error logs
+          if (this.isSupabaseUnavailable(error)) {
+            this.logger.debug('[config] Supabase unavailable during polling, skipping');
+            return;
+          }
           this.logger.error('[config] Failed to poll configuration version', error);
           return;
         }
@@ -326,6 +355,11 @@ class ConfigServiceImpl implements ConfigService {
           await this.loadConfig();
         }
       } catch (error) {
+        // If Supabase is unavailable, don't spam error logs
+        if (this.isSupabaseUnavailable(error)) {
+          this.logger.debug('[config] Supabase unavailable during polling, skipping');
+          return;
+        }
         this.logger.error('[config] Error while polling configuration', error);
       }
     }, this.pollIntervalMs);
@@ -501,6 +535,53 @@ class ConfigServiceImpl implements ConfigService {
     if (error) {
       throw new Error(`Failed to load ${context}: ${(error as { message?: string }).message ?? 'unknown error'}`);
     }
+  }
+
+  private isSupabaseUnavailable(error: unknown): boolean {
+    const errorMessage = (error as Error)?.message?.toLowerCase() || '';
+    return (
+      errorMessage.includes('fetch failed') ||
+      errorMessage.includes('connection') ||
+      errorMessage.includes('network') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('econnrefused') ||
+      errorMessage.includes('enotfound')
+    );
+  }
+
+  private loadDefaultConfig(): void {
+    const defaultSnapshot: ConfigSnapshot = {
+      pricing: {
+        turnCostDefault: 2,
+        turnCostByWorld: {},
+        guestStarterCastingStones: 15,
+        guestDailyRegen: 0,
+        conversionRates: {
+          shard: 10,
+          crystal: 100,
+          relic: 500,
+        },
+      },
+      ai: {
+        activeModel: this.env.primaryAiModel,
+        promptSchemaVersion: '1.0.0',
+        maxTokensIn: 4096,
+        maxTokensOut: 1024,
+      },
+      app: {
+        cookieTtlDays: 60,
+        idempotencyRequired: true,
+        allowAsyncTurnFallback: true,
+        telemetrySampleRate: 1.0,
+        drifterEnabled: true,
+      },
+      features: [],
+      meta: { version: 1 },
+    };
+
+    this.config = defaultSnapshot;
+    this.lastVersion = 1;
+    this.etag = this.computeEtag(defaultSnapshot);
   }
 }
 

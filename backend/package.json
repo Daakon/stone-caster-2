@@ -6,13 +6,19 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:local": "node scripts/dev-with-default-env.js",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "vitest run",
+    "start:local": "node scripts/dev-with-default-env.js",
+    "test": "vitest run --passWithNoTests",
+    "test:ci": "vitest run --coverage --passWithNoTests",
     "type-check": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx,js}\"",
-    "setup-config": "node scripts/setup-config.js",
-    "verify-config": "node scripts/verify-config.js"
+    "setup:config": "node scripts/setup-config.js",
+    "verify:config": "node scripts/verify-config.js",
+    "create:env-template": "node scripts/create-env-template.js",
+    "setup:env": "npm run create:env-template",
+    "test:env-setup": "npm run build && node scripts/test-env-setup.js"
   },
   "keywords": [
     "rpg",

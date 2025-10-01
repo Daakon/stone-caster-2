@@ -1,0 +1,42 @@
+# Headless Testing Only Rule
+
+## CRITICAL: All tests must run headless and non-interactively
+
+### Mandatory Requirements:
+- **Playwright**: Always set `headless: true` in config
+- **Environment**: Set `PWDEBUG=0` to prevent debug mode
+- **Reporter**: Use `--reporter=list` for CI/non-interactive runs
+- **Timeouts**: Set reasonable timeouts to prevent hanging
+- **No UI**: Never use `--ui`, `--headed`, or `--debug` flags
+
+### Commands that MUST be used:
+```bash
+# E2E Tests
+PWDEBUG=0 playwright test --reporter=list
+
+# Unit Tests  
+CI=1 vitest run --coverage --passWithNoTests
+
+# Never use:
+# playwright test --ui
+# playwright test --headed  
+# playwright test --debug
+# vitest (without run flag)
+```
+
+### Configuration Requirements:
+- Playwright config must have `headless: true`
+- Set `actionTimeout` and `navigationTimeout`
+- Use `reporter: 'list'` for CI environments
+- Never open browsers or interactive tools
+
+### Violation Consequences:
+- Tests that hang or open browsers are considered failures
+- Must be fixed immediately before continuing development
+- This rule applies to ALL testing scenarios
+
+### Rationale:
+- Prevents hanging in CI/CD environments
+- Ensures tests can run in headless servers
+- Maintains consistent testing behavior
+- Prevents user intervention requirements
