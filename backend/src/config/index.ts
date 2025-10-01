@@ -1,20 +1,23 @@
-import dotenv from 'dotenv';
+import './load-env.js';
+import { configService, configServiceReady } from '../services/config.service.js';
 
-dotenv.config();
+const env = configService.getEnv();
 
 export const config = {
-  port: process.env.PORT || 3000,
-  nodeEnv: process.env.NODE_ENV || 'development',
+  port: env.port,
+  nodeEnv: env.nodeEnv,
   supabase: {
-    url: process.env.SUPABASE_URL || '',
-    anonKey: process.env.SUPABASE_ANON_KEY || '',
-    serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
+    url: env.supabaseUrl,
+    anonKey: env.supabaseAnonKey,
+    serviceKey: env.supabaseServiceKey,
   },
   openai: {
-    apiKey: process.env.OPENAI_API_KEY || '',
-    model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+    apiKey: env.openaiApiKey,
+    model: env.primaryAiModel,
   },
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: env.corsOrigin,
   },
 };
+
+export { configService, configServiceReady };

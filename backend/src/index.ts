@@ -6,6 +6,7 @@ import gamesRouter from './routes/games.js';
 import worldsRouter from './routes/worlds.js';
 import storyRouter from './routes/story.js';
 import diceRouter from './routes/dice.js';
+import configRouter from './routes/config.js';
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/config', configRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);

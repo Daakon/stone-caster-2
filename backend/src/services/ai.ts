@@ -1,9 +1,10 @@
 import OpenAI from 'openai';
-import { config } from '../config/index.js';
+import { configService } from '../config/index.js';
 import type { AIResponse, StoryAction, GameSave, Character } from 'shared';
 
+const env = configService.getEnv();
 const openai = new OpenAI({
-  apiKey: config.openai.apiKey,
+  apiKey: env.openaiApiKey,
 });
 
 interface StoryContext {
@@ -13,6 +14,16 @@ interface StoryContext {
 }
 
 export class AIService {
+  private async getActiveModel(): Promise<string> {
+    try {
+      await configService.whenReady();
+    } catch {
+      await configService.refreshNow();
+    }
+
+    return configService.getAi().activeModel;
+  }
+
   private buildSystemPrompt(context: StoryContext): string {
     return `You are an AI Game Master for a role-playing game. Your role is to:
 - Create engaging, immersive narratives
@@ -50,11 +61,12 @@ Format your response as JSON with:
 
   async generateStoryResponse(context: StoryContext): Promise<AIResponse> {
     try {
+      const model = await this.getActiveModel();
       const systemPrompt = this.buildSystemPrompt(context);
       const conversationHistory = this.buildConversationHistory(context.gameSave);
 
       const response = await openai.chat.completions.create({
-        model: config.openai.model,
+        model,
         messages: [
           { role: 'system', content: systemPrompt },
           ...conversationHistory,
@@ -74,9 +86,8 @@ Format your response as JSON with:
       return aiResponse;
     } catch (error) {
       console.error('AI Service error:', error);
-      // Fallback response
       return {
-        narrative: "The world seems to pause for a moment as reality stabilizes...",
+        narrative: 'The world seems to pause for a moment as reality stabilizes...',
         emotion: 'neutral',
         suggestedActions: ['Look around', 'Continue forward', 'Check inventory'],
       };
@@ -89,8 +100,9 @@ Format your response as JSON with:
     goals: string[];
   }> {
     try {
+      const model = await this.getActiveModel();
       const response = await openai.chat.completions.create({
-        model: config.openai.model,
+        model,
         messages: [
           {
             role: 'system',
@@ -129,10 +141,11 @@ Format your response as JSON with:
     context: StoryContext
   ): Promise<string> {
     const success = rollResult >= difficulty;
-    
+
     try {
+      const model = await this.getActiveModel();
       const response = await openai.chat.completions.create({
-        model: config.openai.model,
+        model,
         messages: [
           {
             role: 'system',
