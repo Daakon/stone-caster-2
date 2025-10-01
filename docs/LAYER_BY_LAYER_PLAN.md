@@ -122,21 +122,68 @@ npm run type-check --workspaces
 ### 0.2 Implement Tailwind CSS + shadcn/ui
 **Branch**: `layer-0.2/tailwind-shadcn-setup`
 
-**Problem**: Using custom CSS instead of specified Tailwind
+**Problem**: Using custom CSS instead of specified Tailwind + shadcn/ui design system
 
 **Tasks**:
-1. Configure Tailwind CSS
-2. Set up shadcn/ui components
-3. Migrate existing CSS to Tailwind utility classes
-4. Create base component library
-5. Implement dark mode support
+1. **Complete Tailwind CSS Configuration**:
+   - Verify `tailwind.config.js` has proper content paths and theme extensions
+   - Add custom color palette for Stone Caster branding
+   - Configure responsive breakpoints (mobile-first: 375px, 768px, 1024px, 1280px)
+   - Set up typography scale and spacing system
+
+2. **Install and Configure shadcn/ui**:
+   - Initialize shadcn/ui with `npx shadcn@latest init`
+   - Configure `components.json` with proper paths and styling
+   - Install core components: Button, Input, Card, Dialog, DropdownMenu, Sheet
+   - Install form components: Form, Label, Select, Textarea, Checkbox, RadioGroup
+   - Install navigation components: NavigationMenu, Tabs, Breadcrumb
+   - Install feedback components: Alert, Toast, Progress, Skeleton
+
+3. **Migrate Existing CSS to Tailwind**:
+   - Convert `frontend/src/index.css` to use only Tailwind directives
+   - Remove custom CSS classes from all components
+   - Replace inline styles with Tailwind utility classes
+   - Ensure mobile-first responsive design (375×812 baseline)
+
+4. **Create Base Component Library**:
+   - Build reusable Button variants (primary, secondary, ghost, destructive)
+   - Create form field components with proper labeling and validation states
+   - Build card components for character/game displays
+   - Create navigation components (header, sidebar, mobile drawer)
+   - Build modal/dialog components for confirmations and forms
+
+5. **Implement Dark Mode Support**:
+   - Configure Tailwind dark mode with `class` strategy
+   - Create dark mode toggle component
+   - Define dark mode color palette
+   - Test all components in both light and dark modes
+   - Ensure proper contrast ratios for accessibility
+
+6. **Mobile Navigation System**:
+   - Implement hamburger menu for mobile (375×812)
+   - Create slide-out drawer navigation
+   - Add touch-friendly tap targets (44px minimum)
+   - Implement swipe gestures for mobile navigation
+   - Test on actual mobile devices
+
+7. **Accessibility Enhancements**:
+   - Ensure all interactive elements have proper focus states
+   - Add ARIA labels and descriptions where needed
+   - Test keyboard navigation through all components
+   - Verify color contrast meets WCAG AA standards
+   - Add screen reader support for dynamic content
 
 **Acceptance Criteria**:
-- ✅ All pages use Tailwind utility classes
-- ✅ shadcn/ui components available
-- ✅ Mobile-first responsive design works
-- ✅ Dark mode support
-- ✅ No custom CSS files
+- ✅ All pages use Tailwind utility classes exclusively
+- ✅ shadcn/ui components properly installed and configured
+- ✅ Mobile-first responsive design works at 375×812 and up
+- ✅ Dark mode toggle functional with proper theming
+- ✅ No custom CSS files (only Tailwind directives in index.css)
+- ✅ Mobile navigation drawer works with touch gestures
+- ✅ All components pass accessibility tests (axe-core)
+- ✅ Keyboard navigation works throughout the app
+- ✅ Color contrast meets WCAG AA standards
+- ✅ Components are reusable and properly typed
 
 **Local Testing Instructions**:
 ```bash
@@ -146,32 +193,65 @@ git checkout layer-0.2/tailwind-shadcn-setup
 # 2. Install dependencies (if not already done)
 npm install
 
-# 3. Start development servers
+# 3. Initialize shadcn/ui (if not already done)
+cd frontend
+npx shadcn@latest init
+# Follow prompts to configure components.json
+
+# 4. Install shadcn/ui components
+npx shadcn@latest add button input card dialog dropdown-menu sheet
+npx shadcn@latest add form label select textarea checkbox radio-group
+npx shadcn@latest add navigation-menu tabs breadcrumb
+npx shadcn@latest add alert toast progress skeleton
+
+# 5. Start development servers
+cd ..
 npm run dev
 
-# 4. Test the application
+# 6. Test the application
 # - Frontend: http://localhost:5173
-# - Verify all pages use Tailwind classes
-# - Test responsive design at 375×812, 768×1024, 1920×1080
-# - Test dark mode toggle
-# - Verify shadcn/ui components work
-# - Check that no custom CSS is being used
+# - Backend: http://localhost:3000/health
 
-# 5. Run tests
+# 7. Visual Testing Checklist:
+# - Verify all pages use Tailwind classes exclusively
+# - Test responsive design at 375×812 (mobile), 768×1024 (tablet), 1920×1080 (desktop)
+# - Test dark mode toggle functionality
+# - Verify shadcn/ui components render correctly
+# - Check mobile navigation drawer works with touch
+# - Test keyboard navigation (Tab, Enter, Escape, Arrow keys)
+# - Verify focus states are visible and logical
+# - Check color contrast in both light and dark modes
+# - Test form validation states and error messages
+# - Verify loading states and animations work
+
+# 8. Accessibility Testing:
+# - Run axe-core tests: npm run test:a11y --workspace=frontend
+# - Test with screen reader (if available)
+# - Verify all interactive elements are keyboard accessible
+# - Check that color is not the only way to convey information
+
+# 9. Run tests
 npm test
 npm run test:e2e --workspace=frontend
 
-# 6. Run linting and type checking
+# 10. Run linting and type checking
 npm run lint --workspaces
 npm run type-check --workspaces
+
+# 11. Build test
+npm run build
 ```
 
 **Expected Outcome**:
-- All pages styled with Tailwind utility classes
-- shadcn/ui components functional
-- Responsive design works across all viewports
-- Dark mode toggle works
-- No custom CSS files remain
+- All pages styled with Tailwind utility classes exclusively
+- shadcn/ui components properly integrated and functional
+- Mobile-first responsive design working at all breakpoints
+- Dark mode toggle working with proper theming
+- Mobile navigation drawer functional with touch support
+- All accessibility tests passing (0 serious/critical axe violations)
+- Keyboard navigation working throughout the application
+- No custom CSS files (only Tailwind directives)
+- Components are reusable, properly typed, and documented
 
 ---
 
