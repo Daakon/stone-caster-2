@@ -17,6 +17,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   
   initialize: async () => {
     try {
+      // Check if Supabase is configured
+      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        console.warn('Supabase not configured, running in demo mode');
+        set({ user: null, loading: false });
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       set({ user: session?.user ?? null, loading: false });
 
