@@ -7,6 +7,12 @@ import worldsRouter from './routes/worlds.js';
 import storyRouter from './routes/story.js';
 import diceRouter from './routes/dice.js';
 import configRouter from './routes/config.js';
+import meRouter from './routes/me.js';
+import adventuresRouter from './routes/adventures.js';
+import searchRouter from './routes/search.js';
+import stonesRouter from './routes/stones.js';
+import subscriptionRouter from './routes/subscription.js';
+import telemetryRouter from './routes/telemetry.js';
 
 const app = express();
 
@@ -24,9 +30,15 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/config', configRouter);
+app.use('/api/me', meRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);
+app.use('/api/adventures', adventuresRouter);
+app.use('/api/search', searchRouter);
+app.use('/api/stones', stonesRouter);
+app.use('/api/subscription', subscriptionRouter);
+app.use('/api/telemetry', telemetryRouter);
 app.use('/api/story', storyRouter);
 app.use('/api/dice', diceRouter);
 
@@ -38,11 +50,13 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Start server
-const port = config.port;
-app.listen(port, () => {
-  console.log(`🎲 Stonecaster API server running on port ${port}`);
-  console.log(`📍 Health check: http://localhost:${port}/health`);
-});
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  const port = config.port;
+  app.listen(port, () => {
+    console.log(`🎲 Stonecaster API server running on port ${port}`);
+    console.log(`📍 Health check: http://localhost:${port}/health`);
+  });
+}
 
 export default app;
