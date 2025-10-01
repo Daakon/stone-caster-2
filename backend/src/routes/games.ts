@@ -3,10 +3,12 @@ import type { Request, Response } from 'express';
 import { supabase } from '../services/supabase.js';
 import { GameSaveSchema, CreateGameRequestSchema, GameTurnRequestSchema, IdParamSchema } from 'shared';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { toGameDTO } from '../utils/dto-mappers.js';
+import { toGameDTO, toTurnResultDTO } from '../utils/dto-mappers.js';
 import { validateRequest, requireIdempotencyKey } from '../middleware/validation.js';
 import { optionalAuth, jwtAuth, requireAuth } from '../middleware/auth.js';
 import { ApiErrorCode } from 'shared';
+import { gamesService } from '../services/games.service.js';
+import { turnsService } from '../services/turns.service.js';
 
 const router = express.Router();
 
@@ -81,44 +83,44 @@ router.get('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), async
   }
 });
 
-// Create a new game save
+// Create a new game (spawn)
 router.post('/', optionalAuth, validateRequest(CreateGameRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
-    const userId = req.ctx?.userId;
-    if (!userId) {
+    const { adventureId, characterId } = req.body;
+    const owner = req.ctx?.userId || req.cookies?.device_id;
+
+    if (!owner) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.UNAUTHORIZED,
-        'User authentication required',
+        'Authentication required',
         req
       );
     }
 
-    const gameSaveData = GameSaveSchema.parse({
-      ...req.body,
-      userId,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      lastPlayedAt: new Date().toISOString(),
+    const spawnResult = await gamesService.spawn({
+      adventureId,
+      characterId,
+      owner,
     });
 
-    const { data, error } = await supabase
-      .from('game_saves')
-      .insert([gameSaveData])
-      .select()
-      .single();
+    if (!spawnResult.success) {
+      return sendErrorWithStatus(
+        res,
+        spawnResult.error!,
+        spawnResult.message!,
+        req
+      );
+    }
 
-    if (error) throw error;
-    
-    const gameDTO = toGameDTO(data);
+    const gameDTO = toGameDTO(spawnResult.game!);
     sendSuccess(res, gameDTO, req, 201);
   } catch (error) {
-    console.error('Error creating game save:', error);
+    console.error('Error creating game:', error);
     sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,
-      'Failed to create game save',
+      'Failed to create game',
       req
     );
   }
@@ -211,28 +213,51 @@ router.delete('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), as
 // Submit a game turn
 router.post('/:id/turn', optionalAuth, validateRequest(IdParamSchema, 'params'), validateRequest(GameTurnRequestSchema, 'body'), requireIdempotencyKey, async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id: gameId } = req.params;
     const { optionId } = req.body;
-    const userId = req.ctx?.userId;
+    const owner = req.ctx?.userId || req.cookies?.device_id;
+    const idempotencyKey = req.headers['idempotency-key'] as string;
 
-    if (!userId) {
+    if (!owner) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.UNAUTHORIZED,
-        'User authentication required',
+        'Authentication required',
         req
       );
     }
 
-    // Mock turn processing - in real implementation, this would process the turn
-    const turnResult = {
-      gameId: id,
+    const turnResult = await turnsService.runBufferedTurn({
+      gameId,
       optionId,
-      result: 'Turn processed successfully',
-      timestamp: new Date().toISOString(),
-    };
+      owner,
+      idempotencyKey,
+    });
 
-    sendSuccess(res, turnResult, req);
+    if (!turnResult.success) {
+      // Map error codes to appropriate HTTP status codes
+      let statusCode = 500;
+      if (turnResult.error === ApiErrorCode.INSUFFICIENT_STONES) {
+        statusCode = 402; // Payment Required
+      } else if (turnResult.error === ApiErrorCode.VALIDATION_FAILED) {
+        statusCode = 422; // Unprocessable Entity
+      } else if (turnResult.error === ApiErrorCode.NOT_FOUND) {
+        statusCode = 404; // Not Found
+      } else if (turnResult.error === ApiErrorCode.CONFLICT) {
+        statusCode = 409; // Conflict
+      }
+
+      return sendErrorWithStatus(
+        res,
+        turnResult.error!,
+        turnResult.message!,
+        req,
+        statusCode
+      );
+    }
+
+    const turnDTO = toTurnResultDTO(turnResult.turnResult!);
+    sendSuccess(res, turnDTO, req);
   } catch (error) {
     console.error('Error processing game turn:', error);
     sendErrorWithStatus(

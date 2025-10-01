@@ -11,6 +11,7 @@ import type {
   StonesPackDTO,
   SubscriptionDTO,
   SearchResultDTO,
+  TurnResult,
 } from 'shared';
 
 // Character DTO mapper
@@ -164,5 +165,28 @@ export function toSearchResultDTO(
     name: item.name,
     description: item.description,
     relevance,
+  };
+}
+
+// Turn result DTO mapper (redacts internal fields)
+export function toTurnResultDTO(turnResult: any): TurnResult {
+  return {
+    id: turnResult.id,
+    game_id: turnResult.game_id,
+    option_id: turnResult.option_id,
+    ai_response: {
+      narrative: turnResult.ai_response.narrative,
+      emotion: turnResult.ai_response.emotion,
+      npcResponses: turnResult.ai_response.npcResponses,
+      worldStateChanges: turnResult.ai_response.worldStateChanges,
+      suggestedActions: turnResult.ai_response.suggestedActions,
+    },
+    created_at: turnResult.created_at,
+    // Explicitly exclude internal fields:
+    // - state_snapshot (server-only)
+    // - prompt_text (server-only)
+    // - internal IDs not needed by UI
+    // - audit/ledger internals
+    // - policy flags
   };
 }
