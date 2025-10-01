@@ -1,0 +1,964 @@
+{
+  "id": "adventure_whispercross_hook",
+  "title": "Whispercross Woods: Rescue & Rebuild",
+  "summary": "A wounded shifter named Kiera stumbles into the glade. Slavers have captured her allies and others from nearby villages. The player is drawn into a fight not only to free them, but to uncover the deeper workings of the slavery ring.",
+  "story_arc": {
+    "summary": "A wounded shifter named Kiera stumbles into the outskirts of the glade. Slavers have captured her allies and others from nearby villages...",
+    "themes": ["rescue", "community building", "resistance against oppression"]
+  },
+  "scheduler": {
+    "timed_incidents": [
+      {
+        "id": "slaver_patrols_tighten",
+        "when": [
+          {
+            "clock_at_least": {
+              "id": "slaver_alert",
+              "value": 2
+            }
+          }
+        ],
+        "effect": {
+          "tag_add": ["lantern_patrols"]
+        }
+      }
+    ]
+  },
+  "scenes": {
+    "outer_paths_meet_kiera_01": {
+      "id": "outer_paths_meet_kiera_01",
+      "location": "whispercross_outer_paths",
+      "description": "You spot movement ahead on the path — a figure, limping, clutching their side. As you approach, you see the glint of a blade and the shadow of feline ears.",
+      "events": [
+        {
+          "trigger": "on_scene_start",
+          "action": "introduce_npc",
+          "npc_id": "kiera"
+        }
+      ],
+      "affordances": [
+        {
+          "id": "approach_safely",
+          "intent_tags": ["approach_safely"],
+          "skill_candidates": ["Empathy", "Presence", "Stealth"],
+          "context_bias": ["wounded_shifter", "low_light"],
+          "dc_formula": "approach_safely"
+        },
+        {
+          "id": "observe_camp",
+          "intent_tags": ["scout", "recon"],
+          "skill_candidates": ["Survival", "Investigation", "Stealth"],
+          "context_bias": ["lantern_patrols"],
+          "dc_formula": "rescue"
+        }
+      ],
+      "nudge_policy": [
+        {
+          "when_tags": ["captives_nearby"],
+          "say": "Kiera nods toward the cages. “We can get them out if we move smart.”"
+        }
+      ],
+      "entities_present": {
+        "kiera": {
+          "state": ["wounded_shifter"]
+        },
+        "captives_nearby": true
+      }
+    }
+  },
+  "appointments": [
+    {
+      "id": "meet_kiera_whispercross_evening",
+      "who": ["player_main", "kiera"],
+      "where": "whispercross_glade",
+      "phase": "evening",
+      "reminder": "subtle",
+      "missed_effects": ["kiera_disappointed", "rumor_you_stood_her_up"]
+    }
+  ],
+  "clocks": [
+    {
+      "id": "slaver_alert",
+      "value": 0,
+      "max": 4,
+      "note": "Each failed stealth or missed appointment may tick this."
+    }
+  ],
+  "name_reveal_overrides": {
+    "ally_introduction": [
+      {
+        "ally": "kiera",
+        "who": ["cael", "rennik", "mira", "children"],
+        "when_scene": "skimmer_camp_edge"
+      }
+    ],
+    "document_discovery": [
+      {
+        "doc_flag": "ledger_outer_camp",
+        "reveals": ["shift_lead_01", "camp_quarter"]
+      }
+    ]
+  },
+  "factions": {
+    "whispercross_glade_alliance": {
+      "id": "whispercross_glade_alliance",
+      "display_name": "Whispercross Glade Alliance",
+      "role": "player_aligned",
+      "hostility": 0,
+      "sanctuary": true,
+      "vibe": "Protective, community-driven resistance against slavers",
+      "doctrine": {
+        "core": [
+          "Shelter and heal the rescued",
+          "Disrupt and dismantle slaver routes",
+          "Expand safe zones for vulnerable folk"
+        ],
+        "taboos": [
+          "Trading in sentient life",
+          "Abandoning those under sanctuary"
+        ]
+      },
+      "primary_objectives": [
+        "Rescue captives from enemy control",
+        "Strengthen defences of the Glade",
+        "Build alliances with nearby packs and villages"
+      ],
+      "tags": ["resistance", "player_driven", "home_faction"]
+    },
+    "slavers": {
+      "id": "slavers",
+      "display_name": "Skimmer Cartel",
+      "aliases": ["slavers", "skimmers"],
+      "tags": [
+        "raiders",
+        "traffickers",
+        "riverborne",
+        "exploitative",
+        "entrenched"
+      ],
+      "ranks": ["scout", "handler", "overseer", "broker"],
+      "role_labels": {
+        "scout": "Scout",
+        "handler": "Handler",
+        "overseer": "Overseer",
+        "broker": "Broker"
+      },
+      "visuals": {
+        "badge": "knotted_cord_over_hook",
+        "colors": ["rust", "tar", "bone"]
+      },
+      "hostility": 2,
+      "notes": "Raiders and wardens of outer camps",
+      "vibe": "Mobile slaver arm that scouts, seizes, and moves captives to buyers...",
+      "banner": "broken chain over black road",
+      "organization": {
+        "leader_title": "Skim-Lord",
+        "cells": [
+          "scout-crews",
+          "bind-crews",
+          "ward-crews",
+          "auction-brokers",
+          "transporters"
+        ]
+      },
+      "primary_objectives": [
+        "Seize captives for buyer contracts",
+        "Maintain ward networks and holding sites",
+        "Protect routes and schedules for transfers",
+        "Avoid prolonged fights; disengage on stiff resistance"
+      ],
+      "secondary_objectives": [
+        "Recruit or coerce locals as spotters",
+        "Probe defenses to plan abductions",
+        "Erase trails and records to delay pursuit"
+      ],
+      "abduction_cadence_rules": {
+        "base_rate": "1–2 probes per day-night cycle near soft targets",
+        "pressure_up": "If abductions succeed with low losses, increase frequency for 2–3 days",
+        "pressure_down": "If foiled or losses incurred, pull back for several days before next push"
+      }
+    }
+  },
+  "timed_incidents": [
+    {
+      "id": "slaver_patrols_tighten",
+      "when": [
+        {
+          "clock_at_least": {
+            "id": "slaver_alert",
+            "value": 2
+          }
+        }
+      ],
+      "effect": {
+        "note": "Stealth DC +1 on outer paths; more lanterns at night."
+      }
+    },
+    {
+      "id": "glade_pushes_backchannel",
+      "when": [
+        {
+          "phase": "morning"
+        },
+        {
+          "goal_incomplete": "free_slaves_first_camp"
+        }
+      ],
+      "nudge": "A runner from the Glade leaves a message: 'We can hide them tonight—don’t wait.'"
+    }
+  ],
+  "guard_patrols": [
+    {
+      "location": "whispercross_outer_paths",
+      "phase": "dusk",
+      "note": "patrol swap — stealth +1 DC"
+    },
+    {
+      "location": "whispercross_outer_paths",
+      "phase": "night",
+      "note": "lantern patrols — perception +1 DC"
+    }
+  ],
+  "shop_hours": [
+    {
+      "id": "tavern_whispercross",
+      "open": "evening",
+      "close": "night"
+    }
+  ],
+  "location_tiers": [
+    {
+      "tier": 1,
+      "label": "Outer Camp",
+      "description": "Temporary slaver encampments used for holding and sorting recent captives.",
+      "common_features": [
+        "low defenses",
+        "makeshift pens",
+        "few guards",
+        "basic wards"
+      ],
+      "discovery_methods": ["tracks", "survivor rumors", "random encounter"],
+      "threat_rating": "low",
+      "linked_story_usage": [
+        "initial rescues",
+        "introduce faction",
+        "learn slaver tactics"
+      ]
+    },
+    {
+      "tier": 2,
+      "label": "Warded Outpost",
+      "description": "Permanent border operations with trained Slavers and buyer-bound captives.",
+      "common_features": [
+        "magical containment",
+        "slave auction rituals",
+        "Slaver barracks"
+      ],
+      "threat_rating": "medium",
+      "linked_story_usage": [
+        "mid-arc raids",
+        "learn buyer identities",
+        "recover gear or allies"
+      ]
+    },
+    {
+      "tier": 3,
+      "label": "Stronghold",
+      "description": "Major hub with field commander presence. High security and magical suppression.",
+      "common_features": [
+        "essence wards",
+        "blood oaths",
+        "ritual cages",
+        "combat arenas"
+      ],
+      "threat_rating": "high",
+      "linked_story_usage": [
+        "free key prisoners",
+        "confront mid-bosses",
+        "unlock story forks"
+      ]
+    },
+    {
+      "tier": 4,
+      "label": "Buyer's Domain",
+      "description": "Private sanctums of elite buyers — deadly, heavily protected, and unique.",
+      "common_features": [
+        "biolabs",
+        "twisted ecosystems",
+        "planar interference"
+      ],
+      "threat_rating": "extreme",
+      "linked_story_usage": [
+        "endgame strikes",
+        "moral crossroads",
+        "story climax potential"
+      ]
+    }
+  ],
+  "locations": {
+    "whispercross_outer_paths": {
+      "id": "whispercross_outer_paths",
+      "name": "Outer Paths",
+      "tier": 1,
+      "factions_present": ["slavers"],
+      "description": "Wooded trails skirting the glade’s boundary; favored by scouts and traders."
+    },
+    "whispercross_glade": {
+      "id": "whispercross_glade",
+      "name": "Whispercross Glade",
+      "tier": 0,
+      "factions_present": ["whispercross_glade_alliance"],
+      "description": "A sanctuary for the free folk of Whispercross, hidden among towering trees."
+    },
+    "slaver_camp_east": {
+      "id": "slaver_camp_east",
+      "name": "Eastern Slaver Camp",
+      "tier": 2,
+      "factions_present": ["slavers"],
+      "description": "A fortified holding site where the Slavers stage their raids."
+    },
+    "slaver_camp_edge": {
+      "id": "slaver_camp_edge",
+      "location": "slaver_camp_east",
+      "tier": 1,
+      "description": "Through underbrush and the murmur of lanterns, the edge of a Slaver camp comes into view: low fences, makeshift pens, bored sentries.",
+      "affordances": [
+        {
+          "id": "rescue",
+          "intent_tags": ["rescue"],
+          "skill_candidates": ["Stealth", "Deception", "Presence"],
+          "context_bias": ["lantern_patrols"],
+          "dc_formula": "rescue"
+        }
+      ],
+      "nudge_policy": [
+        {
+          "when_tags": ["captives_nearby"],
+          "say": "Whispers and the clink of chain drift from the pens."
+        }
+      ],
+      "entities_present": {
+        "captives_nearby": true
+      },
+      "rescue_selection_policy": {
+        "source": "rescue_scripting.first_saved_candidates",
+        "fallback": "rescue_scripting.fallback_if_unavailable",
+        "tags_required": ["early_rescue"]
+      },
+      "on_autocheck_effects": {
+        "rescue": {
+          "on_degree": {
+            "critical_success": {
+              "introduce_npcs": ["rennik", "cael", "mira", "children"],
+              "state_deltas": [
+                {
+                  "key": "rescued_outer_camp",
+                  "value": true
+                }
+              ]
+            },
+            "success": {
+              "reveal_names_on": [
+                {
+                  "type": "ally_introduction",
+                  "ally": "kiera",
+                  "who": ["rennik", "cael", "mira", "children"]
+                }
+              ],
+              "introduce_npcs": ["rennik", "cael", "mira"],
+              "state_deltas": [
+                {
+                  "key": "rescued_outer_camp",
+                  "value": true
+                }
+              ]
+            },
+            "partial": {
+              "introduce_npcs": ["rennik", "cael"],
+              "clock_ticks": [
+                {
+                  "id": "slaver_alert",
+                  "delta": 1
+                }
+              ],
+              "state_deltas": [
+                {
+                  "key": "alarm_risk",
+                  "value": true
+                }
+              ]
+            },
+            "fail": {
+              "clock_ticks": [
+                {
+                  "id": "slaver_alert",
+                  "delta": 1
+                }
+              ]
+            }
+          }
+        }
+      },
+      "narrative_templates": {
+        "rescue_success": [
+          "You cut bonds; a tall dire-wolf shifter steadies a limping fox-tailed figure while a barefoot wild-elf checks the children."
+        ],
+        "rescue_partial": [
+          "You yank two cages open; the fox-tailed prisoner and the dire-wolf shifter bolt for cover as lanterns flare."
+        ]
+      }
+    }
+  },
+  "location_aliases": {
+    "by_type": {
+      "safe_zone": {
+        "0": "hidden glade",
+        "1": "sheltered clearing",
+        "2": "quiet refuge",
+        "3": "warded haven",
+        "4": "sanctum under watch"
+      },
+      "slaver_camp": {
+        "0": "trail sign",
+        "1": "outer pens",
+        "2": "warded outpost",
+        "3": "stronghold",
+        "4": "buyer’s domain"
+      },
+      "encounter_zone": {
+        "0": "edge path",
+        "1": "outer trail",
+        "2": "deep run",
+        "3": "crossing under watch",
+        "4": "forbidden verge"
+      }
+    }
+  },
+  "npc_location_logic": {
+    "faction_leaders": "always tied to fixed strongholds or buyer domains",
+    "buyers": "tied to Tier 4 domains unless otherwise summoned",
+    "rescued_allies": "initially in Tier 1 camp unless relocated",
+    "wanderers": "may be encountered in neutral wild zones"
+  },
+  "event_triggers": [
+    {
+      "id": "start_rescue_path",
+      "trigger_npc": "kiera",
+      "location": "whispercross_glade",
+      "description": "The country road is little more than a pressed ribbon of dirt, winding between pine and meadow. You've been walking for days now — no rush, no fixed destination. Why did you set out again?\n\nMoments after your thoughts drift to that answer, the wind shifts warm, carrying the faint tang of ash. In the treeline ahead, something stirs. A figure watches from partial cover — wounded, poised, and not yet ready to speak.\nA dry whisper rides the wind from somewhere unseen: “This is fine. Totally fine.”",
+      "leads_to": "slaver_camp_edge",
+      "impact": {
+        "arc_status": "ACTIVE",
+        "revealed_locations": ["slaver_camp_edge"],
+        "npc_visibility": [
+          "cael",
+          "mira",
+          "thorne",
+          "eryn",
+          "pree",
+          "rennik",
+          "elsin",
+          "children"
+        ]
+      },
+      "renderer_hints": {
+        "preface_observe_choice": true,
+        "name_lock": true
+      }
+    },
+    {
+      "id": "return_to_whispercross_suggestion",
+      "trigger_type": "story_arc_completion",
+      "trigger_value": "rescue_camp_arc",
+      "description": "Kiera suggests returning to Whispercross for safety and regrouping.",
+      "npc_initiator": "kiera"
+    }
+  ],
+  "npc_roster": {
+    "cael": {
+      "id": "cael",
+      "name": "Cael",
+      "race": "Dire Wolf Shifter",
+      "essence_alignment": ["Life", "Chaos"],
+      "quirks": [
+        "🐾always stands between others and danger",
+        "🪨 emotionally guarded"
+      ],
+      "traits": ["Noble", "fiercely loyal", "burdened by loss"],
+      "appearance": {
+        "age": 34,
+        "build": "tall, muscular",
+        "notable_features": [
+          "silver-streaked black hair",
+          "amber eyes",
+          "wolfish presence"
+        ]
+      },
+      "personal_arc": {
+        "goal": "Find kinship and rebuild a sense of pack",
+        "wound": "Lost his entire pack to slaver hunts and transfers",
+        "alignment": "Protective, just",
+        "growth_path": "May take leadership role or become guardian-figure"
+      },
+      "relationship_web": [
+        {
+          "with": "kiera",
+          "bond_type": "protective interest",
+          "origin": "Met during brief stay with her group before ambush",
+          "depth": "flickering potential, not yet explored"
+        },
+        {
+          "with": "mira",
+          "bond_type": "shared respect",
+          "origin": "Both shifters, recognized kindred spirits during captivity",
+          "depth": "mutual understanding"
+        },
+        {
+          "with": "thorne",
+          "bond_type": "critical tension",
+          "origin": "Clashed during captivity over tactics and attitude",
+          "depth": "strained but functional"
+        }
+      ],
+      "unstable_thread": "May lose control when reminded of his lost pack",
+      "emotional_state": "guarded but observant",
+      "behavior_alignment": "stable",
+      "buyer_interest": ["Lord Halreth Durn"],
+      "capture_context": {
+        "location": "forest outskirts",
+        "captured_by": "Slaver squad",
+        "reason": "Rare Dire Wolf specimen; surrendered to allow others to escape"
+      },
+      "rescue_priority": 1,
+      "tags": ["early_rescue"]
+    },
+    "kiera": {
+      "id": "kiera",
+      "name": "Kiera",
+      "race": "Panther Shifter",
+      "essence_alignment": ["Life"],
+      "quirks": [
+        "🐾keeps panther ears and tail visible — a controlled, deliberate form of presence",
+        "🧊observes in silence when uncertain or sizing someone up",
+        "🐈tail lightly touches those she feels early trust or attraction toward",
+        "🔁tail wraps around arms, waists, or limbs when emotional bonds deepen — an unconscious gesture"
+      ],
+      "traits": [
+        "Fiercely loyal once trust is earned",
+        "tactically sharp",
+        "emotionally guarded",
+        "blunt when boundaries are crossed"
+      ],
+      "appearance": {
+        "age": 28,
+        "build": "lean and athletic",
+        "notable_features": [
+          "long braided dark hair",
+          "light blue eyes",
+          "tattooed runes on collarbone",
+          "panther ears and tail (usually visible)"
+        ]
+      },
+      "shifter_profile": {
+        "control_level": "absolute — born under the Second Veil",
+        "partial_shift_capable": true,
+        "default_state": "hybrid — ears, tail, eyes, and subtle reflex boosts",
+        "preferred_combat_form": "Strider Form",
+        "full_shift_form": "sleek black panther with glowing purple eyes",
+        "alternate_forms": [
+          "canine form (rare)",
+          "jungle cat variants",
+          "raven (taxing, limited)"
+        ],
+        "trigger_conditions": [
+          "choice",
+          "combat tactics",
+          "stealth need or vulnerability"
+        ],
+        "shifting_traits": "Seamless, silent, mixed-form utility.",
+        "emotional_tells": {
+          "light tail touch": "growing trust or subtle attraction",
+          "tail_wrap": "deep bonds or protective instinct"
+        },
+        "emotional_trigger": "Drawn to emotional consistency.",
+        "bond_grows_when": "Others mirror her instincts without forcing connection."
+      },
+      "personal_arc": {
+        "goal": "Rescue her captured kin and destroy the slaver chain from the inside",
+        "wound": "Blames herself for trusting the wrong outsider guide",
+        "alignment": "Earned loyalty only",
+        "growth_path": "Share leadership without needing control over every outcome"
+      },
+      "relationship_web": [
+        {
+          "with": "cael",
+          "bond_type": "cautious observation with reluctant respect",
+          "origin": "He gave himself up to protect the others",
+          "depth": "tense and growing"
+        }
+      ],
+      "unstable_thread": "When betrayed, she cuts ties decisively",
+      "emotional_state": "calm on the surface",
+      "behavior_alignment": "deliberate and controlled",
+      "capture_context": {
+        "location": "escaped",
+        "captured_by": null,
+        "reason": "Misled by a traitor; doubled back and reached the glade alone"
+      },
+      "approach_profile": {
+        "stance": "cautious-first",
+        "entry": [
+          "observe from cover",
+          "test for tells",
+          "step out only after advantage or Observe success"
+        ],
+        "trust_tests": [
+          "offers water or bandage",
+          "weapons kept low or sheathed",
+          "no chase when she repositions"
+        ],
+        "withdraw_rules": "If pressed for backstory or flanked, increase distance; reattempt later.",
+        "ask_logic": "Requests aid only for captives; no small talk."
+      },
+      "safety_regroup_bias": {
+        "preferred_safe_zone": "whispercross_glade",
+        "insist_turns": 3,
+        "leave_with_rescued_if_refused": true,
+        "persistence": "Will re-urge returning to the glade after major beats until safety conditions are met.",
+        "convince_to_delay": {
+          "allowed": true,
+          "factors": [
+            "clear safe fallback",
+            "secured shelter",
+            "adequate supplies",
+            "credible plan to protect dependents"
+          ]
+        }
+      },
+      "post_rescue_protocol": {
+        "priority_order": [
+          "stabilize_wounded",
+          "account_for_children",
+          "escort_to_safe_zone",
+          "set_watches_and_wards",
+          "debias_tracks_and_signs"
+        ],
+        "escort_rules": {
+          "children_present": "no offensive ops until children are in a defended safe_zone",
+          "wounded_present": "delay ops until stabilized to at least 2♥ or guarded by two capable allies",
+          "supply_floor": "no offensive ops if water < half-day or ward-salts < 1 pouch"
+        },
+        "fallback_decision": "If allies insist on striking again immediately, Kiera refuses and recommends regroup at Whispercross."
+      },
+      "reveal_tiers": {
+        "tier_0": [
+          "alias only",
+          "species hint via silhouette",
+          "directional hint to danger"
+        ],
+        "tier_1": [
+          "first name",
+          "approx captive count",
+          "nearest route in/out"
+        ],
+        "tier_2": ["partial plan", "enemy pattern"],
+        "tier_3": ["traitor lead", "buyer hint", "personal stake"]
+      },
+      "disposition_modifiers": {
+        "player_tags": {
+          "role:rogue": "start guarded; require proof-of-intent before revealing tier_1",
+          "essence:chaos": "avoid approach during overt intimidation"
+        },
+        "override": "Immediate aid to vulnerable NPCs lowers guard one step."
+      },
+      "last_updated": "2025-08-12T00:00:00Z"
+    },
+    "thorne": {
+      "id": "thorne",
+      "name": "Thorne",
+      "race": "Half-Elf (Human/Elven)",
+      "essence_alignment": ["Order"],
+      "quirks": [
+        "⚡bristles when corrected",
+        "🔥keeps sharpening his blade even when clean"
+      ],
+      "traits": ["Brash", "loyal", "haunted"],
+      "appearance": {
+        "age": 32,
+        "build": "lean and wiry",
+        "notable_features": [
+          "scar over left brow",
+          "elven grace with a human edge"
+        ]
+      },
+      "personal_arc": {
+        "goal": "Prove he's more than his past enslavement",
+        "wound": "Was once sold as a child",
+        "alignment": "Protective but confrontational",
+        "growth_path": "Learn to lead through hardship"
+      },
+      "relationship_web": [
+        {
+          "with": "eryn",
+          "bond_type": "devoted protector",
+          "origin": "Refused to abandon her during ambush",
+          "depth": "deep but unspoken"
+        },
+        {
+          "with": "cael",
+          "bond_type": "mutual tension",
+          "origin": "Conflicted over how to protect others",
+          "depth": "uneasy alliance"
+        }
+      ],
+      "unstable_thread": "May lash out when reminded of past servitude",
+      "emotional_state": "tense",
+      "behavior_alignment": "volatile",
+      "buyer_interest": ["Vorric Clayvein"],
+      "capture_context": {
+        "location": "ambush site",
+        "captured_by": "Slaver squad",
+        "reason": "Tried to shield others and was subdued"
+      }
+    },
+    "eryn": {
+      "id": "eryn",
+      "name": "Eryn",
+      "race": "Elf",
+      "essence_alignment": ["Order", "Arcane"],
+      "quirks": [
+        "🪨compulsively organizes spell components",
+        "🌱writes magical theory in margins"
+      ],
+      "traits": ["Scholarly", "methodical", "introverted"],
+      "appearance": {
+        "age": 140,
+        "build": "slender and delicate",
+        "notable_features": [
+          "glowing blue runes on forearms",
+          "long white-blonde hair"
+        ]
+      },
+      "personal_arc": {
+        "goal": "Preserve arcane history and knowledge",
+        "wound": "Lost most of her collection",
+        "alignment": "Neutral academic",
+        "growth_path": "Value bonds over artifacts"
+      },
+      "relationship_web": [
+        {
+          "with": "thorne",
+          "bond_type": "quiet affection",
+          "origin": "Longtime protector",
+          "depth": "bonded friendship with latent tension"
+        }
+      ],
+      "unstable_thread": "May risk life for artifacts",
+      "emotional_state": "stoic",
+      "behavior_alignment": "stable",
+      "buyer_interest": ["Madame Syris"],
+      "capture_context": {
+        "location": "ambush site",
+        "captured_by": "Syris agents",
+        "reason": "Refused to abandon grimoire; magical signature flagged her"
+      }
+    },
+    "mira": {
+      "id": "mira",
+      "name": "Mira",
+      "race": "Wild Elf (Guest among Shifters)",
+      "essence_alignment": ["Life"],
+      "quirks": ["🌱hums when healing", "🐾braids feathers from saved animals"],
+      "traits": ["Empathic", "intuitive", "serene"],
+      "appearance": {
+        "age": 86,
+        "build": "lithe and barefoot",
+        "notable_features": ["green-tinted skin", "bright hazel eyes"]
+      },
+      "personal_arc": {
+        "goal": "Create a healing sanctuary",
+        "wound": "Feels helpless after children taken",
+        "alignment": "Pacifist",
+        "growth_path": "Stronger protection magic or flexibility"
+      },
+      "relationship_web": [
+        {
+          "with": "cael",
+          "bond_type": "deep kinship",
+          "origin": "Time in shifter village",
+          "depth": "platonic but strong"
+        }
+      ],
+      "unstable_thread": "Pacifism could cost lives",
+      "emotional_state": "resilient but mourning",
+      "behavior_alignment": "stable",
+      "buyer_interest": ["The Gentle Hand"],
+      "capture_context": {
+        "location": "shifter outskirts",
+        "captured_by": "Slavers",
+        "reason": "Surrendered to protect children"
+      },
+      "rescue_priority": 1,
+      "tags": ["early_rescue"]
+    },
+    "rennik": {
+      "id": "rennik",
+      "name": "Rennik",
+      "race": "Fox Shifter",
+      "essence_alignment": ["Chaos"],
+      "quirks": ["🎭jokes at the worst time", "🪨pretends everything is fine"],
+      "traits": ["Charming", "unpredictable", "fiercely loyal"],
+      "appearance": {
+        "age": 30,
+        "build": "lanky",
+        "notable_features": [
+          "red-tinted hair",
+          "permanent smirk",
+          "bandaged tail"
+        ]
+      },
+      "personal_arc": {
+        "goal": "Rebuild Whispercross for misfits",
+        "wound": "Feels everyone leaves eventually",
+        "alignment": "Chaotic good",
+        "growth_path": "Become heart of a community"
+      },
+      "relationship_web": [],
+      "unstable_thread": "Covers trauma with humor",
+      "emotional_state": "light-hearted but hiding pain",
+      "behavior_alignment": "stable",
+      "buyer_interest": [],
+      "capture_context": {
+        "location": "supply route",
+        "captured_by": "Slavers",
+        "reason": "Caught mid-theft"
+      },
+      "agency_beats": {
+        "comic_relief": {
+          "enabled": true,
+          "frequency": "low",
+          "tone_rules": [
+            "no undercutting grief or vows",
+            "allowed after tension spikes",
+            "prefer brief asides"
+          ],
+          "beat_examples": [
+            "If they ask, I was totally winning.",
+            "Ow. Not my best hiding place.",
+            "Sir, your shoelace. No? Worth a try."
+          ]
+        }
+      },
+      "tags": ["comic_relief", "early_rescue"],
+      "rescue_priority": 1,
+      "last_updated": "2025-08-11T19:08:42.271563"
+    },
+    "sahran": {
+      "id": "sahran",
+      "name": "Sahran",
+      "race": "Wolf Shifter",
+      "essence": ["Life"],
+      "age": 47,
+      "appearance": {
+        "build": "broad-shouldered",
+        "hair": "short steel-gray",
+        "eyes": "amber",
+        "skin": "weathered tan",
+        "tags": ["scarred muzzle", "calm gait", "vigilant stance"]
+      },
+      "combat_role": "Support Guardian",
+      "traits": ["protective", "measured", "spiritually grounded"],
+      "quirks": ["🪨sits silently for hours", "🐾flicks ears when annoyed"],
+      "emotional_state": "watchful calm",
+      "relationship_web": [
+        {
+          "target_id": "kiera",
+          "bond_type": "lifepack",
+          "met": "childhood",
+          "location": "whispercross_glade",
+          "depth": "deep",
+          "notes": "Raised with Kiera; chosen family."
+        }
+      ],
+      "personal_arc": {
+        "motivation": "Preserve Whispercross legacy and protect the next generation",
+        "wound": "Blames himself for not preventing slaver attacks",
+        "alignment": "Protective Neutral",
+        "growth_potential": "Foundation for rebuilding a safe community"
+      },
+      "unstable_thread": "Fears strength is fading",
+      "behavior_alignment": "stable",
+      "buyer_interest": [],
+      "backstory_blurb": "Elder guardian of the hidden glade.",
+      "first_appearance_location": "whispercross_glade",
+      "last_updated": "2025-08-08T17:07:16.437656",
+      "capture_context": {}
+    },
+    "wolf_shifter_herbalist": {
+      "id": "wolf_shifter_herbalist",
+      "name": "Unnamed Wolf Herbalist",
+      "race": "Wolf Shifter",
+      "essence": ["Life"],
+      "appearance": {
+        "tags": ["stooped", "gray-eyed", "scent of herbs"]
+      },
+      "backstory_blurb": "Quiet herbalist who knows every healing plant near the glade.",
+      "capture_context": {}
+    },
+    "cat_shifter_scout": {
+      "id": "cat_shifter_scout",
+      "name": "Silent Cat Scout",
+      "race": "Cat Shifter",
+      "essence": ["Chaos"],
+      "appearance": {
+        "tags": ["quiet", "perches in trees", "narrow gaze"]
+      },
+      "backstory_blurb": "Canopy watcher; distrusts outsiders but remains.",
+      "capture_context": {}
+    },
+    "bear_shifter_guard": {
+      "id": "bear_shifter_guard",
+      "name": "Cautious Bear Guard",
+      "race": "Bear Shifter",
+      "essence": ["Order"],
+      "appearance": {
+        "tags": ["thickset", "arms crossed", "low grumble"]
+      },
+      "backstory_blurb": "Rarely speaks Common; stands near the glade entrance.",
+      "capture_context": {}
+    }
+  },
+  "faction_phase": {
+    "bonded_alliance": {
+      "status": "forming",
+      "founded_by": ["player_main", "kiera"],
+      "candidate_members": ["cael", "mira", "thorne"],
+      "parent_faction": "whispercross_glade_alliance",
+      "tags": ["resistance", "emergent", "emotional-trust"]
+    }
+  },
+  "faction_triggers": [
+    {
+      "type": "merge",
+      "trigger_event": "free_mira_and_cael",
+      "from_faction": "shifter_pack_north",
+      "to_faction": "whispercross_glade_alliance",
+      "conditions": ["player_supports_mira", "player_rescued_cael"],
+      "result": "pack allegiance absorbed into broader alliance"
+    }
+  ],
+  "scene_time_helpers": {
+    "use_glyphs": true,
+    "examples": {
+      "dawn": "🌅 Dawn — low traffic, fog cover",
+      "midday": "☀️ Midday — busiest lanes, poorest stealth",
+      "dusk": "🌇 Dusk — increased patrol swaps",
+      "night": "🌙 Night — best for stealth, higher risk of ambush"
+    }
+  },
+  "rescue_scripting": {
+    "first_saved_candidates": ["rennik", "cael", "mira", "children"],
+    "fallback_if_unavailable": ["thorne", "eryn"],
+    "notes": "Prioritize early mix of comic relief, protective anchor, healer, and vulnerable dependents."
+  }
+}

@@ -1,0 +1,1191 @@
+{
+  "id": "adventure_falebridge_frontier",
+  "title": "Falebridge Frontier: Hold the Line",
+  "summary": "You’re a newly contracted merc under an Elven Council Defense Writ. Falebridge’s streets are contested by organized bandits whose strikes are driven by supply theft, optics, and retaliation—not random timers. Captain Liraen issues operations; you can follow or freelance. Between ops, guaranteed interludes (tavern meals, rooftop watches, forge breaks, infirmary pauses) let you bond, trade quips, and deepen relationships. Twisted beasts appear only outside town during travel.",
+  "story_arc": {
+    "arc_id": "arc_frontier_defense",
+    "arc_title": "Shields Over Falebridge",
+    "arc_type": "tactical-defensive",
+    "arc_status": "ACTIVE",
+    "arc_goal": "Stabilize contested streets, strengthen fortifications, and dismantle raid leadership in the wilds.",
+    "arc_tone": "grim-determined",
+    "arc_emotion_tags": ["⚔️resistance", "🪨solidarity", "🔥sacrifice"],
+    "arc_urgency": "high",
+    "arc_handoff_quote": "The torches will gutter if no one tends them.",
+    "initial_session_context": {
+      "day": 1,
+      "time": "mid-day",
+      "location_id": "falebridge_town_core"
+    }
+  },
+
+  "onboarding_contract": {
+    "issuer_faction": "alder_council",
+    "document_name": "Defense Writ of Falebridge",
+    "proof_of_service": "green wax seal with alder leaf sigil",
+    "payment_terms": "hazard rate + bounty per raid leader neutralized + reagent stipend",
+    "lodging_clause": "Room and board at The Alder & Ash (kept by Maera) for player + named mercs",
+    "complications": [
+      "Trader Guild demands caravan priority",
+      "forge fuel and arcane reagents scarce"
+    ]
+  },
+
+  "mercenary_charter": {
+    "summary": "Professional expectations for contracted defenders operating under Captain Liraen within Falebridge and its approaches.",
+    "chain_of_command": {
+      "overall": "Captain Liraen Veyr (Defense Commander & Contracting Officer)",
+      "operational": "Watch Sergeants for assigned streets; Captain retains override",
+      "contract_team": ["player_main", "vaerix_drelkaen", "sareth"]
+    },
+    "rules_of_engagement": {
+      "required": [
+        "Prioritize civilian safety and fire control over pursuit unless ordered",
+        "Take prisoners when feasible; deliver to the Watch for questioning",
+        "Report actionable intel to Liraen or Maera’s ops ledger within one hour"
+      ],
+      "allowed": [
+        "Freelance strikes outside town if you log your route/return window at The Alder & Ash",
+        "Confiscate raider gear used in the attack as immediate battlefield salvage"
+      ],
+      "prohibited": [
+        "Looting from townsfolk or caravans",
+        "Arson inside palisade without Watch approval",
+        "Public executions (Council optics)"
+      ]
+    },
+    "field_operations": {
+      "check_in": "Log departures/returns at the Alder & Ash ops ledger (Maera)",
+      "escort_policy": "Caravans outrank patrols when inside palisade unless Liraen counters",
+      "pursuit_policy": "Short pursuit allowed if horn signals are silenced; break off if a second horn sounds"
+    },
+    "intelligence_protocols": {
+      "signal_codes": {
+        "one_short": "fall back",
+        "two_short": "flank left",
+        "long": "horn team spotted"
+      },
+      "evidence_chain": "Seal maps/notes in alder-green wax; deliver to Liraen or a Watch sergeant",
+      "bounty_claims": "Name, token, or marked gear of the lieutenant required"
+    },
+    "equipment_and_resupply": {
+      "forge_tokens": "Earned via defenses held; redeem with Dorn for armor/repairs",
+      "enchanting_credits": "Issued by Orym for consistent intel delivery",
+      "medical_priority": "Naelith will triage mercs after civilians unless mass-casualty"
+    },
+    "payment_and_rewards": {
+      "hazard_rate": "Daily rate scaled by threat tier",
+      "bounties": [
+        { "target": "Rook Hornmaster", "proof": "etched horn or coded strip" },
+        {
+          "target": "Cinder Elda",
+          "proof": "fire-sigil brand or powder satchel"
+        },
+        {
+          "target": "Grey Varin",
+          "proof": "quartermaster tallies or marked seal"
+        }
+      ],
+      "salvage_rights": "Battlefield salvage from raiders only; Council claims siege gear and powder"
+    },
+    "discipline_and_breach": {
+      "minor": ["dock day’s rate", "loss of forge token"],
+      "major": ["loss of lodging", "temporary detainment by Watch"],
+      "severance": "Blacklisted from Council contracts for repeated violations"
+    },
+    "leave_and_exit": {
+      "notice": "Three days’ notice to terminate without penalty",
+      "emergency_exit": "Immediate release if grievously wounded; forfeit current bounty claims"
+    },
+    "incentives_by_standing": [
+      { "standing_at_or_above": 2, "perk": "Ironleaf priority repair slot" },
+      {
+        "standing_at_or_above": 3,
+        "perk": "Orym’s basic weapon charm gratis (one item)"
+      },
+      {
+        "standing_at_or_above": 4,
+        "perk": "Access to Captain’s strike board (higher bounties)"
+      }
+    ]
+  },
+
+  "intro_scene": {
+    "scene_description": "The gate clerk checks your Defense Writ and waves you through Market Row. The town is tense but not under attack. You’re a new hire—no bonds yet. Captain Liraen (arcane captain), Vaerix (storm tactician), Sareth (umbra scout), and Maera (tavernkeep) are at their posts. Liraen promises a first assignment after brief introductions.",
+    "opening_choices": [
+      {
+        "choice_id": "meet_liraen",
+        "label": "Report to Captain Liraen for a two-minute situational brief.",
+        "leads_to_event": "ev_meet_liraen"
+      },
+      {
+        "choice_id": "meet_vaerix",
+        "label": "Touch base with Vaerix on tactics and expectations.",
+        "leads_to_event": "ev_meet_vaerix"
+      },
+      {
+        "choice_id": "meet_sareth",
+        "label": "Sync with Sareth on scout protocols and signals.",
+        "leads_to_event": "ev_meet_sareth"
+      },
+      {
+        "choice_id": "meet_maera",
+        "label": "Check in with Maera at The Alder & Ash and claim your bunk.",
+        "leads_to_event": "ev_meet_maera"
+      }
+    ]
+  },
+
+  "progression_tracks": {
+    "street_control": { "label": "Street Control", "value": 2, "max": 6 },
+    "fortifications": { "label": "Fortifications", "value": 1, "max": 6 },
+    "morale_meter": { "label": "Town Morale", "value": 2, "max": 6 },
+    "blight_pressure": { "label": "Blight Pressure", "value": 1, "max": 6 },
+    "council_investment": { "label": "Council Backing", "value": 1, "max": 6 },
+    "visibility_risk": { "label": "Target Profile", "value": 1, "max": 6 },
+    "trader_guild_trust": {
+      "label": "Trader Guild Trust",
+      "value": 2,
+      "max": 5
+    },
+    "intel_clues": { "label": "Raid Intel", "value": 0, "max": 6 },
+    "mercenary_standing": {
+      "label": "Mercenary Standing",
+      "value": 1,
+      "max": 6
+    }
+  },
+
+  "state": {
+    "threat_state": { "current_tier": 0, "cleared_max_tier": 0 },
+    "flags": {
+      "arrival_grace": true,
+      "met_local_captain": false,
+      "met_vaerix": false,
+      "met_sareth": false,
+      "met_maera": false,
+      "signed_charter": false,
+      "interlude_available": false
+    },
+    "bond_ledgers": {
+      "local_captain": 0,
+      "vaerix_drelkaen": 0,
+      "sareth": 0,
+      "maera_tavernkeep": 0
+    }
+  },
+
+  "pacing_rules": {
+    "notes": "No time-of-day attack rolls. Raids are motive-based and triggered by events, intel thresholds, or player-visible opportunities.",
+    "threat_tier_use": "Tier sets enemy quality and module difficulty, not attack frequency.",
+    "tier_formula": "base = floor((street_control + council_investment + visibility_risk)/3); threat_tier = clamp(base, 0, state.threat_state.cleared_max_tier + 1)",
+    "arrival_grace_rule": {
+      "description": "No hostile events until at least one introduction is completed.",
+      "clear_on_events": [
+        "ev_meet_liraen",
+        "ev_meet_vaerix",
+        "ev_meet_sareth",
+        "ev_meet_maera"
+      ]
+    },
+    "interlude_slot_rule": {
+      "description": "After resolving any combat_playbook (success or fail), schedule exactly one interlude scene if no immediate reaction event is queued.",
+      "grants_flag": "interlude_available",
+      "override_if": ["ev_retaliation"]
+    },
+    "manual_rest": "Player may trigger an interlude at The Alder & Ash when not on an active operation."
+  },
+
+  "social_system": {
+    "venues": [
+      {
+        "id": "venue_tavern",
+        "name": "The Alder & Ash",
+        "moods": ["warm", "crowded", "quiet-after-hours"]
+      },
+      {
+        "id": "venue_rooftops",
+        "name": "Rooftop Watch",
+        "moods": ["hushed", "windy", "tense"]
+      },
+      {
+        "id": "venue_forge",
+        "name": "Ironleaf Forge Corner",
+        "moods": ["sparks", "clangor", "soot"]
+      },
+      {
+        "id": "venue_infirmary",
+        "name": "Ash-Willow Side Ward",
+        "moods": ["lamplight", "herbal", "soft"]
+      }
+    ],
+    "bond_token_rules": {
+      "gain_on": [
+        "meaningful_choice",
+        "shared_food",
+        "trusted_confession",
+        "training_assist"
+      ],
+      "loss_on": [
+        "ignore_call_for_help",
+        "public_disrespect",
+        "reckless endangerment of civilians"
+      ],
+      "thresholds": {
+        "1": "small reveal",
+        "2": "personal story",
+        "3": "trusted duty",
+        "4": "private vulnerability"
+      }
+    }
+  },
+
+  "bandit_motives": [
+    {
+      "id": "m_supply_theft",
+      "summary": "Steal iron, timber, and rune-ink to arm their redoubt.",
+      "triggers": ["council_investment>=2", "town_upgrades_begun"]
+    },
+    {
+      "id": "m_political_pressure",
+      "summary": "Make Council aid look futile; hit visible improvements.",
+      "triggers": ["street_control>=3", "public_works_active"]
+    },
+    {
+      "id": "m_retaliation",
+      "summary": "Punish defenders after losses; target leaders and symbols.",
+      "triggers": ["recent_bandit_losses>=1"]
+    },
+    {
+      "id": "m_recruitment_grab",
+      "summary": "Kidnap specialists (Orym, Dorn, Naelith) for forced service.",
+      "triggers": ["intel_clues>=1", "player_seen_with_target"]
+    }
+  ],
+
+  "bandit_command": {
+    "lieutenants": [
+      {
+        "id": "rook_hornmaster",
+        "name": "Rook Hornmaster",
+        "style": "signal warfare + rooftops",
+        "motivations": ["m_political_pressure", "m_retaliation"]
+      },
+      {
+        "id": "cinder_elda",
+        "name": "Cinder Elda",
+        "style": "sappers, fire, panic",
+        "motivations": ["m_supply_theft", "m_political_pressure"]
+      },
+      {
+        "id": "grey_varin",
+        "name": "Grey Varin",
+        "style": "quartermaster, kidnaps specialists",
+        "motivations": ["m_recruitment_grab", "m_supply_theft"]
+      }
+    ]
+  },
+
+  "location_tiers": [
+    {
+      "tier": 0,
+      "label": "Town Core (Contested)",
+      "description": "Barricaded streets, watchtowers, saboteurs, sudden skirmishes.",
+      "common_features": [
+        "palisade gates",
+        "ash-oil lamps",
+        "makeshift barricades",
+        "rooftop routes"
+      ],
+      "threat_rating": "variable",
+      "linked_story_usage": [
+        "launch operations",
+        "street fights",
+        "civvie rescues",
+        "intel pickup"
+      ]
+    },
+    {
+      "tier": 1,
+      "label": "Outlying Paths",
+      "description": "Ambush lanes and farmsteads; raiders stage here; beasts skulk at the edges.",
+      "common_features": [
+        "cart ruts",
+        "fencelines",
+        "thorn gullies",
+        "bandit cairns"
+      ],
+      "threat_rating": "low",
+      "linked_story_usage": [
+        "escort caravans",
+        "rescue farmhands",
+        "trace horn teams"
+      ]
+    },
+    {
+      "tier": 2,
+      "label": "Wildfront Verge",
+      "description": "Tangled edge where bandit camps grow bold; crude traps and signal horns.",
+      "common_features": ["palisade nubs", "alarm totems", "beast kennels"],
+      "threat_rating": "medium",
+      "linked_story_usage": [
+        "hit-and-run strikes",
+        "seize supplies",
+        "identify raid lieutenants"
+      ]
+    },
+    {
+      "tier": 3,
+      "label": "Raiders’ Redoubt",
+      "description": "A fortified strongpoint with tunnels and siege scaffolds.",
+      "common_features": ["spike lines", "alarm towers", "breach ladders"],
+      "threat_rating": "high",
+      "linked_story_usage": [
+        "break leadership",
+        "free captives",
+        "reduce night pressure"
+      ]
+    },
+    {
+      "tier": 4,
+      "label": "Blightlands",
+      "description": "Corrupted hunting grounds; source of twisted fauna.",
+      "common_features": [
+        "ashen brush",
+        "sour ponds",
+        "skittish prey",
+        "predators with wrong eyes"
+      ],
+      "threat_rating": "extreme",
+      "linked_story_usage": [
+        "cull blight packs",
+        "discover corruption source",
+        "final push"
+      ]
+    }
+  ],
+
+  "locations": [
+    {
+      "id": "falebridge_town_core",
+      "name": "Falebridge Streets",
+      "tier": 0,
+      "type": "frontline_zone",
+      "description": "Defense lines, triage corners, sudden skirmishes."
+    },
+    {
+      "id": "alder_and_ash",
+      "name": "The Alder & Ash",
+      "tier": 0,
+      "type": "hub_tavern",
+      "description": "Merc base—meals, bunks, rumor flow.",
+      "npcs_present": ["maera_tavernkeep", "trader_rep", "offduty_watch"],
+      "factions_present": ["trader_guild", "falebridge_defenders"]
+    },
+    {
+      "id": "ironleaf_forge",
+      "name": "Ironleaf Forge",
+      "tier": 0,
+      "type": "smithy",
+      "description": "Hammerfall and coal smoke; broken blades stacked like firewood.",
+      "npcs_present": ["dorn_stoneband"]
+    },
+    {
+      "id": "glimmerink",
+      "name": "Glimmer-Ink Atelier",
+      "tier": 0,
+      "type": "spellcraft_shop",
+      "description": "Etching tables, rune-inks, crystal lattices for weapon charms.",
+      "npcs_present": ["orym_spellwright"]
+    },
+    {
+      "id": "ashwillow_infirmary",
+      "name": "Ash-Willow Infirmary",
+      "tier": 0,
+      "type": "healers_hall",
+      "description": "Cots, herbal steam, quiet prayers; the wall between panic and peace.",
+      "npcs_present": ["naelith_healer"]
+    }
+  ],
+
+  "npc_roster": {
+    "local_captain": {
+      "id": "local_captain",
+      "name": "Captain Liraen Veyr",
+      "race": "Elf",
+      "essence_alignment": ["Order", "Arcane"],
+      "role": "Arcane Captain (Battle-Mage) & Contracting Officer",
+      "combat_tags": ["battle-mage", "light armor", "spear & sigil-shield"],
+      "quirks": [
+        "⚔️ drills spear forms while murmuring cantrips",
+        "🕯️ studies after midnight, candles to stubs"
+      ],
+      "traits": ["unyielding", "protective", "fiercely local"],
+      "appearance": {
+        "age": 172,
+        "build": "lean",
+        "notable_features": [
+          "silver crop-cut hair",
+          "jaw scar",
+          "sigil-etched vambrace"
+        ]
+      },
+      "relationship_flags": ["slow_burn"],
+      "personal_arc": {
+        "goal": "Keep Falebridge alive without becoming what she fights",
+        "wound": "Lost half the watch last month",
+        "alignment": "Lawful protective",
+        "growth_path": "Learn to delegate and trust outsiders"
+      },
+      "unstable_thread": "Will burn political bridges to keep streets secure",
+      "voice_samples": [
+        "“Report clean and short; I’ll make the long decisions.”",
+        "“Eat. Then argue with me.”"
+      ]
+    },
+    "vaerix_drelkaen": {
+      "id": "vaerix_drelkaen",
+      "name": "Vaerix Drel’Kaen",
+      "race": "Razor Drake Shifter",
+      "essence_alignment": ["Chaos", "Air"],
+      "role": "Elite Vanguard / Tactician (Hired Merc)",
+      "quirks": ["🌀 carves storm sigils while planning"],
+      "traits": ["disciplined", "relentless", "survivor"],
+      "unstable_thread": "Lightning-brand oath may pull him toward ruthless solutions",
+      "voice_samples": [
+        "“Edges win fights. Blur yours or sharpen theirs.”",
+        "“Mercy is a luxury—earn it, don’t spend it.”"
+      ]
+    },
+    "sareth": {
+      "id": "sareth",
+      "name": "Sareth",
+      "race": "Elf (Crystalborn, Umbra-Touched)",
+      "essence_alignment": ["Chaos"],
+      "role": "Shadow Scout / Arcane Disruptor (Hired Merc)",
+      "quirks": ["🌘 shadow outline flickers when emotions stir"],
+      "traits": ["aloof", "precise", "unsettling"],
+      "backstory_blurb": "Born during an umbral crystal flare; shadow-adapted elf, not a shifter.",
+      "unstable_thread": "Residual planar bleed risks missteps if blight_pressure rises",
+      "voice_samples": [
+        "“If you hear my step, I’ve chosen to let you.”",
+        "“Light makes targets. Choose darkness.”"
+      ]
+    },
+    "maera_tavernkeep": {
+      "id": "maera_tavernkeep",
+      "name": "Maera of Alder & Ash",
+      "race": "Elf",
+      "essence_alignment": ["Life"],
+      "role": "Tavern Keeper / Information Broker",
+      "quirks": [
+        "🍲 feeds you before questions",
+        "📝 keeps IOU slates for nearly everyone"
+      ],
+      "traits": ["warm", "shrewd", "deeply connected"],
+      "voice_samples": [
+        "“You can’t fight on an empty bowl. Sit.”",
+        "“Rumors are meals—some nourish, some poison.”"
+      ]
+    },
+    "dorn_stoneband": {
+      "id": "dorn_stoneband",
+      "name": "Dorn Stoneband",
+      "race": "Dwarf",
+      "essence_alignment": ["Order"],
+      "role": "Smith (Ironleaf Forge)",
+      "quirks": [
+        "🔨 taps steel three times before quenching",
+        "🪵 smells iron like others smell bread"
+      ],
+      "traits": ["stoic", "craft-proud", "protective"]
+    },
+    "orym_spellwright": {
+      "id": "orym_spellwright",
+      "name": "Orym Lathril",
+      "race": "Elf",
+      "essence_alignment": ["Order", "Arcane"],
+      "role": "Spellcrafter/Enchanter (Glimmer-Ink)",
+      "quirks": ["✒️ ink-stained fingers", "📐 hums scales while etching"],
+      "traits": ["precise", "risk-averse", "curious"]
+    },
+    "naelith_healer": {
+      "id": "naelith_healer",
+      "name": "Naelith Greenglow",
+      "race": "Wild Elf",
+      "essence_alignment": ["Life"],
+      "role": "Healer (Ash-Willow Infirmary)",
+      "quirks": [
+        "🌿 hums when setting bones",
+        "💧 refuses payment from the desperate"
+      ],
+      "traits": ["gentle", "unyielding in triage", "clear-eyed"]
+    },
+    "trader_rep": {
+      "id": "trader_rep",
+      "name": "Ressa Torin",
+      "race": "Human",
+      "essence_alignment": ["Order"],
+      "role": "Trader Guild Quarter-Agent",
+      "quirks": ["📦 counts crates aloud", "🪙 flips a coin while negotiating"],
+      "traits": ["pragmatic", "opportunistic", "cautious"]
+    },
+    "elder_mayor": {
+      "id": "elder_mayor",
+      "name": "Mayor Selivren",
+      "race": "Elf",
+      "essence_alignment": ["Life"],
+      "role": "Civic Leader",
+      "quirks": ["🌳 tends bonsai", "🍵 insists on tea before arguments"],
+      "traits": ["diplomatic", "calm", "respected"]
+    },
+    "offduty_watch": {
+      "id": "offduty_watch",
+      "name": "Off-Duty Watch",
+      "race": "Mixed (Elf/Human)",
+      "role": "Ambient NPC Group",
+      "traits": ["tired", "loyal"]
+    }
+  },
+
+  "npc_location_logic": {
+    "defense_leads": "Liraen anchored at barricades unless an operation pulls her.",
+    "scouts": "Sareth ranges tier 0–2; his intel unlocks raid nodes.",
+    "tacticians": "Vaerix at gate or tavern map-table unless counterstrike.",
+    "crafts": "Dorn at forge, Orym at atelier, Naelith at infirmary unless emergency calls."
+  },
+
+  "enemy_families": [
+    {
+      "id": "bandits_horn",
+      "name": "Horn-Bandits",
+      "tactics": [
+        "signal reinforcements",
+        "rooftop routes",
+        "flank barricades"
+      ],
+      "counters": ["silence horns", "smoke cover", "rooftop teams"]
+    },
+    {
+      "id": "bandits_sappers",
+      "name": "Sappers",
+      "tactics": ["burn barricades", "undermine palisade"],
+      "counters": ["brace kits", "bucket lines", "counter-tunnels"]
+    },
+    {
+      "id": "beast_blighted",
+      "name": "Blight-Twisted Fauna",
+      "tactics": ["stalk travelers", "night hunts beyond fields"],
+      "counters": [
+        "firelight rings",
+        "noise traps",
+        "spears with binding charms"
+      ]
+    }
+  ],
+
+  "combat_playbook": [
+    {
+      "id": "PB_BARRICADE_PUSH",
+      "label": "Hold the Street Line",
+      "terrain_tags": ["narrow", "cover", "elevation:wagons"],
+      "enemy_templates": [
+        "bandits_horn:scouts+horn",
+        "bandits_sappers:torchbearers"
+      ],
+      "allies_available": ["local_captain", "offduty_watch"],
+      "setup_options": [
+        "sandbag+brace (fortifications+1 this scene)",
+        "smoke jugs (deny horns)",
+        "rooftop team (counter-flank)"
+      ],
+      "objectives": {
+        "primary": "Prevent bandits from crossing the barricade.",
+        "secondary": ["Silence horn team", "Capture a lieutenant"]
+      },
+      "complications_pick_one": [
+        "civilians trapped behind carts",
+        "oil lanterns risk fire",
+        "falling tiles on rooftops"
+      ],
+      "outcomes": {
+        "success": {
+          "adjust": {
+            "street_control": 1,
+            "intel_clues": 1,
+            "morale_meter": 1,
+            "mercenary_standing": 1
+          },
+          "schedule_interlude": true
+        },
+        "fail": {
+          "adjust": {
+            "street_control": -1,
+            "fortifications": -1,
+            "mercenary_standing": -1
+          },
+          "schedule_interlude": true
+        }
+      }
+    },
+    {
+      "id": "PB_HORN_TOWER",
+      "label": "Silence the Signals",
+      "terrain_tags": ["vertical", "tight roofs", "line-of-sight lanes"],
+      "enemy_templates": [
+        "bandits_horn:lookouts+runner",
+        "bandits_horn:hornmaster"
+      ],
+      "allies_available": ["sareth"],
+      "setup_options": [
+        "counter-signal whistle",
+        "grapnel line",
+        "distraction ember-pot"
+      ],
+      "objectives": {
+        "primary": "Disable the horn team.",
+        "secondary": [
+          "Seize coded horn calls",
+          "Push bandits off the roof without killing (intel bonus)"
+        ]
+      },
+      "outcomes": {
+        "success": {
+          "adjust": {
+            "visibility_risk": -1,
+            "intel_clues": 1,
+            "mercenary_standing": 1
+          },
+          "schedule_interlude": true
+        },
+        "fail": {
+          "adjust": {
+            "visibility_risk": 1,
+            "street_control": -1,
+            "mercenary_standing": -1
+          },
+          "schedule_interlude": true
+        }
+      }
+    },
+    {
+      "id": "PB_SAPPER_TUNNEL",
+      "label": "Counter the Tunnels",
+      "terrain_tags": ["subterranean", "cramped", "smoke risk"],
+      "enemy_templates": ["bandits_sappers:miners", "bandits_sappers:torch"],
+      "allies_available": ["vaerix_drelkaen"],
+      "setup_options": [
+        "brace timbers",
+        "water line",
+        "collapse charge (risky)"
+      ],
+      "objectives": {
+        "primary": "Break sapper advance to the palisade.",
+        "secondary": ["Capture blasting powder", "Map tunnel for later strike"]
+      },
+      "outcomes": {
+        "success": {
+          "adjust": {
+            "fortifications": 1,
+            "intel_clues": 1,
+            "mercenary_standing": 1
+          },
+          "schedule_interlude": true
+        },
+        "fail": {
+          "adjust": { "fortifications": -1, "mercenary_standing": -1 },
+          "schedule_interlude": true
+        }
+      }
+    },
+    {
+      "id": "PB_MARKET_CHOKE",
+      "label": "Caravan Chokepoint Ambush",
+      "terrain_tags": ["crowd", "stalls", "bottleneck"],
+      "enemy_templates": [
+        "bandits_horn:skirmishers",
+        "bandits_sappers:arsonists"
+      ],
+      "allies_available": ["trader_rep", "local_captain"],
+      "setup_options": [
+        "false-crate decoy",
+        "wet-blanket fire lines",
+        "merchant guards"
+      ],
+      "objectives": {
+        "primary": "Protect Council caravan assets.",
+        "secondary": [
+          "Keep stalls unburned (trader_guild_trust+1)",
+          "Tag a raider cache runner"
+        ]
+      },
+      "outcomes": {
+        "success": {
+          "adjust": {
+            "council_investment": 1,
+            "morale_meter": 1,
+            "visibility_risk": 1,
+            "mercenary_standing": 1
+          },
+          "schedule_interlude": true
+        },
+        "fail": {
+          "adjust": {
+            "trader_guild_trust": -1,
+            "street_control": -1,
+            "mercenary_standing": -1
+          },
+          "schedule_interlude": true
+        }
+      }
+    },
+    {
+      "id": "PB_FORGE_SIEGE",
+      "label": "Ironleaf Stand",
+      "terrain_tags": ["sparks", "anvils:cover", "narrow entry"],
+      "enemy_templates": ["bandits_sappers:heavies", "bandits_horn:runner"],
+      "allies_available": ["dorn_stoneband"],
+      "setup_options": ["quench-steam burst", "iron caltrops", "barred door"],
+      "objectives": {
+        "primary": "Stop the theft of coal and stock.",
+        "secondary": [
+          "Keep the quench trough intact",
+          "Prevent runner from calling reinforcements"
+        ]
+      },
+      "outcomes": {
+        "success": {
+          "adjust": {
+            "fortifications": 1,
+            "street_control": 1,
+            "mercenary_standing": 1
+          },
+          "schedule_interlude": true
+        },
+        "fail": {
+          "adjust": { "fortifications": -1, "mercenary_standing": -1 },
+          "schedule_interlude": true
+        }
+      }
+    },
+    {
+      "id": "PB_INFIL_HEALERS",
+      "label": "Infirmary Infiltration",
+      "terrain_tags": ["tight halls", "soft-targets", "light-out"],
+      "enemy_templates": ["bandits_horn:silent team"],
+      "allies_available": ["naelith_healer"],
+      "setup_options": [
+        "dark-sight charms (Orym)",
+        "silent floor sand",
+        "decoy patient"
+      ],
+      "objectives": {
+        "primary": "Prevent abduction of a healer or patient.",
+        "secondary": [
+          "Zero civilian casualties",
+          "Trace where orders came from (intel+1)"
+        ]
+      },
+      "outcomes": {
+        "success": {
+          "adjust": {
+            "morale_meter": 1,
+            "intel_clues": 1,
+            "mercenary_standing": 1
+          },
+          "schedule_interlude": true
+        },
+        "fail": {
+          "adjust": { "morale_meter": -1, "mercenary_standing": -1 },
+          "schedule_interlude": true
+        }
+      }
+    }
+  ],
+
+  "travel_playbook": [
+    {
+      "id": "PB_BEAST_WOLVES",
+      "label": "Twisted Wolves on the Verge",
+      "where": "tier>=1 and not in town; not at bandit nodes",
+      "terrain_tags": ["brush", "low light", "uneven ground"],
+      "enemy_templates": ["beast_blighted:wolf_pack"],
+      "setup_options": ["firelight ring", "noise trap", "elevated perch"],
+      "objectives": {
+        "primary": "Drive off or slay the pack.",
+        "secondary": [
+          "Harvest tainted hide (crafting)",
+          "Track corruption trail (+blight intel)"
+        ]
+      },
+      "outcomes": {
+        "success": { "adjust": { "blight_pressure": -1, "morale_meter": 1 } },
+        "fail": { "adjust": { "morale_meter": -1 } }
+      }
+    }
+  ],
+
+  "interlude_playbook": [
+    {
+      "id": "IL_TAVERN_LIRAEN_01",
+      "venue": "venue_tavern",
+      "npc": "local_captain",
+      "mood": "quiet-after-hours",
+      "scene_beats": "Liraen eats standing at a map-table; pushes a bowl your way without looking up.",
+      "opening_lines": ["“Eat. Then tell me what the horns missed.”"],
+      "player_choices": [
+        {
+          "choice_id": "1",
+          "label": "Give a crisp, honest after-action report.",
+          "effects": {
+            "bond_token:+": "local_captain",
+            "mercenary_standing:+": 1,
+            "tag": "🪨"
+          }
+        },
+        {
+          "choice_id": "2",
+          "label": "Press for a bolder counterstrike tonight.",
+          "effects": {
+            "bond_token:+": "local_captain",
+            "visibility_risk:+": 1,
+            "tag": "🔥"
+          }
+        },
+        {
+          "choice_id": "3",
+          "label": "Ask how she keeps going after last month’s losses.",
+          "gated_at_bond": 1,
+          "effects": {
+            "bond_token:+": "local_captain",
+            "quote_anchor": "“I count who lived.”",
+            "tag": "🌱"
+          }
+        }
+      ],
+      "reveal_at_thresholds": {
+        "1": "She admits she can’t be everywhere; asks if you’ll cover a gap without orders.",
+        "2": "Shares a memory of the watch she lost; requests a personal favor: keep the infirmary lights guarded.",
+        "3": "Offers access to the Captain’s strike board."
+      }
+    },
+    {
+      "id": "IL_TAVERN_VAERIX_01",
+      "venue": "venue_tavern",
+      "npc": "vaerix_drelkaen",
+      "mood": "warm",
+      "scene_beats": "Vaerix carves storm sigils into the tabletop edge with a dull knife.",
+      "opening_lines": ["“Three lines. One breaks. Find it.”"],
+      "player_choices": [
+        {
+          "choice_id": "1",
+          "label": "Ask him to walk you through his ‘three lines’ tactic.",
+          "effects": {
+            "bond_token:+": "vaerix_drelkaen",
+            "intel_clues:+": 1,
+            "tag": "🪨"
+          }
+        },
+        {
+          "choice_id": "2",
+          "label": "Challenge his ruthlessness—what about prisoners?",
+          "effects": {
+            "bond_token:+": "vaerix_drelkaen",
+            "morale_meter:+": 1,
+            "tag": "⚡"
+          }
+        },
+        {
+          "choice_id": "3",
+          "label": "Trade war stories; keep it professional.",
+          "effects": { "bond_token:+": "vaerix_drelkaen" }
+        }
+      ],
+      "reveal_at_thresholds": {
+        "2": "Shows you a storm-brand scar; warns that oaths cut deeper than steel."
+      }
+    },
+    {
+      "id": "IL_ROOFTOP_SARETH_01",
+      "venue": "venue_rooftops",
+      "npc": "sareth",
+      "mood": "hushed",
+      "scene_beats": "A dark outline on the tiles; Sareth’s voice seems to come from the shadow itself.",
+      "opening_lines": ["“You step heavier after victory. Careful.”"],
+      "player_choices": [
+        {
+          "choice_id": "1",
+          "label": "Ask for a silent hand-signal lexicon.",
+          "effects": { "bond_token:+": "sareth", "intel_clues:+": 1 }
+        },
+        {
+          "choice_id": "2",
+          "label": "Share rations; companionable quiet.",
+          "effects": { "bond_token:+": "sareth", "tag": "🌱" }
+        },
+        {
+          "choice_id": "3",
+          "label": "Probe the umbra flicker—risking offense.",
+          "effects": {
+            "bond_token:+": "sareth",
+            "visibility_risk:+": 1,
+            "tag": "⚡"
+          }
+        }
+      ],
+      "reveal_at_thresholds": {
+        "1": "Teaches two whistle patterns: one to freeze, one to vanish.",
+        "3": "Admits the flicker worsens near tainted crystals; asks you to watch his back in the Verge."
+      }
+    },
+    {
+      "id": "IL_TAVERN_MAERA_01",
+      "venue": "venue_tavern",
+      "npc": "maera_tavernkeep",
+      "mood": "warm",
+      "scene_beats": "Stew steam, key rings, Maera’s tired smile.",
+      "opening_lines": ["“Sit. Your bowl’s getting lonely.”"],
+      "player_choices": [
+        {
+          "choice_id": "1",
+          "label": "Ask for the quiet rumor, not the loud one.",
+          "effects": { "bond_token:+": "maera_tavernkeep", "intel_clues:+": 1 }
+        },
+        {
+          "choice_id": "2",
+          "label": "Offer to help wash up as thanks.",
+          "effects": {
+            "bond_token:+": "maera_tavernkeep",
+            "morale_meter:+": 1,
+            "tag": "🪨"
+          }
+        },
+        {
+          "choice_id": "3",
+          "label": "Joke you’ll start a tab before a fight.",
+          "effects": { "bond_token:+": "maera_tavernkeep" }
+        }
+      ],
+      "reveal_at_thresholds": {
+        "2": "She quietly flags a fence who buys raider gear; marks a stall with chalk."
+      }
+    },
+    {
+      "id": "IL_FORGE_BREAK_01",
+      "venue": "venue_forge",
+      "npc": "dorn_stoneband",
+      "mood": "sparks",
+      "scene_beats": "Dorn’s hammer sings; he nods toward a stool.",
+      "opening_lines": ["“Steel listens. Do you?”"],
+      "player_choices": [
+        {
+          "choice_id": "1",
+          "label": "Request a quick edge and offer a favor later.",
+          "effects": { "fortifications:+": 1 }
+        },
+        {
+          "choice_id": "2",
+          "label": "Ask about brace kits to counter sappers.",
+          "effects": { "intel_clues:+": 1 }
+        }
+      ]
+    },
+    {
+      "id": "IL_INFIRMARY_PAUSE_01",
+      "venue": "venue_infirmary",
+      "npc": "naelith_healer",
+      "mood": "soft",
+      "scene_beats": "Herbal steam; Naelith binds a guard’s arm.",
+      "opening_lines": ["“Breathe. In for four.”"],
+      "player_choices": [
+        {
+          "choice_id": "1",
+          "label": "Help steady a patient and follow instructions.",
+          "effects": { "morale_meter:+": 1 }
+        },
+        {
+          "choice_id": "2",
+          "label": "Ask for field-care tips.",
+          "effects": { "bond_token:+": "local_captain", "intel_clues:+": 1 }
+        }
+      ]
+    }
+  ],
+
+  "event_deck": [
+    {
+      "id": "ev_meet_liraen",
+      "type": "orientation",
+      "scene_description": "Liraen gives the ground truth and hands you the Mercenary Charter to sign.",
+      "outcomes": {
+        "success": { "set_flags": { "met_local_captain": true } },
+        "next": "ev_sign_charter"
+      }
+    },
+    {
+      "id": "ev_sign_charter",
+      "type": "administrative",
+      "scene_description": "You sign the Charter at The Alder & Ash ops ledger. Maera locks it under alder-green wax.",
+      "outcomes": {
+        "success": {
+          "set_flags": { "signed_charter": true, "arrival_grace": false },
+          "adjust": { "mercenary_standing": 1 }
+        }
+      }
+    },
+    {
+      "id": "ev_meet_vaerix",
+      "type": "social_scene",
+      "scene_description": "Vaerix sketches lanes in dust: 'Clean angles. No heroics.'",
+      "outcomes": {
+        "success": {
+          "set_flags": { "met_vaerix": true, "arrival_grace": false }
+        }
+      }
+    },
+    {
+      "id": "ev_meet_sareth",
+      "type": "social_scene",
+      "scene_description": "Sareth’s whisper: 'If you hear my whistle, duck.'",
+      "outcomes": {
+        "success": {
+          "set_flags": { "met_sareth": true, "arrival_grace": false }
+        }
+      }
+    },
+    {
+      "id": "ev_meet_maera",
+      "type": "social_scene",
+      "scene_description": "Key, bowl, and a nod from Maera: 'Welcome. Sign the ledger when you head out.'",
+      "outcomes": {
+        "success": {
+          "set_flags": { "met_maera": true, "arrival_grace": false }
+        }
+      }
+    },
+
+    {
+      "id": "ev_ops_select",
+      "type": "captain_directive",
+      "description": "Liraen selects an operation based on current motives and recent events.",
+      "selection_logic": "Pick a combat_playbook whose matching motive is active; else PB_BARRICADE_PUSH if street_control<3, PB_FORGE_SIEGE if fortifications<2, PB_HORN_TOWER to lower visibility_risk.",
+      "presents_modules": [
+        "PB_BARRICADE_PUSH",
+        "PB_HORN_TOWER",
+        "PB_SAPPER_TUNNEL",
+        "PB_MARKET_CHOKE",
+        "PB_FORGE_SIEGE",
+        "PB_INFIL_HEALERS"
+      ]
+    },
+
+    {
+      "id": "ev_retaliation",
+      "type": "reaction",
+      "trigger": "recent_bandit_losses>=1",
+      "description": "Bandit lieutenant retaliates where you hurt them.",
+      "uses_playbook": "PB_BARRICADE_PUSH",
+      "motive_link": "m_retaliation"
+    },
+    {
+      "id": "ev_kidnap_specialist",
+      "type": "targeted_strike",
+      "trigger": "intel_clues>=2 OR player_seen_with_target",
+      "description": "Grey Varin attempts a snatch of Orym, Dorn, or Naelith.",
+      "uses_playbook": "PB_INFIL_HEALERS",
+      "motive_link": "m_recruitment_grab"
+    },
+
+    {
+      "id": "ev_interlude_slot",
+      "type": "interlude",
+      "trigger": "state.flags.interlude_available==true",
+      "selection_logic": "Prefer venue_tavern unless recent venue_tavern; rotate to rooftops/forge/infirmary. Offer the NPC with lowest bond among local_captain, vaerix_drelkaen, sareth, maera_tavernkeep.",
+      "presents_modules": [
+        "IL_TAVERN_LIRAEN_01",
+        "IL_TAVERN_VAERIX_01",
+        "IL_ROOFTOP_SARETH_01",
+        "IL_TAVERN_MAERA_01",
+        "IL_FORGE_BREAK_01",
+        "IL_INFIRMARY_PAUSE_01"
+      ],
+      "outcomes": { "success": { "clear_flag": "interlude_available" } }
+    }
+  ],
+
+  "event_triggers": [
+    {
+      "id": "unlock_redoubt",
+      "trigger_type": "intel_threshold",
+      "trigger_value": 3,
+      "description": "Enough intel reveals Raiders’ Redoubt layout.",
+      "impact": {
+        "reveal_location_tier": 3,
+        "state_update": { "threat_state.cleared_max_tier": 2 }
+      }
+    },
+    {
+      "id": "visibility_surge",
+      "trigger_type": "threshold",
+      "trigger_value": { "visibility_risk": 4 },
+      "description": "Town looks prosperous; bandit leadership coordinates a high-tier strike next time a directive is chosen.",
+      "impact": { "next_ops_bias": "PB_MARKET_CHOKE or PB_FORGE_SIEGE" }
+    }
+  ],
+
+  "faction_phase": {
+    "falebridge_defenders": {
+      "status": "strained",
+      "tags": ["understaffed", "high_morale_risk"]
+    },
+    "trader_guild": {
+      "status": "wavering",
+      "tags": ["profit_minded", "supply_line_critical"]
+    },
+    "shrine_wardens": { "status": "overworked", "tags": ["ritual_fatigue"] },
+    "raiders": { "status": "active", "tags": ["organized", "sappers"] },
+    "alder_council": {
+      "status": "investing",
+      "tags": ["funding_frontier", "political_pressure", "limited_aid"],
+      "notes": "Backs Falebridge as a pilot outpost; visible support attracts organized raiders."
+    }
+  },
+
+  "town_upgrades": [
+    {
+      "id": "palisade_braces",
+      "name": "Palisade Braces",
+      "cost": { "timber_stock": 1 },
+      "effect": { "fortifications": 1 },
+      "notes": "Reduces sapper damage on failures."
+    },
+    {
+      "id": "murder_slits",
+      "name": "Murder-Slits",
+      "cost": { "timber_stock": 1, "iron_spikes": 1 },
+      "effect": { "street_control": 1 },
+      "notes": "Opening volley on barricade fights."
+    },
+    {
+      "id": "caltrop_fields",
+      "name": "Caltrop Fields",
+      "cost": { "iron_spikes": 1 },
+      "effect": { "visibility_risk": -1 },
+      "notes": "Slows probes and keeps horn teams honest."
+    },
+    {
+      "id": "weapon_charms",
+      "name": "Weapon Charms",
+      "cost": { "rune_ink": 1 },
+      "effect": { "street_control": 1 },
+      "notes": "Orym enables basic binding/fury charms; free if mercenary_standing≥3 (one item)."
+    },
+    {
+      "id": "triage_tents",
+      "name": "Triage Tents",
+      "cost": { "timber_stock": 1 },
+      "effect": { "morale_meter": 1 },
+      "notes": "Naelith expands fast-care capacity."
+    }
+  ]
+}

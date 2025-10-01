@@ -36,6 +36,17 @@ export async function generateResponse(): Promise<AIResponse> {
 }
 
 /**
+ * Generate buffered AI response (returns full string)
+ * @param prompt - The prompt to send to AI
+ * @returns Full AI response as string
+ */
+export async function generateBuffered(prompt: string): Promise<string> {
+  // TODO: Implement actual AI service integration
+  // This is a placeholder that will be implemented in later layers
+  throw new Error('AI service not yet implemented');
+}
+
+/**
  * Validate AI response format
  */
 export function validateAIResponse(response: unknown): response is AIResponse {
