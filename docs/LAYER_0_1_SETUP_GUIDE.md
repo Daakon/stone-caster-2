@@ -103,6 +103,13 @@ npm install --workspace=backend crypto-js
 npm install --workspace=backend @types/crypto-js
 ```
 
+### 5.1 Third-Party Wrappers (Required)
+
+**Third-Party Wrappers (Required)**
+- Create `backend/src/wrappers/ai.ts`, `backend/src/wrappers/auth.ts`, `backend/src/wrappers/payments.ts`.
+- All vendor SDK calls must be confined to these files. Feature code imports the wrapper API only.
+- Add a unit test that fails if vendor imports are detected elsewhere (e.g., using a lint rule or grep in tests).
+
 ### 6. Configure Tailwind CSS
 
 ```bash
@@ -261,6 +268,15 @@ This will start:
 2. **Config Endpoint**: Visit http://localhost:3000/api/config
 3. **Verify Response**: Check that endpoints return proper JSON
 
+**Config ETag Caching Test**
+- First request: `curl -i http://localhost:3000/api/config` (note the `ETag` header)
+- Second request: `curl -i http://localhost:3000/api/config -H "If-None-Match: <ETAG_FROM_PREV>"`
+- Expected: `304 Not Modified`
+
+**DTO Redaction Test**
+- Call representative endpoints (e.g., `GET /api/games/:id` when available)
+- Verify responses DO NOT include internal fields such as `state_snapshot`, prompt text, internal IDs, or audit data.
+
 #### 9.3 Mobile Testing
 
 1. **Open DevTools**: F12 or right-click → Inspect
@@ -274,6 +290,9 @@ This will start:
 ```bash
 # Run unit tests
 npm test
+
+# Run config unit tests (ETag, hot-reload, type safety, public DTO redaction)
+npm test --workspace=backend -- -t "@config"
 
 # Run E2E tests
 npm run test:e2e --workspace=frontend
@@ -296,6 +315,7 @@ After completing this setup, you should see:
 ✅ **No linting errors**
 ✅ **No TypeScript errors**
 ✅ **Tailwind CSS working** (utility classes applied)
+✅ **No hard-coded numbers in services or routes**: pricing/limits read only via the config module and `/api/config` returns the public subset
 
 ### 12. Troubleshooting
 

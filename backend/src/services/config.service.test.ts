@@ -176,11 +176,11 @@ describe('ConfigServiceImpl', () => {
 
   it('throws when required environment variables are missing', () => {
     client = createMockAdminClient();
-    const env = { ...baseEnv, SUPABASE_URL: undefined } as NodeJS.ProcessEnv;
+    const env = { ...baseEnv, SUPABASE_URL: undefined, NODE_ENV: 'production' } as NodeJS.ProcessEnv;
 
     expect(() => {
       service = new ConfigServiceImpl({ env, adminClient: client, pollIntervalMs: 0 });
-    }).toThrow('Missing required environment variables: SUPABASE_URL');
+    }).toThrow('Missing required environment variables in production: SUPABASE_URL');
   });
 
   it('loads configuration values with correct typing', async () => {
@@ -257,5 +257,9 @@ describe('ConfigServiceImpl', () => {
   expect(() => service!.getPricing()).toThrow('Configuration not loaded');
   });
 });
+
+
+
+
 
 
