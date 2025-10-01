@@ -1,0 +1,14 @@
+---
+description: Force single-run tests and headless browsers; replace unsafe commands automatically.
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Headless & Single-Run Rule
+Never run interactive or headed test commands. Use these mappings:
+- `vitest`  → `vitest run --coverage --passWithNoTests`
+- `pnpm test` → `pnpm test:ci`
+- `playwright test --ui|--headed` → remove flags (headless only)
+- Any `--watch` → remove (single-run only)
+Always set: `CI=1 VITEST_WATCH=false PWDEBUG=0`. If a script/docs reference watch/UI, update them to safe variants instead of running.

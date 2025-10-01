@@ -1,0 +1,40 @@
+---
+description: Prevent interactive terminal hangs. Force non-interactive flags, CI env, and dry-run-first behavior.
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Non-Interactive Terminal Rule
+
+When proposing or executing terminal commands:
+
+1) **Assume CI/non-interactive.** Prefix commands with `CI=1` and use non-interactive flags:
+   - Use: `-y`, `--yes`, `--force`, `--accept`, `--non-interactive`, `--quiet`, `--no-input`, `--no-confirm`, `--skip-confirmation`, `--detach`.
+   - If unsure: run `<cmd> --help` first and select the non-interactive variant. Do **not** execute an interactive command.
+
+2) **Dry-run first.** Prefer `--dry-run`, `--check`, or `--plan`. If not available, print the command but **don’t run** it—explain the safe variant instead.
+
+3) **Never open editors or pagers.** Do **not** run `git commit` without `-m`, `git add -p`, `less`, `vim`, `nano`, `man`, `crontab -e`, etc.
+
+4) **Prefer file changes over wizards.** Instead of “create/init” wizards, write the files directly (config, manifests, env) and then run the non-interactive build/deploy.
+
+5) **Environment guards (set by default):**
+   - `CI=1`
+   - `FLY_NONINTERACTIVE=1`
+   - `WRANGLER_NON_INTERACTIVE=1` (or `--yes` on commands)
+   - `SUPABASE_ACCESS_TOKEN` must be present before any supabase CLI call
+   - Do not prompt for auth; fail with a clear message if tokens are missing.
+
+6) **Timeouts / long runs.** If a command produces no output for 30s **and** could be waiting for input, **abort** and propose a non-interactive alternative.
+
+7) **No sudo / system-wide changes.** Keep to repo scope. If a tool requires global changes, document steps but do not execute.
+
+## Stack-specific cheats (use these forms)
+
+- **Fly.io:** `FLY_NONINTERACTIVE=1 flyctl deploy --yes --detach`
+- **Wrangler (CF):** `wrangler deploy --yes --config wrangler.toml`
+- **Supabase CLI:** `supabase login --token "$SUPABASE_ACCESS_TOKEN"`; `supabase link --project-ref "$SUPABASE_PROJECT_REF"`; `supabase db reset --force`
+- **Playwright:** `npx playwright install --with-deps chromium`
+- **pnpm/npx create:** `pnpm dlx <creator> --yes ...`; `npm create <x>@latest -y`
+- **Git:** `git commit -m "feat: …"` (never open editor)

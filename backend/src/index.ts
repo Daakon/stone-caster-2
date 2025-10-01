@@ -31,7 +31,9 @@ app.use('/api/story', storyRouter);
 app.use('/api/dice', diceRouter);
 
 // Error handling
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+// _next is intentionally unused (error handler signature). Disable unused var rule for this line.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });

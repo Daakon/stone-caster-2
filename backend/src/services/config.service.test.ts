@@ -83,7 +83,9 @@ function createMockAdminClient(overrides: Partial<MockState> = {}): MockClient {
   const client = {
     from(table: string) {
       return {
-        select: (columns?: string) => {
+  // _columns is unused in the mock implementation
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  select: (_columns?: string) => {
           if (table === 'config_meta') {
             return {
               single: async () => ({
@@ -117,7 +119,9 @@ function createSupabaseStub() {
   return {
     from(table: string) {
       return {
-        select: (columns?: string) => {
+  // _columns is unused in the mock implementation
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  select: (_columns?: string) => {
           if (table === 'config_meta') {
             return {
               single: async () => ({ data: { version: 1 }, error: null }),
@@ -249,7 +253,9 @@ describe('ConfigServiceImpl', () => {
     });
     service = new ConfigServiceImpl({ env: { ...baseEnv }, adminClient: client, pollIntervalMs: 0 });
 
-    await expect(service.whenReady()).rejects.toThrow('Failed to load configuration');
-    expect(() => service.getPricing()).toThrow('Configuration not loaded');
+  await expect(service!.whenReady()).rejects.toThrow('Failed to load configuration');
+  expect(() => service!.getPricing()).toThrow('Configuration not loaded');
   });
 });
+
+

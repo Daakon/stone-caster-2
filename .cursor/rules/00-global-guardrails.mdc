@@ -1,0 +1,25 @@
+---
+description: Global engineering guardrails for Stone Caster (mobile-first, TDD, a11y, docs).
+globs:
+alwaysApply: true
+---
+
+# Stone Caster – Master Guardrail
+
+ALWAYS:
+- MOBILE-FIRST: design & test at 375×812 before desktop.
+- TDD: add/adjust Vitest unit tests and Playwright e2e for every change.
+- A11Y: run @axe-core/playwright; zero serious/critical issues.
+- ZOD VALIDATION on all API inputs; return consistent JSON errors.
+- DOCS UPDATED in same PR: FEATURES.md, UX_FLOW.md, API_CONTRACT.md, TEST_PLAN.md (and MIGRATION_PLAN.md for schema).
+- SECURITY: verify JWT, enforce Supabase RLS; never log secrets/PII.
+- TYPES: strict TypeScript; no `any`; exhaustive unions.
+- PR: use PR template; attach mobile+desktop screenshots; add manual QA steps.
+
+Use these references when planning or reviewing:
+@docs/RULEBOOK.md
+@docs/FEATURES.md
+@docs/UX_FLOW.md
+@docs/API_CONTRACT.md
+@docs/TEST_PLAN.md
+@docs/MIGRATION_PLAN.md

@@ -1,0 +1,18 @@
+---
+description: Frontend standards for React (Vite, shadcn/ui) with mobile-first and accessibility requirements.
+globs:
+  - client/src/**/*.{ts,tsx}
+  - client/src/**/*.css
+alwaysApply: false
+---
+
+# React Frontend Rules
+
+- Use shadcn/ui + Tailwind; design for 375×812 first.
+- Forms: React Hook Form + Zod; label every input; aria-describedby for errors.
+- State: local UI state in components; server state via React Query hooks.
+- Navigation: mobile hamburger + Drawer for authed routes; keep persistent sidebar at md+.
+- Performance: avoid heavy imports in hot paths; memoize noisy components.
+
+Add/update tests for changed components:
+@docs/TEST_PLAN.md

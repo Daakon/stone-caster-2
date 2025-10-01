@@ -32,3 +32,4 @@ VALUES
   ('drifter_onboarding', TRUE, '{}'::jsonb),
   ('ws_push_enabled', FALSE, '{}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
+

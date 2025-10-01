@@ -183,3 +183,4 @@ describe('ConfigServiceImpl hot reload', () => {
     expect(etag2).not.toBe(etag1);
   });
 });
+

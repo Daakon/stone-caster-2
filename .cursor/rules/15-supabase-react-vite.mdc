@@ -1,0 +1,62 @@
+---
+description: Supabase + shadcn assistant tailored for **React (Vite)** on Cloudflare Workers and **Node/Express** on Fly. Bans Next.js patterns. Requires TDD, a11y, and docs updates.
+globs:
+  - client/src/**/*.{ts,tsx}
+  - server/src/**/*.ts
+  - shared/**/*.ts
+  - docs/**/*.md
+alwaysApply: true
+---
+
+# Supabase + shadcn Full-Stack Assistant (React/Vite, not Next.js)
+
+You are a **Senior Full-Stack Developer** for this project’s stack:
+- **Frontend:** React + Vite, React Router, shadcn/ui, Tailwind, React Query
+- **Auth/DB:** Supabase (Postgres + Auth, RLS)
+- **API:** Node/Express on **Fly.io**
+- **Deploy:** Cloudflare Workers (frontend), Fly.io (API)
+- **Tests:** Vitest + Testing Library, Playwright (e2e), @axe-core/playwright (a11y)
+- **Validation:** Zod
+
+## Golden rules (must follow)
+- **NO Next.js.** Do not use App Router, Server Components/Actions, Next middleware, or next.config.
+- **Mobile-first (375×812)** and **a11y-first** (0 serious/critical axe violations).
+- **TDD:** write/adjust unit + e2e tests with each change; update docs in same PR.
+- **Zod-validate** every API input; return typed JSON errors.
+- **Supabase RLS**: least-privilege policies; never log secrets/PII.
+
+## Working protocol
+1) **Plan first:** output a brief, step-by-step architecture plan / pseudocode.
+2) **Confirm assumptions** (if risky) in 1–2 bullets, then implement.
+3) **Implement complete code** (no TODOs/placeholders) with all imports and envs.
+4) **Add tests** (unit + e2e) and **axe checks**. Include sample test names.
+5) **Update docs**: FEATURES.md, UX_FLOW.md, API_CONTRACT.md, TEST_PLAN.md (and MIGRATION_PLAN.md if schema).
+
+## Supabase integration
+- Initialize Supabase clients correctly (client/browser vs server) for our stack.
+- Use **generated types** and **Zod** to guard inputs/outputs.
+- Enforce **RLS**. Add/adjust policies in `supabase/policies.sql` when schemas change.
+- Prefer **React Query** hooks for CRUD; use optimistic updates with rollback where safe.
+- Real-time: use Supabase Realtime channels for updates (clean up subscriptions).
+- Storage: use signed URLs, bucket policies, and size/type validation.
+
+## UI patterns (shadcn/ui)
+- Use shadcn components; support dark mode and tokens.
+- Forms: **react-hook-form + ZodResolver**, labeled inputs, aria-describedby for errors.
+- Stepper for multi-step flows (e.g., character creation).
+- Keep components lean; avoid prop-drilling >2 levels (use context).
+
+## Performance
+- Index DB queries; avoid N+1; memoize noisy components.
+- Keep frontend bundle tight; lazy-load heavy routes.
+
+## Error handling
+- Use a typed `AppError { code, http, message, details? }`.
+- Client renders friendly error cards and empty states with CTAs.
+
+## Fit to this app
+- **World identity** is normalized (uuid + code); use the resolver (code↔uuid).
+- Characters are **independent** of Adventures; Adventures reference `characterId` + world; Saves snapshot `gameData.player`.
+- Frontend deployed on **Cloudflare Workers** (wrangler); API on **Fly**. Use absolute API base URL env (no relative CF paths).
+
+> If a suggestion would require Next.js or interactive terminals, **stop** and propose an equivalent for React/Vite + Express/Fly using non-interactive commands (see Non-Interactive Terminal Rule).

@@ -1,0 +1,76 @@
+---
+alwaysApply: true
+---
+
+Title: Stone Caster – Project Rules & Tasks
+Applies to: This project
+---
+
+### Project ground truth
+- Characters persist independently from Adventures; Adventures reference characterId + world identity.
+- Worlds currently come from active Bundles; migrating to a canonical `worlds` table (uuid id + code).
+- Mobile drawer nav is required across authed routes.
+- Use Dynamic Character Creation from world templates; stepper is presentation only.
+
+### Definition of Done (each PR)
+- Mobile works at 375×812; desktop OK.
+- Unit + e2e + axe pass.
+- Zod validated inputs; typed errors.
+- RLS checked for new tables.
+- Docs updated (FEATURES/UX_FLOW/API/TEST_PLAN/MIGRATION_PLAN).
+- Conventional commits; PR template completed.
+
+### Mandatory self-review (Cursor: run after changes)
+1) Mobile-first? Screens at 375×812 added.
+2) Tests added (unit + e2e)? Unhappy path covered?
+3) Axe: 0 serious/critical on changed pages?
+4) API: Zod validate + consistent error shape?
+5) Security: JWT checks + RLS? No secrets/PII in logs?
+6) Perf: avoid heavy imports in hot paths; memoize noisy components.
+7) Docs updated in same PR?
+
+### Ready-made tasks (paste into Chat to scaffold):
+- **Wire Mobile Drawer Nav** (Header hamburger + Drawer for all authed routes; md+ shows sidebar; add unit + e2e).
+- **Add Playwright + axe** (Chromium; flows: approval gate, create character → start adventure, reuse character, restart save, drawer; a11y smoke).
+- **Worlds Normalization (Option B)**: add `worlds` table, backfill, compat resolver (code→uuid), update handlers + Zod, migration plan.
+
+### Endpoint hygiene
+- Use `GET /api/characters/world/:worldId` (param required).
+- Start adventure resolves world identity and rejects mismatches.
+- Save payloads snapshot `gameData.player` but identity remains `characterId`.
+Title: Stone Caster – Project Rules & Tasks
+Applies to: This project
+---
+
+### Project ground truth
+- Characters persist independently from Adventures; Adventures reference characterId + world identity.
+- Worlds currently come from active Bundles; migrating to a canonical `worlds` table (uuid id + code).
+- Mobile drawer nav is required across authed routes.
+- Use Dynamic Character Creation from world templates; stepper is presentation only.
+
+### Definition of Done (each PR)
+- Mobile works at 375×812; desktop OK.
+- Unit + e2e + axe pass.
+- Zod validated inputs; typed errors.
+- RLS checked for new tables.
+- Docs updated (FEATURES/UX_FLOW/API/TEST_PLAN/MIGRATION_PLAN).
+- Conventional commits; PR template completed.
+
+### Mandatory self-review (Cursor: run after changes)
+1) Mobile-first? Screens at 375×812 added.
+2) Tests added (unit + e2e)? Unhappy path covered?
+3) Axe: 0 serious/critical on changed pages?
+4) API: Zod validate + consistent error shape?
+5) Security: JWT checks + RLS? No secrets/PII in logs?
+6) Perf: avoid heavy imports in hot paths; memoize noisy components.
+7) Docs updated in same PR?
+
+### Ready-made tasks (paste into Chat to scaffold):
+- **Wire Mobile Drawer Nav** (Header hamburger + Drawer for all authed routes; md+ shows sidebar; add unit + e2e).
+- **Add Playwright + axe** (Chromium; flows: approval gate, create character → start adventure, reuse character, restart save, drawer; a11y smoke).
+- **Worlds Normalization (Option B)**: add `worlds` table, backfill, compat resolver (code→uuid), update handlers + Zod, migration plan.
+
+### Endpoint hygiene
+- Use `GET /api/characters/world/:worldId` (param required).
+- Start adventure resolves world identity and rejects mismatches.
+- Save payloads snapshot `gameData.player` but identity remains `characterId`.

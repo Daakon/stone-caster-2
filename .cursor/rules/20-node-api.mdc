@@ -1,0 +1,17 @@
+---
+description: Node/Express API rules with Zod validation, typed errors, and world identity normalization.
+globs:
+  - server/src/**/*.ts
+alwaysApply: false
+---
+
+# API Rules
+
+- Validate all request bodies/params with Zod; return `{ ok, data?, error? }`.
+- Enforce auth on protected routes; scope queries by `userId`.
+- World identity: resolve code↔uuid; reject mismatches (character.world_id !== world_id).
+- Never nest character data inside API resources (saves may snapshot for gameplay continuity).
+
+Reference contracts & migration:
+@docs/API_CONTRACT.md
+@docs/MIGRATION_PLAN.md

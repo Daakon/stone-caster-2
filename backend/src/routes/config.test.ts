@@ -24,7 +24,8 @@ vi.mock('../services/config.service.js', () => {
 
 const resolveMock = async () => {
   const module = await import('../services/config.service.js');
-  mockConfigService = module.configService as MockConfigService;
+  // import may resolve to the real type; cast via unknown to satisfy the mock interface
+  mockConfigService = module.configService as unknown as MockConfigService;
 };
 
 describe('Config API Routes', () => {
@@ -111,3 +112,4 @@ describe('Config API Routes', () => {
     });
   });
 });
+

@@ -23,8 +23,10 @@ export default function AuthPage() {
         await signUp(email, password);
       }
       navigate('/characters');
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+    } catch (err: unknown) {
+      // narrow unknown to Error-like object
+      const message = err && typeof err === 'object' && 'message' in err ? (err as { message?: unknown }).message : undefined;
+      setError(typeof message === 'string' ? message : 'Authentication failed');
     } finally {
       setLoading(false);
     }

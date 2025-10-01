@@ -67,3 +67,4 @@ CREATE TRIGGER update_config_meta_updated_at
 INSERT INTO config_meta (id, version, updated_at)
 VALUES (TRUE, 1, NOW())
 ON CONFLICT (id) DO NOTHING;
+

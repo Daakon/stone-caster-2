@@ -1,0 +1,18 @@
+---
+description: Testing & accessibility requirements for any change touching UI or API.
+globs:
+  - client/src/**/*.{ts,tsx}
+  - e2e/**/*.ts
+  - server/src/**/*.ts
+  - docs/**/*.md
+alwaysApply: false
+---
+
+# Testing & A11y
+
+- Vitest: add meaningful unit tests with unhappy paths.
+- Playwright: cover happy path and one failure path; include mobile drawer flow.
+- Axe: 0 serious/critical on Dashboard, Character Creation, Game pages.
+
+See:
+@docs/TEST_PLAN.md

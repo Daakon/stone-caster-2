@@ -128,7 +128,7 @@ class ApiService {
   // Story
   async processStoryAction(gameSaveId: string, action: StoryAction): Promise<{
     aiResponse: AIResponse;
-    skillCheckResult?: any;
+    skillCheckResult?: unknown;
   }> {
     return this.fetchWithAuth('/api/story', {
       method: 'POST',

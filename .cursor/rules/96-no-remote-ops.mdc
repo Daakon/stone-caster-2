@@ -1,0 +1,13 @@
+# No Remote Operations
+
+Never run:
+- `git push`, `git push --set-upstream …`, `git pull`, `git fetch --all --prune`
+- `gh pr create`, `gh repo clone`, or any `gh` command
+- Any CI/CD deploy commands
+
+If a step would normally push or open a PR, **stop** and simply report:
+> "Committed locally on branch <branch>. Manual push/PR is disabled by project policy."
+description:
+globs:
+alwaysApply: true
+---
