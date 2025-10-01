@@ -131,7 +131,7 @@ beforeEach(async () => {
     env: { ...baseEnv },
     adminClient: client,
     pollIntervalMs: 1_000,
-    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   });
   await service.whenReady();
 });
