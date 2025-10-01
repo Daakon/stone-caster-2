@@ -63,7 +63,14 @@ describe('Config API Routes', () => {
     expect(mockConfigService.whenReady).toHaveBeenCalled();
     expect(response.headers['etag']).toBe(mockEtag);
     expect(response.headers['cache-control']).toBe('public, max-age=15');
-    expect(response.body).toEqual(mockConfig);
+    expect(response.body).toEqual({
+      ok: true,
+      data: mockConfig,
+      meta: {
+        traceId: expect.any(String),
+        version: mockEtag,
+      },
+    });
   });
 
   it('returns 304 when the ETag matches', async () => {
@@ -107,8 +114,14 @@ describe('Config API Routes', () => {
     const response = await request(app).get('/api/config').expect(500);
 
     expect(response.body).toEqual({
-      error: 'Internal server error',
-      message: 'Failed to load configuration',
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to load configuration',
+      },
+      meta: {
+        traceId: expect.any(String),
+      },
     });
   });
 });

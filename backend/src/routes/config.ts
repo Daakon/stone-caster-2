@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { configService } from '../services/config.service.js';
+import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
+import { ApiErrorCode } from 'shared';
 
 const router = Router();
 
@@ -32,13 +34,15 @@ router.get('/', async (req: Request, res: Response) => {
       'Content-Type': 'application/json',
     });
 
-    res.json(publicConfig);
+    sendSuccess(res, publicConfig, req, 200, etag);
   } catch (error) {
     console.error('Error serving config:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to load configuration',
-    });
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to load configuration',
+      req
+    );
   }
 });
 

@@ -1,17 +1,28 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { supabase } from '../services/supabase.js';
-import { CharacterSchema } from 'shared';
+import { CharacterSchema, CreateCharacterRequestSchema, UpdateCharacterRequestSchema, IdParamSchema } from 'shared';
+import { z } from 'zod';
 import { aiService } from '../services/ai.js';
+import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
+import { toCharacterDTO } from '../utils/dto-mappers.js';
+import { validateRequest } from '../middleware/validation.js';
+import { optionalAuth } from '../middleware/auth.js';
+import { ApiErrorCode } from 'shared';
 
 const router = express.Router();
 
 // Get all characters for a user
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'] as string;
+    const userId = req.ctx?.userId;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User authentication required',
+        req
+      );
     }
 
     const { data, error } = await supabase
@@ -21,18 +32,34 @@ router.get('/', async (req: Request, res: Response) => {
       .order('createdAt', { ascending: false });
 
     if (error) throw error;
-    res.json(data);
+    
+    const characterDTOs = data?.map(toCharacterDTO) || [];
+    sendSuccess(res, characterDTOs, req);
   } catch (error) {
     console.error('Error fetching characters:', error);
-    res.status(500).json({ error: 'Failed to fetch characters' });
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to fetch characters',
+      req
+    );
   }
 });
 
 // Get a single character
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.headers['x-user-id'] as string;
+    const userId = req.ctx?.userId;
+
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User authentication required',
+        req
+      );
+    }
 
     const { data, error } = await supabase
       .from('characters')
@@ -43,22 +70,38 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     if (error) throw error;
     if (!data) {
-      return res.status(404).json({ error: 'Character not found' });
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Character not found',
+        req
+      );
     }
 
-    res.json(data);
+    const characterDTO = toCharacterDTO(data);
+    sendSuccess(res, characterDTO, req);
   } catch (error) {
     console.error('Error fetching character:', error);
-    res.status(500).json({ error: 'Failed to fetch character' });
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to fetch character',
+      req
+    );
   }
 });
 
 // Create a new character
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', optionalAuth, validateRequest(CreateCharacterRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
-    const userId = req.headers['x-user-id'] as string;
+    const userId = req.ctx?.userId;
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User authentication required',
+        req
+      );
     }
 
     const characterData = CharacterSchema.parse({
@@ -76,18 +119,34 @@ router.post('/', async (req: Request, res: Response) => {
       .single();
 
     if (error) throw error;
-    res.status(201).json(data);
+    
+    const characterDTO = toCharacterDTO(data);
+    sendSuccess(res, characterDTO, req, 201);
   } catch (error) {
     console.error('Error creating character:', error);
-    res.status(500).json({ error: 'Failed to create character' });
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to create character',
+      req
+    );
   }
 });
 
 // Update a character
-router.put('/:id', async (req: Request, res: Response) => {
+router.patch('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), validateRequest(UpdateCharacterRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.headers['x-user-id'] as string;
+    const userId = req.ctx?.userId;
+
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User authentication required',
+        req
+      );
+    }
 
     const { data, error } = await supabase
       .from('characters')
@@ -102,21 +161,41 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     if (error) throw error;
     if (!data) {
-      return res.status(404).json({ error: 'Character not found' });
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Character not found',
+        req
+      );
     }
 
-    res.json(data);
+    const characterDTO = toCharacterDTO(data);
+    sendSuccess(res, characterDTO, req);
   } catch (error) {
     console.error('Error updating character:', error);
-    res.status(500).json({ error: 'Failed to update character' });
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to update character',
+      req
+    );
   }
 });
 
 // Delete a character
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = req.headers['x-user-id'] as string;
+    const userId = req.ctx?.userId;
+
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User authentication required',
+        req
+      );
+    }
 
     const { error } = await supabase
       .from('characters')
@@ -128,24 +207,33 @@ router.delete('/:id', async (req: Request, res: Response) => {
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting character:', error);
-    res.status(500).json({ error: 'Failed to delete character' });
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to delete character',
+      req
+    );
   }
 });
 
 // Generate character suggestions
-router.post('/suggest', async (req: Request, res: Response) => {
+router.post('/suggest', validateRequest(z.object({
+  race: z.string().min(1),
+  class: z.string().min(1),
+}), 'body'), async (req: Request, res: Response) => {
   try {
     const { race, class: characterClass } = req.body;
-    
-    if (!race || !characterClass) {
-      return res.status(400).json({ error: 'Race and class are required' });
-    }
 
     const suggestions = await aiService.generateCharacterSuggestions(race, characterClass);
-    res.json(suggestions);
+    sendSuccess(res, suggestions, req);
   } catch (error) {
     console.error('Error generating character suggestions:', error);
-    res.status(500).json({ error: 'Failed to generate suggestions' });
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to generate suggestions',
+      req
+    );
   }
 });
 
