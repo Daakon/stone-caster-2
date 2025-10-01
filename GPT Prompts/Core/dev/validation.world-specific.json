@@ -1,0 +1,273 @@
+{
+  "id": "validation.world_specific",
+  "version": "1.0.0",
+  "description": "World-specific validation rules for Mystika and Verya to ensure consistency and proper integration",
+  "worlds": {
+    "mystika": {
+      "essence_validation": {
+        "required_fields": ["essence_alignment", "essence_manifestation"],
+        "allowed_essences": ["life", "death", "order", "chaos"],
+        "essence_combinations": {
+          "single": ["life", "death", "order", "chaos"],
+          "dual": [
+            ["life", "order"],
+            ["life", "chaos"],
+            ["death", "order"],
+            ["death", "chaos"]
+          ],
+          "forbidden": [
+            ["life", "death"],
+            ["order", "chaos"]
+          ]
+        },
+        "validation_rules": [
+          {
+            "rule": "essence_alignment_required",
+            "check": "All characters must have essence_alignment field",
+            "repair": "assign_default_essence"
+          },
+          {
+            "rule": "essence_combination_valid",
+            "check": "Essence combinations must be allowed",
+            "repair": "remove_forbidden_combination"
+          },
+          {
+            "rule": "essence_manifestation_consistent",
+            "check": "Essence manifestation must match alignment",
+            "repair": "adjust_manifestation_to_alignment"
+          }
+        ]
+      },
+      "crystalborn_validation": {
+        "crystalborn_indicators": [
+          "magical_resonance",
+          "ancient_knowledge",
+          "planar_sensitivity",
+          "crystal_attunement"
+        ],
+        "validation_rules": [
+          {
+            "rule": "crystalborn_consistency",
+            "check": "Crystalborn traits must be consistent with lore",
+            "repair": "adjust_traits_to_lore"
+          },
+          {
+            "rule": "crystalborn_memory_progression",
+            "check": "Memory recovery must follow progression stages",
+            "repair": "reset_to_appropriate_stage"
+          }
+        ]
+      },
+      "planar_validation": {
+        "allowed_planes": [
+          "physical",
+          "ethereal",
+          "astral",
+          "elemental_fire",
+          "elemental_water",
+          "elemental_earth",
+          "elemental_air",
+          "void"
+        ],
+        "planar_rules": [
+          {
+            "rule": "void_corruption_check",
+            "check": "Void influence must be limited and dangerous",
+            "repair": "reduce_void_influence"
+          },
+          {
+            "rule": "planar_bleed_consistency",
+            "check": "Planar bleed must be essence-appropriate",
+            "repair": "adjust_bleed_to_essence"
+          }
+        ]
+      },
+      "magic_validation": {
+        "magic_types": [
+          "creation",
+          "destruction",
+          "arcane",
+          "void",
+          "elemental"
+        ],
+        "essence_magic_alignment": {
+          "life": ["creation", "elemental"],
+          "death": ["destruction", "arcane"],
+          "order": ["arcane", "creation"],
+          "chaos": ["elemental", "destruction"]
+        },
+        "validation_rules": [
+          {
+            "rule": "magic_essence_consistency",
+            "check": "Magic use must align with essence",
+            "repair": "adjust_magic_to_essence"
+          },
+          {
+            "rule": "void_magic_restriction",
+            "check": "Void magic must be rare and dangerous",
+            "repair": "replace_with_safer_magic"
+          }
+        ]
+      }
+    },
+    "verya": {
+      "house_validation": {
+        "allowed_houses": [
+          "veyra",
+          "stormmane",
+          "bear_kin",
+          "avian_kin",
+          "panther_kin",
+          "badger_kin",
+          "rabbit_kin",
+          "draconic_kin"
+        ],
+        "house_characteristics": {
+          "veyra": {
+            "strengths": ["diplomacy", "intrigue", "fox_kin_cunning"],
+            "weaknesses": ["direct_confrontation", "physical_combat"]
+          },
+          "stormmane": {
+            "strengths": ["martial_prowess", "loyalty", "lion_kin_leadership"],
+            "weaknesses": ["subtlety", "diplomatic_finesse"]
+          },
+          "bear_kin": {
+            "strengths": ["protection", "endurance", "loyalty"],
+            "weaknesses": ["speed", "subtlety"]
+          },
+          "avian_kin": {
+            "strengths": ["observation", "secrets", "calculation"],
+            "weaknesses": ["direct_combat", "emotional_expression"]
+          },
+          "panther_kin": {
+            "strengths": ["stealth", "allure", "shadow_work"],
+            "weaknesses": ["open_confrontation", "trust"]
+          },
+          "badger_kin": {
+            "strengths": ["justice", "stubbornness", "incorruptibility"],
+            "weaknesses": ["flexibility", "diplomacy"]
+          },
+          "rabbit_kin": {
+            "strengths": ["speed", "gossip", "underestimation"],
+            "weaknesses": ["strength", "authority"]
+          },
+          "draconic_kin": {
+            "strengths": ["ancient_magic", "dragon_blood", "mystery"],
+            "weaknesses": ["integration", "trust"]
+          }
+        },
+        "validation_rules": [
+          {
+            "rule": "house_characteristics_consistency",
+            "check": "NPC characteristics must align with house",
+            "repair": "adjust_characteristics_to_house"
+          },
+          {
+            "rule": "house_alliance_logic",
+            "check": "House alliances must be politically logical",
+            "repair": "adjust_alliances_to_logic"
+          }
+        ]
+      },
+      "magic_validation": {
+        "magic_availability": {
+          "current_age": "low_magic",
+          "ancient_age": "high_magic",
+          "future_potential": "magic_rediscovery"
+        },
+        "magic_sources": [
+          "ancient_relics",
+          "draconic_blood",
+          "forgotten_techniques",
+          "crystalborn_artifacts"
+        ],
+        "validation_rules": [
+          {
+            "rule": "magic_rarity_consistency",
+            "check": "Magic must be rare in current age",
+            "repair": "reduce_magic_availability"
+          },
+          {
+            "rule": "ancient_magic_progression",
+            "check": "Ancient magic discovery must be gradual",
+            "repair": "reset_to_appropriate_stage"
+          }
+        ]
+      },
+      "political_validation": {
+        "dominion_structure": {
+          "leadership": "merit_based",
+          "succession": "ability_over_birthright",
+          "houses": "autonomous_but_united"
+        },
+        "validation_rules": [
+          {
+            "rule": "political_logic_consistency",
+            "check": "Political actions must align with Dominion structure",
+            "repair": "adjust_actions_to_structure"
+          },
+          {
+            "rule": "gilded_talon_infiltration_limits",
+            "check": "Gilded Talon influence must be limited",
+            "repair": "reduce_infiltration_level"
+          }
+        ]
+      }
+    }
+  },
+  "cross_world_validation": {
+    "character_consistency": {
+      "rules": [
+        {
+          "rule": "world_specific_traits",
+          "check": "Characters must have world-appropriate traits",
+          "repair": "add_world_specific_traits"
+        },
+        {
+          "rule": "magic_system_consistency",
+          "check": "Magic use must follow world rules",
+          "repair": "adjust_magic_to_world"
+        },
+        {
+          "rule": "relationship_logic",
+          "check": "Relationships must make sense in world context",
+          "repair": "adjust_relationships_to_context"
+        }
+      ]
+    },
+    "story_consistency": {
+      "rules": [
+        {
+          "rule": "world_themes_alignment",
+          "check": "Story themes must align with world",
+          "repair": "adjust_themes_to_world"
+        },
+        {
+          "rule": "conflict_appropriateness",
+          "check": "Conflicts must be appropriate to world",
+          "repair": "adjust_conflicts_to_world"
+        }
+      ]
+    }
+  },
+  "validation_priorities": {
+    "critical": [
+      "essence_validation",
+      "house_validation",
+      "magic_system_consistency"
+    ],
+    "important": [
+      "character_consistency",
+      "story_consistency",
+      "political_logic"
+    ],
+    "minor": ["aesthetic_consistency", "dialogue_style", "ambient_details"]
+  },
+  "repair_strategies": {
+    "essence_conflict": "Choose dominant essence, reduce other",
+    "house_mismatch": "Adjust characteristics to house strengths",
+    "magic_inconsistency": "Replace with world-appropriate magic",
+    "political_illogic": "Adjust to world political structure",
+    "character_inconsistency": "Add world-appropriate traits and background"
+  }
+}

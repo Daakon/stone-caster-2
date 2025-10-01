@@ -1,0 +1,230 @@
+{
+  "id": "validation.assets",
+  "version": "1.1.0",
+  "description": "Asset-level validation to ensure required templates, style maps, guardrail settings, world logic knobs, and adventure data exist before runtime.",
+  "$schema": "rpg/validation.assets.schema.json",
+  "invariants": [
+    {
+      "id": "ui_template_exists",
+      "path": "Core/style.ui-global.json:awf.output"
+    },
+    {
+      "id": "world_codex_present",
+      "path": "world-codex.<world>-logic.json"
+    }
+  ],
+  "validate": [
+    {
+      "id": "style.templates_present",
+      "rule": "Global style must define templates used by the renderer.",
+      "require": {
+        "path_exists_all": [
+          "templates.scene.header",
+          "templates.outcome.callout",
+          "templates.choice.item",
+          "templates.mechanics.panel"
+        ]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "style.templates_required",
+      "rule": "Global style must provide required templates referenced by core and save instructions.",
+      "require": {
+        "path_exists_all": [
+          "style.templates.character.summary.tpl",
+          "style.templates.scene.header.tpl",
+          "style.templates.mechanics.line.tpl",
+          "style.templates.mechanics.rel_change.tpl",
+          "style.templates.mechanics.alert_change.tpl",
+          "style.templates.inventory.junk.collapsed.tpl",
+          "style.templates.inventory.junk.expanded.tpl"
+        ]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "style.localization.tiers",
+      "rule": "Global style must define narrative aliases for location tiers (output-only).",
+      "require": {
+        "path_exists_all": ["style.localization.location_tiers"]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "style.glyphs_minimum",
+      "rule": "Global glyph set must include core icons used in outputs.",
+      "require": {
+        "path_exists_all": [
+          "style.glyphs.dice",
+          "style.glyphs.crit_success",
+          "style.glyphs.success",
+          "style.glyphs.partial",
+          "style.glyphs.fail",
+          "style.glyphs.crit_fail",
+          "style.glyphs.heart_full",
+          "style.glyphs.heart_empty",
+          "style.glyphs.alert"
+        ]
+      },
+      "severity": "warn"
+    },
+    {
+      "id": "guardrails.core_switches",
+      "rule": "Agency guardrails must enable speaker guard and turn sequencer.",
+      "require": {
+        "path_true_all": [
+          "guardrails.policy.player_speaker_guard",
+          "guardrails.policy.name_lock_enabled",
+          "guardrails.policy.turn_sequencer.enabled"
+        ]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "guardrails.proactivity_settings",
+      "rule": "Proactivity must have stall threshold and cooldowns set.",
+      "require": {
+        "path_exists_all": [
+          "guardrails.settings.stall_exchanges_threshold",
+          "guardrails.settings.proactivity_cooldown_turns",
+          "guardrails.npc_proactivity.behaviors"
+        ]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "guardrails.safe_location_suggestion",
+      "rule": "Safe-location suggestion feature must be configured for known locations.",
+      "require": {
+        "path_true_all": ["guardrails.npc_location_suggestion.enabled"],
+        "path_exists_all": [
+          "guardrails.npc_location_suggestion.triggers_any",
+          "guardrails.npc_location_suggestion.selector"
+        ]
+      },
+      "severity": "warn"
+    },
+    {
+      "id": "world.check_knobs_for_d20_profile",
+      "rule": "World logic must expose difficulty bands and tier modifiers for optional d20 profile (5d20 remains default).",
+      "require": {
+        "path_exists_all": [
+          "world.logic.difficulty_bands",
+          "world.logic.tier_dc_modifiers"
+        ]
+      },
+      "severity": "warn"
+    },
+    {
+      "id": "world.junk_threshold",
+      "rule": "World must declare junk value threshold for loot post-processing.",
+      "require": {
+        "path_exists_all": ["world.logic.junk_value_threshold"]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "adv.glade.exists",
+      "rule": "Adventure must define Whispercross Glade location.",
+      "require": {
+        "path_exists_any": [
+          "adventure.locations.whispercross_glade",
+          "adventure.locations.glade",
+          "adventure.locations.whispercross.glade"
+        ]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "adv.glade.safe_haven",
+      "rule": "Glade must be tagged as a safe haven (Tier-0 narrative).",
+      "require": {
+        "any_path_satisfies": [
+          {
+            "path": "adventure.locations.whispercross_glade.tags[]",
+            "contains": "safe_haven"
+          }
+        ],
+        "path_equals_any": [["adventure.locations.whispercross_glade.tier", 0]]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "adv.glade.population_guarantee",
+      "rule": "Glade must guarantee at least one interactive NPC at all times; Sahran should be present by default.",
+      "require": {
+        "path_exists_all": [
+          "adventure.locations.whispercross_glade.guarantee_min_interactives"
+        ],
+        "path_gte": [
+          "adventure.locations.whispercross_glade.guarantee_min_interactives",
+          1
+        ],
+        "any_path_satisfies": [
+          {
+            "path": "adventure.locations.whispercross_glade.base_roster[]",
+            "contains": "sahran"
+          }
+        ]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "adv.glade.spawn_rules",
+      "rule": "Glade must define spawn rules by time block or an 'any' catch-all.",
+      "require": {
+        "path_exists_any": [
+          "adventure.locations.whispercross_glade.spawn_rules.any",
+          "adventure.locations.whispercross_glade.spawn_rules.morning",
+          "adventure.locations.whispercross_glade.spawn_rules.afternoon",
+          "adventure.locations.whispercross_glade.spawn_rules.night"
+        ]
+      },
+      "severity": "warn"
+    },
+    {
+      "id": "adv.glade.inventory_block",
+      "rule": "Glade should define a location inventory block; saves store deltas only.",
+      "require": {
+        "path_exists_all": ["adventure.locations.whispercross_glade.inventory"]
+      },
+      "severity": "warn"
+    },
+    {
+      "id": "save.preferences_hook",
+      "rule": "Save instructions must define and persist the mechanics visibility preference (default true).",
+      "require": {
+        "path_equals_any": [["save.preferences.show_mechanics_default", true]],
+        "path_exists_all": ["save.preferences.persist_path"]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "save.scene_header_fallback",
+      "rule": "Save instructions must include a fallback for time/location/weather and reference the scene header template.",
+      "require": {
+        "path_true_all": [
+          "save.scene_header_fallback.always_require_time_and_location"
+        ],
+        "path_exists_all": ["save.scene_header_fallback.render_template"]
+      },
+      "severity": "error"
+    },
+    {
+      "id": "save.inventory_delta_model",
+      "rule": "Save instructions must use the delta inventory model and clamp non-negative.",
+      "require": {
+        "path_equals_any": [
+          ["save.inventory_model.type", "delta"],
+          ["save.inventory_model.clamp_non_negative", true]
+        ],
+        "path_exists_all": [
+          "save.inventory_model.delta_path",
+          "save.inventory_model.base_stock_source"
+        ]
+      },
+      "severity": "error"
+    }
+  ]
+}

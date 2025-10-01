@@ -121,6 +121,27 @@ export const TelemetryEventSchema = z.object({
   timestamp: z.string().datetime().optional(),
 });
 
+// Turn validation schemas
+export const TurnResponseSchema = z.object({
+  narrative: z.string().min(1),
+  emotion: z.enum(['neutral', 'happy', 'sad', 'angry', 'fearful', 'surprised', 'excited']),
+  npcResponses: z.array(z.object({
+    npcId: z.string(),
+    response: z.string(),
+    emotion: z.string(),
+  })).optional(),
+  worldStateChanges: z.record(z.string(), z.unknown()).optional(),
+  suggestedActions: z.array(z.string()).optional(),
+});
+
+export const TurnResultSchema = z.object({
+  id: z.string().uuid(),
+  game_id: z.string().uuid(),
+  option_id: z.string().uuid(),
+  ai_response: TurnResponseSchema,
+  created_at: z.string().datetime(),
+});
+
 // Type exports
 export type ApiResponseMeta = z.infer<typeof ApiResponseMetaSchema>;
 export type ApiSuccessResponse<T = unknown> = {
@@ -142,3 +163,5 @@ export type PurchaseStonesRequest = z.infer<typeof PurchaseStonesRequestSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
 export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
 export type TelemetryEvent = z.infer<typeof TelemetryEventSchema>;
+export type TurnResponse = z.infer<typeof TurnResponseSchema>;
+export type TurnResult = z.infer<typeof TurnResultSchema>;

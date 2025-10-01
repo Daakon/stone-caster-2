@@ -1,0 +1,146 @@
+{
+  "title": "Whispers Beneath the Tourney",
+  "tier": 0,
+  "starting_location": "Royal Menagerie Garden",
+  "locations": [
+    {
+      "id": "royal-menagerie-garden",
+      "tier": 0,
+      "description": "A serene garden of exotic beasts and soft lantern light. Neutral ground in the Dominion’s palace, safe from scandal.",
+      "npcs_present": ["selene-veyra", "roderick-stormmane"]
+    },
+    {
+      "id": "burrows-rest",
+      "tier": 1,
+      "description": "The rabbit-run tavern where knights and nobles mingle. Gossip flows with ale.",
+      "npcs_present": ["tavin-quickfoot"]
+    },
+    {
+      "id": "veyra-study",
+      "tier": 1,
+      "description": "Selene’s private study, lined with scrolls and correspondence. A place for secrets.",
+      "npcs_present": ["selene-veyra"]
+    },
+    {
+      "id": "lions-pavilion",
+      "tier": 1,
+      "description": "Roderick’s training pavilion, decorated with banners and tourney crests. A place for honor.",
+      "npcs_present": ["roderick-stormmane"]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "selene-veyra",
+      "species": "fox",
+      "role": "heir contender",
+      "quirks": [
+        "collects secret letters",
+        "dreams of ruling wisely but slyly"
+      ],
+      "relationships": { "player": { "personal": 0, "political": 0 } }
+    },
+    {
+      "id": "roderick-stormmane",
+      "species": "lion",
+      "role": "heir contender",
+      "quirks": ["collects banners", "calls allies 'brother/sister in arms'"],
+      "relationships": { "player": { "personal": 0, "political": 0 } }
+    },
+    {
+      "id": "kael-ironmane",
+      "species": "lion",
+      "role": "general",
+      "quirks": ["proud commander", "skeptical of fox schemers"],
+      "relationships": {}
+    },
+    {
+      "id": "nyra-duskclaw",
+      "species": "panther",
+      "role": "courtier",
+      "quirks": ["secretive", "skilled in whispers"],
+      "relationships": {}
+    },
+    {
+      "id": "brann-hollowfur",
+      "species": "badger",
+      "role": "magistrate",
+      "quirks": ["stubborn", "incorruptible"],
+      "relationships": {}
+    },
+    {
+      "id": "tavin-quickfoot",
+      "species": "rabbit",
+      "role": "tavernkeeper",
+      "quirks": ["cheerful", "knows everyone’s gossip"],
+      "relationships": {}
+    },
+    {
+      "id": "seraphine-scaelith",
+      "species": "draconic",
+      "role": "scholar-knight",
+      "quirks": ["mysterious", "guardian of old lore"],
+      "relationships": {}
+    },
+    {
+      "id": "corvin-blackplume",
+      "species": "avian",
+      "role": "prince",
+      "quirks": ["calculating", "spymaster tendencies"],
+      "relationships": {}
+    },
+    {
+      "id": "atheon-marrow",
+      "species": "human",
+      "role": "cabal leader",
+      "quirks": ["silver-tongued", "ruthless"],
+      "relationships": {}
+    }
+  ],
+  "scenes": [
+    {
+      "id": "tourney-grounds",
+      "description": "The Grand Tourney begins. Selene and Roderick both approach the player, each seeking support.",
+      "choices": [
+        {
+          "id": "support-selene",
+          "text": "Lend subtle support to Selene Veyra."
+        },
+        {
+          "id": "support-roderick",
+          "text": "Stand proudly with Roderick Stormmane."
+        },
+        { "id": "remain-neutral", "text": "Observe quietly for now." }
+      ]
+    },
+    {
+      "id": "rumors-in-hall",
+      "description": "The court buzzes with rumors. Whispers of human cabal plots reach your ears.",
+      "choices": [
+        {
+          "id": "investigate-cabal",
+          "text": "Seek out hints of the Gilded Talon."
+        },
+        {
+          "id": "focus-selene",
+          "text": "Spend time with Selene privately in her study."
+        },
+        {
+          "id": "focus-roderick",
+          "text": "Train with Roderick in his pavilion."
+        }
+      ]
+    },
+    {
+      "id": "masks-at-court",
+      "description": "The masquerade feast — secrets revealed, alliances tested.",
+      "choices": [
+        { "id": "expose-cabal", "text": "Expose the human knights’ plot." },
+        {
+          "id": "ally-cabal",
+          "text": "Join the Gilded Talon and betray the Dominion."
+        },
+        { "id": "balance", "text": "Keep knowledge hidden — for now." }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,330 @@
+{
+  "file": "systems.unified.json",
+  "version": "1.0.0",
+  "about": "Merged schemas + policies + catalogs to reduce file count. Keys mirror the prior small files, so existing code can just point here.",
+  "$schema": "rpg/systems.unified.schema.json",
+  "awf": {
+    "envelope": {
+      "required_keys": ["scn", "txt", "choices", "acts", "val"],
+      "phases_enum": [
+        "scene_preamble",
+        "scene_body",
+        "outcome_render",
+        "post_outcome_reflection",
+        "choice_menu_render"
+      ],
+      "discipline": {
+        "mechanics_only_in_acts": true,
+        "choices_short_labels": true
+      }
+    },
+    "actions": {
+      "types": [
+        "MOVE",
+        "CHECK",
+        "REL_DELTA",
+        "STAT_DELTA",
+        "FLAG_SET",
+        "NPC_ADD",
+        "PLACE_ADD",
+        "SCENE_ADD",
+        "INVENTORY_ADD",
+        "INVENTORY_REMOVE",
+        "TIME_ADVANCE",
+        "CHOICE_SET"
+      ],
+      "CHECK": {
+        "result_encoding": "NdC",
+        "bands": {
+          "C": "crit",
+          "S": "success",
+          "P": "partial",
+          "F": "fail",
+          "X": "critfail"
+        },
+        "model": "5d20_default_with_optional_d20"
+      },
+      "REL_DELTA": {
+        "require_key": true,
+        "keys_enum": ["trust", "warmth", "energy"]
+      }
+    },
+    "toggles": {
+      "show_mechanics": {
+        "default": false,
+        "per_world_override": true
+      }
+    },
+    "errors": {
+      "codes": [
+        "E_AWF_MISSING_KEY",
+        "E_AWF_BAD_PHASE",
+        "E_AWF_BAD_ACTION",
+        "E_SAVE_CLAMP",
+        "E_SAVE_REPAIR",
+        "E_ASSET_MISSING",
+        "E_SCHEMA_VIOLATION"
+      ]
+    }
+  },
+  "schemas": {
+    "npc": {
+      "state_enum": ["background", "promoted", "inactive"],
+      "shape": {
+        "id": "string (required)",
+        "name": "string (optional)",
+        "aka": ["string (optional)"],
+        "species": "string (optional)",
+        "essence_alignment": ["string (optional)"],
+        "portrait_ref": "string (optional)",
+        "state": "string enum (default background)",
+        "appearance": {
+          "notable_features": ["string (optional)"],
+          "signature_movement": "string (optional)",
+          "age": "number (optional)",
+          "build": "string (optional)"
+        },
+        "quirks": ["string (optional)"],
+        "goals": {
+          "short_term": ["string (optional)"],
+          "long_term": ["string (optional)"]
+        },
+        "stakes": ["string (optional)"],
+        "skills": {
+          "tags": ["string (optional)"],
+          "tiers": {
+            "*": "number 0..3 (optional)"
+          }
+        },
+        "relationships": {
+          "with_player": {
+            "trust": "number -3..+3 (optional)",
+            "warmth": "number -3..+3 (optional)",
+            "energy": "number -3..+3 (optional)",
+            "notes": "string (optional)"
+          },
+          "with_npcs": [
+            {
+              "target_id": "string",
+              "bond": "string (optional)",
+              "score": "number -3..+3 (optional)",
+              "notes": "string (optional)"
+            }
+          ]
+        },
+        "listen_model": {
+          "stubbornness": "number 0..3 (optional)",
+          "goal_alignment_bias": "number -2..+2 (optional)",
+          "respect_for_player": "number -2..+2 (optional)"
+        },
+        "faction_id": "string (optional)",
+        "faction_stance": {
+          "by_faction": {
+            "<faction_id>": "ally|friendly|neutral|wary|hostile"
+          }
+        },
+        "tags": ["string (optional)"],
+        "provenance": {
+          "first_seen_scene_id": "string (optional)",
+          "last_updated_iso": "string (optional)",
+          "author": "string (system|runtime) (optional)"
+        }
+      },
+      "computed": {
+        "narrative_detail_score": {
+          "weights": {
+            "appearance.notable_features": 0.15,
+            "appearance.signature_movement": 0.1,
+            "quirks": 0.15,
+            "goals.short_term": 0.1,
+            "goals.long_term": 0.1,
+            "relationships.with_player": 0.15,
+            "relationships.with_npcs": 0.1,
+            "skills.tiers": 0.1,
+            "stakes": 0.05
+          },
+          "formula": "sum(weights for present non-empty fields); clamp 0..1"
+        },
+        "beat_weights": {
+          "base": 1,
+          "promoted_multiplier": 1.5,
+          "inactive_multiplier": 0,
+          "detail_scale": "base * (0.5 + 0.5 * narrative_detail_score)",
+          "final_weight_formula": "detail_scale * (state=='promoted'?1.5:(state=='inactive'?0:1))"
+        },
+        "faction_affinity": {
+          "formula": "base_from_alignment + stance_bonus",
+          "range": [-2, 2]
+        }
+      }
+    },
+    "skills": {
+      "tiers": {
+        "0": "Untrained",
+        "1": "Novice",
+        "2": "Adept",
+        "3": "Expert"
+      },
+      "domains": [
+        "combat",
+        "stealth",
+        "social",
+        "lore",
+        "wilds",
+        "medicine",
+        "craft"
+      ],
+      "defaults": {
+        "all_to": 0
+      },
+      "checks": {
+        "dc_map": {
+          "easy": 0,
+          "standard": 1,
+          "hard": 2,
+          "heroic": 3
+        },
+        "compare": "skill_tier >= dc_tier"
+      }
+    }
+  },
+  "policies": {
+    "choice_listen": {
+      "formula": "norm( clamp(((trust??0)+(warmth??0))/2, -3, 3), -3, 3 ) * 0.6 + clamp(goal_alignment_bias??0, -1, 1)*0.25 + clamp(1-(stubbornness??0)/3, 0, 1)*0.15 + respect_bonus",
+      "helpers": {
+        "norm": "function(x, a, b){ return (x - a) / (b - a); }"
+      },
+      "thresholds": {
+        "follow": ">= 0.67",
+        "conditional": ">= 0.34 && < 0.67",
+        "resist": "< 0.34"
+      },
+      "respect_bonus_rules": [
+        {
+          "add": 0.05,
+          "if": "skills.tiers.social >= 2"
+        },
+        {
+          "add": 0.05,
+          "if": "player.reputation.good >= 1"
+        }
+      ]
+    },
+    "choice_skill_gating": {
+      "difficulty_bands_ref": "world.logic.difficulty_bands",
+      "check_order": ["attribute", "skill", "situation_tag"],
+      "failure_rendering": {
+        "style": "diegetic",
+        "hints": true,
+        "forbid_meta_numbers": true
+      }
+    }
+  },
+  "rendering": {
+    "perspective_guards": {
+      "first_meet_policy": {
+        "observed_only": true,
+        "skill_gates": {
+          "perception": {
+            "thresholds": [1, 3],
+            "reveals": [
+              "appearance.signature_movement",
+              "appearance.notable_features[0..1]"
+            ]
+          },
+          "lore": {
+            "thresholds": [2],
+            "reveals": ["species"]
+          },
+          "empathy": {
+            "thresholds": [2, 3],
+            "reveals": ["mood_hint"]
+          }
+        },
+        "forbidden_fields": [
+          "backstory",
+          "hidden_traits",
+          "private_goals",
+          "secrets.*"
+        ]
+      }
+    }
+  },
+  "beats": {
+    "social_catalog": [
+      {
+        "id": "romance_glance",
+        "intent": "affection",
+        "conditions": ["pair.compatibility >= 0"],
+        "effect": {
+          "delta": {
+            "warmth": "+=0.25"
+          },
+          "cooldown_s": 600
+        },
+        "lines": ["\"Careful,\" a soft word that lingers."]
+      },
+      {
+        "id": "rivalry_needling",
+        "intent": "dominance",
+        "conditions": ["pair.tension >= 1"],
+        "effect": {
+          "delta": {
+            "energy": "+=0.25",
+            "warmth": "-=0.25"
+          },
+          "cooldown_s": 600
+        },
+        "lines": ["\"Try to keep up,\" said like a dare."]
+      },
+      {
+        "id": "objective_partnering",
+        "intent": "cooperate",
+        "conditions": ["shared_goal('rescue_captives') == true"],
+        "effect": {
+          "tag": "ally_synergy:+1",
+          "cooldown_s": 900
+        }
+      }
+    ]
+  },
+  "scheduler": {
+    "channels": {
+      "npc_social": {
+        "eligible_phases": [
+          "scene_preamble",
+          "scene_body",
+          "post_outcome_reflection"
+        ],
+        "ineligible_phases": ["outcome_render", "choice_menu_render"],
+        "enabled": true,
+        "max_per_turn": 1,
+        "max_per_session": 6,
+        "cooldown_minutes": 8
+      }
+    },
+    "npc_weight_formula": "let base=1.0; let detail=0.5 + 0.5*(npc.computed.narrative_detail_score ?? 0); let mult=(npc.state=='promoted'?1.5:(npc.state=='inactive'?0:1)); return base*detail*mult;",
+    "npc_npc_weight_formula": "let w=(npcA.computed.narrative_detail_score + npcB.computed.narrative_detail_score)/2; let bias=relationship_bias(npcA,npcB); return (0.5+0.5*w)*(1+bias);"
+  },
+  "integration": {
+    "save_contract": {
+      "npc_storage": {
+        "path": "npcs",
+        "shape_ref": "schemas.npc.shape",
+        "on_merge": "deep_merge_by_id"
+      },
+      "player_storage": {
+        "path": "player.skills",
+        "defaults_all_to": 0,
+        "clamp_range": [0, 3]
+      },
+      "compute_on_read": {
+        "npcs[*].computed.narrative_detail_score": "presence-weighted sum per schemas.npc.computed.narrative_detail_score"
+      }
+    },
+    "choice_gen": {
+      "listen_policy_ref": "policies.choice_listen",
+      "skill_gating_ref": "policies.choice_skill_gating"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "rpg/awf.validator-and-applier.schema.json",
+  "validate": [
+    {
+      "t": "require_keys",
+      "keys": ["scn", "txt", "choices", "acts", "val"],
+      "error": "E_AWF_MISSING_KEY"
+    },
+    {
+      "t": "enum",
+      "path": "scn.ph",
+      "values_from": "Core/systems.unified.json:awf.envelope.phases_enum",
+      "error": "E_AWF_BAD_PHASE"
+    },
+    {
+      "t": "actions_known",
+      "path": "acts[*].t",
+      "values_from": "Core/systems.unified.json:awf.actions.types",
+      "error": "E_AWF_BAD_ACTION"
+    }
+  ],
+  "apply": [
+    {
+      "t": "dispatch_apply_acts"
+    },
+    {
+      "t": "recompute_headers"
+    },
+    {
+      "t": "choice_retention",
+      "keep_last": 3
+    }
+  ]
+}

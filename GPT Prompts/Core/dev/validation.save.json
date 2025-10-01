@@ -1,0 +1,272 @@
+{
+  "id": "validation.save",
+  "version": "1.1.0",
+  "description": "Validation rules for save files after load/migration and before write. Hard invariants are errors; narrative/craft items are warnings.",
+  "$schema": "rpg/validation.save.schema.json",
+  "ranges": {
+    "stats": {
+      "min": 0,
+      "max": 100
+    },
+    "relationships": {
+      "min": -1,
+      "max": 1
+    },
+    "inventory_qty": {
+      "min": 0,
+      "max": 9999
+    }
+  },
+  "repairs": {
+    "missing_stats": "fill_from_world_defaults",
+    "missing_relationships": "zero_fill",
+    "bad_phase": "reset_to_scene_body"
+  },
+  "hard_errors": {
+    "invalid_actor_state": true
+  },
+  "rules": [
+    {
+      "path": "player.settings.show_mechanics",
+      "type": "boolean",
+      "required": false,
+      "on_missing": "omit",
+      "on_type_error": "coerce_boolean_or_omit"
+    },
+    {
+      "path": "npcs[*]",
+      "type": "object",
+      "required": false,
+      "custom": "if (obj.state==='promoted' && !(obj.name && ((obj.quirks&&obj.quirks.length) || (obj.traits&&obj.traits.length) || (obj.goals&&obj.goals.short_term&&obj.goals.short_term.length)))) return 'error: promoted NPCs need name + 1 detail';"
+    },
+    {
+      "path": "player.settings.show_mechanics",
+      "type": "boolean",
+      "required": false,
+      "custom": "if (root.runtime && root.runtime.settings && root.runtime.settings.show_mechanics !== undefined) return 'error: runtime.settings.show_mechanics must not be persisted by save';"
+    },
+    {
+      "path": "npcs[*].id",
+      "type": "string",
+      "required": true,
+      "on_missing": "error: npc.id is required"
+    },
+    {
+      "path": "npcs[*].state",
+      "type": "string",
+      "required": false,
+      "allowed": ["background", "promoted", "inactive"],
+      "on_missing": "set:background"
+    },
+    {
+      "id": "npc.promoted_minimum_details",
+      "path": "npcs[*]",
+      "type": "object",
+      "required": false,
+      "custom": "if (obj.state==='promoted' && !(obj.name && ((obj.quirks && obj.quirks.length) || (obj.traits && obj.traits.length) || (obj.goals && obj.goals.short_term && obj.goals.short_term.length)))) return 'error: promoted NPCs need name + one detail (quirk/trait/short-term-goal)';"
+    },
+    {
+      "path": "npcs[*].relationships.with_player.trust",
+      "type": "number",
+      "required": false,
+      "range": {
+        "min": -3,
+        "max": 3
+      },
+      "on_out_of_range": "clamp"
+    },
+    {
+      "path": "npcs[*].relationships.with_player.warmth",
+      "type": "number",
+      "required": false,
+      "range": {
+        "min": -3,
+        "max": 3
+      },
+      "on_out_of_range": "clamp"
+    },
+    {
+      "path": "npcs[*].relationships.with_player.energy",
+      "type": "number",
+      "required": false,
+      "range": {
+        "min": -3,
+        "max": 3
+      },
+      "on_out_of_range": "clamp"
+    },
+    {
+      "path": "npcs[*].skills.tiers.*",
+      "type": "number",
+      "required": false,
+      "range": {
+        "min": 0,
+        "max": 3
+      },
+      "on_out_of_range": "clamp"
+    },
+    {
+      "path": "npcs[*].listen_model.*",
+      "type": "number",
+      "required": false,
+      "range": {
+        "min": -2,
+        "max": 3
+      },
+      "on_out_of_range": "clamp"
+    }
+  ],
+  "validate_after_load": [
+    {
+      "id": "scene.header_present",
+      "severity": "error",
+      "rule": "scene.location_id and scene.time_of_day must be non-empty after fallback logic runs",
+      "on_fail": "derive via save.instructions.scene_header_fallback (use world's starting location/time if needed)"
+    },
+    {
+      "id": "inventory.non_negative",
+      "severity": "error",
+      "rule": "After applying deltas to base stock, all effective inventory counts must be >= 0",
+      "on_fail": "clamp to 0"
+    },
+    {
+      "id": "preferences.show_mechanics_optional",
+      "severity": "warn",
+      "rule": "If player.settings.show_mechanics is present, it must be boolean",
+      "on_fail": "omit"
+    },
+    {
+      "id": "relationships.numeric",
+      "severity": "error",
+      "rule": "All player.relationships[npc_id].score must be numeric",
+      "on_fail": "set to 0"
+    },
+    {
+      "id": "relationships.bounds",
+      "severity": "error",
+      "rule": "If world defines relationship_min or relationship_max, clamp scores within bounds",
+      "on_fail": "clamp to allowed range"
+    },
+    {
+      "id": "presence.valid_states",
+      "severity": "error",
+      "rule": "presence.roster[npc_id] must be one of: present, offscreen-task, resting, absent, dead",
+      "on_fail": "set to absent"
+    },
+    {
+      "id": "session.day_number_noted",
+      "severity": "warn",
+      "rule": "If the world tracks days, the current session/day number should be recorded in meta or scene snapshot",
+      "on_fail": "set meta.session_day from world clock or leave note"
+    },
+    {
+      "id": "tone.continuity",
+      "severity": "warn",
+      "rule": "Session tone should carry from last handoff or recap",
+      "on_fail": "copy prior tone tag or seed from recap"
+    },
+    {
+      "id": "npc.candidate_tagging",
+      "severity": "warn",
+      "rule": "Promoted 'candidate' NPCs (if any) should be justified and tagged",
+      "on_fail": "add candidate flag with brief reason or demote"
+    },
+    {
+      "id": "emotion.quote_anchors",
+      "severity": "warn",
+      "rule": "Important quote anchors should be embedded for emotional beats",
+      "on_fail": "add 1–2 short quotes or paraphrase anchors"
+    },
+    {
+      "id": "relationships.types_updated",
+      "severity": "warn",
+      "rule": "Relationship types/tags (trust/warmth/tension etc.) should reflect this session's changes",
+      "on_fail": "sync tag set with deltas"
+    },
+    {
+      "id": "quirks.consistency",
+      "severity": "warn",
+      "rule": "Recurring quirks/behaviors should be noted and consistent with recent sessions",
+      "on_fail": "add/update quirk notes"
+    },
+    {
+      "id": "events.key_listed",
+      "severity": "warn",
+      "rule": "Major tone-setting events should be captured with tags and in emotional relevance order",
+      "on_fail": "append ordered event list with tags"
+    },
+    {
+      "id": "threads.unstable_listed",
+      "severity": "warn",
+      "rule": "Unresolved conflicts/mysteries/risks (unstable threads) should be listed",
+      "on_fail": "add short bullet list of unstable threads"
+    },
+    {
+      "id": "faction.status",
+      "severity": "warn",
+      "rule": "Current tactical status / campaign phase and key faction leadership should be summarized",
+      "on_fail": "add brief status line (e.g., Alliance vs Sanctuary leadership)"
+    },
+    {
+      "id": "handoff.tone_hook",
+      "severity": "warn",
+      "rule": "A final quote or tone hook should be present to resume smoothly",
+      "on_fail": "add a one-sentence hook or quote"
+    },
+    {
+      "id": "ui.headers_when_story",
+      "severity": "warn",
+      "rule": "When story content is present, required headers should appear (Recap if loading, Scene, Rolls if checks, Outcome, Choices)",
+      "on_fail": "align renderer output to headers map; Choices only when story is presented"
+    },
+    {
+      "id": "ui.stylepack_ready",
+      "severity": "warn",
+      "rule": "Active stylepack or fallback should be applied; unknown glyphs mapped or degraded",
+      "on_fail": "apply global base glyphs or strip chips while keeping text"
+    }
+  ],
+  "validate_before_write": [
+    {
+      "id": "meta.timestamps",
+      "severity": "error",
+      "rule": "meta.updated_at must be current ISO-8601 timestamp",
+      "on_fail": "set to now"
+    },
+    {
+      "id": "inventory.cleanup_zero_deltas",
+      "severity": "error",
+      "rule": "Remove any world.location_stock_delta entries with delta=0 before writing",
+      "on_fail": "prune from save"
+    },
+    {
+      "id": "relationships.change_flag",
+      "severity": "warn",
+      "rule": "Only persist relationship entries that changed this turn",
+      "on_fail": "do not write unchanged entries"
+    },
+    {
+      "id": "presence.update_flag",
+      "severity": "warn",
+      "rule": "Only persist presence.roster if changed this turn",
+      "on_fail": "do not write unchanged entries"
+    }
+  ],
+  "path": "npcs[*].skills.tiers.*",
+  "type": "number",
+  "required": false,
+  "range": {
+    "min": 0,
+    "max": 3
+  },
+  "on_out_of_range": "clamp",
+  "policy": {
+    "fail_fast": false,
+    "unknown_fields": "allow"
+  },
+  "repair_strategies": {
+    "set_default_relationship_score": 0,
+    "set_default_presence_state": "absent",
+    "clamp_inventory_minimum": 0
+  }
+}
