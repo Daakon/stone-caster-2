@@ -255,89 +255,181 @@ npm run build
 
 ---
 
-### 0.3 Add Mobile Navigation System
-**Branch**: `layer-0.3/mobile-navigation`
+### 0.3 Accessibility & Testing Infrastructure
+**Branch**: `layer-0.3/accessibility-testing`
 
-**Problem**: Missing required mobile drawer navigation
+**Problem**: Missing comprehensive accessibility testing and component library completion
 
 **Tasks**:
-1. Create mobile hamburger menu component
-2. Implement drawer navigation for authed routes
-3. Add persistent sidebar for md+ screens
-4. Ensure proper accessibility
-5. Add keyboard navigation support
+1. **Install and Configure Accessibility Testing**:
+   - Install @axe-core/playwright for automated accessibility testing
+   - Configure Playwright with accessibility test suite
+   - Set up axe-core rules and configuration
+   - Create accessibility test utilities and helpers
+
+2. **Complete Component Library**:
+   - Build additional reusable components: Badge, Avatar, Separator, ScrollArea
+   - Create form validation components with proper error states
+   - Build loading states and skeleton components
+   - Create toast notification system with Sonner
+   - Build modal/dialog components for confirmations and forms
+   - Create data display components: Table, List, Accordion
+
+3. **Accessibility Enhancements**:
+   - Ensure all interactive elements have proper focus states
+   - Add ARIA labels and descriptions where needed
+   - Implement proper heading hierarchy (h1, h2, h3, etc.)
+   - Add skip navigation links for keyboard users
+   - Ensure color contrast meets WCAG AA standards
+   - Add screen reader support for dynamic content
+   - Implement proper form labeling and error associations
+
+4. **Responsive Design Testing**:
+   - Create comprehensive responsive test suite
+   - Test at all breakpoints: 375×812, 768×1024, 1024×768, 1920×1080
+   - Verify mobile-first approach works correctly
+   - Test touch interactions and gestures
+   - Ensure proper viewport handling
+
+5. **Keyboard Navigation**:
+   - Implement comprehensive keyboard navigation
+   - Add focus management for modals and drawers
+   - Ensure tab order is logical and intuitive
+   - Add keyboard shortcuts for common actions
+   - Test with keyboard-only navigation
+
+6. **Testing Infrastructure**:
+   - Add unit tests for all new components
+   - Create integration tests for user flows
+   - Add visual regression tests for components
+   - Set up automated accessibility testing in CI
+   - Create test utilities for common patterns
 
 **Acceptance Criteria**:
-- ✅ Mobile hamburger menu works
-- ✅ Drawer navigation functional
-- ✅ Desktop sidebar persistent
-- ✅ Keyboard navigation works
-- ✅ Screen reader accessible
+- ✅ @axe-core/playwright installed and configured
+- ✅ 0 serious/critical accessibility violations on all pages
+- ✅ All components have proper ARIA labels and focus states
+- ✅ Color contrast meets WCAG AA standards (4.5:1 ratio)
+- ✅ Keyboard navigation works throughout the application
+- ✅ Screen reader compatible with proper announcements
+- ✅ Responsive design tested at all breakpoints
+- ✅ Comprehensive component library with 15+ reusable components
+- ✅ Form validation with proper error states and associations
+- ✅ Loading states and skeleton components implemented
+- ✅ Toast notification system functional
+- ✅ Modal/dialog system with proper focus management
+- ✅ All components have unit tests with 80%+ coverage
+- ✅ Integration tests for critical user flows
+- ✅ Visual regression tests for component library
 
 **Local Testing Instructions**:
 ```bash
 # 1. Checkout the branch
-git checkout layer-0.3/mobile-navigation
+git checkout layer-0.3/accessibility-testing
 
-# 2. Start development servers
+# 2. Install dependencies
+npm install
+
+# 3. Install additional shadcn/ui components
+cd frontend
+npx shadcn@latest add badge avatar separator scroll-area --yes
+npx shadcn@latest add table accordion --yes
+
+# 4. Start development servers
+cd ..
 npm run dev
 
-# 3. Test mobile navigation
+# 5. Accessibility Testing:
 # - Frontend: http://localhost:5173
-# - Test at 375×812 viewport
-# - Verify hamburger menu appears
-# - Test drawer opening/closing
-# - Test navigation links work
-# - Test keyboard navigation (Tab, Enter, Escape)
-# - Test screen reader with VoiceOver/NVDA
+# - Run automated accessibility tests:
+npm run test:a11y --workspace=frontend
+# - Manual testing with screen reader (VoiceOver/NVDA)
+# - Test keyboard-only navigation (Tab, Enter, Escape, Arrow keys)
+# - Verify focus indicators are visible and logical
+# - Check color contrast with browser dev tools
 
-# 4. Test desktop navigation
-# - Test at 1024×768 and larger
-# - Verify persistent sidebar
-# - Test sidebar collapse/expand
-# - Test navigation links work
+# 6. Responsive Design Testing:
+# - Test at 375×812 (iPhone X baseline)
+# - Test at 768×1024 (iPad portrait)
+# - Test at 1024×768 (iPad landscape)
+# - Test at 1920×1080 (Desktop)
+# - Verify mobile-first approach works correctly
+# - Test touch interactions and gestures
 
-# 5. Run tests
+# 7. Component Library Testing:
+# - Test all new components in Storybook (if available)
+# - Verify form validation states and error messages
+# - Test loading states and skeleton components
+# - Test toast notifications
+# - Test modal/dialog focus management
+# - Test data display components
+
+# 8. Run comprehensive test suite:
 npm test
 npm run test:e2e --workspace=frontend
+npm run test:a11y --workspace=frontend
 
-# 6. Run accessibility tests
-npx playwright test --grep="accessibility"
-
-# 7. Run linting and type checking
+# 9. Run linting and type checking:
 npm run lint --workspaces
 npm run type-check --workspaces
+
+# 10. Build test:
+npm run build
 ```
 
 **Expected Outcome**:
-- Mobile hamburger menu and drawer work perfectly
-- Desktop sidebar is persistent and functional
-- Full keyboard navigation support
-- Screen reader accessible
-- All navigation tests pass
+- Comprehensive accessibility testing infrastructure in place
+- 0 serious/critical accessibility violations across all pages
+- Complete component library with 15+ reusable components
+- Full keyboard navigation support with proper focus management
+- Screen reader compatible with proper ARIA implementation
+- Responsive design tested and working at all breakpoints
+- Form validation with proper error states and associations
+- Loading states, skeleton components, and toast notifications
+- Modal/dialog system with proper focus management
+- Comprehensive test coverage (unit, integration, accessibility, visual)
+- All components properly typed and documented
 
 ---
 
 ### 0.4 Complete Backend API Validation
 **Branch**: `layer-0.4/api-validation`
 
-**Problem**: Missing Zod validation on all endpoints
+**Problem**: Missing Zod validation on all endpoints and incomplete wrapper architecture
 
 **Tasks**:
-1. Add Zod schemas for all request/response types
-2. Implement consistent error response format
-3. Add proper JWT authentication middleware
-4. Ensure all endpoints return `{ ok, data?, error? }` format
-5. Add comprehensive API documentation
-6. Introduce single wrapper modules: /wrappers/ai, /wrappers/auth, /wrappers/payments
-7. Add tests ensuring no vendor SDKs are imported outside wrappers (lint rule or unit guard)
+1. **API Validation & Error Handling**:
+   - Add Zod schemas for all request/response types
+   - Implement consistent error response format
+   - Add proper JWT authentication middleware
+   - Ensure all endpoints return `{ ok, data?, error? }` format
+   - Add comprehensive API documentation
+
+2. **Wrapper Architecture Implementation**:
+   - Complete wrapper modules: /wrappers/ai, /wrappers/auth, /wrappers/payments
+   - Move all vendor SDK imports to wrapper modules
+   - Add tests ensuring no vendor SDKs are imported outside wrappers
+   - Implement proper error handling and logging in wrappers
+   - Add wrapper-specific configuration and environment handling
+
+3. **API Security & Performance**:
+   - Implement rate limiting for API endpoints
+   - Add request/response logging and monitoring
+   - Implement proper CORS configuration
+   - Add API versioning support
+   - Implement request validation middleware
 
 **Acceptance Criteria**:
-- ✅ All API inputs validated with Zod
-- ✅ Consistent error response format
-- ✅ JWT authentication working
+- ✅ All API inputs validated with Zod schemas
+- ✅ Consistent error response format across all endpoints
+- ✅ JWT authentication middleware working correctly
+- ✅ All vendor SDK imports moved to wrapper modules
+- ✅ Wrapper architecture tests passing (no violations)
 - ✅ No `any` types in API code
-- ✅ All endpoints documented
+- ✅ All endpoints documented with OpenAPI/Swagger
+- ✅ Rate limiting implemented and tested
+- ✅ CORS configuration properly set up
+- ✅ Request/response logging and monitoring in place
 
 **Local Testing Instructions**:
 ```bash
@@ -374,11 +466,16 @@ npm run type-check --workspaces
 ```
 
 **Expected Outcome**:
-- All API endpoints validate input with Zod
-- Consistent error response format
-- JWT authentication works correctly
-- No TypeScript `any` types
-- All API tests pass
+- All API endpoints validate input with Zod schemas
+- Consistent error response format across all endpoints
+- JWT authentication middleware working correctly
+- Complete wrapper architecture with no vendor SDK violations
+- All vendor SDK imports properly isolated in wrapper modules
+- No TypeScript `any` types in API code
+- Comprehensive API documentation with OpenAPI/Swagger
+- Rate limiting and security measures in place
+- Request/response logging and monitoring implemented
+- All API tests passing with comprehensive coverage
 
 ---
 

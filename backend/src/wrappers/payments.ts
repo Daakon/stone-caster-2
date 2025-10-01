@@ -6,7 +6,7 @@
  * functionality should go through this wrapper.
  */
 
-import { configService } from '../services/config.service.js';
+// import { configService } from '../services/config.service.js'; // Will be used in future layers
 
 export interface PaymentIntent {
   id: string;
@@ -27,7 +27,7 @@ export interface PaymentWebhook {
   id: string;
   type: string;
   data: {
-    object: any;
+    object: Record<string, unknown>;
   };
   created: number;
 }
@@ -35,9 +35,7 @@ export interface PaymentWebhook {
 /**
  * Create a payment intent
  */
-export async function createPaymentIntent(request: CreatePaymentRequest): Promise<PaymentIntent> {
-  const config = configService.getPricing();
-  
+export async function createPaymentIntent(): Promise<PaymentIntent> {
   // TODO: Implement actual payment service integration
   // This is a placeholder that will be implemented in later layers
   throw new Error('Payment service not yet implemented');
@@ -46,9 +44,7 @@ export async function createPaymentIntent(request: CreatePaymentRequest): Promis
 /**
  * Confirm a payment intent
  */
-export async function confirmPaymentIntent(paymentIntentId: string): Promise<PaymentIntent> {
-  const config = configService.getPricing();
-  
+export async function confirmPaymentIntent(): Promise<PaymentIntent> {
   // TODO: Implement actual payment confirmation
   // This is a placeholder that will be implemented in later layers
   throw new Error('Payment confirmation not yet implemented');
@@ -57,9 +53,7 @@ export async function confirmPaymentIntent(paymentIntentId: string): Promise<Pay
 /**
  * Handle payment webhook
  */
-export async function handleWebhook(webhook: PaymentWebhook): Promise<void> {
-  const config = configService.getPricing();
-  
+export async function handleWebhook(): Promise<void> {
   // TODO: Implement actual webhook handling
   // This is a placeholder that will be implemented in later layers
   throw new Error('Webhook handling not yet implemented');
@@ -68,9 +62,7 @@ export async function handleWebhook(webhook: PaymentWebhook): Promise<void> {
 /**
  * Verify webhook signature
  */
-export function verifyWebhookSignature(payload: string, signature: string): boolean {
-  const config = configService.getPricing();
-  
+export function verifyWebhookSignature(): boolean {
   // TODO: Implement actual signature verification
   // This is a placeholder that will be implemented in later layers
   throw new Error('Webhook signature verification not yet implemented');

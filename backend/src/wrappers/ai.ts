@@ -6,7 +6,7 @@
  * go through this wrapper.
  */
 
-import { configService } from '../services/config.service.js';
+// import { configService } from '../services/config.service.js'; // Will be used in future layers
 
 export interface AIResponse {
   content: string;
@@ -29,9 +29,7 @@ export interface AIRequest {
 /**
  * Generate AI response using the configured AI service
  */
-export async function generateResponse(request: AIRequest): Promise<AIResponse> {
-  const config = configService.getAi();
-  
+export async function generateResponse(): Promise<AIResponse> {
   // TODO: Implement actual AI service integration
   // This is a placeholder that will be implemented in later layers
   throw new Error('AI service not yet implemented');
@@ -45,6 +43,6 @@ export function validateAIResponse(response: unknown): response is AIResponse {
     typeof response === 'object' &&
     response !== null &&
     'content' in response &&
-    typeof (response as any).content === 'string'
+    typeof (response as Record<string, unknown>).content === 'string'
   );
 }

@@ -6,7 +6,7 @@
  * functionality should go through this wrapper.
  */
 
-import { configService } from '../services/config.service.js';
+// import { configService } from '../services/config.service.js'; // Will be used in future layers
 
 export interface AuthUser {
   id: string;
@@ -35,9 +35,7 @@ export interface SignUpRequest {
 /**
  * Sign in a user with email and password
  */
-export async function signIn(request: SignInRequest): Promise<AuthSession> {
-  const config = configService.getApp();
-  
+export async function signIn(): Promise<AuthSession> {
   // TODO: Implement actual auth service integration
   // This is a placeholder that will be implemented in later layers
   throw new Error('Auth service not yet implemented');
@@ -46,9 +44,7 @@ export async function signIn(request: SignInRequest): Promise<AuthSession> {
 /**
  * Sign up a new user
  */
-export async function signUp(request: SignUpRequest): Promise<AuthSession> {
-  const config = configService.getApp();
-  
+export async function signUp(): Promise<AuthSession> {
   // TODO: Implement actual auth service integration
   // This is a placeholder that will be implemented in later layers
   throw new Error('Auth service not yet implemented');
@@ -57,9 +53,7 @@ export async function signUp(request: SignUpRequest): Promise<AuthSession> {
 /**
  * Verify and decode a JWT token
  */
-export async function verifyToken(token: string): Promise<AuthUser> {
-  const config = configService.getApp();
-  
+export async function verifyToken(): Promise<AuthUser> {
   // TODO: Implement actual token verification
   // This is a placeholder that will be implemented in later layers
   throw new Error('Token verification not yet implemented');
@@ -68,9 +62,7 @@ export async function verifyToken(token: string): Promise<AuthUser> {
 /**
  * Refresh an expired access token
  */
-export async function refreshToken(refreshToken: string): Promise<AuthSession> {
-  const config = configService.getApp();
-  
+export async function refreshToken(): Promise<AuthSession> {
   // TODO: Implement actual token refresh
   // This is a placeholder that will be implemented in later layers
   throw new Error('Token refresh not yet implemented');
