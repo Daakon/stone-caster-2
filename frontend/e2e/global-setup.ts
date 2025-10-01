@@ -1,6 +1,6 @@
-import { chromium, FullConfig } from '@playwright/test';
+// Global setup for Playwright tests
 
-async function globalSetup(config: FullConfig) {
+async function globalSetup() {
   // Global setup for accessibility testing
   console.log('Setting up accessibility testing environment...');
   

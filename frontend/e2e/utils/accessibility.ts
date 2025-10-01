@@ -67,8 +67,8 @@ export async function checkSpecificAccessibilityIssues(page: Page) {
 /**
  * Tests keyboard navigation
  */
-export async function testKeyboardNavigation(page: Page, selectors: string[]) {
-  for (const selector of selectors) {
+export async function testKeyboardNavigation(page: Page) {
+  for (let i = 0; i < 5; i++) {
     await page.keyboard.press('Tab');
     const focusedElement = await page.locator(':focus');
     await expect(focusedElement).toBeVisible();
