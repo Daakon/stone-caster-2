@@ -11,6 +11,7 @@ This document tracks our systematic approach to hardening and building the Stone
 - **Quality Gates**: Linting, type-checking, and builds must pass
 - **Documentation**: Update docs in same PR as code changes
 - **Branch Strategy**: One branch per layer, complete before moving to next
+- **Frameworks**: Backend Node/Express; Frontend React + Tailwind (no bespoke CSS)
 
 ## Current State Assessment
 
@@ -56,6 +57,7 @@ This document tracks our systematic approach to hardening and building the Stone
 - ✅ No linting errors
 - ✅ TypeScript compiles without errors
 - ✅ All existing functionality works
+- ✅ /api/config returns ETag and supports 304; hot-reload via config_meta.version verified by tests
 
 **Local Testing Instructions**:
 ```bash
@@ -247,6 +249,8 @@ npm run type-check --workspaces
 3. Add proper JWT authentication middleware
 4. Ensure all endpoints return `{ ok, data?, error? }` format
 5. Add comprehensive API documentation
+6. Introduce single wrapper modules: /wrappers/ai, /wrappers/auth, /wrappers/payments
+7. Add tests ensuring no vendor SDKs are imported outside wrappers (lint rule or unit guard)
 
 **Acceptance Criteria**:
 - ✅ All API inputs validated with Zod
@@ -312,6 +316,10 @@ npm run type-check --workspaces
 3. Implement RLS policies for all tables
 4. Add audit triggers for stone ledger
 5. Update database documentation
+6. Create tag join tables and indexes:
+   - world_tags(world_id, tag_id), adventure_tags(adventure_id, tag_id),
+     scenario_tags(scenario_id, tag_id), quest_tags(quest_id, tag_id),
+     character_tags(character_id, tag_id)
 
 **Acceptance Criteria**:
 - ✅ All database tables from spec exist
@@ -378,6 +386,7 @@ npm run type-check --workspaces
 - ✅ Conversion system works
 - ✅ Daily regeneration implemented
 - ✅ Turn consumption deducts stones
+- ✅ Every stone mutation (spend, grant, convert, purchase, regen) writes an immutable stone_ledger entry with {owner, delta, reason, game_id?, turn_id?}
 
 **Local Testing Instructions**:
 ```bash
@@ -433,6 +442,9 @@ npm run type-check --workspaces
 3. Add guest-to-user migration system
 4. Implement guest session management
 5. Add guest user API endpoints
+6. Implement cookie groups: cookie_groups, cookie_group_members
+7. Implement guest shared wallet at group level (guest_stone_wallets) and device membership
+8. Internal linking on auth callback (cookie group -> user), with merge rules
 
 **Acceptance Criteria**:
 - ✅ Guests can create accounts instantly
@@ -553,6 +565,9 @@ npm run type-check --workspaces
 - ✅ AI responses validated
 - ✅ Stones deducted per turn
 - ✅ Turn history maintained
+- ✅ Prompt assembly occurs server-side only; full game state and prompt content never leave the server
+- ✅ All responses pass through a DTO mapper; internal fields (e.g., state snapshots, internal IDs, audit data) are redacted
+- ✅ Unit tests verify DTO redaction; integration tests ensure forbidden fields never appear in HTTP responses
 
 **Local Testing Instructions**:
 ```bash
@@ -612,6 +627,7 @@ npm run type-check --workspaces
 - ✅ Stone costs displayed
 - ✅ History viewable
 - ✅ Proper error handling
+- ✅ UI functions with DTOs only; no client-side prompt composition or access to full state
 
 **Local Testing Instructions**:
 ```bash
@@ -830,9 +846,9 @@ npm run type-check --workspaces
 **Problem**: No payment system
 
 **Tasks**:
-1. Integrate Stripe for stone purchases
+1. Implement payment operations via /wrappers/payments (Stripe behind wrapper)
 2. Add subscription management
-3. Implement webhook handling
+3. Ensure webhooks flow through the wrapper; no direct SDK in API/routes/services
 4. Add payment audit trail
 5. Create payment API endpoints
 
@@ -952,7 +968,7 @@ npm run type-check --workspaces
 1. Create admin authentication
 2. Build config management APIs
 3. Add feature flag management
-4. Implement prompt versioning
+4. Implement prompt versioning and management for Worlds, Scenarios, Adventures, and Quests; store version, hash, active flag
 5. Create admin API endpoints
 
 **Acceptance Criteria**:
