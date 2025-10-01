@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function AuthPage() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signup');
@@ -33,64 +38,74 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-container">
-        <h1>🎲 Stonecaster</h1>
-        <h2>{mode === 'signin' ? 'Sign In' : 'Create Account'}</h2>
-
-        <form onSubmit={handleSubmit} aria-label={mode === 'signin' ? 'Sign in form' : 'Sign up form'}>
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              aria-required="true"
-              autoComplete="email"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              aria-required="true"
-              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-              minLength={6}
-            />
-          </div>
-
-          {error && (
-            <div className="error-message" role="alert">
-              {error}
+    <div className="flex justify-center items-center min-h-screen p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">🎲 Stonecaster</CardTitle>
+          <CardDescription>
+            {mode === 'signin' ? 'Sign In' : 'Create Account'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4" aria-label={mode === 'signin' ? 'Sign in form' : 'Sign up form'}>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                aria-required="true"
+                autoComplete="email"
+                placeholder="Enter your email"
+              />
             </div>
-          )}
 
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-            aria-busy={loading}
-          >
-            {loading ? 'Loading...' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
-          </button>
-        </form>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                aria-required="true"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                minLength={6}
+                placeholder="Enter your password"
+              />
+            </div>
 
-        <button
-          onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-          className="btn btn-link"
-        >
-          {mode === 'signin'
-            ? "Don't have an account? Sign up"
-            : 'Already have an account? Sign in'}
-        </button>
-      </div>
+            {error && (
+              <Alert variant="destructive" role="alert">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+              aria-busy={loading}
+            >
+              {loading ? 'Loading...' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
+            </Button>
+          </form>
+
+          <div className="mt-4 text-center">
+            <Button
+              variant="link"
+              onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+              className="text-sm"
+            >
+              {mode === 'signin'
+                ? "Don't have an account? Sign up"
+                : 'Already have an account? Sign in'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
