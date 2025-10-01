@@ -13,6 +13,7 @@ import searchRouter from './routes/search.js';
 import stonesRouter from './routes/stones.js';
 import subscriptionRouter from './routes/subscription.js';
 import telemetryRouter from './routes/telemetry.js';
+import webhooksRouter from './routes/webhooks.js';
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api/subscription', subscriptionRouter);
 app.use('/api/telemetry', telemetryRouter);
 app.use('/api/story', storyRouter);
 app.use('/api/dice', diceRouter);
+app.use('/api/webhooks', webhooksRouter);
 
 // Error handling
 // _next is intentionally unused (error handler signature). Disable unused var rule for this line.

@@ -107,36 +107,54 @@ export function toUserDTO(user: any): UserDTO {
   };
 }
 
-// Stones wallet DTO mapper
+// Stones wallet DTO mapper (redacts internal IDs, exposes balances only)
 export function toStonesWalletDTO(wallet: any): StonesWalletDTO {
+  if (!wallet) {
+    return {
+      shard: 0,
+      crystal: 0,
+      relic: 0,
+      dailyRegen: 0,
+      lastRegenAt: undefined,
+    };
+  }
+  
   return {
-    shard: wallet.shard || 0,
-    crystal: wallet.crystal || 0,
-    relic: wallet.relic || 0,
+    shard: wallet.inventoryShard || wallet.shard || 0,
+    crystal: wallet.inventoryCrystal || wallet.crystal || 0,
+    relic: wallet.inventoryRelic || wallet.relic || 0,
     dailyRegen: wallet.dailyRegen || 0,
     lastRegenAt: wallet.lastRegenAt,
+    // Explicitly exclude internal fields:
+    // - id (server-only)
+    // - userId (server-only)
+    // - castingStones (server-only)
+    // - createdAt/updatedAt (server-only)
   };
 }
 
-// Stones pack DTO mapper
+// Stones pack DTO mapper (redacts internal fields)
 export function toStonesPackDTO(pack: any): StonesPackDTO {
   return {
     id: pack.id,
     name: pack.name,
     description: pack.description,
-    price: pack.price,
+    price: pack.priceCents || pack.price || 0,
     currency: pack.currency,
     stones: {
-      shard: pack.stones.shard,
-      crystal: pack.stones.crystal,
-      relic: pack.stones.relic,
+      shard: pack.stonesShard || pack.stones?.shard || 0,
+      crystal: pack.stonesCrystal || pack.stones?.crystal || 0,
+      relic: pack.stonesRelic || pack.stones?.relic || 0,
     },
-    bonus: pack.bonus ? {
-      shard: pack.bonus.shard,
-      crystal: pack.bonus.crystal,
-      relic: pack.bonus.relic,
+    bonus: (pack.bonusShard || pack.bonusCrystal || pack.bonusRelic || pack.bonus) ? {
+      shard: pack.bonusShard || pack.bonus?.shard || 0,
+      crystal: pack.bonusCrystal || pack.bonus?.crystal || 0,
+      relic: pack.bonusRelic || pack.bonus?.relic || 0,
     } : undefined,
     isActive: pack.isActive,
+    // Explicitly exclude internal fields:
+    // - sortOrder (server-only)
+    // - createdAt/updatedAt (server-only)
   };
 }
 

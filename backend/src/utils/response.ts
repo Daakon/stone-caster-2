@@ -85,6 +85,9 @@ export const ERROR_STATUS_MAP: Record<ApiErrorCode, number> = {
   [ApiErrorCode.RATE_LIMITED]: 429,
   [ApiErrorCode.IDEMPOTENCY_REQUIRED]: 400,
   [ApiErrorCode.INSUFFICIENT_STONES]: 402,
+  [ApiErrorCode.INSUFFICIENT_INVENTORY]: 400,
+  [ApiErrorCode.INVALID_PACK]: 400,
+  [ApiErrorCode.PAYMENT_FAILED]: 400,
   [ApiErrorCode.COOKIE_CAP]: 429,
   [ApiErrorCode.INTERNAL_ERROR]: 500,
 };

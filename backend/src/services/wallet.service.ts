@@ -1,237 +1,363 @@
 import { supabaseAdmin } from './supabase.js';
+import { configService } from './config.service.js';
+import { StoneLedgerService } from './stoneLedger.service.js';
+import type { StoneWallet, StonePack } from 'shared';
 import { ApiErrorCode } from 'shared';
 
-export interface SpendResult {
-  success: boolean;
-  newBalance?: number;
-  ledgerEntryId?: string;
-  error?: ApiErrorCode;
-  message?: string;
+export interface ConversionResult {
+  fromType: 'shard' | 'crystal' | 'relic';
+  fromAmount: number;
+  toCastingStones: number;
+  newBalance: {
+    castingStones: number;
+    inventoryShard: number;
+    inventoryCrystal: number;
+    inventoryRelic: number;
+  };
 }
 
+export interface PurchaseResult {
+  packId: string;
+  stonesAdded: {
+    shard: number;
+    crystal: number;
+    relic: number;
+  };
+  bonusAdded: {
+    shard: number;
+    crystal: number;
+    relic: number;
+  };
+  newBalance: {
+    castingStones: number;
+    inventoryShard: number;
+    inventoryCrystal: number;
+    inventoryRelic: number;
+  };
+}
+
+/**
+ * Wallet Service - manages stone wallet operations
+ * Handles conversions, purchases, and balance management
+ */
 export class WalletService {
   /**
-   * Spend casting stones from a user's wallet
-   * @param owner - User ID or guest cookie ID
-   * @param amount - Amount to spend
-   * @param idempotencyKey - Unique key to prevent duplicate spends
-   * @param gameId - Optional game ID for ledger tracking
-   * @param turnId - Optional turn ID for ledger tracking
-   * @returns SpendResult with success status and details
+   * Get or create a wallet for a user
    */
-  async spendCasting(
-    owner: string,
-    amount: number,
-    idempotencyKey: string,
-    gameId?: string,
-    turnId?: string
-  ): Promise<SpendResult> {
+  static async getOrCreateWallet(userId: string): Promise<StoneWallet> {
     try {
-      // Check for existing idempotent operation
-      const { data: existingEntry, error: ledgerError } = await supabaseAdmin
-        .from('stone_ledger')
-        .select('id, delta, new_balance')
-        .eq('idempotency_key', idempotencyKey)
-        .single();
-
-      if (ledgerError && ledgerError.code !== 'PGRST116') {
-        // PGRST116 is "not found" - other errors are real problems
-        console.error('Error checking idempotency:', ledgerError);
-        return {
-          success: false,
-          error: ApiErrorCode.INTERNAL_ERROR,
-          message: 'Failed to process stone spend',
-        };
-      }
-
-      if (existingEntry) {
-        // Idempotent operation - return existing result
-        return {
-          success: true,
-          newBalance: existingEntry.new_balance,
-          ledgerEntryId: existingEntry.id,
-        };
-      }
-
-      // Get current balance
-      const { data: wallet, error: walletError } = await supabaseAdmin
+      // Try to get existing wallet
+      const { data: existingWallet, error: fetchError } = await supabaseAdmin
         .from('stone_wallets')
-        .select('balance')
-        .eq('owner', owner)
+        .select('*')
+        .eq('user_id', userId)
         .single();
 
-      if (walletError && walletError.code !== 'PGRST116') {
-        console.error('Error fetching wallet:', walletError);
-        return {
-          success: false,
-          error: ApiErrorCode.INTERNAL_ERROR,
-          message: 'Failed to process stone spend',
-        };
+      if (existingWallet && !fetchError) {
+        return this.mapWalletFromDb(existingWallet);
       }
 
-      const currentBalance = wallet?.balance || 0;
-
-      // Check sufficient balance
-      if (currentBalance < amount) {
-        return {
-          success: false,
-          error: ApiErrorCode.INSUFFICIENT_STONES,
-          message: 'Insufficient casting stones',
-        };
-      }
-
-      const newBalance = currentBalance - amount;
-
-      // Create ledger entry first (for audit trail)
-      const { data: ledgerEntry, error: insertError } = await supabaseAdmin
-        .from('stone_ledger')
+      // Create new wallet if it doesn't exist
+      const { data: newWallet, error: createError } = await supabaseAdmin
+        .from('stone_wallets')
         .insert({
-          owner,
-          delta: -amount,
-          reason: 'TURN_SPEND',
-          game_id: gameId,
-          turn_id: turnId,
-          idempotency_key: idempotencyKey,
-          new_balance: newBalance,
-          created_at: new Date().toISOString(),
+          user_id: userId,
+          casting_stones: 0,
+          inventory_shard: 0,
+          inventory_crystal: 0,
+          inventory_relic: 0,
+          daily_regen: 0,
+          last_regen_at: new Date().toISOString(),
         })
-        .select('id')
+        .select()
         .single();
 
-      if (insertError) {
-        console.error('Error creating ledger entry:', insertError);
-        return {
-          success: false,
-          error: ApiErrorCode.INTERNAL_ERROR,
-          message: 'Failed to process stone spend',
-        };
+      if (createError) {
+        console.error('Error creating wallet:', createError);
+        throw new Error(`Failed to create wallet: ${createError.message}`);
       }
 
-      // Update wallet balance
-      const { error: updateError } = await supabaseAdmin
+      return this.mapWalletFromDb(newWallet);
+    } catch (error) {
+      console.error('WalletService.getOrCreateWallet error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Convert inventory stones to casting stones
+   */
+  static async convertStones(
+    userId: string,
+    type: 'shard' | 'crystal' | 'relic',
+    amount: number
+  ): Promise<ConversionResult> {
+    try {
+      // Get conversion rates from config
+      const conversionRates = await configService.getConfig('pricing_config', 'conversion_rates');
+      if (!conversionRates) {
+        throw new Error('Conversion rates not configured');
+      }
+
+      const rates = conversionRates.value as Record<string, number>;
+      const rate = rates[type];
+      if (!rate || rate <= 0) {
+        throw new Error(`Invalid conversion rate for ${type}`);
+      }
+
+      // Get user's wallet
+      const wallet = await this.getOrCreateWallet(userId);
+
+      // Check sufficient inventory
+      const currentInventory = this.getInventoryAmount(wallet, type);
+      if (currentInventory < amount) {
+        throw new Error(`Insufficient ${type} inventory. Have ${currentInventory}, need ${amount}`);
+      }
+
+      // Calculate conversion
+      const castingStonesToAdd = amount * rate;
+
+      // Update wallet balances
+      const updateData: any = {
+        casting_stones: wallet.castingStones + castingStonesToAdd,
+      };
+
+      // Subtract from inventory
+      switch (type) {
+        case 'shard':
+          updateData.inventory_shard = wallet.inventoryShard - amount;
+          break;
+        case 'crystal':
+          updateData.inventory_crystal = wallet.inventoryCrystal - amount;
+          break;
+        case 'relic':
+          updateData.inventory_relic = wallet.inventoryRelic - amount;
+          break;
+      }
+
+      const { data: updatedWallet, error: updateError } = await supabaseAdmin
         .from('stone_wallets')
-        .upsert({
-          owner,
-          balance: newBalance,
-          updated_at: new Date().toISOString(),
-        });
+        .update(updateData)
+        .eq('id', wallet.id)
+        .select()
+        .single();
 
       if (updateError) {
-        console.error('Error updating wallet:', updateError);
-        return {
-          success: false,
-          error: ApiErrorCode.INTERNAL_ERROR,
-          message: 'Failed to process stone spend',
-        };
+        console.error('Error updating wallet for conversion:', updateError);
+        throw new Error(`Failed to update wallet: ${updateError.message}`);
       }
 
+      // Record in ledger
+      await StoneLedgerService.appendEntry({
+        walletId: wallet.id,
+        userId,
+        transactionType: 'convert',
+        deltaCastingStones: castingStonesToAdd,
+        deltaInventoryShard: type === 'shard' ? -amount : 0,
+        deltaInventoryCrystal: type === 'crystal' ? -amount : 0,
+        deltaInventoryRelic: type === 'relic' ? -amount : 0,
+        reason: `Converted ${amount} ${type} to ${castingStonesToAdd} casting stones`,
+        metadata: {
+          conversionType: type,
+          conversionAmount: amount,
+          conversionRate: rate,
+        },
+      });
+
       return {
-        success: true,
-        newBalance,
-        ledgerEntryId: ledgerEntry.id,
+        fromType: type,
+        fromAmount: amount,
+        toCastingStones: castingStonesToAdd,
+        newBalance: {
+          castingStones: updatedWallet.casting_stones,
+          inventoryShard: updatedWallet.inventory_shard,
+          inventoryCrystal: updatedWallet.inventory_crystal,
+          inventoryRelic: updatedWallet.inventory_relic,
+        },
       };
     } catch (error) {
-      console.error('Unexpected error in spendCasting:', error);
-      return {
-        success: false,
-        error: ApiErrorCode.INTERNAL_ERROR,
-        message: 'Failed to process stone spend',
-      };
+      console.error('WalletService.convertStones error:', error);
+      throw error;
     }
   }
 
   /**
-   * Get current balance for a user
-   * @param owner - User ID or guest cookie ID
-   * @returns Current balance (0 if no wallet exists)
+   * Apply a stone pack purchase to user's wallet
    */
-  async getBalance(owner: string): Promise<number> {
+  static async applyPurchase(
+    userId: string,
+    packId: string
+  ): Promise<PurchaseResult> {
     try {
-      const { data: wallet, error } = await supabaseAdmin
-        .from('stone_wallets')
-        .select('balance')
-        .eq('owner', owner)
+      // Get the stone pack
+      const { data: pack, error: packError } = await supabaseAdmin
+        .from('stone_packs')
+        .select('*')
+        .eq('id', packId)
+        .eq('is_active', true)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching balance:', error);
-        return 0;
+      if (packError || !pack) {
+        throw new Error(`Invalid or inactive stone pack: ${packId}`);
       }
 
-      return wallet?.balance || 0;
-    } catch (error) {
-      console.error('Unexpected error in getBalance:', error);
-      return 0;
-    }
-  }
+      // Get user's wallet
+      const wallet = await this.getOrCreateWallet(userId);
 
-  /**
-   * Grant casting stones to a user (for testing or rewards)
-   * @param owner - User ID or guest cookie ID
-   * @param amount - Amount to grant
-   * @param reason - Reason for granting stones
-   * @param gameId - Optional game ID for ledger tracking
-   * @returns Success status and new balance
-   */
-  async grantCasting(
-    owner: string,
-    amount: number,
-    reason: string,
-    gameId?: string
-  ): Promise<{ success: boolean; newBalance?: number; error?: string }> {
-    try {
-      const currentBalance = await this.getBalance(owner);
-      const newBalance = currentBalance + amount;
-
-      // Create ledger entry
-      const { error: ledgerError } = await supabaseAdmin
-        .from('stone_ledger')
-        .insert({
-          owner,
-          delta: amount,
-          reason,
-          game_id: gameId,
-          new_balance: newBalance,
-          created_at: new Date().toISOString(),
-        });
-
-      if (ledgerError) {
-        console.error('Error creating grant ledger entry:', ledgerError);
-        return {
-          success: false,
-          error: 'Failed to create ledger entry',
-        };
-      }
+      // Calculate new balances
+      const newBalances = {
+        castingStones: wallet.castingStones,
+        inventoryShard: wallet.inventoryShard + pack.stones_shard + pack.bonus_shard,
+        inventoryCrystal: wallet.inventoryCrystal + pack.stones_crystal + pack.bonus_crystal,
+        inventoryRelic: wallet.inventoryRelic + pack.stones_relic + pack.bonus_relic,
+      };
 
       // Update wallet
-      const { error: updateError } = await supabaseAdmin
+      const { data: updatedWallet, error: updateError } = await supabaseAdmin
         .from('stone_wallets')
-        .upsert({
-          owner,
-          balance: newBalance,
-          updated_at: new Date().toISOString(),
-        });
+        .update({
+          inventory_shard: newBalances.inventoryShard,
+          inventory_crystal: newBalances.inventoryCrystal,
+          inventory_relic: newBalances.inventoryRelic,
+        })
+        .eq('id', wallet.id)
+        .select()
+        .single();
 
       if (updateError) {
-        console.error('Error updating wallet for grant:', updateError);
-        return {
-          success: false,
-          error: 'Failed to update wallet',
-        };
+        console.error('Error updating wallet for purchase:', updateError);
+        throw new Error(`Failed to update wallet: ${updateError.message}`);
       }
 
+      // Record in ledger
+      await StoneLedgerService.appendEntry({
+        walletId: wallet.id,
+        userId,
+        transactionType: 'purchase',
+        deltaCastingStones: 0,
+        deltaInventoryShard: pack.stones_shard + pack.bonus_shard,
+        deltaInventoryCrystal: pack.stones_crystal + pack.bonus_crystal,
+        deltaInventoryRelic: pack.stones_relic + pack.bonus_relic,
+        reason: `Purchased ${pack.name} stone pack`,
+        packId,
+        metadata: {
+          packName: pack.name,
+          packPrice: pack.price_cents,
+          packCurrency: pack.currency,
+        },
+      });
+
       return {
-        success: true,
-        newBalance,
+        packId,
+        stonesAdded: {
+          shard: pack.stones_shard,
+          crystal: pack.stones_crystal,
+          relic: pack.stones_relic,
+        },
+        bonusAdded: {
+          shard: pack.bonus_shard,
+          crystal: pack.bonus_crystal,
+          relic: pack.bonus_relic,
+        },
+        newBalance: {
+          castingStones: updatedWallet.casting_stones,
+          inventoryShard: updatedWallet.inventory_shard,
+          inventoryCrystal: updatedWallet.inventory_crystal,
+          inventoryRelic: updatedWallet.inventory_relic,
+        },
       };
     } catch (error) {
-      console.error('Unexpected error in grantCasting:', error);
-      return {
-        success: false,
-        error: 'Failed to grant stones',
-      };
+      console.error('WalletService.applyPurchase error:', error);
+      throw error;
     }
   }
-}
 
-export const walletService = new WalletService();
+  /**
+   * Spend casting stones (for game actions)
+   */
+  static async spendCastingStones(
+    userId: string,
+    amount: number,
+    reason: string,
+    metadata?: Record<string, unknown>
+  ): Promise<{ newBalance: number }> {
+    try {
+      const wallet = await this.getOrCreateWallet(userId);
+
+      if (wallet.castingStones < amount) {
+        throw new Error(`Insufficient casting stones. Have ${wallet.castingStones}, need ${amount}`);
+      }
+
+      const newBalance = wallet.castingStones - amount;
+
+      const { data: updatedWallet, error: updateError } = await supabaseAdmin
+        .from('stone_wallets')
+        .update({ casting_stones: newBalance })
+        .eq('id', wallet.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Error updating wallet for spending:', updateError);
+        throw new Error(`Failed to update wallet: ${updateError.message}`);
+      }
+
+      // Record in ledger
+      await StoneLedgerService.appendEntry({
+        walletId: wallet.id,
+        userId,
+        transactionType: 'spend',
+        deltaCastingStones: -amount,
+        deltaInventoryShard: 0,
+        deltaInventoryCrystal: 0,
+        deltaInventoryRelic: 0,
+        reason,
+        metadata: metadata || {},
+      });
+
+      return { newBalance };
+    } catch (error) {
+      console.error('WalletService.spendCastingStones error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user's wallet balance
+   */
+  static async getWallet(userId: string): Promise<StoneWallet> {
+    return this.getOrCreateWallet(userId);
+  }
+
+  /**
+   * Helper method to get inventory amount by type
+   */
+  private static getInventoryAmount(wallet: StoneWallet, type: 'shard' | 'crystal' | 'relic'): number {
+    switch (type) {
+      case 'shard':
+        return wallet.inventoryShard;
+      case 'crystal':
+        return wallet.inventoryCrystal;
+      case 'relic':
+        return wallet.inventoryRelic;
+    }
+  }
+
+  /**
+   * Helper method to map database row to StoneWallet type
+   */
+  private static mapWalletFromDb(dbRow: any): StoneWallet {
+    return {
+      id: dbRow.id,
+      userId: dbRow.user_id,
+      castingStones: dbRow.casting_stones,
+      inventoryShard: dbRow.inventory_shard,
+      inventoryCrystal: dbRow.inventory_crystal,
+      inventoryRelic: dbRow.inventory_relic,
+      dailyRegen: dbRow.daily_regen,
+      lastRegenAt: dbRow.last_regen_at,
+      createdAt: dbRow.created_at,
+      updatedAt: dbRow.updated_at,
+    };
+  }
+}

@@ -156,3 +156,74 @@ export const AIResponseSchema = z.object({
 });
 
 export type AIResponse = z.infer<typeof AIResponseSchema>;
+
+// Stone Wallet Schema
+export const StoneWalletSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  castingStones: z.number().int().min(0),
+  inventoryShard: z.number().int().min(0),
+  inventoryCrystal: z.number().int().min(0),
+  inventoryRelic: z.number().int().min(0),
+  dailyRegen: z.number().int().min(0),
+  lastRegenAt: z.string().datetime(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export type StoneWallet = z.infer<typeof StoneWalletSchema>;
+
+// Stone Ledger Entry Schema
+export const StoneLedgerEntrySchema = z.object({
+  id: z.string().uuid(),
+  walletId: z.string().uuid(),
+  userId: z.string().uuid(),
+  transactionType: z.enum(['convert', 'purchase', 'spend', 'regen', 'admin_adjust']),
+  deltaCastingStones: z.number().int(),
+  deltaInventoryShard: z.number().int(),
+  deltaInventoryCrystal: z.number().int(),
+  deltaInventoryRelic: z.number().int(),
+  reason: z.string(),
+  packId: z.string().uuid().optional(),
+  metadata: z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+});
+
+export type StoneLedgerEntry = z.infer<typeof StoneLedgerEntrySchema>;
+
+// Stone Pack Schema
+export const StonePackSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  description: z.string(),
+  priceCents: z.number().int().min(1),
+  currency: z.string().length(3),
+  stonesShard: z.number().int().min(0),
+  stonesCrystal: z.number().int().min(0),
+  stonesRelic: z.number().int().min(0),
+  bonusShard: z.number().int().min(0),
+  bonusCrystal: z.number().int().min(0),
+  bonusRelic: z.number().int().min(0),
+  isActive: z.boolean(),
+  sortOrder: z.number().int().min(0),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export type StonePack = z.infer<typeof StonePackSchema>;
+
+// Payment Session Schema
+export const PaymentSessionSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  packId: z.string().uuid(),
+  sessionId: z.string(),
+  status: z.enum(['pending', 'completed', 'failed', 'cancelled']),
+  amountCents: z.number().int().min(1),
+  currency: z.string().length(3),
+  metadata: z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export type PaymentSession = z.infer<typeof PaymentSessionSchema>;

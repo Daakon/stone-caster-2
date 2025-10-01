@@ -10,6 +10,9 @@ export enum ApiErrorCode {
   RATE_LIMITED = 'RATE_LIMITED',
   IDEMPOTENCY_REQUIRED = 'IDEMPOTENCY_REQUIRED',
   INSUFFICIENT_STONES = 'INSUFFICIENT_STONES',
+  INSUFFICIENT_INVENTORY = 'INSUFFICIENT_INVENTORY',
+  INVALID_PACK = 'INVALID_PACK',
+  PAYMENT_FAILED = 'PAYMENT_FAILED',
   COOKIE_CAP = 'COOKIE_CAP',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
 }
@@ -94,14 +97,12 @@ export const GameTurnRequestSchema = z.object({
 
 // Stones request schemas
 export const ConvertStonesRequestSchema = z.object({
+  type: z.enum(['shard', 'crystal', 'relic']),
   amount: z.number().int().min(1),
-  fromType: z.enum(['shard', 'crystal', 'relic']),
-  toType: z.enum(['shard', 'crystal', 'relic']),
 });
 
 export const PurchaseStonesRequestSchema = z.object({
   packId: z.string().uuid(),
-  paymentMethodId: z.string(),
 });
 
 // Subscription request schemas
