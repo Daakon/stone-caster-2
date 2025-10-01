@@ -5,21 +5,38 @@ import { validateRequest } from '../middleware/validation.js';
 import { jwtAuth, requireAuth } from '../middleware/auth.js';
 import { ConvertStonesRequestSchema, PurchaseStonesRequestSchema } from 'shared';
 import { ApiErrorCode } from 'shared';
+import { WalletService } from '../services/wallet.service.js';
+import { StonePacksService } from '../services/stonePacks.service.js';
+import { PaymentService } from '../wrappers/payments.js';
 
 const router = Router();
 
-// Get stones wallet
-router.get('/wallet', async (req: Request, res: Response) => {
+// Get stones wallet (auth or guest)
+router.get('/wallet', jwtAuth, async (req: Request, res: Response) => {
   try {
-    // Mock wallet data - in real implementation, this would come from database
-    const wallet = {
-      shard: 15,
-      crystal: 8,
-      relic: 2,
-      dailyRegen: 5,
-      lastRegenAt: '2023-01-01T00:00:00Z',
-    };
+    const userId = req.ctx?.userId;
+    
+    if (!userId) {
+      // Guest user - return empty wallet with casting stones only
+      const guestWallet = {
+        id: 'guest',
+        userId: 'guest',
+        castingStones: 0,
+        inventoryShard: 0,
+        inventoryCrystal: 0,
+        inventoryRelic: 0,
+        dailyRegen: 0,
+        lastRegenAt: undefined,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const walletDTO = toStonesWalletDTO(guestWallet);
+      sendSuccess(res, walletDTO, req);
+      return;
+    }
 
+    // Authenticated user - get full wallet
+    const wallet = await WalletService.getWallet(userId);
     const walletDTO = toStonesWalletDTO(wallet);
     sendSuccess(res, walletDTO, req);
   } catch (error) {
@@ -36,52 +53,37 @@ router.get('/wallet', async (req: Request, res: Response) => {
 // Convert stones (auth only)
 router.post('/convert', jwtAuth, requireAuth, validateRequest(ConvertStonesRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
-    const { amount, fromType, toType } = req.body;
+    const { type, amount } = req.body;
+    const userId = req.ctx?.userId!;
 
-    // Mock conversion logic - in real implementation, this would handle the conversion
-    const conversionResult = {
-      from: { type: fromType, amount },
-      to: { type: toType, amount: amount * 10 }, // Mock conversion rate
-      timestamp: new Date().toISOString(),
-    };
-
+    const conversionResult = await WalletService.convertStones(userId, type, amount);
+    
     sendSuccess(res, conversionResult, req);
   } catch (error) {
     console.error('Error converting stones:', error);
-    sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      'Failed to convert stones',
-      req
-    );
+    
+    if (error instanceof Error && error.message.includes('Insufficient')) {
+      sendErrorWithStatus(
+        res,
+        ApiErrorCode.INSUFFICIENT_INVENTORY,
+        error.message,
+        req
+      );
+    } else {
+      sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to convert stones',
+        req
+      );
+    }
   }
 });
 
-// Get stones packs
-router.get('/packs', async (req: Request, res: Response) => {
+// Get stones packs (auth only)
+router.get('/packs', jwtAuth, requireAuth, async (req: Request, res: Response) => {
   try {
-    // Mock packs data - in real implementation, this would come from database
-    const packs = [
-      {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        name: 'Starter Pack',
-        description: 'A good starting pack',
-        price: 999,
-        currency: 'USD',
-        stones: {
-          shard: 100,
-          crystal: 50,
-          relic: 10,
-        },
-        bonus: {
-          shard: 10,
-          crystal: 5,
-          relic: 1,
-        },
-        isActive: true,
-      },
-    ];
-
+    const packs = await StonePacksService.getActivePacks();
     const packDTOs = packs.map(toStonesPackDTO);
     sendSuccess(res, packDTOs, req);
   } catch (error) {
@@ -98,25 +100,49 @@ router.get('/packs', async (req: Request, res: Response) => {
 // Purchase stones (auth only)
 router.post('/purchase', jwtAuth, requireAuth, validateRequest(PurchaseStonesRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
-    const { packId, paymentMethodId } = req.body;
+    const { packId } = req.body;
+    const userId = req.ctx?.userId!;
 
-    // Mock purchase logic - in real implementation, this would handle payment processing
-    const purchaseResult = {
+    // Validate pack exists and is active
+    const pack = await StonePacksService.getPackById(packId);
+    if (!pack) {
+      sendErrorWithStatus(
+        res,
+        ApiErrorCode.INVALID_PACK,
+        'Invalid or inactive stone pack',
+        req
+      );
+      return;
+    }
+
+    // Create checkout session
+    const checkoutSession = await PaymentService.createStonePackCheckout(
+      userId,
       packId,
-      paymentMethodId,
-      status: 'completed',
-      timestamp: new Date().toISOString(),
-    };
+      pack.name,
+      pack.priceCents,
+      pack.currency
+    );
 
-    sendSuccess(res, purchaseResult, req);
+    sendSuccess(res, { sessionUrl: checkoutSession.sessionUrl }, req);
   } catch (error) {
     console.error('Error purchasing stones:', error);
-    sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      'Failed to purchase stones',
-      req
-    );
+    
+    if (error instanceof Error && error.message.includes('Payment')) {
+      sendErrorWithStatus(
+        res,
+        ApiErrorCode.PAYMENT_FAILED,
+        error.message,
+        req
+      );
+    } else {
+      sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to purchase stones',
+        req
+      );
+    }
   }
 });
 

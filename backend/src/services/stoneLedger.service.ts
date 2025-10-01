@@ -1,132 +1,241 @@
 import { supabaseAdmin } from './supabase.js';
+import type { StoneLedgerEntry } from 'shared';
 
-export interface LedgerEntry {
-  owner: string;
-  delta: number;
+export interface LedgerEntryInput {
+  walletId: string;
+  userId: string;
+  transactionType: 'convert' | 'purchase' | 'spend' | 'regen' | 'admin_adjust';
+  deltaCastingStones: number;
+  deltaInventoryShard: number;
+  deltaInventoryCrystal: number;
+  deltaInventoryRelic: number;
   reason: string;
-  game_id?: string;
-  turn_id?: string;
-  idempotency_key?: string;
-  new_balance?: number;
+  packId?: string;
+  metadata?: Record<string, unknown>;
 }
 
+export interface LedgerQueryOptions {
+  userId?: string;
+  walletId?: string;
+  transactionType?: string;
+  limit?: number;
+  offset?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+/**
+ * Stone Ledger Service - manages immutable transaction records
+ * All stone balance changes must be recorded in the ledger
+ */
 export class StoneLedgerService {
   /**
-   * Append an immutable ledger entry
-   * @param entry - Ledger entry data
-   * @returns The ID of the created ledger entry
+   * Append a new ledger entry (immutable record)
    */
-  async append(entry: LedgerEntry): Promise<string> {
+  static async appendEntry(input: LedgerEntryInput): Promise<StoneLedgerEntry> {
     try {
       const { data, error } = await supabaseAdmin
         .from('stone_ledger')
         .insert({
-          ...entry,
-          created_at: new Date().toISOString(),
+          wallet_id: input.walletId,
+          user_id: input.userId,
+          transaction_type: input.transactionType,
+          delta_casting_stones: input.deltaCastingStones,
+          delta_inventory_shard: input.deltaInventoryShard,
+          delta_inventory_crystal: input.deltaInventoryCrystal,
+          delta_inventory_relic: input.deltaInventoryRelic,
+          reason: input.reason,
+          pack_id: input.packId || null,
+          metadata: input.metadata || {},
         })
-        .select('id')
+        .select()
         .single();
 
       if (error) {
-        console.error('Error creating ledger entry:', error);
-        throw new Error(`Failed to create ledger entry: ${error.message}`);
+        console.error('Error appending ledger entry:', error);
+        throw new Error(`Failed to append ledger entry: ${error.message}`);
       }
 
-      return data.id;
+      return {
+        id: data.id,
+        walletId: data.wallet_id,
+        userId: data.user_id,
+        transactionType: data.transaction_type,
+        deltaCastingStones: data.delta_casting_stones,
+        deltaInventoryShard: data.delta_inventory_shard,
+        deltaInventoryCrystal: data.delta_inventory_crystal,
+        deltaInventoryRelic: data.delta_inventory_relic,
+        reason: data.reason,
+        packId: data.pack_id,
+        metadata: data.metadata,
+        createdAt: data.created_at,
+      };
     } catch (error) {
-      console.error('Unexpected error in ledger append:', error);
+      console.error('StoneLedgerService.appendEntry error:', error);
       throw error;
     }
   }
 
   /**
-   * Get ledger entries for a specific owner
-   * @param owner - User ID or guest cookie ID
-   * @param limit - Maximum number of entries to return
-   * @param offset - Number of entries to skip
-   * @returns Array of ledger entries
+   * Get ledger entries for a user with optional filtering
    */
-  async getEntries(
-    owner: string,
-    limit: number = 50,
-    offset: number = 0
-  ): Promise<Array<LedgerEntry & { id: string; created_at: string }>> {
+  static async getEntries(options: LedgerQueryOptions): Promise<StoneLedgerEntry[]> {
     try {
-      const { data, error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('stone_ledger')
         .select('*')
-        .eq('owner', owner)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+        .order('created_at', { ascending: false });
+
+      if (options.userId) {
+        query = query.eq('user_id', options.userId);
+      }
+
+      if (options.walletId) {
+        query = query.eq('wallet_id', options.walletId);
+      }
+
+      if (options.transactionType) {
+        query = query.eq('transaction_type', options.transactionType);
+      }
+
+      if (options.startDate) {
+        query = query.gte('created_at', options.startDate);
+      }
+
+      if (options.endDate) {
+        query = query.lte('created_at', options.endDate);
+      }
+
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+
+      if (options.offset) {
+        query = query.range(options.offset, options.offset + (options.limit || 50) - 1);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching ledger entries:', error);
         throw new Error(`Failed to fetch ledger entries: ${error.message}`);
       }
 
-      return data || [];
+      return (data || []).map(entry => ({
+        id: entry.id,
+        walletId: entry.wallet_id,
+        userId: entry.user_id,
+        transactionType: entry.transaction_type,
+        deltaCastingStones: entry.delta_casting_stones,
+        deltaInventoryShard: entry.delta_inventory_shard,
+        deltaInventoryCrystal: entry.delta_inventory_crystal,
+        deltaInventoryRelic: entry.delta_inventory_relic,
+        reason: entry.reason,
+        packId: entry.pack_id,
+        metadata: entry.metadata,
+        createdAt: entry.created_at,
+      }));
     } catch (error) {
-      console.error('Unexpected error in getEntries:', error);
+      console.error('StoneLedgerService.getEntries error:', error);
       throw error;
     }
   }
 
   /**
-   * Get ledger entries for a specific game
-   * @param gameId - Game ID
-   * @param limit - Maximum number of entries to return
-   * @param offset - Number of entries to skip
-   * @returns Array of ledger entries
+   * Get ledger entries for a specific wallet
    */
-  async getGameEntries(
-    gameId: string,
+  static async getWalletEntries(
+    walletId: string,
     limit: number = 50,
     offset: number = 0
-  ): Promise<Array<LedgerEntry & { id: string; created_at: string }>> {
-    try {
-      const { data, error } = await supabaseAdmin
-        .from('stone_ledger')
-        .select('*')
-        .eq('game_id', gameId)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        console.error('Error fetching game ledger entries:', error);
-        throw new Error(`Failed to fetch game ledger entries: ${error.message}`);
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('Unexpected error in getGameEntries:', error);
-      throw error;
-    }
+  ): Promise<StoneLedgerEntry[]> {
+    return this.getEntries({
+      walletId,
+      limit,
+      offset,
+    });
   }
 
   /**
-   * Get total spent for a specific game
-   * @param gameId - Game ID
-   * @returns Total amount spent (negative number)
+   * Get ledger entries for a specific user
    */
-  async getGameTotalSpent(gameId: string): Promise<number> {
+  static async getUserEntries(
+    userId: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<StoneLedgerEntry[]> {
+    return this.getEntries({
+      userId,
+      limit,
+      offset,
+    });
+  }
+
+  /**
+   * Get conversion entries for a user (for audit purposes)
+   */
+  static async getConversionEntries(
+    userId: string,
+    limit: number = 20
+  ): Promise<StoneLedgerEntry[]> {
+    return this.getEntries({
+      userId,
+      transactionType: 'convert',
+      limit,
+    });
+  }
+
+  /**
+   * Get purchase entries for a user (for audit purposes)
+   */
+  static async getPurchaseEntries(
+    userId: string,
+    limit: number = 20
+  ): Promise<StoneLedgerEntry[]> {
+    return this.getEntries({
+      userId,
+      transactionType: 'purchase',
+      limit,
+    });
+  }
+
+  /**
+   * Calculate total stones gained/lost from ledger entries
+   */
+  static async calculateBalanceChanges(
+    walletId: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<{
+    totalCastingStones: number;
+    totalInventoryShard: number;
+    totalInventoryCrystal: number;
+    totalInventoryRelic: number;
+  }> {
     try {
-      const { data, error } = await supabaseAdmin
-        .from('stone_ledger')
-        .select('delta')
-        .eq('game_id', gameId)
-        .eq('reason', 'TURN_SPEND');
+      const entries = await this.getEntries({
+        walletId,
+        startDate,
+        endDate,
+      });
 
-      if (error) {
-        console.error('Error calculating game total spent:', error);
-        throw new Error(`Failed to calculate game total spent: ${error.message}`);
-      }
-
-      return data?.reduce((sum, entry) => sum + entry.delta, 0) || 0;
+      return entries.reduce(
+        (totals, entry) => ({
+          totalCastingStones: totals.totalCastingStones + entry.deltaCastingStones,
+          totalInventoryShard: totals.totalInventoryShard + entry.deltaInventoryShard,
+          totalInventoryCrystal: totals.totalInventoryCrystal + entry.deltaInventoryCrystal,
+          totalInventoryRelic: totals.totalInventoryRelic + entry.deltaInventoryRelic,
+        }),
+        {
+          totalCastingStones: 0,
+          totalInventoryShard: 0,
+          totalInventoryCrystal: 0,
+          totalInventoryRelic: 0,
+        }
+      );
     } catch (error) {
-      console.error('Unexpected error in getGameTotalSpent:', error);
+      console.error('StoneLedgerService.calculateBalanceChanges error:', error);
       throw error;
     }
   }
 }
-
-export const stoneLedgerService = new StoneLedgerService();

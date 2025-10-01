@@ -1,69 +1,224 @@
-/**
- * Payment Service Wrapper
- * 
- * This module provides a clean interface to payment services,
- * abstracting away vendor-specific implementations. All payment-related
- * functionality should go through this wrapper.
- */
+import Stripe from 'stripe';
+import { config } from '../config/index.js';
+import { ApiErrorCode } from 'shared';
 
-// import { configService } from '../services/config.service.js'; // Will be used in future layers
+// Initialize Stripe with environment variables
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2023-10-16',
+});
 
-export interface PaymentIntent {
-  id: string;
-  amount: number;
+export interface CreateCheckoutSessionParams {
+  userId: string;
+  packId: string;
+  packName: string;
+  amountCents: number;
   currency: string;
-  status: 'pending' | 'succeeded' | 'failed' | 'canceled';
-  client_secret?: string;
+  successUrl: string;
+  cancelUrl: string;
 }
 
-export interface CreatePaymentRequest {
-  amount: number;
-  currency: string;
-  description: string;
-  metadata?: Record<string, string>;
+export interface CheckoutSessionResult {
+  sessionId: string;
+  sessionUrl: string;
 }
 
-export interface PaymentWebhook {
+export interface WebhookEvent {
   id: string;
   type: string;
   data: {
-    object: Record<string, unknown>;
+    object: any;
   };
-  created: number;
+}
+
+export interface WebhookVerificationResult {
+  isValid: boolean;
+  event?: WebhookEvent;
+  error?: string;
 }
 
 /**
- * Create a payment intent
+ * Payment wrapper service - the only place where Stripe SDK is used
+ * All payment operations must go through this wrapper
  */
-export async function createPaymentIntent(): Promise<PaymentIntent> {
-  // TODO: Implement actual payment service integration
-  // This is a placeholder that will be implemented in later layers
-  throw new Error('Payment service not yet implemented');
+export class PaymentWrapper {
+  /**
+   * Create a Stripe checkout session for stone pack purchase
+   */
+  static async createCheckoutSession(params: CreateCheckoutSessionParams): Promise<CheckoutSessionResult> {
+    try {
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: params.currency.toLowerCase(),
+              product_data: {
+                name: params.packName,
+                description: `Stone pack purchase for user ${params.userId}`,
+              },
+              unit_amount: params.amountCents,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: params.successUrl,
+        cancel_url: params.cancelUrl,
+        client_reference_id: params.userId,
+        metadata: {
+          userId: params.userId,
+          packId: params.packId,
+        },
+      });
+
+      if (!session.id || !session.url) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      return {
+        sessionId: session.id,
+        sessionUrl: session.url,
+      };
+    } catch (error) {
+      console.error('Payment wrapper error creating checkout session:', error);
+      throw new Error(`Payment session creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Verify Stripe webhook signature and parse event
+   */
+  static async verifyWebhookSignature(
+    payload: string | Buffer,
+    signature: string,
+    webhookSecret: string
+  ): Promise<WebhookVerificationResult> {
+    try {
+      const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      
+      return {
+        isValid: true,
+        event: {
+          id: event.id,
+          type: event.type,
+          data: {
+            object: event.data.object,
+          },
+        },
+      };
+    } catch (error) {
+      console.error('Webhook signature verification failed:', error);
+      return {
+        isValid: false,
+        error: error instanceof Error ? error.message : 'Unknown verification error',
+      };
+    }
+  }
+
+  /**
+   * Retrieve a checkout session by ID
+   */
+  static async getCheckoutSession(sessionId: string): Promise<any> {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      return session;
+    } catch (error) {
+      console.error('Payment wrapper error retrieving session:', error);
+      throw new Error(`Failed to retrieve session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Check if a checkout session is completed and paid
+   */
+  static isSessionCompleted(session: any): boolean {
+    return session?.payment_status === 'paid' && session?.status === 'complete';
+  }
+
+  /**
+   * Extract user and pack information from session metadata
+   */
+  static extractSessionMetadata(session: any): { userId: string; packId: string } | null {
+    const metadata = session?.metadata;
+    if (!metadata?.userId || !metadata?.packId) {
+      return null;
+    }
+    
+    return {
+      userId: metadata.userId,
+      packId: metadata.packId,
+    };
+  }
 }
 
 /**
- * Confirm a payment intent
+ * Payment service that uses the wrapper
+ * This is the service layer that routes/services should use
  */
-export async function confirmPaymentIntent(): Promise<PaymentIntent> {
-  // TODO: Implement actual payment confirmation
-  // This is a placeholder that will be implemented in later layers
-  throw new Error('Payment confirmation not yet implemented');
-}
+export class PaymentService {
+  /**
+   * Create a checkout session for stone pack purchase
+   */
+  static async createStonePackCheckout(
+    userId: string,
+    packId: string,
+    packName: string,
+    amountCents: number,
+    currency: string = 'USD'
+  ): Promise<CheckoutSessionResult> {
+    const baseUrl = config.cors.origin || 'http://localhost:3000';
+    
+    return PaymentWrapper.createCheckoutSession({
+      userId,
+      packId,
+      packName,
+      amountCents,
+      currency,
+      successUrl: `${baseUrl}/stones/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/stones/cancel`,
+    });
+  }
 
-/**
- * Handle payment webhook
- */
-export async function handleWebhook(): Promise<void> {
-  // TODO: Implement actual webhook handling
-  // This is a placeholder that will be implemented in later layers
-  throw new Error('Webhook handling not yet implemented');
-}
+  /**
+   * Handle Stripe webhook events
+   */
+  static async handleWebhook(
+    payload: string | Buffer,
+    signature: string
+  ): Promise<WebhookVerificationResult> {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      throw new Error('Stripe webhook secret not configured');
+    }
 
-/**
- * Verify webhook signature
- */
-export function verifyWebhookSignature(): boolean {
-  // TODO: Implement actual signature verification
-  // This is a placeholder that will be implemented in later layers
-  throw new Error('Webhook signature verification not yet implemented');
+    return PaymentWrapper.verifyWebhookSignature(payload, signature, webhookSecret);
+  }
+
+  /**
+   * Process a completed checkout session
+   */
+  static async processCompletedSession(sessionId: string): Promise<{
+    userId: string;
+    packId: string;
+    amountCents: number;
+    currency: string;
+  }> {
+    const session = await PaymentWrapper.getCheckoutSession(sessionId);
+    
+    if (!PaymentWrapper.isSessionCompleted(session)) {
+      throw new Error('Session is not completed or paid');
+    }
+
+    const metadata = PaymentWrapper.extractSessionMetadata(session);
+    if (!metadata) {
+      throw new Error('Invalid session metadata');
+    }
+
+    return {
+      userId: metadata.userId,
+      packId: metadata.packId,
+      amountCents: session.amount_total,
+      currency: session.currency,
+    };
+  }
 }
