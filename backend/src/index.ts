@@ -14,6 +14,7 @@ import stonesRouter from './routes/stones.js';
 import subscriptionRouter from './routes/subscription.js';
 import telemetryRouter from './routes/telemetry.js';
 import webhooksRouter from './routes/webhooks.js';
+import { observabilityMiddleware } from './middleware/observability.js';
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(observabilityMiddleware);
 
 // Health check
 app.get('/health', (req, res) => {

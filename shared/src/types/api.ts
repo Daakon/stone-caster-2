@@ -119,12 +119,7 @@ export const CancelSubscriptionRequestSchema = z.object({
   subscriptionId: z.string().uuid(),
 });
 
-// Telemetry request schemas
-export const TelemetryEventSchema = z.object({
-  event: z.string().min(1).max(50),
-  properties: z.record(z.string(), z.unknown()).optional(),
-  timestamp: z.string().datetime().optional(),
-});
+// Telemetry request schemas (moved to types/index.ts for Layer 0.9)
 
 // Turn validation schemas
 export const TurnResponseSchema = z.object({
@@ -197,6 +192,6 @@ export type ConvertStonesRequest = z.infer<typeof ConvertStonesRequestSchema>;
 export type PurchaseStonesRequest = z.infer<typeof PurchaseStonesRequestSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
 export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
-export type TelemetryEvent = z.infer<typeof TelemetryEventSchema>;
+// TelemetryEvent type moved to types/index.ts for Layer 0.9
 export type TurnResponse = z.infer<typeof TurnResponseSchema>;
 export type TurnResult = z.infer<typeof TurnResultSchema>;

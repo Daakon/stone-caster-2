@@ -1,10 +1,10 @@
 import Stripe from 'stripe';
-import { config } from '../config/index.js';
-import { ApiErrorCode } from 'shared';
+import { config, configService } from '../config/index.js';
 
-// Initialize Stripe with environment variables
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16',
+// Initialize Stripe with configuration
+const env = configService.getEnv();
+const stripe = new Stripe(env.stripeSecretKey, {
+  apiVersion: '2025-09-30.clover',
 });
 
 export interface CreateCheckoutSessionParams {
@@ -186,7 +186,8 @@ export class PaymentService {
     payload: string | Buffer,
     signature: string
   ): Promise<WebhookVerificationResult> {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const env = configService.getEnv();
+    const webhookSecret = env.stripeWebhookSecret;
     if (!webhookSecret) {
       throw new Error('Stripe webhook secret not configured');
     }

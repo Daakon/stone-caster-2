@@ -53,7 +53,7 @@ router.post(
         console.error('Telemetry recording failed:', result.error);
         
         // Still return success to the client to avoid breaking their flow
-        return sendSuccess(res, { ok: true });
+        return sendSuccess(res, { ok: true }, req);
       }
 
       // Record the rate limit request
@@ -67,7 +67,7 @@ router.post(
         console.warn('Rate limit recording failed:', rateLimitError);
       }
 
-      return sendSuccess(res, { ok: true });
+      return sendSuccess(res, { ok: true }, req);
     } catch (error) {
       console.error('Telemetry endpoint error:', error);
       return sendErrorWithStatus(

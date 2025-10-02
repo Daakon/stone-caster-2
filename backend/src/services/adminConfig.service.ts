@@ -1,5 +1,4 @@
 import { supabaseAdmin } from './supabase.js';
-import { ApiErrorCode } from 'shared';
 
 export interface ConfigRow {
   key: string;
@@ -111,9 +110,21 @@ export class AdminConfigService {
    */
   private static async incrementConfigVersion(): Promise<void> {
     try {
+      // Get current version first
+      const { data: currentData, error: fetchError } = await supabaseAdmin
+        .from('config_meta')
+        .select('version')
+        .eq('id', true)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentVersion = currentData?.version || 0;
+      const newVersion = currentVersion + 1;
+
       const { error } = await supabaseAdmin
         .from('config_meta')
-        .update({ version: supabaseAdmin.raw('version + 1') })
+        .update({ version: newVersion })
         .eq('id', true);
 
       if (error) throw error;

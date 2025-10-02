@@ -80,7 +80,7 @@ describe('MonitoringWrapper', () => {
       const levels = ['debug', 'info', 'warning', 'error', 'fatal'];
 
       for (const level of levels) {
-        const result = await MonitoringWrapper.captureMessage(`Test ${level} message`, level);
+        const result = await MonitoringWrapper.captureMessage(`Test ${level} message`, level as any);
         expect(result.success).toBe(true);
         expect(result.captured).toBe(true);
       }

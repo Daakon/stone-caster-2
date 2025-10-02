@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FeatureFlagsService } from './featureFlags.service.js';
-import { ApiErrorCode } from 'shared';
 
 // Mock Supabase admin client
 const mockSupabaseAdmin = {

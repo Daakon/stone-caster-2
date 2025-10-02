@@ -38,8 +38,12 @@ describe('WalletService', () => {
   describe('convertStones', () => {
     it('should successfully convert shards to casting stones', async () => {
       // Mock config service
-      vi.mocked(configService.getConfig).mockResolvedValue({
-        value: { shard: 10, crystal: 100, relic: 500 }
+      vi.mocked(configService.getPricing).mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {},
+        guestStarterCastingStones: 10,
+        guestDailyRegen: 5,
+        conversionRates: { shard: 10, crystal: 100, relic: 500 }
       });
 
       // Mock wallet data
@@ -142,8 +146,12 @@ describe('WalletService', () => {
 
     it('should fail with insufficient inventory', async () => {
       // Mock config service
-      vi.mocked(configService.getConfig).mockResolvedValue({
-        value: { shard: 10, crystal: 100, relic: 500 }
+      vi.mocked(configService.getPricing).mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {},
+        guestStarterCastingStones: 10,
+        guestDailyRegen: 5,
+        conversionRates: { shard: 10, crystal: 100, relic: 500 }
       });
 
       // Mock wallet with insufficient shards
@@ -187,8 +195,12 @@ describe('WalletService', () => {
 
     it('should fail with invalid conversion rate', async () => {
       // Mock config service with invalid rate
-      vi.mocked(configService.getConfig).mockResolvedValue({
-        value: { shard: 0, crystal: 100, relic: 500 } // Invalid rate of 0
+      vi.mocked(configService.getPricing).mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {},
+        guestStarterCastingStones: 15,
+        guestDailyRegen: 0,
+        conversionRates: { shard: 0, crystal: 100, relic: 500 } // Invalid rate of 0
       });
 
       // Execute conversion - should fail
@@ -199,7 +211,13 @@ describe('WalletService', () => {
 
     it('should fail when conversion rates are not configured', async () => {
       // Mock config service returning null
-      vi.mocked(configService.getConfig).mockResolvedValue(null);
+      vi.mocked(configService.getPricing).mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {},
+        guestStarterCastingStones: 10,
+        guestDailyRegen: 5,
+        conversionRates: { shard: 0, crystal: 0, relic: 0 }
+      });
 
       // Execute conversion - should fail
       await expect(
@@ -445,12 +463,14 @@ describe('WalletService', () => {
       const result = await WalletService.spendCastingStones(
         mockUserId,
         20,
-        'Game action: dice roll',
-        { action: 'dice_roll' }
+        'idempotency-key',
+        'game-id',
+        'Game action: dice roll'
       );
 
       // Verify result
       expect(result).toEqual({
+        success: true,
         newBalance: 80,
       });
 
@@ -501,7 +521,7 @@ describe('WalletService', () => {
 
       // Execute spending - should fail
       await expect(
-        WalletService.spendCastingStones(mockUserId, 20, 'Game action')
+        WalletService.spendCastingStones(mockUserId, 20, 'idempotency-key', 'game-id', 'Game action')
       ).rejects.toThrow('Insufficient casting stones. Have 10, need 20');
     });
   });

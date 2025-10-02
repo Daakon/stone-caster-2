@@ -13,6 +13,7 @@ import type {
   SearchResultDTO,
   TurnResult,
 } from 'shared';
+import type { Game } from '../services/games.service.js';
 
 // Character DTO mapper
 export function toCharacterDTO(character: Character): CharacterDTO {
@@ -52,6 +53,23 @@ export function toGameDTO(gameSave: GameSave): GameDTO {
     createdAt: gameSave.createdAt,
     updatedAt: gameSave.updatedAt,
     lastPlayedAt: gameSave.lastPlayedAt,
+  };
+}
+
+// Game DTO mapper (from Game)
+export function toGameDTOFromGame(game: Game): GameDTO {
+  return {
+    id: game.id,
+    characterId: game.character_id || '',
+    adventureId: game.adventure_id,
+    name: `Game ${game.id.slice(0, 8)}`, // Generate a name from the ID
+    currentScene: 'start', // Default scene
+    storyHistory: [], // Empty history for new games
+    availableOptions: [], // Empty options for new games
+    npcs: [], // Empty NPCs for new games
+    createdAt: game.created_at,
+    updatedAt: game.updated_at || game.created_at,
+    lastPlayedAt: game.created_at,
   };
 }
 

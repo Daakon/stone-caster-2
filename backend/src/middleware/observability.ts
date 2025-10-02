@@ -5,7 +5,9 @@ import { TelemetryService } from '../services/telemetry.service.js';
 import { MonitoringWrapper } from '../wrappers/monitoring.js';
 
 // Extend Express Request type to include observability context
+// eslint-disable-next-line @typescript-eslint/no-namespace
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       traceId?: string;
@@ -71,8 +73,8 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
       errorCode: res.statusCode >= 400 ? getErrorCodeFromStatus(res.statusCode) : undefined,
     });
 
-    // Call original end
-    originalEnd.call(this, chunk, encoding);
+    // Call original end and return the result
+    return originalEnd.call(this, chunk, encoding);
   };
 
   next();
@@ -85,7 +87,7 @@ export function errorHandlerMiddleware(
   error: Error,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction // eslint-disable-line @typescript-eslint/no-unused-vars
 ): void {
   const traceId = req.traceId || 'unknown';
   const logger = req.logger || LoggerService.createLogger(traceId);

@@ -30,10 +30,11 @@ export class TelemetryService {
       }
 
       // Get configuration
-      const config = await configService.getConfig();
+      const features = configService.getFeatures();
+      const appConfig = configService.getApp();
 
       // Check if telemetry is enabled
-      const telemetryEnabled = config.featureFlags?.telemetry_enabled?.enabled;
+      const telemetryEnabled = features.find(f => f.key === 'telemetry_enabled')?.enabled;
       if (!telemetryEnabled) {
         return {
           success: true,
@@ -43,7 +44,7 @@ export class TelemetryService {
       }
 
       // Check sampling rate
-      const sampleRate = config.app?.telemetry_sample_rate?.value || 0.0;
+      const sampleRate = appConfig.telemetrySampleRate || 0.0;
       if (sampleRate <= 0) {
         return {
           success: true,
@@ -101,7 +102,7 @@ export class TelemetryService {
     const promises = events.map(event => this.recordEvent(event));
     const batchResults = await Promise.allSettled(promises);
 
-    batchResults.forEach((result, index) => {
+    batchResults.forEach((result) => {
       if (result.status === 'fulfilled') {
         results.push(result.value);
       } else {
@@ -214,7 +215,7 @@ export class TelemetryService {
       }
 
       return { valid: true };
-    } catch (error) {
+    } catch {
       return { valid: false, error: 'Invalid request format' };
     }
   }

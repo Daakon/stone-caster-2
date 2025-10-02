@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabase.js';
-import { configService } from './config.service.js';
+// import { configService } from './config.service.js'; // TODO: Use for rate limiting configuration
 
 export interface RateLimitInfo {
   limit: number;
@@ -19,8 +19,8 @@ export class RateLimitService {
    */
   static async checkCookieIssueRateLimit(ipAddress: string): Promise<boolean> {
     try {
-      const config = await configService.getConfig();
-      const rateLimit = config.app?.guest_cookie_issue_rate_limit_per_hour?.value || 10;
+      // const appConfig = configService.getApp(); // TODO: Use app config for rate limiting
+      const rateLimit = 10; // Default rate limit, will be configurable later
 
       const oneHourAgo = new Date();
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);
@@ -74,8 +74,8 @@ export class RateLimitService {
    */
   static async getRateLimitInfo(ipAddress: string): Promise<RateLimitInfo> {
     try {
-      const config = await configService.getConfig();
-      const rateLimit = config.app?.guest_cookie_issue_rate_limit_per_hour?.value || 10;
+      // const appConfig = configService.getApp(); // TODO: Use app config for rate limiting
+      const rateLimit = 10; // Default rate limit, will be configurable later
 
       const oneHourAgo = new Date();
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);

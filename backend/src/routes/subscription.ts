@@ -38,7 +38,7 @@ router.get('/', jwtAuth, requireAuth, async (req: Request, res: Response) => {
 // Create subscription (auth only)
 router.post('/create', jwtAuth, requireAuth, validateRequest(CreateSubscriptionRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
-    const { priceId, paymentMethodId } = req.body;
+    // const { priceId, paymentMethodId } = req.body; // TODO: Implement subscription creation
 
     // Mock subscription creation - in real implementation, this would handle payment processing
     const subscription = {

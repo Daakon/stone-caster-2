@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ApiErrorCode } from 'shared';
 
 // Mock Supabase admin client first
 vi.mock('./supabase.js', () => ({
@@ -38,9 +37,11 @@ vi.mock('./supabase.js', () => ({
 }));
 
 // Mock config service
-vi.mock('../config/index.js', () => ({
+vi.mock('./config.service.js', () => ({
   configService: {
-    getConfig: vi.fn(),
+    getPricing: vi.fn(),
+    getApp: vi.fn(),
+    getFeatures: vi.fn(),
   },
 }));
 
@@ -55,18 +56,35 @@ describe('JobsService', () => {
     
     // Get the mocked services
     const { supabaseAdmin } = await import('./supabase.js');
-    const { configService } = await import('../config/index.js');
+    const { configService } = await import('./config.service.js');
     mockSupabaseAdmin = vi.mocked(supabaseAdmin);
     mockConfigService = vi.mocked(configService);
+    
+    // Setup default config service mocks
+    mockConfigService.getPricing.mockReturnValue({
+      turnCostDefault: 2,
+      turnCostByWorld: {},
+      guestStarterCastingStones: 10,
+      guestDailyRegen: 5,
+      conversionRates: { shard: 1, crystal: 10, relic: 100 },
+    });
+    
+    mockConfigService.getApp.mockReturnValue({
+      cookieTtlDays: 30,
+      idempotencyRequired: true,
+      allowAsyncTurnFallback: true,
+      telemetrySampleRate: 1.0,
+      drifterEnabled: true,
+    });
+    
+    mockConfigService.getFeatures.mockReturnValue([
+      { key: 'telemetry_enabled', enabled: true, payload: {} },
+    ]);
   });
 
   describe('dailyRegenJob', () => {
     it('should add daily regen to guest groups and create ledger entries', async () => {
-      const mockConfig = {
-        pricing: {
-          guest_daily_regen: { value: 5 },
-        },
-      };
+      // Config is already mocked in beforeEach
 
       const mockGuestWallets = [
         {
@@ -96,7 +114,7 @@ describe('JobsService', () => {
         },
       ];
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       // Mock guest wallets query
       mockSupabaseAdmin.from.mockImplementation((table: string) => {
@@ -179,13 +197,13 @@ describe('JobsService', () => {
     });
 
     it('should skip regen when guest_daily_regen is 0', async () => {
-      const mockConfig = {
-        pricing: {
-          guest_daily_regen: { value: 0 },
-        },
-      };
+      // const mockConfig = {
+      //   pricing: {
+      //     guest_daily_regen: { value: 0 },
+      //   },
+      // };
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       const result = await JobsService.dailyRegenJob();
 
@@ -201,13 +219,13 @@ describe('JobsService', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      const mockConfig = {
-        pricing: {
-          guest_daily_regen: { value: 5 },
-        },
-      };
+      // const mockConfig = {
+      //   pricing: {
+      //     guest_daily_regen: { value: 5 },
+      //   },
+      // };
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       mockSupabaseAdmin.from.mockImplementation(() => ({
         select: vi.fn(() => ({
@@ -226,11 +244,11 @@ describe('JobsService', () => {
 
   describe('purgeGuestsJob', () => {
     it('should remove stale cookie group members and empty groups', async () => {
-      const mockConfig = {
-        app: {
-          cookie_ttl_days: { value: 30 },
-        },
-      };
+      // const mockConfig = {
+      //   app: {
+      //     cookie_ttl_days: { value: 30 },
+      //   },
+      // };
 
       const mockStaleMembers = [
         {
@@ -250,7 +268,7 @@ describe('JobsService', () => {
         { id: 'empty-group-2' },
       ];
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       // Mock stale members query
       mockSupabaseAdmin.from.mockImplementation((table: string) => {
@@ -313,13 +331,13 @@ describe('JobsService', () => {
     });
 
     it('should handle no stale data gracefully', async () => {
-      const mockConfig = {
+      // const mockConfig = {
         app: {
           cookie_ttl_days: { value: 30 },
         },
       };
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       mockSupabaseAdmin.from.mockImplementation(() => ({
         select: vi.fn(() => ({
@@ -349,13 +367,13 @@ describe('JobsService', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      const mockConfig = {
-        app: {
-          cookie_ttl_days: { value: 30 },
-        },
-      };
+      // const mockConfig = {
+      //   app: {
+      //     cookie_ttl_days: { value: 30 },
+      //   },
+      // };
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       mockSupabaseAdmin.from.mockImplementation(() => ({
         select: vi.fn(() => ({
@@ -376,13 +394,13 @@ describe('JobsService', () => {
 
   describe('checkRateLimit', () => {
     it('should allow requests within rate limit', async () => {
-      const mockConfig = {
+      // const mockConfig = {
         app: {
           guest_cookie_issue_rate_limit_per_hour: { value: 10 },
         },
       };
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       // Mock no recent requests
       mockSupabaseAdmin.from.mockImplementation(() => ({
@@ -406,7 +424,7 @@ describe('JobsService', () => {
     });
 
     it('should reject requests exceeding rate limit', async () => {
-      const mockConfig = {
+      // const mockConfig = {
         app: {
           guest_cookie_issue_rate_limit_per_hour: { value: 5 },
         },
@@ -421,7 +439,7 @@ describe('JobsService', () => {
         { id: 'req-6', ip_address: '192.168.1.1', created_at: '2023-01-01T00:00:00Z' },
       ];
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       mockSupabaseAdmin.from.mockImplementation(() => ({
         select: vi.fn(() => ({
@@ -444,13 +462,13 @@ describe('JobsService', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      const mockConfig = {
+      // const mockConfig = {
         app: {
           guest_cookie_issue_rate_limit_per_hour: { value: 10 },
         },
       };
 
-      mockConfigService.getConfig.mockResolvedValue(mockConfig);
+      // Config is already mocked in beforeEach
 
       mockSupabaseAdmin.from.mockImplementation(() => ({
         select: vi.fn(() => ({

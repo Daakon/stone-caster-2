@@ -31,6 +31,8 @@ async function startDevServer() {
   process.env.PRIMARY_AI_MODEL = process.env.PRIMARY_AI_MODEL || 'gpt-4';
   process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'dev-session-secret';
   process.env.PORT = process.env.PORT || '3000';
+  process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_local_dev_key';
+  process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_local_dev_secret';
 
   console.info('[dev-with-default-env] Starting backend with local defaults (development only)');
 

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TelemetryService } from './telemetry.service.js';
-import { ApiErrorCode } from 'shared';
 
 // Mock Supabase admin client
 vi.mock('./supabase.js', () => ({
@@ -169,6 +168,7 @@ describe('TelemetryService', () => {
       const result1 = await TelemetryService.recordEvent({
         name: '',
         traceId: 'trace-123',
+        props: {},
       });
       
       expect(result1.success).toBe(false);
@@ -178,6 +178,7 @@ describe('TelemetryService', () => {
       const result2 = await TelemetryService.recordEvent({
         name: 'test_event',
         traceId: '',
+        props: {},
       });
       
       expect(result2.success).toBe(false);

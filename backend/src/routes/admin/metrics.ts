@@ -35,7 +35,7 @@ router.get(
         timestamp: new Date().toISOString(),
       };
 
-      return sendSuccess(res, response);
+      return sendSuccess(res, response, req);
     } catch (error) {
       console.error('Admin metrics endpoint error:', error);
       return sendErrorWithStatus(
@@ -70,7 +70,7 @@ router.get(
         timestamp: new Date().toISOString(),
       };
 
-      return sendSuccess(res, response);
+      return sendSuccess(res, response, req);
     } catch (error) {
       console.error('Admin route metrics endpoint error:', error);
       return sendErrorWithStatus(
@@ -104,7 +104,7 @@ router.get(
         timestamp: new Date().toISOString(),
       };
 
-      return sendSuccess(res, response);
+      return sendSuccess(res, response, req);
     } catch (error) {
       console.error('Admin error metrics endpoint error:', error);
       return sendErrorWithStatus(
@@ -133,7 +133,7 @@ router.post(
       return sendSuccess(res, { 
         message: 'Metrics reset successfully',
         timestamp: new Date().toISOString(),
-      });
+      }, req);
     } catch (error) {
       console.error('Admin metrics reset endpoint error:', error);
       return sendErrorWithStatus(

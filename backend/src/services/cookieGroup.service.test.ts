@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ApiErrorCode } from 'shared';
 
 // Mock Supabase admin client first
 vi.mock('./supabase.js', () => ({

@@ -84,18 +84,18 @@ describe('Turn Engine E2E Tests', () => {
         success: true,
         game: {
           id: 'game-123',
-          characterId: null,
-          worldTemplateId: '123e4567-e89b-12d3-a456-426614174456',
-          name: 'Test Game',
-          storyState: {
+          adventure_id: '123e4567-e89b-12d3-a456-426614174456',
+          character_id: undefined,
+          user_id: 'user-123',
+          state_snapshot: {
             currentScene: 'tavern',
             history: [],
             npcs: [],
             worldState: {},
           },
-          createdAt: '2023-01-01T00:00:00Z',
-          updatedAt: '2023-01-01T00:00:00Z',
-          lastPlayedAt: '2023-01-01T00:00:00Z',
+          turn_index: 0,
+          world_id: '123e4567-e89b-12d3-a456-426614174456',
+          created_at: '2023-01-01T00:00:00Z',
         },
       });
 
@@ -130,7 +130,7 @@ describe('Turn Engine E2E Tests', () => {
         data: expect.objectContaining({
           id: 'game-123',
           adventureId: '123e4567-e89b-12d3-a456-426614174456',
-          characterId: null,
+          character_id: undefined,
         }),
         meta: expect.objectContaining({
           traceId: expect.any(String),

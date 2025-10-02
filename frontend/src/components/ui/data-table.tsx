@@ -63,14 +63,14 @@ export function DataTable<T extends Record<string, unknown>>({
     onSort?.(column, newDirection);
   };
 
-  const renderCell = (column: Column<T>, row: T) => {
+  const renderCell = (column: Column<T>, row: T): React.ReactNode => {
     const value = row[column.key];
     
     if (column.render) {
       return column.render(value, row);
     }
     
-    return value;
+    return String(value ?? '');
   };
 
   if (loading) {
