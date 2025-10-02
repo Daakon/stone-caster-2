@@ -2,30 +2,21 @@ import React from 'react';
 import { Card, CardContent, CardFooter, CardHeader } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import type { Adventure } from '../../services/mockData';
+import type { Adventure, World } from '../../services/mockData';
 import { Gem } from 'lucide-react';
 
 interface AdventureCardProps {
   adventure: Adventure;
+  world?: World;
   onStart: (adventureId: string) => void;
   onViewDetails: (adventureId: string) => void;
   isInvited: boolean;
 }
 
-const difficultyColors = {
-  easy: 'bg-green-100 text-green-800 border-green-200',
-  medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  hard: 'bg-red-100 text-red-800 border-red-200'
-};
-
-const difficultyIcons = {
-  easy: '⭐',
-  medium: '⭐⭐',
-  hard: '⭐⭐⭐'
-};
 
 export const AdventureCard: React.FC<AdventureCardProps> = ({
   adventure,
+  world,
   onStart,
   onViewDetails,
   isInvited
@@ -41,8 +32,8 @@ export const AdventureCard: React.FC<AdventureCardProps> = ({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <div className="absolute top-4 right-4">
-            <Badge className={difficultyColors[adventure.difficulty]}>
-              {difficultyIcons[adventure.difficulty]} {adventure.difficulty}
+            <Badge variant="secondary" className="bg-background/80 text-foreground border-border">
+              {world?.title || 'Unknown World'}
             </Badge>
           </div>
           <div className="absolute bottom-4 left-4 right-4">

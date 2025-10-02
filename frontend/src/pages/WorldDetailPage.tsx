@@ -6,9 +6,9 @@ import { Badge } from '../components/ui/badge';
 import { AdventureCard } from '../components/cards/AdventureCard';
 import { CardGrid } from '../components/cards/CardGrid';
 import { WorldRuleMeters } from '../components/gameplay/WorldRuleMeters';
+import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { mockDataService } from '../services/mockData';
 import { 
-  ArrowLeft, 
   MapPin, 
   Users, 
   Zap, 
@@ -27,10 +27,10 @@ export default function WorldDetailPage() {
   if (!world) {
     return (
       <div className="container mx-auto px-4 py-8">
+        <Breadcrumbs />
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">World Not Found</h1>
           <Button onClick={() => navigate('/worlds')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Worlds
           </Button>
         </div>
@@ -59,15 +59,7 @@ export default function WorldDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Back Button */}
-      <Button
-        variant="ghost"
-        onClick={() => navigate('/worlds')}
-        className="mb-6"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Worlds
-      </Button>
+      <Breadcrumbs />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Content */}
@@ -186,6 +178,7 @@ export default function WorldDetailPage() {
                     <AdventureCard
                       key={adventure.id}
                       adventure={adventure}
+                      world={world}
                       onStart={handleAdventureStart}
                       onViewDetails={handleAdventureViewDetails}
                       isInvited={isInvited}

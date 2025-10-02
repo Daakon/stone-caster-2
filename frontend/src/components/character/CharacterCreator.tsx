@@ -34,25 +34,42 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
     // Load schema for this world
     import(`../../mock/schemas/${worldId}.json`)
       .then((schemaData) => {
-        setSchema(schemaData.default);
+        if (schemaData.default && schemaData.default.fields) {
+          setSchema(schemaData.default);
+        } else {
+          console.error(`Invalid schema structure for world: ${worldId}`);
+          setSchema(null);
+        }
       })
-      .catch(() => {
-        console.error(`Schema not found for world: ${worldId}`);
+      .catch((error) => {
+        console.error(`Schema not found for world: ${worldId}`, error);
+        setSchema(null);
       });
   }, [worldId]);
 
-  if (!world || !schema) {
+  if (!world) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading character creator...</p>
+          <p className="text-destructive mb-4">World not found</p>
+          <Button onClick={onCancel}>Go Back</Button>
         </div>
       </div>
     );
   }
 
-  const allFields = [...schema.sharedFields, ...schema.worldSpecificFields];
+  if (!schema) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Character creation schema not available for this world</p>
+          <Button onClick={onCancel}>Go Back</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const allFields = schema.fields || [];
   const totalSteps = allFields.length;
   const currentField = allFields[currentStep];
 
@@ -117,7 +134,7 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
   const handleSubmit = () => {
     // Validate all fields
     const newErrors: Record<string, string> = {};
-    allFields.forEach(field => {
+    allFields.forEach((field: any) => {
       const error = validateField(field, formData[field.id]);
       if (error) {
         newErrors[field.id] = error;
@@ -133,14 +150,16 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
     const character: Omit<Character, 'id' | 'createdAt'> = {
       worldId,
       name: formData.name,
-      avatar: formData.avatar,
+      avatar: formData.avatar || 'default',
       backstory: formData.backstory || '',
       worldSpecificData: {}
     };
 
-    // Add world-specific data
-    schema.worldSpecificFields.forEach((field: any) => {
-      character.worldSpecificData[field.id] = formData[field.id];
+    // Add all form data to world-specific data
+    Object.keys(formData).forEach((key: string) => {
+      if (key !== 'name' && key !== 'avatar' && key !== 'backstory') {
+        character.worldSpecificData[key] = formData[key];
+      }
     });
 
     const newCharacter = mockDataService.createCharacter(character);

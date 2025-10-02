@@ -198,15 +198,19 @@ export default function LandingPage() {
             </p>
           </div>
           <CardGrid columns={3}>
-            {adventures.map((adventure) => (
-              <AdventureCard
-                key={adventure.id}
-                adventure={adventure}
-                onStart={handleStartAdventure}
-                onViewDetails={handleViewAdventureDetails}
-                isInvited={isInvited}
-              />
-            ))}
+            {adventures.map((adventure) => {
+              const world = worlds.find(w => w.id === adventure.worldId);
+              return (
+                <AdventureCard
+                  key={adventure.id}
+                  adventure={adventure}
+                  world={world}
+                  onStart={handleStartAdventure}
+                  onViewDetails={handleViewAdventureDetails}
+                  isInvited={isInvited}
+                />
+              );
+            })}
           </CardGrid>
         </div>
       </section>

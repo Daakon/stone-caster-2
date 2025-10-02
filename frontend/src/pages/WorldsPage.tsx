@@ -4,41 +4,32 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import type { Adventure, World } from '../services/mockData';
+import type { World } from '../services/mockData';
 import { mockDataService } from '../services/mockData';
-import { AdventureCard } from '../components/cards/AdventureCard';
-import { AdventureModal } from '../components/overlays/AdventureModal';
+import { WorldCard } from '../components/cards/WorldCard';
 import { CardGrid } from '../components/cards/CardGrid';
 import { DrifterBubble } from '../components/guidance/DrifterBubble';
 import { Search, Filter, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-export default function AdventuresPage() {
+export default function WorldsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [adventures, setAdventures] = useState<Adventure[]>([]);
   const [worlds, setWorlds] = useState<World[]>([]);
-  const [filteredAdventures, setFilteredAdventures] = useState<Adventure[]>([]);
-  const [selectedAdventure] = useState<Adventure | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [filteredWorlds, setFilteredWorlds] = useState<World[]>([]);
   const [showDrifter, setShowDrifter] = useState(false);
   
   // Filters from URL params
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
-  const [selectedWorld, setSelectedWorld] = useState(searchParams.get('world') || 'all');
-  const [selectedDifficulty, setSelectedDifficulty] = useState(searchParams.get('difficulty') || 'all');
+  const [selectedTag, setSelectedTag] = useState(searchParams.get('tag') || 'all');
   const [selectedTags, setSelectedTags] = useState<string[]>(
     searchParams.get('tags') ? searchParams.get('tags')!.split(',') : []
   );
-  
-  const [isInvited] = useState(mockDataService.getInviteStatus().invited);
 
   useEffect(() => {
-    const adventuresData = mockDataService.getAdventures();
     const worldsData = mockDataService.getWorlds();
-    setAdventures(adventuresData);
     setWorlds(worldsData);
-    setFilteredAdventures(adventuresData);
+    setFilteredWorlds(worldsData);
 
     // Show drifter bubble after a delay
     const timer = setTimeout(() => {
@@ -49,55 +40,44 @@ export default function AdventuresPage() {
   }, []);
 
   useEffect(() => {
-    let filtered = adventures;
+    let filtered = worlds;
 
     // Search filter
     if (searchQuery) {
-      filtered = mockDataService.searchAdventures(searchQuery);
+      filtered = filtered.filter(world =>
+        world.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        world.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        world.tagline.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     }
 
-    // World filter
-    if (selectedWorld !== 'all') {
-      filtered = filtered.filter(adventure => adventure.worldId === selectedWorld);
-    }
-
-    // Difficulty filter
-    if (selectedDifficulty !== 'all') {
-      filtered = filtered.filter(adventure => adventure.difficulty === selectedDifficulty);
+    // Tag filter
+    if (selectedTag !== 'all') {
+      filtered = filtered.filter(world => world.tags.includes(selectedTag));
     }
 
     // Tags filter
     if (selectedTags.length > 0) {
-      filtered = filtered.filter(adventure =>
-        selectedTags.every(tag => adventure.tags.includes(tag))
+      filtered = filtered.filter(world =>
+        selectedTags.every(tag => world.tags.includes(tag))
       );
     }
 
-    setFilteredAdventures(filtered);
-  }, [adventures, searchQuery, selectedWorld, selectedDifficulty, selectedTags]);
+    setFilteredWorlds(filtered);
+  }, [worlds, searchQuery, selectedTag, selectedTags]);
 
   // Update URL when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchQuery) params.set('search', searchQuery);
-    if (selectedWorld !== 'all') params.set('world', selectedWorld);
-    if (selectedDifficulty !== 'all') params.set('difficulty', selectedDifficulty);
+    if (selectedTag !== 'all') params.set('tag', selectedTag);
     if (selectedTags.length > 0) params.set('tags', selectedTags.join(','));
     
     setSearchParams(params, { replace: true });
-  }, [searchQuery, selectedWorld, selectedDifficulty, selectedTags, setSearchParams]);
+  }, [searchQuery, selectedTag, selectedTags, setSearchParams]);
 
-
-  const handleStartAdventure = (adventureId: string) => {
-    if (isInvited) {
-      navigate(`/adventures/${adventureId}/characters`);
-    } else {
-      alert('This journey requires an invitation at this stage.');
-    }
-  };
-
-  const handleViewDetails = (adventureId: string) => {
-    navigate(`/adventures/${adventureId}`);
+  const handleViewWorld = (worldId: string) => {
+    navigate(`/worlds/${worldId}`);
   };
 
   const handleLearnAboutWorld = (worldId: string) => {
@@ -114,22 +94,21 @@ export default function AdventuresPage() {
 
   const clearFilters = () => {
     setSearchQuery('');
-    setSelectedWorld('all');
-    setSelectedDifficulty('all');
+    setSelectedTag('all');
     setSelectedTags([]);
   };
 
   // Get all unique tags
-  const allTags = Array.from(new Set(adventures.flatMap(adventure => adventure.tags)));
+  const allTags = Array.from(new Set(worlds.flatMap(world => world.tags)));
 
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Adventures</h1>
+          <h1 className="text-3xl font-bold mb-2">Worlds</h1>
           <p className="text-muted-foreground">
-            Discover and embark on epic journeys across different worlds. Each adventure offers unique challenges and rewards.
+            Discover and explore different worlds. Each world has its own rules, factions, and unique mechanics.
           </p>
         </div>
 
@@ -146,7 +125,7 @@ export default function AdventuresPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search adventures..."
+                placeholder="Search worlds..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -154,35 +133,20 @@ export default function AdventuresPage() {
             </div>
 
             {/* Filter Controls */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">World</label>
-                <Select value={selectedWorld} onValueChange={setSelectedWorld}>
+                <label className="text-sm font-medium mb-2 block">Primary Tag</label>
+                <Select value={selectedTag} onValueChange={setSelectedTag}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All Worlds" />
+                    <SelectValue placeholder="All Tags" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Worlds</SelectItem>
-                    {worlds.map(world => (
-                      <SelectItem key={world.id} value={world.id}>
-                        {world.title}
+                    <SelectItem value="all">All Tags</SelectItem>
+                    {allTags.map(tag => (
+                      <SelectItem key={tag} value={tag}>
+                        {tag}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Difficulty</label>
-                <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Difficulties" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Difficulties</SelectItem>
-                    <SelectItem value="easy">Easy</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="hard">Hard</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -217,32 +181,27 @@ export default function AdventuresPage() {
         {/* Results */}
         <div className="mb-4">
           <p className="text-muted-foreground">
-            {filteredAdventures.length} adventure{filteredAdventures.length !== 1 ? 's' : ''} found
+            {filteredWorlds.length} world{filteredWorlds.length !== 1 ? 's' : ''} found
           </p>
         </div>
 
-        {/* Adventure Grid */}
-        {filteredAdventures.length > 0 ? (
+        {/* Worlds Grid */}
+        {filteredWorlds.length > 0 ? (
           <CardGrid columns={3}>
-            {filteredAdventures.map(adventure => {
-              const world = worlds.find(w => w.id === adventure.worldId);
-              return (
-                <AdventureCard
-                  key={adventure.id}
-                  adventure={adventure}
-                  world={world}
-                  onStart={handleStartAdventure}
-                  onViewDetails={handleViewDetails}
-                  isInvited={isInvited}
-                />
-              );
-            })}
+            {filteredWorlds.map(world => (
+              <WorldCard
+                key={world.id}
+                world={world}
+                onViewDetails={handleViewWorld}
+                onLearnMore={handleLearnAboutWorld}
+              />
+            ))}
           </CardGrid>
         ) : (
           <Card>
             <CardContent className="p-12 text-center">
               <p className="text-muted-foreground text-lg">
-                No adventures found matching your criteria.
+                No worlds found matching your criteria.
               </p>
               <Button variant="outline" onClick={clearFilters} className="mt-4">
                 Clear Filters
@@ -251,21 +210,10 @@ export default function AdventuresPage() {
           </Card>
         )}
 
-        {/* Adventure Modal */}
-        <AdventureModal
-          adventure={selectedAdventure}
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onStart={handleStartAdventure}
-          onViewDetails={handleViewDetails}
-          onLearnAboutWorld={handleLearnAboutWorld}
-          isInvited={isInvited}
-        />
-
         {/* Drifter Bubble */}
         {showDrifter && (
           <DrifterBubble
-            message="Only chosen travelers may cast stones here during this stage. But the adventures await those with the proper invitation."
+            message="Each world holds its own mysteries and rules. Choose wisely, for your path will be shaped by the world you enter."
             position="bottom-right"
             onDismiss={() => setShowDrifter(false)}
           />

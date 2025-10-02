@@ -4,10 +4,10 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { CharacterCreator } from '../components/character/CharacterCreator';
+import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { mockDataService } from '../services/mockData';
 import type { Character } from '../services/mockData';
 import { 
-  ArrowLeft, 
   Plus, 
   User, 
   Calendar,
@@ -29,10 +29,10 @@ export default function CharacterSelectionPage() {
   if (!adventure || !world) {
     return (
       <div className="container mx-auto px-4 py-8">
+        <Breadcrumbs />
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Adventure Not Found</h1>
           <Button onClick={() => navigate('/adventures')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Adventures
           </Button>
         </div>
@@ -69,15 +69,8 @@ export default function CharacterSelectionPage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
+          <Breadcrumbs />
           <div className="mb-6">
-            <Button
-              variant="ghost"
-              onClick={() => setShowCreator(false)}
-              className="mb-4"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Character Selection
-            </Button>
             <h1 className="text-2xl font-bold">Create Character</h1>
             <p className="text-muted-foreground">
               Create a new character for {world.title}
@@ -96,15 +89,7 @@ export default function CharacterSelectionPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Back Button */}
-      <Button
-        variant="ghost"
-        onClick={() => navigate(`/adventures/${adventure.id}`)}
-        className="mb-6"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Adventure
-      </Button>
+      <Breadcrumbs />
 
       <div className="max-w-4xl mx-auto">
         {/* Header */}

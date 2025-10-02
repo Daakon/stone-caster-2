@@ -6,9 +6,9 @@ import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { WorldRuleMeters } from '../components/gameplay/WorldRuleMeters';
 import { StoneCost } from '../components/gameplay/StoneCost';
+import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { mockDataService } from '../services/mockData';
 import { 
-  ArrowLeft, 
   Gem, 
   Users, 
   Zap, 
@@ -30,10 +30,10 @@ export default function AdventureDetailPage() {
   if (!adventure || !world) {
     return (
       <div className="container mx-auto px-4 py-8">
+        <Breadcrumbs />
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Adventure Not Found</h1>
           <Button onClick={() => navigate('/adventures')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Adventures
           </Button>
         </div>
@@ -62,15 +62,7 @@ export default function AdventureDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Back Button */}
-      <Button
-        variant="ghost"
-        onClick={() => navigate('/adventures')}
-        className="mb-6"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Adventures
-      </Button>
+      <Breadcrumbs />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Content */}

@@ -7,9 +7,10 @@ import { StoneCost } from '../components/gameplay/StoneCost';
 import { WorldRuleMeters } from '../components/gameplay/WorldRuleMeters';
 import { TurnInput } from '../components/gameplay/TurnInput';
 import { HistoryFeed } from '../components/gameplay/HistoryFeed';
+import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { mockDataService } from '../services/mockData';
 import type { Adventure, World, Character } from '../services/mockData';
-import { Gem, ArrowLeft, Settings, Save } from 'lucide-react';
+import { Gem, Settings, Save } from 'lucide-react';
 
 interface GameState {
   worldRules: Record<string, number>;
@@ -172,25 +173,18 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Game Header */}
-      <div className="border-b bg-card">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      {/* Game Content */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <Breadcrumbs />
+        
+        {/* Game Header Info */}
+        <div className="mb-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/adventures')}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Adventures
-              </Button>
-              <div>
-                <h1 className="text-xl font-bold">{adventure.title}</h1>
-                <p className="text-sm text-muted-foreground">
-                  Playing as {character.name} in {world.title}
-                </p>
-              </div>
+            <div>
+              <h1 className="text-xl font-bold">{adventure.title}</h1>
+              <p className="text-sm text-muted-foreground">
+                Playing as {character.name} in {world.title}
+              </p>
             </div>
             
             <div className="flex items-center gap-4">
@@ -209,10 +203,6 @@ export default function GamePage() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Game Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Game Area */}
           <div className="lg:col-span-2 space-y-6">
