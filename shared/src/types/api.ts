@@ -14,6 +14,10 @@ export enum ApiErrorCode {
   INVALID_PACK = 'INVALID_PACK',
   PAYMENT_FAILED = 'PAYMENT_FAILED',
   COOKIE_CAP = 'COOKIE_CAP',
+  CONFIG_NOT_FOUND = 'CONFIG_NOT_FOUND',
+  FLAG_NOT_FOUND = 'FLAG_NOT_FOUND',
+  PROMPT_NOT_FOUND = 'PROMPT_NOT_FOUND',
+  PROMPT_VERSION_CONFLICT = 'PROMPT_VERSION_CONFLICT',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
 }
 
@@ -141,6 +145,36 @@ export const TurnResultSchema = z.object({
   option_id: z.string().uuid(),
   ai_response: TurnResponseSchema,
   created_at: z.string().datetime(),
+});
+
+// Admin request schemas
+export const UpdateConfigRequestSchema = z.object({
+  value: z.unknown(),
+});
+
+export const UpdateFlagRequestSchema = z.object({
+  enabled: z.boolean().optional(),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const CreatePromptRequestSchema = z.object({
+  slug: z.string().min(1).max(100),
+  scope: z.enum(['world', 'scenario', 'adventure', 'quest']),
+  content: z.string().min(1),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  active: z.boolean().optional().default(false),
+});
+
+export const UpdatePromptRequestSchema = z.object({
+  content: z.string().min(1).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  active: z.boolean().optional(),
+});
+
+export const PromptFiltersSchema = z.object({
+  scope: z.enum(['world', 'scenario', 'adventure', 'quest']).optional(),
+  slug: z.string().optional(),
+  active: z.boolean().optional(),
 });
 
 // Type exports

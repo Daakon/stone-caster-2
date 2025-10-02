@@ -227,3 +227,20 @@ export const PaymentSessionSchema = z.object({
 });
 
 export type PaymentSession = z.infer<typeof PaymentSessionSchema>;
+
+// Prompt Schema
+export const PromptSchema = z.object({
+  id: z.string().uuid(),
+  slug: z.string().min(1).max(100),
+  scope: z.enum(['world', 'scenario', 'adventure', 'quest']),
+  version: z.number().int().min(1),
+  hash: z.string().length(64), // SHA-256 hash
+  content: z.string().min(1),
+  active: z.boolean(),
+  metadata: z.record(z.string(), z.unknown()),
+  createdBy: z.string().uuid().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export type Prompt = z.infer<typeof PromptSchema>;
