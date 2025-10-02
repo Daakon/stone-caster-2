@@ -31,6 +31,7 @@ INSERT INTO feature_flags (key, enabled, payload)
 VALUES
   ('stones_show_guest_pill', TRUE, '{}'::jsonb),
   ('drifter_onboarding', TRUE, '{}'::jsonb),
-  ('ws_push_enabled', FALSE, '{}'::jsonb)
+  ('ws_push_enabled', FALSE, '{}'::jsonb),
+  ('telemetry_enabled', TRUE, '{}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
