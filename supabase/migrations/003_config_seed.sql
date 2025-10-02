@@ -23,7 +23,8 @@ VALUES
   ('idempotency_required', '{"value":true}', 'boolean'),
   ('allow_async_turn_fallback', '{"value":true}', 'boolean'),
   ('telemetry_sample_rate', '{"value":1.0}', 'number'),
-  ('drifter_enabled', '{"value":true}', 'boolean')
+  ('drifter_enabled', '{"value":true}', 'boolean'),
+  ('guest_cookie_issue_rate_limit_per_hour', '{"value":10}', 'number')
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO feature_flags (key, enabled, payload)

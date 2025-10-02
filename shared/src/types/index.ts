@@ -244,3 +244,29 @@ export const PromptSchema = z.object({
 });
 
 export type Prompt = z.infer<typeof PromptSchema>;
+
+// Guest Identity Schemas
+export const CookieGroupSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const CookieGroupMemberSchema = z.object({
+  cookieId: z.string().uuid(),
+  groupId: z.string().uuid(),
+  deviceLabel: z.string().optional(),
+  lastSeenAt: z.string().datetime(),
+  createdAt: z.string().datetime(),
+});
+
+export const GuestStoneWalletSchema = z.object({
+  groupId: z.string().uuid(),
+  castingStones: z.number().int().min(0),
+  updatedAt: z.string().datetime(),
+});
+
+export type CookieGroup = z.infer<typeof CookieGroupSchema>;
+export type CookieGroupMember = z.infer<typeof CookieGroupMemberSchema>;
+export type GuestStoneWallet = z.infer<typeof GuestStoneWalletSchema>;
