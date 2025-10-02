@@ -1,0 +1,221 @@
+[
+  {
+    "id": "mystika",
+    "title": "Mystika",
+    "tagline": "Crystalborn Legacy & Veil-Seeped Realms",
+    "cover": "/images/worlds/mystika-cover.jpg",
+    "tags": ["high-fantasy", "shifters", "elves", "crystalborn", "veil-seeped", "magic", "mystery"],
+    "description": "A realm where the Veil between worlds has grown thin, allowing otherworldly energies to seep through. The Crystalborn, descendants of those touched by these energies, navigate a world where magic and reality blur. Ancient elven kingdoms coexist with shifter tribes, all bound by the ever-present threat of Veil-storms that can reshape reality itself.",
+    "rules": [
+      {
+        "id": "veil_stability",
+        "name": "Veil Stability",
+        "description": "The integrity of the barrier between worlds affects all magical phenomena",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 65
+      },
+      {
+        "id": "crystal_resonance",
+        "name": "Crystal Resonance",
+        "description": "The harmony between Crystalborn and their crystalline powers",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 40
+      },
+      {
+        "id": "faction_tension",
+        "name": "Faction Tension",
+        "description": "The balance between Elven Courts, Shifter Tribes, and Crystalborn Orders",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 55
+      }
+    ],
+    "differentiators": [
+      {
+        "id": "relationships",
+        "type": "relationships",
+        "title": "Veil-Touched Bonds",
+        "description": "Relationships are deepened by shared experiences with Veil-storms and crystal resonance"
+      },
+      {
+        "id": "factions",
+        "type": "factions",
+        "title": "Three-Way Balance",
+        "description": "Elven Courts, Shifter Tribes, and Crystalborn Orders vie for influence over Veil-stability"
+      },
+      {
+        "id": "npc_agency",
+        "type": "npcAgency",
+        "title": "Veil-Driven Agency",
+        "description": "NPCs pursue their own agendas, often influenced by Veil-storms and crystal resonance"
+      }
+    ]
+  },
+  {
+    "id": "aetherium",
+    "title": "Aetherium",
+    "tagline": "The Aetherium Reaches - Where Consciousness is Currency",
+    "cover": "/images/worlds/aetherium-cover.jpg",
+    "tags": ["cyberpunk", "dystopia", "consciousness", "AI", "hacking", "neural", "corporate"],
+    "description": "In the sprawling neon-lit megacities of Aetherium, human consciousness has become the ultimate commodity. Neural implants allow thoughts to be digitized, memories to be traded, and minds to be uploaded to corporate servers. The Aetherium Reaches stretch between towering arcologies where the wealthy live in digital luxury while the masses struggle in the physical world below.",
+    "rules": [
+      {
+        "id": "corporate_control",
+        "name": "Corporate Control",
+        "description": "The pervasive influence of megacorporations on daily life and consciousness",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 85
+      },
+      {
+        "id": "neural_freedom",
+        "name": "Neural Freedom",
+        "description": "The remaining pockets of free thought and unmonitored consciousness",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 15
+      },
+      {
+        "id": "aetherium_stability",
+        "name": "Aetherium Stability",
+        "description": "The integrity of the digital consciousness network that connects all minds",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 70
+      }
+    ],
+    "differentiators": [
+      {
+        "id": "relationships",
+        "type": "relationships",
+        "title": "Neural Bonds",
+        "description": "Relationships are deepened through shared neural experiences and memory exchanges"
+      },
+      {
+        "id": "factions",
+        "type": "factions",
+        "title": "Corporate vs Underground",
+        "description": "Megacorporations control the Aetherium while underground hackers fight for digital freedom"
+      },
+      {
+        "id": "npc_agency",
+        "type": "npcAgency",
+        "title": "Digital Consciousness",
+        "description": "NPCs exist as both physical and digital entities with their own neural agendas"
+      }
+    ]
+  },
+  {
+    "id": "voidreach",
+    "title": "Voidreach",
+    "tagline": "Space exploration where the unknown holds both promise and peril",
+    "cover": "/images/worlds/voidreach-cover.jpg",
+    "tags": ["space", "exploration", "alien", "mystery", "survival"],
+    "description": "Humanity's first steps into the vast unknown of space have revealed wonders beyond imagination. But with each new discovery comes new dangers, and the line between exploration and exploitation grows ever thinner.",
+    "rules": [
+      {
+        "id": "exploration_progress",
+        "name": "Exploration Progress",
+        "description": "How far humanity has ventured into the unknown",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 30
+      },
+      {
+        "id": "alien_relations",
+        "name": "Alien Relations",
+        "description": "The state of relations with discovered alien species",
+        "type": "meter",
+        "min": -100,
+        "max": 100,
+        "current": 10
+      }
+    ],
+    "differentiators": [
+      {
+        "id": "relationships",
+        "type": "relationships",
+        "title": "Cross-Species Bonds",
+        "description": "Form relationships with alien species, each with unique communication and cultural patterns"
+      },
+      {
+        "id": "factions",
+        "type": "factions",
+        "title": "Exploration vs Preservation",
+        "description": "Balance between scientific discovery and protecting alien civilizations"
+      },
+      {
+        "id": "npc_agency",
+        "type": "npcAgency",
+        "title": "Alien Autonomy",
+        "description": "Alien species have their own civilizations and agendas independent of human exploration"
+      }
+    ]
+  },
+  {
+    "id": "whispercross",
+    "title": "Whispercross Glade",
+    "tagline": "Where Nature's Whispers Guide the Lost",
+    "cover": "/images/worlds/whispercross-cover.jpg",
+    "tags": ["nature", "mystical", "forest", "whispers", "magic", "peaceful", "starter"],
+    "description": "A tranquil realm where ancient forests hold secrets and the very air seems to speak. Whispercross Glade is a place of healing and discovery, where travelers come to find themselves among the whispering trees and crystal-clear streams. The glade serves as a gentle introduction to the mysteries of the wider world.",
+    "rules": [
+      {
+        "id": "nature_harmony",
+        "name": "Nature Harmony",
+        "description": "The balance between civilization and the natural world",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 80
+      },
+      {
+        "id": "whisper_strength",
+        "name": "Whisper Strength",
+        "description": "The power of the ancient whispers that guide travelers",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 60
+      },
+      {
+        "id": "glade_peace",
+        "name": "Glade Peace",
+        "description": "The tranquility and safety of the glade's protective magic",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 90
+      }
+    ],
+    "differentiators": [
+      {
+        "id": "relationships",
+        "type": "relationships",
+        "title": "Nature Bonds",
+        "description": "Relationships are deepened through shared experiences with the natural world and its spirits"
+      },
+      {
+        "id": "factions",
+        "type": "factions",
+        "title": "Guardians vs Seekers",
+        "description": "The balance between those who protect the glade and those who seek its secrets"
+      },
+      {
+        "id": "npc_agency",
+        "type": "npcAgency",
+        "title": "Spirit-Guided Agency",
+        "description": "NPCs are guided by the whispers of nature and their own spiritual journeys"
+      }
+    ]
+  }
+]

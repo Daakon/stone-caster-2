@@ -1,0 +1,104 @@
+{
+  "worldId": "aetherium",
+  "name": "Aetherium Character Creation",
+  "description": "Create a character for the cyberpunk realm of Aetherium, where consciousness is currency and neural implants connect minds to the vast digital network. Choose your path between corporate loyalty and underground freedom.",
+  "fields": [
+    {
+      "id": "name",
+      "type": "text",
+      "label": "Character Name",
+      "required": true,
+      "placeholder": "Enter your character's name"
+    },
+    {
+      "id": "class",
+      "type": "select",
+      "label": "Character Class",
+      "required": true,
+      "options": [
+        { "value": "neural_hacker", "label": "Neural Hacker", "description": "Masters of the Aetherium network and digital consciousness" },
+        { "value": "corporate_agent", "label": "Corporate Agent", "description": "High-ranking executives with advanced neural implants" },
+        { "value": "underground_runner", "label": "Underground Runner", "description": "Freedom fighters who resist corporate control" },
+        { "value": "consciousness_merchant", "label": "Consciousness Merchant", "description": "Traders who deal in memories and digital experiences" }
+      ]
+    },
+    {
+      "id": "corporate_standing",
+      "type": "radio",
+      "label": "Corporate Standing",
+      "required": true,
+      "options": [
+        { "value": "executive", "label": "Corporate Executive", "description": "High-ranking corporate official with access to advanced technology" },
+        { "value": "employee", "label": "Corporate Employee", "description": "Mid-level worker with standard neural implants" },
+        { "value": "underground", "label": "Underground", "description": "Rebel fighting against corporate control" },
+        { "value": "neutral", "label": "Neutral", "description": "Independent operator navigating both worlds" }
+      ]
+    },
+    {
+      "id": "neural_implants",
+      "type": "checkbox",
+      "label": "Neural Implants",
+      "description": "Select the neural enhancements your character possesses",
+      "options": [
+        { "value": "basic_interface", "label": "Basic Interface", "description": "Standard connection to the Aetherium network" },
+        { "value": "advanced_interface", "label": "Advanced Interface", "description": "Enhanced neural connection with faster data processing" },
+        { "value": "memory_enhancement", "label": "Memory Enhancement", "description": "Augmented memory storage and recall capabilities" },
+        { "value": "emotion_regulation", "label": "Emotion Regulation", "description": "Ability to control and modify emotional responses" },
+        { "value": "data_streaming", "label": "Data Streaming", "description": "Real-time access to vast information networks" },
+        { "value": "consciousness_anchor", "label": "Consciousness Anchor", "description": "Protection against digital consciousness theft" },
+        { "value": "corporate_interface", "label": "Corporate Interface", "description": "Direct connection to corporate systems and databases" }
+      ]
+    },
+    {
+      "id": "aetherium_connection",
+      "type": "slider",
+      "label": "Aetherium Connection",
+      "description": "Your connection strength to the Aetherium network",
+      "min": 20,
+      "max": 80,
+      "default": 50,
+      "labels": {
+        "min": "Weak",
+        "max": "Master"
+      }
+    },
+    {
+      "id": "specialization",
+      "type": "select",
+      "label": "Specialization",
+      "required": true,
+      "options": [
+        { "value": "neural_hacking", "label": "Neural Hacking", "description": "Expertise in manipulating digital consciousness" },
+        { "value": "corporate_espionage", "label": "Corporate Espionage", "description": "Infiltration and intelligence gathering" },
+        { "value": "consciousness_protection", "label": "Consciousness Protection", "description": "Defending minds from digital attacks" },
+        { "value": "data_analysis", "label": "Data Analysis", "description": "Processing and interpreting vast amounts of information" },
+        { "value": "social_engineering", "label": "Social Engineering", "description": "Manipulating people through digital means" },
+        { "value": "network_architecture", "label": "Network Architecture", "description": "Designing and maintaining digital infrastructure" }
+      ]
+    },
+    {
+      "id": "personality_traits",
+      "type": "checkbox",
+      "label": "Personality Traits",
+      "description": "Select traits that define your character",
+      "options": [
+        { "value": "analytical", "label": "Analytical", "description": "Thinks logically and processes information systematically" },
+        { "value": "charismatic", "label": "Charismatic", "description": "Natural leader who can influence others" },
+        { "value": "rebellious", "label": "Rebellious", "description": "Questions authority and fights for freedom" },
+        { "value": "ambitious", "label": "Ambitious", "description": "Driven to achieve power and success" },
+        { "value": "empathetic", "label": "Empathetic", "description": "Understands and cares about others' emotions" },
+        { "value": "calculating", "label": "Calculating", "description": "Makes decisions based on careful analysis" },
+        { "value": "idealistic", "label": "Idealistic", "description": "Believes in higher principles and causes" },
+        { "value": "pragmatic", "label": "Pragmatic", "description": "Focuses on practical solutions and results" }
+      ]
+    },
+    {
+      "id": "backstory",
+      "type": "textarea",
+      "label": "Character Backstory",
+      "description": "Tell us about your character's past and their relationship with the Aetherium network",
+      "placeholder": "Describe your character's background, their neural implants, and how they came to be in the Aetherium Reaches...",
+      "rows": 4
+    }
+  ]
+}

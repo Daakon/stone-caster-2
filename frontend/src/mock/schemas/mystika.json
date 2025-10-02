@@ -1,0 +1,100 @@
+{
+  "worldId": "mystika",
+  "name": "Mystika Character Creation",
+  "description": "Create a character for the mystical realm of Mystika, where the Veil between worlds has grown thin and Crystalborn navigate the balance between Elven Courts, Shifter Tribes, and their own crystalline powers.",
+  "fields": [
+    {
+      "id": "name",
+      "type": "text",
+      "label": "Character Name",
+      "required": true,
+      "placeholder": "Enter your character's name"
+    },
+    {
+      "id": "class",
+      "type": "select",
+      "label": "Character Class",
+      "required": true,
+      "options": [
+        { "value": "crystalborn_mage", "label": "Crystalborn Mage", "description": "Masters of crystalline magic and Veil-sight" },
+        { "value": "elven_guardian", "label": "Elven Guardian", "description": "Protectors of ancient traditions and elven magic" },
+        { "value": "shifter_warden", "label": "Shifter Warden", "description": "Wild protectors who can transform and commune with nature" },
+        { "value": "veil_walker", "label": "Veil Walker", "description": "Those who can traverse the boundaries between worlds" }
+      ]
+    },
+    {
+      "id": "faction_alignment",
+      "type": "radio",
+      "label": "Faction Alignment",
+      "required": true,
+      "options": [
+        { "value": "elven_courts", "label": "Elven Courts", "description": "Ancient traditions and noble magic" },
+        { "value": "shifter_tribes", "label": "Shifter Tribes", "description": "Wild nature and transformative powers" },
+        { "value": "crystalborn_order", "label": "Crystalborn Order", "description": "New crystalline magic and Veil mastery" },
+        { "value": "neutral", "label": "Neutral", "description": "Seeking balance between all factions" }
+      ]
+    },
+    {
+      "id": "crystal_affinity",
+      "type": "select",
+      "label": "Crystal Affinity",
+      "required": true,
+      "options": [
+        { "value": "veil_sight", "label": "Veil-Sight", "description": "Can see through the Veil between worlds" },
+        { "value": "crystal_resonance", "label": "Crystal Resonance", "description": "Harmonizes with crystalline energies" },
+        { "value": "elven_magic", "label": "Elven Magic", "description": "Ancient elven magical traditions" },
+        { "value": "nature_bond", "label": "Nature Bond", "description": "Deep connection to the natural world" }
+      ]
+    },
+    {
+      "id": "veil_resonance",
+      "type": "slider",
+      "label": "Veil Resonance",
+      "description": "Your connection to the Veil between worlds",
+      "min": 20,
+      "max": 80,
+      "default": 50,
+      "labels": {
+        "min": "Weak",
+        "max": "Strong"
+      }
+    },
+    {
+      "id": "crystal_power",
+      "type": "slider",
+      "label": "Crystal Power",
+      "description": "Your mastery of crystalline magic",
+      "min": 20,
+      "max": 80,
+      "default": 50,
+      "labels": {
+        "min": "Novice",
+        "max": "Master"
+      }
+    },
+    {
+      "id": "personality_traits",
+      "type": "checkbox",
+      "label": "Personality Traits",
+      "description": "Select traits that define your character",
+      "options": [
+        { "value": "mystical", "label": "Mystical", "description": "Drawn to mysteries and otherworldly phenomena" },
+        { "value": "noble", "label": "Noble", "description": "Honorable and protective of others" },
+        { "value": "wild", "label": "Wild", "description": "Free-spirited and connected to nature" },
+        { "value": "intuitive", "label": "Intuitive", "description": "Trusts instincts and inner wisdom" },
+        { "value": "protective", "label": "Protective", "description": "Defends those who cannot defend themselves" },
+        { "value": "traditional", "label": "Traditional", "description": "Values ancient ways and customs" },
+        { "value": "otherworldly", "label": "Otherworldly", "description": "Touched by forces beyond normal understanding" },
+        { "value": "diplomatic", "label": "Diplomatic", "description": "Seeks peaceful solutions to conflicts" }
+      ]
+    },
+    {
+      "id": "backstory",
+      "type": "textarea",
+      "label": "Character Backstory",
+      "description": "Tell us about your character's past and how they came to Mystika",
+      "placeholder": "Describe your character's background, their awakening to power, and what brought them to this mystical realm...",
+      "rows": 4
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "worldId": "whispercross",
+  "name": "Whispercross Glade Character Creation",
+  "description": "Create a character for the mystical Whispercross Glade, where ancient forests hold secrets and the very air seems to speak. This peaceful realm serves as a gentle introduction to the mysteries of the wider world.",
+  "fields": [
+    {
+      "id": "name",
+      "type": "text",
+      "label": "Character Name",
+      "required": true,
+      "placeholder": "Enter your character's name"
+    },
+    {
+      "id": "class",
+      "type": "select",
+      "label": "Character Class",
+      "required": true,
+      "options": [
+        { "value": "nature_guardian", "label": "Nature Guardian", "description": "Protectors of the glade and its sacred groves" },
+        { "value": "whisper_listener", "label": "Whisper Listener", "description": "Those who can hear and interpret the ancient whispers" },
+        { "value": "grove_keeper", "label": "Grove Keeper", "description": "Caretakers of the mystical groves and their secrets" },
+        { "value": "traveler", "label": "Traveler", "description": "Wanderers seeking wisdom and guidance in the glade" }
+      ]
+    },
+    {
+      "id": "nature_connection",
+      "type": "radio",
+      "label": "Nature Connection",
+      "required": true,
+      "options": [
+        { "value": "deep_bond", "label": "Deep Bond", "description": "Intimate connection with the natural world" },
+        { "value": "spiritual_connection", "label": "Spiritual Connection", "description": "Mystical relationship with nature's spirits" },
+        { "value": "practical_knowledge", "label": "Practical Knowledge", "description": "Understanding of natural processes and survival" },
+        { "value": "seeking_connection", "label": "Seeking Connection", "description": "Learning to connect with nature's wisdom" }
+      ]
+    },
+    {
+      "id": "whisper_affinity",
+      "type": "select",
+      "label": "Whisper Affinity",
+      "required": true,
+      "options": [
+        { "value": "ancient_voices", "label": "Ancient Voices", "description": "Can hear the whispers of the oldest trees" },
+        { "value": "spirit_whispers", "label": "Spirit Whispers", "description": "Communicates with nature spirits and guardians" },
+        { "value": "wind_songs", "label": "Wind Songs", "description": "Understands the messages carried by the wind" },
+        { "value": "earth_rumblings", "label": "Earth Rumblings", "description": "Senses the deep wisdom of the earth itself" }
+      ]
+    },
+    {
+      "id": "glade_harmony",
+      "type": "slider",
+      "label": "Glade Harmony",
+      "description": "Your harmony with the peaceful energies of the glade",
+      "min": 20,
+      "max": 80,
+      "default": 60,
+      "labels": {
+        "min": "Struggling",
+        "max": "Perfect"
+      }
+    },
+    {
+      "id": "whisper_strength",
+      "type": "slider",
+      "label": "Whisper Strength",
+      "description": "Your ability to hear and understand the ancient whispers",
+      "min": 20,
+      "max": 80,
+      "default": 50,
+      "labels": {
+        "min": "Faint",
+        "max": "Clear"
+      }
+    },
+    {
+      "id": "specialization",
+      "type": "select",
+      "label": "Specialization",
+      "required": true,
+      "options": [
+        { "value": "nature_magic", "label": "Nature Magic", "description": "Channeling the power of the natural world" },
+        { "value": "healing", "label": "Healing", "description": "Using nature's gifts to heal and restore" },
+        { "value": "protection", "label": "Protection", "description": "Shielding the glade from harm and corruption" },
+        { "value": "guidance", "label": "Guidance", "description": "Helping others find their path through the glade" },
+        { "value": "wisdom", "label": "Wisdom", "description": "Interpreting the deeper meanings of the whispers" },
+        { "value": "harmony", "label": "Harmony", "description": "Maintaining balance within the glade's ecosystem" }
+      ]
+    },
+    {
+      "id": "personality_traits",
+      "type": "checkbox",
+      "label": "Personality Traits",
+      "description": "Select traits that define your character",
+      "options": [
+        { "value": "peaceful", "label": "Peaceful", "description": "Seeks harmony and avoids conflict" },
+        { "value": "wise", "label": "Wise", "description": "Possesses deep understanding and insight" },
+        { "value": "gentle", "label": "Gentle", "description": "Kind and caring towards all living things" },
+        { "value": "patient", "label": "Patient", "description": "Willing to wait for the right moment" },
+        { "value": "intuitive", "label": "Intuitive", "description": "Trusts inner wisdom and feelings" },
+        { "value": "protective", "label": "Protective", "description": "Defends the glade and its inhabitants" },
+        { "value": "mystical", "label": "Mystical", "description": "Connected to deeper spiritual truths" },
+        { "value": "nurturing", "label": "Nurturing", "description": "Cares for and helps others grow" }
+      ]
+    },
+    {
+      "id": "backstory",
+      "type": "textarea",
+      "label": "Character Backstory",
+      "description": "Tell us about your character's past and their connection to Whispercross Glade",
+      "placeholder": "Describe your character's background, how they came to the glade, and what the whispers have taught them...",
+      "rows": 4
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "worldId": "voidreach",
+  "name": "Voidreach Character Creation",
+  "description": "Create a character for the vast expanse of Voidreach, where humanity ventures into the unknown reaches of space. Navigate first contact scenarios, alien diplomacy, and the mysteries of the void.",
+  "fields": [
+    {
+      "id": "name",
+      "type": "text",
+      "label": "Character Name",
+      "required": true,
+      "placeholder": "Enter your character's name"
+    },
+    {
+      "id": "class",
+      "type": "select",
+      "label": "Character Class",
+      "required": true,
+      "options": [
+        { "value": "explorer", "label": "Explorer", "description": "Bold pioneers who venture into unknown space" },
+        { "value": "diplomat", "label": "Diplomat", "description": "Skilled negotiators for first contact scenarios" },
+        { "value": "scientist", "label": "Scientist", "description": "Researchers studying alien phenomena and technologies" },
+        { "value": "pilot", "label": "Pilot", "description": "Expert navigators of spacecraft and exploration vessels" }
+      ]
+    },
+    {
+      "id": "mission_role",
+      "type": "radio",
+      "label": "Mission Role",
+      "required": true,
+      "options": [
+        { "value": "command", "label": "Command", "description": "Leader responsible for mission decisions and crew safety" },
+        { "value": "science", "label": "Science", "description": "Researcher focused on discovery and analysis" },
+        { "value": "diplomacy", "label": "Diplomacy", "description": "Specialist in alien communication and relations" },
+        { "value": "security", "label": "Security", "description": "Protector ensuring mission and crew safety" }
+      ]
+    },
+    {
+      "id": "specialization",
+      "type": "select",
+      "label": "Specialization",
+      "required": true,
+      "options": [
+        { "value": "xenobiology", "label": "Xenobiology", "description": "Study of alien life forms and ecosystems" },
+        { "value": "linguistics", "label": "Linguistics", "description": "Decoding and learning alien languages" },
+        { "value": "engineering", "label": "Engineering", "description": "Understanding and adapting alien technology" },
+        { "value": "psychology", "label": "Psychology", "description": "Understanding alien thought processes and behavior" },
+        { "value": "navigation", "label": "Navigation", "description": "Expertise in space travel and exploration" },
+        { "value": "combat", "label": "Combat", "description": "Military training for hostile encounters" }
+      ]
+    },
+    {
+      "id": "exploration_experience",
+      "type": "slider",
+      "label": "Exploration Experience",
+      "description": "Your experience with space exploration and alien encounters",
+      "min": 20,
+      "max": 80,
+      "default": 50,
+      "labels": {
+        "min": "Novice",
+        "max": "Veteran"
+      }
+    },
+    {
+      "id": "alien_hostility",
+      "type": "slider",
+      "label": "Alien Hostility",
+      "description": "Your approach to dealing with potentially hostile alien species",
+      "min": 20,
+      "max": 80,
+      "default": 50,
+      "labels": {
+        "min": "Peaceful",
+        "max": "Aggressive"
+      }
+    },
+    {
+      "id": "crew_relationships",
+      "type": "checkbox",
+      "label": "Crew Relationships",
+      "description": "Your relationships with other crew members",
+      "options": [
+        { "value": "trusted_leader", "label": "Trusted Leader", "description": "Crew looks to you for guidance and decisions" },
+        { "value": "close_friends", "label": "Close Friends", "description": "Deep bonds with fellow crew members" },
+        { "value": "professional", "label": "Professional", "description": "Maintains professional distance and focus" },
+        { "value": "mentor", "label": "Mentor", "description": "Guides and teaches younger crew members" },
+        { "value": "loner", "label": "Loner", "description": "Prefers to work independently" },
+        { "value": "team_player", "label": "Team Player", "description": "Thrives in collaborative environments" }
+      ]
+    },
+    {
+      "id": "personality_traits",
+      "type": "checkbox",
+      "label": "Personality Traits",
+      "description": "Select traits that define your character",
+      "options": [
+        { "value": "curious", "label": "Curious", "description": "Driven to discover and understand new things" },
+        { "value": "cautious", "label": "Cautious", "description": "Careful and methodical in approach" },
+        { "value": "brave", "label": "Brave", "description": "Willing to take risks for the mission" },
+        { "value": "diplomatic", "label": "Diplomatic", "description": "Skilled at negotiation and conflict resolution" },
+        { "value": "analytical", "label": "Analytical", "description": "Thinks logically and systematically" },
+        { "value": "empathetic", "label": "Empathetic", "description": "Understands and relates to others' perspectives" },
+        { "value": "determined", "label": "Determined", "description": "Persistent in achieving goals" },
+        { "value": "adaptable", "label": "Adaptable", "description": "Quick to adjust to new situations" }
+      ]
+    },
+    {
+      "id": "backstory",
+      "type": "textarea",
+      "label": "Character Backstory",
+      "description": "Tell us about your character's past and their journey to the stars",
+      "placeholder": "Describe your character's background, their training, and what led them to become an explorer of the void...",
+      "rows": 4
+    }
+  ]
+}

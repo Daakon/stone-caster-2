@@ -1,21 +1,25 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth';
-import { ThemeProvider } from './contexts/theme-context';
+import { ThemeProvider } from './contexts/theme-context-provider';
 import { ToastProvider } from './components/ui/toast-provider';
 import { SkipNavigation } from './components/ui/skip-navigation';
-import HomePage from './pages/HomePage';
-import AuthPage from './pages/AuthPage';
-import CharacterCreationPage from './pages/CharacterCreationPage';
-import CharacterListPage from './pages/CharacterListPage';
-import GamePlayPage from './pages/GamePlayPage';
-import WorldSelectionPage from './pages/WorldSelectionPage';
+import LandingPage from './pages/LandingPage';
+import AdventuresPage from './pages/AdventuresPage';
+import AdventureDetailPage from './pages/AdventureDetailPage';
+import CharacterSelectionPage from './pages/CharacterSelectionPage';
+import WorldDetailPage from './pages/WorldDetailPage';
+import WalletPage from './pages/WalletPage';
+import PaymentsPage from './pages/PaymentsPage';
+import ProfilePage from './pages/ProfilePage';
+import SupportPage from './pages/SupportPage';
+import GamePage from './pages/GamePage';
 
 const queryClient = new QueryClient();
 
 function App() {
-  const { user, loading, initialize } = useAuthStore();
+  const { loading, initialize } = useAuthStore();
 
   useEffect(() => {
     initialize();
@@ -47,24 +51,21 @@ function App() {
             ]}
           />
           <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/auth" element={<AuthPage />} />
-            <Route
-              path="/characters"
-              element={user ? <CharacterListPage /> : <Navigate to="/auth" />}
-            />
-            <Route
-              path="/characters/create"
-              element={user ? <CharacterCreationPage /> : <Navigate to="/auth" />}
-            />
-            <Route
-              path="/worlds"
-              element={user ? <WorldSelectionPage /> : <Navigate to="/auth" />}
-            />
-            <Route
-              path="/play/:gameId"
-              element={user ? <GamePlayPage /> : <Navigate to="/auth" />}
-            />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/adventures" element={<AdventuresPage />} />
+            <Route path="/adventures/:id" element={<AdventureDetailPage />} />
+            <Route path="/adventures/:id/characters" element={<CharacterSelectionPage />} />
+            <Route path="/game/:gameId" element={<GamePage />} />
+            <Route path="/worlds" element={<AdventuresPage />} />
+            <Route path="/worlds/:id" element={<WorldDetailPage />} />
+            <Route path="/wallet" element={<WalletPage />} />
+            <Route path="/payments" element={<PaymentsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/tos" element={<SupportPage pageType="tos" />} />
+            <Route path="/privacy" element={<SupportPage pageType="privacy" />} />
+            <Route path="/ai-disclaimer" element={<SupportPage pageType="ai-disclaimer" />} />
+            <Route path="/faq" element={<SupportPage pageType="faq" />} />
+            <Route path="/about" element={<SupportPage pageType="about" />} />
           </Routes>
           <ToastProvider />
         </BrowserRouter>

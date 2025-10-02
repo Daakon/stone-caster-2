@@ -1,0 +1,119 @@
+[
+  {
+    "id": "mystika-char-1",
+    "worldId": "mystika",
+    "name": "Aria Crystalborn",
+    "class": "Veil-Touched Mage",
+    "avatar": "crystalborn-mage",
+    "backstory": "A young Crystalborn who awakened during a devastating Veil-storm. Her crystalline powers allow her to see through the Veil and commune with otherworldly entities.",
+    "worldSpecificData": {
+      "crystal_affinity": "veil-sight",
+      "faction_alignment": "crystalborn_order",
+      "veil_resonance": 75,
+      "crystal_power": 65,
+      "personality_traits": ["mystical", "intuitive", "otherworldly"]
+    },
+    "skills": {
+      "magic": 65,
+      "intelligence": 70,
+      "charisma": 60,
+      "strength": 45,
+      "dexterity": 50,
+      "constitution": 55
+    },
+    "createdAt": "2024-01-15T10:30:00Z"
+  },
+  {
+    "id": "mystika-char-2",
+    "worldId": "mystika",
+    "name": "Thorne Shifter",
+    "class": "Elven Court Guardian",
+    "avatar": "elven-guardian",
+    "backstory": "A proud member of the Elven Courts who has sworn to protect the ancient traditions from the chaos of Veil-storms and Crystalborn influence.",
+    "worldSpecificData": {
+      "crystal_affinity": "elven_magic",
+      "faction_alignment": "elven_courts",
+      "veil_resonance": 40,
+      "crystal_power": 55,
+      "personality_traits": ["noble", "protective", "traditional"]
+    },
+    "skills": {
+      "magic": 60,
+      "intelligence": 65,
+      "charisma": 70,
+      "strength": 70,
+      "dexterity": 75,
+      "constitution": 60
+    },
+    "createdAt": "2024-01-20T14:15:00Z"
+  },
+  {
+    "id": "aetherium-char-1",
+    "worldId": "aetherium",
+    "name": "Neo Vector",
+    "class": "Neural Hacker",
+    "avatar": "neural-hacker",
+    "backstory": "A legendary underground hacker who has mastered the art of neural manipulation. Known for their ability to navigate the Aetherium network like no other.",
+    "worldSpecificData": {
+      "neural_implants": ["advanced_interface", "data_streaming", "consciousness_anchor"],
+      "corporate_standing": "underground",
+      "aetherium_connection": 85,
+      "specialization": "neural_hacking"
+    },
+    "skills": {
+      "intelligence": 80,
+      "dexterity": 70,
+      "charisma": 55,
+      "strength": 40,
+      "constitution": 50,
+      "magic": 45
+    },
+    "createdAt": "2024-01-10T09:45:00Z"
+  },
+  {
+    "id": "aetherium-char-2",
+    "worldId": "aetherium",
+    "name": "Luna Corporate",
+    "class": "Corporate Neural Agent",
+    "avatar": "corporate-agent",
+    "backstory": "A high-ranking corporate agent with advanced neural implants. Recently began questioning the ethics of consciousness harvesting after a personal revelation.",
+    "worldSpecificData": {
+      "neural_implants": ["memory_enhancement", "emotion_regulation", "corporate_interface"],
+      "corporate_standing": "executive",
+      "aetherium_connection": 60,
+      "specialization": "corporate_espionage"
+    },
+    "skills": {
+      "intelligence": 70,
+      "charisma": 75,
+      "dexterity": 60,
+      "strength": 50,
+      "constitution": 55,
+      "magic": 40
+    },
+    "createdAt": "2024-01-25T16:20:00Z"
+  },
+  {
+    "id": "whispercross-char-1",
+    "worldId": "whispercross",
+    "name": "Willow Whisperwind",
+    "class": "Nature Guardian",
+    "avatar": "nature-guardian",
+    "backstory": "A gentle soul who has lived in Whispercross Glade for years, learning to listen to the ancient whispers of nature and protect the sacred groves.",
+    "worldSpecificData": {
+      "nature_connection": "deep_bond",
+      "whisper_affinity": "ancient_voices",
+      "glade_harmony": 80,
+      "specialization": "nature_magic"
+    },
+    "skills": {
+      "magic": 70,
+      "charisma": 65,
+      "intelligence": 60,
+      "strength": 50,
+      "dexterity": 55,
+      "constitution": 60
+    },
+    "createdAt": "2024-01-12T08:20:00Z"
+  }
+]

@@ -1,0 +1,37 @@
+{
+  "guest": {
+    "maxGames": 0,
+    "maxCharacters": 0,
+    "dailyStoneAllowance": 0,
+    "features": {
+      "canCreateCharacters": false,
+      "canStartAdventures": false,
+      "canAccessGameplay": false,
+      "canPurchaseStones": false
+    }
+  },
+  "free": {
+    "maxGames": 2,
+    "maxCharacters": 3,
+    "dailyStoneAllowance": 10,
+    "features": {
+      "canCreateCharacters": true,
+      "canStartAdventures": true,
+      "canAccessGameplay": true,
+      "canPurchaseStones": true
+    }
+  },
+  "premium": {
+    "maxGames": 10,
+    "maxCharacters": 20,
+    "dailyStoneAllowance": 25,
+    "features": {
+      "canCreateCharacters": true,
+      "canStartAdventures": true,
+      "canAccessGameplay": true,
+      "canPurchaseStones": true,
+      "canAccessPremiumAdventures": true,
+      "canCreateCustomCharacters": true
+    }
+  }
+}

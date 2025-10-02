@@ -1,0 +1,206 @@
+[
+  {
+    "id": "mystika-awakening",
+    "worldId": "mystika",
+    "title": "The Awakening",
+    "excerpt": "A young Crystalborn discovers their powers during a Veil-storm",
+    "cover": "/images/adventures/mystika-awakening.jpg",
+    "tags": ["beginner", "crystalborn", "veil-storm", "discovery"],
+    "difficulty": "easy",
+    "stoneCost": 5,
+    "length": "short",
+    "description": "You are a young Crystalborn who has just awakened to your powers during a devastating Veil-storm. As the barriers between worlds weaken, you must choose between the ancient Elven Courts, the wild Shifter Tribes, or forge your own path as a Crystalborn Order member.",
+    "scenarios": [
+      "Awaken to your Crystalborn powers",
+      "Choose your allegiance among the three factions",
+      "Navigate the aftermath of the Veil-storm"
+    ]
+  },
+  {
+    "id": "mystika-veil-guardian",
+    "worldId": "mystika",
+    "title": "Veil Guardian",
+    "excerpt": "Protect the Veil from a catastrophic breach",
+    "cover": "/images/adventures/mystika-veil-guardian.jpg",
+    "tags": ["veil", "guardian", "crisis", "magic"],
+    "difficulty": "medium",
+    "stoneCost": 10,
+    "length": "medium",
+    "description": "The Veil between worlds is tearing apart, threatening to unleash chaos across all realms. As a chosen Guardian, you must rally the three factions to work together and seal the breach before reality itself unravels.",
+    "scenarios": [
+      "Unite the Elven Courts, Shifter Tribes, and Crystalborn Orders",
+      "Journey to the heart of the Veil breach",
+      "Perform the ancient ritual to seal the tear"
+    ]
+  },
+  {
+    "id": "mystika-crystal-empire",
+    "worldId": "mystika",
+    "title": "The Crystal Empire",
+    "excerpt": "Build a new empire from the ashes of the old world",
+    "cover": "/images/adventures/mystika-crystal-empire.jpg",
+    "tags": ["empire", "crystal", "politics", "rebuilding"],
+    "difficulty": "hard",
+    "stoneCost": 20,
+    "length": "epic",
+    "description": "With the Veil stabilized, the three factions must decide the future of Mystika. Will you lead the creation of a new Crystal Empire that unites all peoples, or will you choose a different path? The fate of the realm rests in your hands.",
+    "scenarios": [
+      "Navigate complex political negotiations",
+      "Deal with remnants of the old conflicts",
+      "Shape the future of the Crystal Empire"
+    ]
+  },
+  {
+    "id": "aetherium-neural-awakening",
+    "worldId": "aetherium",
+    "title": "Neural Awakening",
+    "excerpt": "Discover your true potential in the Aetherium network",
+    "cover": "/images/adventures/aetherium-neural-awakening.jpg",
+    "tags": ["neural", "awakening", "consciousness", "discovery"],
+    "difficulty": "easy",
+    "stoneCost": 5,
+    "length": "short",
+    "description": "You've just received your first neural implant, connecting you to the vast Aetherium network. But something is different about your connection - you can see things others cannot, and the corporations are taking notice. Will you hide your abilities or embrace your unique gift?",
+    "scenarios": [
+      "Learn to navigate the Aetherium network",
+      "Discover your unique neural abilities",
+      "Choose between corporate loyalty and underground freedom"
+    ]
+  },
+  {
+    "id": "aetherium-consciousness-war",
+    "worldId": "aetherium",
+    "title": "The Consciousness War",
+    "excerpt": "Fight in the ultimate battle for digital freedom",
+    "cover": "/images/adventures/aetherium-consciousness-war.jpg",
+    "tags": ["war", "consciousness", "freedom", "digital"],
+    "difficulty": "medium",
+    "stoneCost": 12,
+    "length": "medium",
+    "description": "The underground resistance has launched a full-scale attack on the corporate Aetherium network. As a skilled neural hacker, you must lead the assault while protecting innocent minds caught in the crossfire. The future of human consciousness hangs in the balance.",
+    "scenarios": [
+      "Lead the assault on corporate servers",
+      "Protect innocent minds from digital warfare",
+      "Face the ultimate choice between freedom and control"
+    ]
+  },
+  {
+    "id": "aetherium-digital-god",
+    "worldId": "aetherium",
+    "title": "Digital God",
+    "excerpt": "Become the architect of a new digital reality",
+    "cover": "/images/adventures/aetherium-digital-god.jpg",
+    "tags": ["god", "digital", "reality", "power"],
+    "difficulty": "hard",
+    "stoneCost": 25,
+    "length": "epic",
+    "description": "With the corporations defeated, you now possess the power to reshape the Aetherium network itself. Will you create a utopia where all minds are free, or will you become the very tyrant you fought against? The choice will define the future of human consciousness.",
+    "scenarios": [
+      "Design a new Aetherium network architecture",
+      "Deal with the moral implications of godlike power",
+      "Shape the future of digital consciousness"
+    ]
+  },
+  {
+    "id": "voidreach-first-contact",
+    "worldId": "voidreach",
+    "title": "First Contact",
+    "excerpt": "Make first contact with an alien species",
+    "cover": "/images/adventures/voidreach-first-contact.jpg",
+    "tags": ["alien", "contact", "diplomacy", "exploration"],
+    "difficulty": "easy",
+    "stoneCost": 6,
+    "length": "short",
+    "description": "Your exploration vessel has detected signs of intelligent life on a distant planet. As the mission's diplomat, you must make first contact with this alien species. But their culture is completely foreign, and one wrong move could lead to war.",
+    "scenarios": [
+      "Decode alien communication signals",
+      "Establish peaceful first contact",
+      "Navigate cultural misunderstandings"
+    ]
+  },
+  {
+    "id": "voidreach-alien-alliance",
+    "worldId": "voidreach",
+    "title": "The Alien Alliance",
+    "excerpt": "Forge an alliance against a common threat",
+    "cover": "/images/adventures/voidreach-alien-alliance.jpg",
+    "tags": ["alliance", "alien", "threat", "cooperation"],
+    "difficulty": "medium",
+    "stoneCost": 15,
+    "length": "medium",
+    "description": "A mysterious threat from the void threatens both human and alien civilizations. You must forge an alliance between species that have never worked together before, navigating cultural differences and ancient prejudices to save both worlds.",
+    "scenarios": [
+      "Build trust between alien species",
+      "Unite different civilizations against a common enemy",
+      "Lead the combined forces into battle"
+    ]
+  },
+  {
+    "id": "voidreach-void-empire",
+    "worldId": "voidreach",
+    "title": "The Void Empire",
+    "excerpt": "Build a galactic empire spanning multiple species",
+    "cover": "/images/adventures/voidreach-void-empire.jpg",
+    "tags": ["empire", "galactic", "species", "unity"],
+    "difficulty": "hard",
+    "stoneCost": 30,
+    "length": "epic",
+    "description": "With the threat defeated, the galaxy stands at a crossroads. Will you lead the creation of a vast empire that unites all species under one banner, or will you choose a different path? The future of the galaxy rests in your hands.",
+    "scenarios": [
+      "Design the structure of a multi-species empire",
+      "Navigate complex interspecies politics",
+      "Shape the future of galactic civilization"
+    ]
+  },
+  {
+    "id": "whispercross-first-whisper",
+    "worldId": "whispercross",
+    "title": "The First Whisper",
+    "excerpt": "Discover the ancient secrets of Whispercross Glade",
+    "cover": "/images/adventures/whispercross-first-whisper.jpg",
+    "tags": ["whisper", "nature", "mystical", "discovery"],
+    "difficulty": "easy",
+    "stoneCost": 3,
+    "length": "short",
+    "description": "You are a traveler who has stumbled upon the mystical Whispercross Glade. The ancient trees seem to speak to you, and the very air carries secrets. This gentle introduction to the mysteries of the world will guide you toward your true path.",
+    "scenarios": [
+      "Listen to the whispers of the ancient trees",
+      "Discover your connection to nature's magic",
+      "Choose your path forward from the glade"
+    ]
+  },
+  {
+    "id": "whispercross-guardian-calling",
+    "worldId": "whispercross",
+    "title": "The Guardian's Calling",
+    "excerpt": "Answer the call to protect the glade from darkness",
+    "cover": "/images/adventures/whispercross-guardian-calling.jpg",
+    "tags": ["guardian", "protection", "darkness", "nature"],
+    "difficulty": "medium",
+    "stoneCost": 8,
+    "length": "medium",
+    "description": "A shadow threatens to consume the peaceful Whispercross Glade. The ancient spirits have chosen you as their Guardian, but protecting the glade will require you to venture beyond its borders and face dangers you never imagined.",
+    "scenarios": [
+      "Accept the mantle of Guardian",
+      "Venture beyond the glade to find the source of darkness",
+      "Protect the glade from the encroaching shadow"
+    ]
+  },
+  {
+    "id": "whispercross-eternal-grove",
+    "worldId": "whispercross",
+    "title": "The Eternal Grove",
+    "excerpt": "Restore the ancient grove to its former glory",
+    "cover": "/images/adventures/whispercross-eternal-grove.jpg",
+    "tags": ["eternal", "grove", "restoration", "magic"],
+    "difficulty": "hard",
+    "stoneCost": 18,
+    "length": "epic",
+    "description": "The Whispercross Glade is just one fragment of a vast network of mystical groves that once spanned the world. As the chosen Guardian, you must restore the Eternal Grove, reconnecting all the sacred places and bringing balance back to the natural world.",
+    "scenarios": [
+      "Discover the lost groves across the world",
+      "Restore the connections between sacred places",
+      "Bring balance back to the natural world"
+    ]
+  }
+]

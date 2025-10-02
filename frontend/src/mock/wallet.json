@@ -1,0 +1,42 @@
+{
+  "balance": 25,
+  "regenRate": 1,
+  "nextRegen": "2024-01-26T15:30:00Z",
+  "dailyAllowance": 10,
+  "lastTransaction": {
+    "type": "spend",
+    "amount": 5,
+    "reason": "Started adventure: The Awakening",
+    "timestamp": "2024-01-26T14:30:00Z"
+  },
+  "history": [
+    {
+      "id": "tx-1",
+      "type": "earn",
+      "amount": 10,
+      "reason": "Daily allowance",
+      "timestamp": "2024-01-26T00:00:00Z"
+    },
+    {
+      "id": "tx-2",
+      "type": "earn",
+      "amount": 5,
+      "reason": "Completed adventure: The First Whisper",
+      "timestamp": "2024-01-25T18:45:00Z"
+    },
+    {
+      "id": "tx-3",
+      "type": "spend",
+      "amount": 5,
+      "reason": "Started adventure: The Awakening",
+      "timestamp": "2024-01-26T14:30:00Z"
+    },
+    {
+      "id": "tx-4",
+      "type": "regen",
+      "amount": 1,
+      "reason": "Hourly regeneration",
+      "timestamp": "2024-01-26T15:30:00Z"
+    }
+  ]
+}
