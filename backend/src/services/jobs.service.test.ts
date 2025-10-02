@@ -331,12 +331,6 @@ describe('JobsService', () => {
     });
 
     it('should handle no stale data gracefully', async () => {
-      // const mockConfig = {
-        app: {
-          cookie_ttl_days: { value: 30 },
-        },
-      };
-
       // Config is already mocked in beforeEach
 
       mockSupabaseAdmin.from.mockImplementation(() => ({
@@ -367,12 +361,6 @@ describe('JobsService', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      // const mockConfig = {
-      //   app: {
-      //     cookie_ttl_days: { value: 30 },
-      //   },
-      // };
-
       // Config is already mocked in beforeEach
 
       mockSupabaseAdmin.from.mockImplementation(() => ({
@@ -394,12 +382,6 @@ describe('JobsService', () => {
 
   describe('checkRateLimit', () => {
     it('should allow requests within rate limit', async () => {
-      // const mockConfig = {
-        app: {
-          guest_cookie_issue_rate_limit_per_hour: { value: 10 },
-        },
-      };
-
       // Config is already mocked in beforeEach
 
       // Mock no recent requests
@@ -424,12 +406,6 @@ describe('JobsService', () => {
     });
 
     it('should reject requests exceeding rate limit', async () => {
-      // const mockConfig = {
-        app: {
-          guest_cookie_issue_rate_limit_per_hour: { value: 5 },
-        },
-      };
-
       const mockRecentRequests = [
         { id: 'req-1', ip_address: '192.168.1.1', created_at: '2023-01-01T00:00:00Z' },
         { id: 'req-2', ip_address: '192.168.1.1', created_at: '2023-01-01T00:00:00Z' },
@@ -462,12 +438,6 @@ describe('JobsService', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      // const mockConfig = {
-        app: {
-          guest_cookie_issue_rate_limit_per_hour: { value: 10 },
-        },
-      };
-
       // Config is already mocked in beforeEach
 
       mockSupabaseAdmin.from.mockImplementation(() => ({

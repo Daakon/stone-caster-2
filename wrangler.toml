@@ -1,0 +1,14 @@
+name = "stone-caster"
+main = "./frontend/src/worker.ts"
+compatibility_date = "2025-08-18"
+
+[assets]
+directory = "frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# 👇 this actually binds the Worker to your hostname
+routes = [
+  { pattern = "stonecaster.ai/*" },
+  { pattern = "www.stonecaster.ai/*" }   # optional, if you want www too
+]
+

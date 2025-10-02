@@ -1,36 +1,36 @@
-FROM node:20-alpine AS builder
+# syntax=docker/dockerfile:1
 
+############################
+# Build stage
+############################
+FROM node:20-alpine AS build
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY shared/package*.json ./shared/
-COPY backend/package*.json ./backend/
+# Root lockfile
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
 
-# Install dependencies
-RUN npm ci --workspace=backend --workspace=shared
-
-# Copy source code
-COPY shared ./shared
+# Build only what we need for the API
 COPY backend ./backend
+COPY shared ./shared
 
-# Build
-RUN npm run build --workspace=shared
-RUN npm run build --workspace=backend
+# Emit to ./dist (matches your root package.json "build:server" script)
+RUN npm run build:server
 
-# Production stage
-FROM node:20-alpine
-
+############################
+# Runtime stage
+############################
+FROM node:20-alpine AS runtime
 WORKDIR /app
-
-# Copy built files and dependencies
-COPY --from=builder /app/backend/dist ./dist
-COPY --from=builder /app/backend/node_modules ./node_modules
-COPY --from=builder /app/backend/package.json ./package.json
-
 ENV NODE_ENV=production
-ENV PORT=3000
 
-EXPOSE 3000
+# Prod deps only
+COPY package.json package-lock.json ./
+# Install production deps without running lifecycle scripts (avoid husky prepare)
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts
 
+# Bring in the built server
+COPY --from=build /app/dist ./dist
+
+EXPOSE 8080
 CMD ["node", "dist/index.js"]
