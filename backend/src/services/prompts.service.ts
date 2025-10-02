@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './supabase.js';
 import { configService } from '../config/index.js';
-import type { GameSave, Character, WorldTemplate } from 'shared';
+import type { GameSave, Character, WorldTemplate, Prompt } from 'shared';
 
 export interface GameContext {
   id: string;
@@ -223,6 +223,178 @@ Remember: Keep responses immersive, consistent with the world's tone, and approp
     }
 
     return true;
+  }
+
+  // Admin CRUD operations for versioned prompt management
+
+  /**
+   * Get all prompts with optional filters
+   */
+  static async getAllPrompts(filters?: {
+    scope?: 'world' | 'scenario' | 'adventure' | 'quest';
+    slug?: string;
+    active?: boolean;
+  }): Promise<Prompt[]> {
+    try {
+      let query = supabaseAdmin.from('prompts').select('*').order('created_at', { ascending: false });
+
+      if (filters?.scope) {
+        query = query.eq('scope', filters.scope);
+      }
+      if (filters?.slug) {
+        query = query.eq('slug', filters.slug);
+      }
+      if (filters?.active !== undefined) {
+        query = query.eq('active', filters.active);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching prompts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new prompt version (auto-increments version, sets active)
+   */
+  static async createPrompt(input: {
+    slug: string;
+    scope: 'world' | 'scenario' | 'adventure' | 'quest';
+    content: string;
+    metadata?: Record<string, unknown>;
+    active?: boolean;
+    createdBy?: string;
+  }): Promise<Prompt> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('prompts')
+        .insert({
+          slug: input.slug,
+          scope: input.scope,
+          content: input.content,
+          metadata: input.metadata || {},
+          active: input.active || false,
+          created_by: input.createdBy,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating prompt:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update prompt metadata (e.g., active flag)
+   */
+  static async updatePrompt(
+    id: string,
+    updates: {
+      content?: string;
+      metadata?: Record<string, unknown>;
+      active?: boolean;
+    }
+  ): Promise<Prompt> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('prompts')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) {
+        throw new Error(`Prompt not found: ${id}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`Error updating prompt ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Soft delete a prompt (deactivate)
+   */
+  static async deletePrompt(id: string): Promise<Prompt> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('prompts')
+        .update({ active: false })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) {
+        throw new Error(`Prompt not found: ${id}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`Error deleting prompt ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the active prompt for a given slug and scope
+   */
+  static async getActivePrompt(
+    slug: string,
+    scope: 'world' | 'scenario' | 'adventure' | 'quest'
+  ): Promise<Prompt | null> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('prompts')
+        .select('*')
+        .eq('slug', slug)
+        .eq('scope', scope)
+        .eq('active', true)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return null; // No rows returned
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`Error fetching active prompt for ${slug}/${scope}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all versions of a prompt by slug and scope
+   */
+  static async getPromptVersions(
+    slug: string,
+    scope: 'world' | 'scenario' | 'adventure' | 'quest'
+  ): Promise<Prompt[]> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('prompts')
+        .select('*')
+        .eq('slug', slug)
+        .eq('scope', scope)
+        .order('version', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error(`Error fetching prompt versions for ${slug}/${scope}:`, error);
+      throw error;
+    }
   }
 }
 
