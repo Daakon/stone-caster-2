@@ -62,7 +62,12 @@ export class CookieGroupService {
         throw error;
       }
 
-      return data;
+      return {
+        id: data.id,
+        userId: data.user_id,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
     } catch (error) {
       console.error(`Error fetching cookie group for cookie ${cookieId}:`, error);
       throw error;
@@ -90,7 +95,12 @@ export class CookieGroupService {
         throw error;
       }
 
-      return data;
+      return {
+        id: data.id,
+        userId: data.user_id,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
     } catch (error) {
       console.error(`Error fetching canonical group for user ${userId}:`, error);
       throw error;
@@ -112,7 +122,7 @@ export class CookieGroupService {
       }
 
       // If the device group is already linked to this user, return it (idempotent)
-      if (deviceGroup.user_id === userId) {
+      if (deviceGroup.userId === userId) {
         return deviceGroup;
       }
 
@@ -180,7 +190,13 @@ export class CookieGroupService {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(member => ({
+        cookieId: member.cookie_id,
+        groupId: member.group_id,
+        deviceLabel: member.device_label,
+        lastSeenAt: member.last_seen_at,
+        createdAt: member.created_at,
+      }));
     } catch (error) {
       console.error(`Error fetching group members for group ${groupId}:`, error);
       throw error;

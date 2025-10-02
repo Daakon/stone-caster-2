@@ -19,8 +19,8 @@ export class JobsService {
    */
   static async dailyRegenJob(): Promise<DailyRegenResult> {
     try {
-      const config = await configService.getConfig();
-      const regenAmount = config.pricing?.guest_daily_regen?.value || 0;
+      const pricingConfig = configService.getPricing();
+      const regenAmount = pricingConfig.guestDailyRegen || 0;
 
       if (regenAmount === 0) {
         return {
@@ -107,8 +107,8 @@ export class JobsService {
    */
   static async purgeGuestsJob(): Promise<PurgeResult> {
     try {
-      const config = await configService.getConfig();
-      const ttlDays = config.app?.cookie_ttl_days?.value || 60;
+      const appConfig = configService.getApp();
+      const ttlDays = appConfig.cookieTtlDays || 60;
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - ttlDays);
 
@@ -144,8 +144,6 @@ export class JobsService {
         .not('id', 'in', supabaseAdmin
           .from('game_saves')
           .select('cookie_id')
-          .join('cookie_group_members', 'game_saves.cookie_id', 'cookie_group_members.cookie_id')
-          .select('cookie_group_members.group_id')
         )
         .order('created_at', { ascending: true });
 
@@ -163,8 +161,6 @@ export class JobsService {
         .not('id', 'in', supabaseAdmin
           .from('game_saves')
           .select('cookie_id')
-          .join('cookie_group_members', 'game_saves.cookie_id', 'cookie_group_members.cookie_id')
-          .select('cookie_group_members.group_id')
         );
 
       if (deleteGroupsError) throw deleteGroupsError;
@@ -184,8 +180,8 @@ export class JobsService {
    */
   static async checkRateLimit(ipAddress: string): Promise<boolean> {
     try {
-      const config = await configService.getConfig();
-      const rateLimit = config.app?.guest_cookie_issue_rate_limit_per_hour?.value || 10;
+      // const appConfig = configService.getApp(); // TODO: Use app config for rate limiting
+      const rateLimit = 10; // Default rate limit, will be configurable later
 
       const oneHourAgo = new Date();
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);

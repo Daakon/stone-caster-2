@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
-import { walletService } from '../services/wallet.service.js';
-import { turnsService } from '../services/turns.service.js';
-import { gamesService } from '../services/games.service.js';
-import { promptsService } from '../services/prompts.service.js';
-import { stoneLedgerService } from '../services/stoneLedger.service.js';
-import { aiWrapper } from '../wrappers/ai.js';
+// import { WalletService } from '../services/wallet.service.js'; // TODO: Use in tests
+// import { turnsService } from '../services/turns.service.js'; // TODO: Use in tests
+// import { gamesService } from '../services/games.service.js'; // TODO: Use in tests
+// import { promptsService } from '../services/prompts.service.js'; // TODO: Use in tests
+// import { StoneLedgerService } from '../services/stoneLedger.service.js'; // TODO: Use in tests
+// import { aiWrapper } from '../wrappers/ai.js'; // TODO: Use in tests
 import { ApiErrorCode } from 'shared';
 
 // Mock all services
@@ -18,12 +18,12 @@ vi.mock('../services/stoneLedger.service.js');
 vi.mock('../wrappers/ai.js');
 
 describe('Turn Engine Integration Tests', () => {
-  const mockWalletService = vi.mocked(walletService);
-  const mockTurnsService = vi.mocked(turnsService);
-  const mockGamesService = vi.mocked(gamesService);
-  const mockPromptsService = vi.mocked(promptsService);
-  const mockStoneLedgerService = vi.mocked(stoneLedgerService);
-  const mockAiWrapper = vi.mocked(aiWrapper);
+  // const mockWalletService = vi.mocked(WalletService); // TODO: Use in tests
+  // const mockTurnsService = vi.mocked(turnsService); // TODO: Use in tests
+  // const mockGamesService = vi.mocked(gamesService); // TODO: Use in tests
+  // const mockPromptsService = vi.mocked(promptsService); // TODO: Use in tests
+  // const mockStoneLedgerService = vi.mocked(StoneLedgerService); // TODO: Use in tests
+  // const mockAiWrapper = vi.mocked(aiWrapper); // TODO: Use in tests
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -34,7 +34,7 @@ describe('Turn Engine Integration Tests', () => {
       const mockGame = {
         id: 'game-123',
         adventure_id: 'adventure-456',
-        character_id: null,
+        character_id: undefined,
         user_id: 'guest-cookie-123',
         state_snapshot: {},
         turn_index: 0,
@@ -59,7 +59,7 @@ describe('Turn Engine Integration Tests', () => {
         data: expect.objectContaining({
           id: 'game-123',
           adventure_id: 'adventure-456',
-          character_id: null,
+          character_id: undefined,
         }),
         meta: expect.objectContaining({
           traceId: expect.any(String),

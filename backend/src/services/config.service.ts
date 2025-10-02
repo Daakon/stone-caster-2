@@ -60,6 +60,8 @@ interface EnvConfig {
   port: number;
   corsOrigin: string;
   anthropicApiKey: string | null;
+  stripeSecretKey: string;
+  stripeWebhookSecret: string;
 }
 
 interface ConfigSnapshot {
@@ -248,6 +250,8 @@ class ConfigServiceImpl implements ConfigService {
       port,
       corsOrigin: source.CORS_ORIGIN ?? 'http://localhost:5173',
       anthropicApiKey: source.ANTHROPIC_API_KEY ?? null,
+      stripeSecretKey: source.STRIPE_SECRET_KEY || 'sk_test_local_dev_key',
+      stripeWebhookSecret: source.STRIPE_WEBHOOK_SECRET || 'whsec_local_dev_secret',
     };
   }
 

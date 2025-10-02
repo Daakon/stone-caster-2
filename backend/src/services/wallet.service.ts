@@ -1,8 +1,7 @@
 import { supabaseAdmin } from './supabase.js';
 import { configService } from './config.service.js';
 import { StoneLedgerService } from './stoneLedger.service.js';
-import type { StoneWallet, StonePack } from 'shared';
-import { ApiErrorCode } from 'shared';
+import type { StoneWallet } from 'shared';
 
 export interface ConversionResult {
   fromType: 'shard' | 'crystal' | 'relic';
@@ -94,13 +93,13 @@ export class WalletService {
   ): Promise<ConversionResult> {
     try {
       // Get conversion rates from config
-      const conversionRates = await configService.getConfig('pricing_config', 'conversion_rates');
+      const pricingConfig = configService.getPricing();
+      const conversionRates = pricingConfig.conversionRates;
       if (!conversionRates) {
         throw new Error('Conversion rates not configured');
       }
 
-      const rates = conversionRates.value as Record<string, number>;
-      const rate = rates[type];
+      const rate = conversionRates[type];
       if (!rate || rate <= 0) {
         throw new Error(`Invalid conversion rate for ${type}`);
       }
@@ -278,9 +277,10 @@ export class WalletService {
   static async spendCastingStones(
     userId: string,
     amount: number,
-    reason: string,
-    metadata?: Record<string, unknown>
-  ): Promise<{ newBalance: number }> {
+    idempotencyKey: string,
+    gameId: string,
+    reason: string
+  ): Promise<{ success: boolean; newBalance: number; error?: string; message?: string }> {
     try {
       const wallet = await this.getOrCreateWallet(userId);
 
@@ -290,7 +290,7 @@ export class WalletService {
 
       const newBalance = wallet.castingStones - amount;
 
-      const { data: updatedWallet, error: updateError } = await supabaseAdmin
+      const { error: updateError } = await supabaseAdmin
         .from('stone_wallets')
         .update({ casting_stones: newBalance })
         .eq('id', wallet.id)
@@ -312,13 +312,18 @@ export class WalletService {
         deltaInventoryCrystal: 0,
         deltaInventoryRelic: 0,
         reason,
-        metadata: metadata || {},
+        metadata: {},
       });
 
-      return { newBalance };
+      return { success: true, newBalance };
     } catch (error) {
       console.error('WalletService.spendCastingStones error:', error);
-      throw error;
+      return { 
+        success: false, 
+        newBalance: 0, 
+        error: 'INSUFFICIENT_INVENTORY',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 

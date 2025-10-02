@@ -270,3 +270,32 @@ export const GuestStoneWalletSchema = z.object({
 export type CookieGroup = z.infer<typeof CookieGroupSchema>;
 export type CookieGroupMember = z.infer<typeof CookieGroupMemberSchema>;
 export type GuestStoneWallet = z.infer<typeof GuestStoneWalletSchema>;
+
+// Telemetry Schema
+export const TelemetryEventSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid().optional(),
+  cookieId: z.string().uuid().optional(),
+  traceId: z.string().uuid(),
+  name: z.string().min(1),
+  props: z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+});
+
+export const TelemetryEventRequestSchema = z.object({
+  name: z.string().min(1).max(100),
+  props: z.record(z.string(), z.unknown()).optional().default({}),
+});
+
+export const MetricsSnapshotSchema = z.object({
+  requestCounts: z.record(z.string(), z.number().int().min(0)),
+  averageLatencies: z.record(z.string(), z.number().min(0)),
+  errorCounts: z.record(z.string(), z.number().int().min(0)),
+  totalRequests: z.number().int().min(0),
+  totalErrors: z.number().int().min(0),
+  uptime: z.number().min(0),
+});
+
+export type TelemetryEvent = z.infer<typeof TelemetryEventSchema>;
+export type TelemetryEventRequest = z.infer<typeof TelemetryEventRequestSchema>;
+export type MetricsSnapshot = z.infer<typeof MetricsSnapshotSchema>;

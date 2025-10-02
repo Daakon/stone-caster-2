@@ -18,7 +18,8 @@ export interface AIResponse {
 }
 
 export interface AIRequest {
-  messages: Array<{
+  prompt?: string;
+  messages?: Array<{
     role: 'system' | 'user' | 'assistant';
     content: string;
   }>;
@@ -40,7 +41,7 @@ export async function generateResponse(): Promise<AIResponse> {
  * @param prompt - The prompt to send to AI
  * @returns Full AI response as string
  */
-export async function generateBuffered(prompt: string): Promise<string> {
+export async function generateBuffered(): Promise<string> {
   // TODO: Implement actual AI service integration
   // This is a placeholder that will be implemented in later layers
   throw new Error('AI service not yet implemented');
@@ -57,3 +58,18 @@ export function validateAIResponse(response: unknown): response is AIResponse {
     typeof (response as Record<string, unknown>).content === 'string'
   );
 }
+
+// AI Wrapper instance for dependency injection
+export const aiWrapper = {
+  generateResponse: async (request: AIRequest): Promise<AIResponse> => {
+    // Stub implementation - will be replaced with actual AI service
+    return {
+      content: `AI Response to: ${request.prompt}`,
+      usage: {
+        prompt_tokens: 10,
+        completion_tokens: 20,
+        total_tokens: 30,
+      },
+    };
+  },
+};

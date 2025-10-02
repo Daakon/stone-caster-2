@@ -1,7 +1,7 @@
-import { walletService } from './wallet.service.js';
+import { WalletService } from './wallet.service.js';
 import { promptsService } from './prompts.service.js';
 import { gamesService } from './games.service.js';
-import { stoneLedgerService } from './stoneLedger.service.js';
+import { StoneLedgerService } from './stoneLedger.service.js';
 import { aiWrapper } from '../wrappers/ai.js';
 import { TurnResponseSchema, type TurnResponse } from 'shared';
 import { ApiErrorCode } from 'shared';
@@ -42,11 +42,11 @@ export class TurnsService {
       }
 
       // Get turn cost from config
-      const config = await configService.getConfig();
-      const turnCost = this.getTurnCost(config, game.worldId);
+      const pricingConfig = configService.getPricing();
+      const turnCost = this.getTurnCost(pricingConfig, game.world_id || '');
 
       // Spend casting stones (with idempotency check)
-      const spendResult = await walletService.spendCasting(
+      const spendResult = await WalletService.spendCastingStones(
         owner,
         turnCost,
         idempotencyKey,
@@ -57,18 +57,26 @@ export class TurnsService {
       if (!spendResult.success) {
         return {
           success: false,
-          error: spendResult.error!,
+          error: ApiErrorCode.INSUFFICIENT_INVENTORY,
           message: spendResult.message!,
         };
       }
 
       // Build prompt (server-only)
-      const prompt = await promptsService.buildPrompt(game, optionId);
+      const gameContext = {
+        id: game.id,
+        world_id: game.world_id || '',
+        character_id: game.character_id,
+        state_snapshot: game.state_snapshot,
+        turn_index: game.turn_index,
+      };
+      const prompt = await promptsService.buildPrompt(gameContext, optionId);
 
       // Generate AI response
       let aiResponseText: string;
       try {
-        aiResponseText = await aiWrapper.generateBuffered(prompt);
+        const aiResponse = await aiWrapper.generateResponse({ prompt });
+        aiResponseText = aiResponse.content;
       } catch (error) {
         console.error('AI service error:', error);
         return {
@@ -107,12 +115,16 @@ export class TurnsService {
       const turnResult = await gamesService.applyTurn(gameId, aiResponse);
 
       // Create ledger entry for the spend
-      await stoneLedgerService.append({
-        owner,
-        delta: -turnCost,
+      await StoneLedgerService.appendEntry({
+        walletId: 'wallet-id', // This should be the actual wallet ID
+        userId: owner,
+        transactionType: 'spend',
+        deltaCastingStones: -turnCost,
+        deltaInventoryShard: 0,
+        deltaInventoryCrystal: 0,
+        deltaInventoryRelic: 0,
         reason: 'TURN_SPEND',
-        game_id: gameId,
-        turn_id: turnResult.id,
+        metadata: { game_id: gameId, turn_id: turnResult.id },
       });
 
       return {

@@ -54,7 +54,10 @@ router.get('/wallet', jwtAuth, async (req: Request, res: Response) => {
 router.post('/convert', jwtAuth, requireAuth, validateRequest(ConvertStonesRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
     const { type, amount } = req.body;
-    const userId = req.ctx?.userId!;
+    const userId = req.ctx?.userId;
+    if (!userId) {
+      return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'User not authenticated', req);
+    }
 
     const conversionResult = await WalletService.convertStones(userId, type, amount);
     
@@ -101,7 +104,10 @@ router.get('/packs', jwtAuth, requireAuth, async (req: Request, res: Response) =
 router.post('/purchase', jwtAuth, requireAuth, validateRequest(PurchaseStonesRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
     const { packId } = req.body;
-    const userId = req.ctx?.userId!;
+    const userId = req.ctx?.userId;
+    if (!userId) {
+      return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'User not authenticated', req);
+    }
 
     // Validate pack exists and is active
     const pack = await StonePacksService.getPackById(packId);

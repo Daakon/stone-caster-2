@@ -1,11 +1,11 @@
 import { supabaseAdmin } from './supabase.js';
 import { configService } from '../config/index.js';
-import type { GameSave, Character, WorldTemplate, Prompt } from 'shared';
+import type { Character, WorldTemplate, Prompt } from 'shared';
 
 export interface GameContext {
   id: string;
-  worldId: string;
-  characterId?: string;
+  world_id: string;
+  character_id?: string;
   state_snapshot: any;
   turn_index: number;
 }
@@ -20,19 +20,19 @@ export class PromptsService {
   async buildPrompt(game: GameContext, optionId: string): Promise<string> {
     try {
       // Get prompt schema version from config
-      const config = await configService.getConfig();
-      const schemaVersion = config.prompt_schema_version || '1.0.0';
+      const aiConfig = configService.getAi();
+      const schemaVersion = aiConfig.promptSchemaVersion || '1.0.0';
 
       // Load world template for context
-      const worldTemplate = await this.loadWorldTemplate(game.worldId);
+      const worldTemplate = await this.loadWorldTemplate(game.world_id);
       if (!worldTemplate) {
-        throw new Error(`World template not found: ${game.worldId}`);
+        throw new Error(`World template not found: ${game.world_id}`);
       }
 
       // Load character if specified
       let character: Character | null = null;
-      if (game.characterId) {
-        character = await this.loadCharacter(game.characterId);
+      if (game.character_id) {
+        character = await this.loadCharacter(game.character_id);
       }
 
       // Build the prompt based on schema version

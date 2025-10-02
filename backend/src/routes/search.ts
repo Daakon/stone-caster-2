@@ -10,7 +10,7 @@ const router = Router();
 // Search across all content
 router.get('/', validateRequest(SearchQuerySchema, 'query'), async (req: Request, res: Response) => {
   try {
-    const { q, limit, offset } = req.query as unknown as { q: string; limit: number; offset: number };
+    const { limit, offset } = req.query as unknown as { limit: number; offset: number };
 
     // Mock search results - in real implementation, this would use a search service
     const mockResults = [

@@ -3,24 +3,6 @@ import { supabase } from '../services/supabase.js';
 import { sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from 'shared';
 
-// Extend Request type to include admin user context
-declare global {
-  namespace Express {
-    interface Request {
-      ctx?: {
-        userId?: string;
-        isGuest?: boolean;
-        user?: {
-          id: string;
-          email?: string;
-          isGuest: boolean;
-          role?: string;
-        };
-      };
-    }
-  }
-}
-
 // Admin authentication middleware
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

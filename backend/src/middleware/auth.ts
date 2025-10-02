@@ -5,7 +5,9 @@ import { sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from 'shared';
 
 // Extend Request type to include user context
+// eslint-disable-next-line @typescript-eslint/no-namespace
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       ctx?: {
@@ -15,6 +17,7 @@ declare global {
           id: string;
           email?: string;
           isGuest: boolean;
+          role?: string;
         };
       };
     }

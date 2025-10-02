@@ -1,9 +1,9 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { supabase } from '../services/supabase.js';
-import { GameSaveSchema, CreateGameRequestSchema, GameTurnRequestSchema, IdParamSchema } from 'shared';
+import { CreateGameRequestSchema, GameTurnRequestSchema, IdParamSchema } from 'shared';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { toGameDTO, toTurnResultDTO } from '../utils/dto-mappers.js';
+import { toGameDTO, toGameDTOFromGame, toTurnResultDTO } from '../utils/dto-mappers.js';
 import { validateRequest, requireIdempotencyKey } from '../middleware/validation.js';
 import { optionalAuth, jwtAuth, requireAuth } from '../middleware/auth.js';
 import { ApiErrorCode } from 'shared';
@@ -113,7 +113,7 @@ router.post('/', optionalAuth, validateRequest(CreateGameRequestSchema, 'body'),
       );
     }
 
-    const gameDTO = toGameDTO(spawnResult.game!);
+    const gameDTO = toGameDTOFromGame(spawnResult.game!);
     sendSuccess(res, gameDTO, req, 201);
   } catch (error) {
     console.error('Error creating game:', error);
@@ -272,7 +272,6 @@ router.post('/:id/turn', optionalAuth, validateRequest(IdParamSchema, 'params'),
 // Get game relationships
 router.get('/:id/relationships', optionalAuth, validateRequest(IdParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
     const userId = req.ctx?.userId;
 
     if (!userId) {
@@ -307,7 +306,6 @@ router.get('/:id/relationships', optionalAuth, validateRequest(IdParamSchema, 'p
 // Get game factions
 router.get('/:id/factions', optionalAuth, validateRequest(IdParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
     const userId = req.ctx?.userId;
 
     if (!userId) {

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { turnsService } from './turns.service.js';
-import { walletService } from './wallet.service.js';
+import { WalletService } from './wallet.service.js';
 import { promptsService } from './prompts.service.js';
 import { gamesService } from './games.service.js';
-import { stoneLedgerService } from './stoneLedger.service.js';
+import { StoneLedgerService } from './stoneLedger.service.js';
 import { aiWrapper } from '../wrappers/ai.js';
 import { ApiErrorCode } from 'shared';
 
@@ -15,10 +15,10 @@ vi.mock('./stoneLedger.service.js');
 vi.mock('../wrappers/ai.js');
 
 describe('TurnsService', () => {
-  const mockWalletService = vi.mocked(walletService);
+  const mockWalletService = vi.mocked(WalletService);
   const mockPromptsService = vi.mocked(promptsService);
   const mockGamesService = vi.mocked(gamesService);
-  const mockStoneLedgerService = vi.mocked(stoneLedgerService);
+  const mockStoneLedgerService = vi.mocked(StoneLedgerService);
   const mockAiWrapper = vi.mocked(aiWrapper);
 
   beforeEach(() => {
@@ -34,8 +34,11 @@ describe('TurnsService', () => {
 
       const mockGame = {
         id: gameId,
-        worldId: 'world-123',
-        characterId: 'char-456',
+        adventure_id: 'adventure-123',
+        character_id: 'char-456',
+        user_id: owner,
+        world_id: 'world-123',
+        created_at: '2023-01-01T00:00:00Z',
         state_snapshot: { currentScene: 'tavern' },
         turn_index: 5,
       };
@@ -59,14 +62,28 @@ describe('TurnsService', () => {
       // Mock service calls
       mockGamesService.loadGame.mockResolvedValue(mockGame);
       mockPromptsService.buildPrompt.mockResolvedValue(mockPrompt);
-      mockAiWrapper.generateBuffered.mockResolvedValue(JSON.stringify(mockAiResponse));
-      mockWalletService.spendCasting.mockResolvedValue({
+      mockAiWrapper.generateResponse.mockResolvedValue({
+        content: JSON.stringify(mockAiResponse),
+        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
+      });
+      mockWalletService.spendCastingStones.mockResolvedValue({
         success: true,
         newBalance: 40,
-        ledgerEntryId: 'ledger-123',
       });
       mockGamesService.applyTurn.mockResolvedValue(mockTurnResult);
-      mockStoneLedgerService.append.mockResolvedValue('ledger-123');
+      mockStoneLedgerService.appendEntry.mockResolvedValue({
+        id: 'ledger-123',
+        userId: owner,
+        createdAt: '2023-01-01T00:00:00Z',
+        walletId: 'wallet-id',
+        transactionType: 'spend' as const,
+        deltaCastingStones: -2,
+        deltaInventoryShard: 0,
+        deltaInventoryCrystal: 0,
+        deltaInventoryRelic: 0,
+        reason: 'TURN_SPEND',
+        metadata: {},
+      });
 
       const result = await turnsService.runBufferedTurn({
         gameId,
@@ -92,10 +109,10 @@ describe('TurnsService', () => {
       // Verify all services were called correctly
       expect(mockGamesService.loadGame).toHaveBeenCalledWith(gameId);
       expect(mockPromptsService.buildPrompt).toHaveBeenCalledWith(mockGame, optionId);
-      expect(mockAiWrapper.generateBuffered).toHaveBeenCalledWith(mockPrompt);
-      expect(mockWalletService.spendCasting).toHaveBeenCalledWith(owner, expect.any(Number), idempotencyKey, gameId, expect.any(String));
+      expect(mockAiWrapper.generateResponse).toHaveBeenCalledWith({ prompt: mockPrompt });
+      expect(mockWalletService.spendCastingStones).toHaveBeenCalledWith(owner, expect.any(Number), idempotencyKey, gameId, expect.any(String));
       expect(mockGamesService.applyTurn).toHaveBeenCalledWith(gameId, mockAiResponse);
-      expect(mockStoneLedgerService.append).toHaveBeenCalledWith({
+      expect(mockStoneLedgerService.appendEntry).toHaveBeenCalledWith({
         owner,
         delta: expect.any(Number),
         reason: 'TURN_SPEND',
@@ -112,17 +129,21 @@ describe('TurnsService', () => {
 
       const mockGame = {
         id: gameId,
-        worldId: 'world-123',
-        characterId: 'char-456',
+        adventure_id: 'adventure-123',
+        character_id: 'char-456',
+        user_id: owner,
+        world_id: 'world-123',
+        created_at: '2023-01-01T00:00:00Z',
         state_snapshot: { currentScene: 'tavern' },
         turn_index: 5,
       };
 
       // Mock insufficient stones
       mockGamesService.loadGame.mockResolvedValue(mockGame);
-      mockWalletService.spendCasting.mockResolvedValue({
+      mockWalletService.spendCastingStones.mockResolvedValue({
         success: false,
-        error: ApiErrorCode.INSUFFICIENT_STONES,
+        newBalance: 0,
+        error: 'INSUFFICIENT_INVENTORY',
         message: 'Insufficient casting stones',
       });
 
@@ -140,7 +161,7 @@ describe('TurnsService', () => {
       });
 
       // Verify AI was not called
-      expect(mockAiWrapper.generateBuffered).not.toHaveBeenCalled();
+      expect(mockAiWrapper.generateResponse).not.toHaveBeenCalled();
       expect(mockGamesService.applyTurn).not.toHaveBeenCalled();
     });
 
@@ -152,8 +173,11 @@ describe('TurnsService', () => {
 
       const mockGame = {
         id: gameId,
-        worldId: 'world-123',
-        characterId: 'char-456',
+        adventure_id: 'adventure-123',
+        character_id: 'char-456',
+        user_id: owner,
+        world_id: 'world-123',
+        created_at: '2023-01-01T00:00:00Z',
         state_snapshot: { currentScene: 'tavern' },
         turn_index: 5,
       };
@@ -163,14 +187,16 @@ describe('TurnsService', () => {
       // Mock services
       mockGamesService.loadGame.mockResolvedValue(mockGame);
       mockPromptsService.buildPrompt.mockResolvedValue(mockPrompt);
-      mockWalletService.spendCasting.mockResolvedValue({
+      mockWalletService.spendCastingStones.mockResolvedValue({
         success: true,
         newBalance: 40,
-        ledgerEntryId: 'ledger-123',
       });
 
       // Mock invalid AI response
-      mockAiWrapper.generateBuffered.mockResolvedValue('invalid json response');
+      mockAiWrapper.generateResponse.mockResolvedValue({
+        content: 'invalid json response',
+        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
+      });
 
       const result = await turnsService.runBufferedTurn({
         gameId,
@@ -197,8 +223,11 @@ describe('TurnsService', () => {
 
       const mockGame = {
         id: gameId,
-        worldId: 'world-123',
-        characterId: 'char-456',
+        adventure_id: 'adventure-123',
+        character_id: 'char-456',
+        user_id: owner,
+        world_id: 'world-123',
+        created_at: '2023-01-01T00:00:00Z',
         state_snapshot: { currentScene: 'tavern' },
         turn_index: 5,
       };
@@ -208,10 +237,9 @@ describe('TurnsService', () => {
       // Mock services
       mockGamesService.loadGame.mockResolvedValue(mockGame);
       mockPromptsService.buildPrompt.mockResolvedValue(mockPrompt);
-      mockWalletService.spendCasting.mockResolvedValue({
+      mockWalletService.spendCastingStones.mockResolvedValue({
         success: true,
         newBalance: 40,
-        ledgerEntryId: 'ledger-123',
       });
 
       // Mock AI response missing required fields
@@ -219,7 +247,10 @@ describe('TurnsService', () => {
         narrative: 'You approach the bartender.',
         // Missing required 'emotion' field
       };
-      mockAiWrapper.generateBuffered.mockResolvedValue(JSON.stringify(invalidResponse));
+      mockAiWrapper.generateResponse.mockResolvedValue({
+        content: JSON.stringify(invalidResponse),
+        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
+      });
 
       const result = await turnsService.runBufferedTurn({
         gameId,
@@ -261,8 +292,8 @@ describe('TurnsService', () => {
       });
 
       // Verify no other services were called
-      expect(mockWalletService.spendCasting).not.toHaveBeenCalled();
-      expect(mockAiWrapper.generateBuffered).not.toHaveBeenCalled();
+      expect(mockWalletService.spendCastingStones).not.toHaveBeenCalled();
+      expect(mockAiWrapper.generateResponse).not.toHaveBeenCalled();
     });
 
     it('should handle AI service errors gracefully', async () => {
@@ -273,8 +304,11 @@ describe('TurnsService', () => {
 
       const mockGame = {
         id: gameId,
-        worldId: 'world-123',
-        characterId: 'char-456',
+        adventure_id: 'adventure-123',
+        character_id: 'char-456',
+        user_id: owner,
+        world_id: 'world-123',
+        created_at: '2023-01-01T00:00:00Z',
         state_snapshot: { currentScene: 'tavern' },
         turn_index: 5,
       };
@@ -284,14 +318,13 @@ describe('TurnsService', () => {
       // Mock services
       mockGamesService.loadGame.mockResolvedValue(mockGame);
       mockPromptsService.buildPrompt.mockResolvedValue(mockPrompt);
-      mockWalletService.spendCasting.mockResolvedValue({
+      mockWalletService.spendCastingStones.mockResolvedValue({
         success: true,
         newBalance: 40,
-        ledgerEntryId: 'ledger-123',
       });
 
       // Mock AI service error
-      mockAiWrapper.generateBuffered.mockRejectedValue(new Error('AI service unavailable'));
+      mockAiWrapper.generateResponse.mockRejectedValue(new Error('AI service unavailable'));
 
       const result = await turnsService.runBufferedTurn({
         gameId,

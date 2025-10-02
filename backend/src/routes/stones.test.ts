@@ -93,7 +93,7 @@ describe('Stones API Integration Tests', () => {
 
     it('should return empty wallet for guest user', async () => {
       // Mock auth middleware to not set userId
-      vi.mocked(require('../middleware/auth.js')).jwtAuth = (req: any, res: any, next: any) => {
+      vi.mocked(await import('../middleware/auth.js')).jwtAuth = (req: any, res: any, next: any) => {
         req.ctx = { userId: null };
         next();
       };
@@ -234,7 +234,7 @@ describe('Stones API Integration Tests', () => {
 
     it('should require authentication', async () => {
       // Mock auth middleware to not set userId
-      vi.mocked(require('../middleware/auth.js')).requireAuth = (req: any, res: any, next: any) => {
+      vi.mocked(await import('../middleware/auth.js')).requireAuth = (req: any, res: any) => {
         return res.status(401).json({ error: 'Unauthorized' });
       };
 

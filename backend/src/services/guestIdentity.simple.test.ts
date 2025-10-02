@@ -40,6 +40,6 @@ describe('Guest Identity Services - Simple Import Test', () => {
     const { configService } = await import('./config.service.js');
     
     expect(configService).toBeDefined();
-    expect(typeof configService.getConfig).toBe('function');
+    expect(typeof configService.getApp).toBe('function');
   });
 });

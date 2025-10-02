@@ -3,7 +3,6 @@ import request from 'supertest';
 import app from '../index.js';
 import { PaymentService } from '../wrappers/payments.js';
 import { WalletService } from '../services/wallet.service.js';
-import { supabaseAdmin } from '../services/supabase.js';
 
 // Mock dependencies
 vi.mock('../wrappers/payments.js', () => ({

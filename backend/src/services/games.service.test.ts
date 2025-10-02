@@ -384,7 +384,7 @@ describe('GamesService', () => {
       const gameId = 'game-123';
       const turnResult = {
         narrative: 'You approach the bartender.',
-        emotion: 'neutral',
+        emotion: 'neutral' as const,
         suggestedActions: ['Ask about rumors', 'Order a drink'],
         worldStateChanges: { tavern_visited: true },
       };

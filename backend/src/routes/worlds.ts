@@ -45,6 +45,7 @@ router.get('/', async (req: Request, res: Response) => {
             combatSystem: 'd20' as const,
           },
           isPublic: true,
+          startingPrompt: 'Welcome to the Fantasy Realm! You find yourself in a magical world full of adventure and mystery.',
           createdAt: '2023-01-01T00:00:00Z',
           updatedAt: '2023-01-01T00:00:00Z',
         },
