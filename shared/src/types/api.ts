@@ -86,6 +86,7 @@ export const CreateCharacterRequestSchema = z.object({
   })).default([]),
   currentHealth: z.number().int().min(0).optional(),
   maxHealth: z.number().int().min(1).optional(),
+  worldSlug: z.string().min(1).max(100), // Required world validation
 });
 
 export const UpdateCharacterRequestSchema = CreateCharacterRequestSchema.partial();
