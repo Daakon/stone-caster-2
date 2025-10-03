@@ -1,0 +1,176 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export interface WorldData {
+  slug: string;
+  name: string;
+  description?: string;
+  rules?: any[];
+  tags?: string[];
+  adventures?: any[];
+}
+
+export interface AdventureData {
+  slug: string;
+  name: string;
+  tags?: string[];
+  scenarios?: Array<{
+    slug: string;
+    name: string;
+  }>;
+}
+
+/**
+ * Content Service - manages static content loading and transformation
+ * Handles loading world and adventure data from static files
+ */
+export class ContentService {
+  private static worldsCache: WorldData[] | null = null;
+  private static adventuresCache: AdventureData[] | null = null;
+
+  /**
+   * Load static world data from JSON files
+   */
+  static loadStaticWorlds(): WorldData[] {
+    try {
+      // Path to the frontend mock data
+      const worldsPath = join(__dirname, '../../../frontend/src/mock/worlds.json');
+      const worldsData = readFileSync(worldsPath, 'utf-8');
+      const rawWorlds = JSON.parse(worldsData);
+      
+      // Transform to our expected format
+      return rawWorlds.map((world: any) => ({
+        slug: world.id,
+        name: world.title,
+        description: world.description,
+        rules: world.rules,
+        tags: world.tags,
+        adventures: [] // Will be populated by loadStaticAdventures
+      }));
+    } catch (error) {
+      console.error('Error loading static worlds data:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Load static adventure data from JSON files
+   */
+  static loadStaticAdventures(): AdventureData[] {
+    try {
+      // Path to the frontend mock data
+      const adventuresPath = join(__dirname, '../../../frontend/src/mock/adventures.json');
+      const adventuresData = readFileSync(adventuresPath, 'utf-8');
+      const rawAdventures = JSON.parse(adventuresData);
+      
+      // Transform to our expected format
+      return rawAdventures.map((adventure: any) => ({
+        slug: adventure.id,
+        name: adventure.title,
+        tags: adventure.tags,
+        scenarios: adventure.scenarios?.map((scenario: string, index: number) => ({
+          slug: `${adventure.id}-scenario-${index + 1}`,
+          name: scenario,
+        })) || []
+      }));
+    } catch (error) {
+      console.error('Error loading static adventures data:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all worlds with adventures populated
+   */
+  static async getWorlds(): Promise<WorldData[]> {
+    // Return cached data if available
+    if (this.worldsCache) {
+      return this.worldsCache;
+    }
+
+    try {
+      const worlds = this.loadStaticWorlds();
+      const adventures = this.loadStaticAdventures();
+      
+      // Populate adventures for each world
+      const worldsWithAdventures = worlds.map(world => ({
+        ...world,
+        adventures: adventures.filter(adventure => 
+          adventure.tags?.some((tag: string) => world.tags?.includes(tag))
+        )
+      }));
+
+      // Cache the result
+      this.worldsCache = worldsWithAdventures;
+      
+      return worldsWithAdventures;
+    } catch (error) {
+      console.error('Error getting worlds:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all adventures
+   */
+  static async getAdventures(): Promise<AdventureData[]> {
+    // Return cached data if available
+    if (this.adventuresCache) {
+      return this.adventuresCache;
+    }
+
+    try {
+      const adventures = this.loadStaticAdventures();
+      
+      // Cache the result
+      this.adventuresCache = adventures;
+      
+      return adventures;
+    } catch (error) {
+      console.error('Error getting adventures:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get a specific world by slug
+   */
+  static async getWorldBySlug(slug: string): Promise<WorldData | null> {
+    const worlds = await this.getWorlds();
+    return worlds.find(world => world.slug === slug) || null;
+  }
+
+  /**
+   * Get a specific adventure by slug
+   */
+  static async getAdventureBySlug(slug: string): Promise<AdventureData | null> {
+    const adventures = await this.getAdventures();
+    return adventures.find(adventure => adventure.slug === slug) || null;
+  }
+
+  /**
+   * Clear caches (useful for testing)
+   */
+  static clearCaches(): void {
+    this.worldsCache = null;
+    this.adventuresCache = null;
+  }
+
+  /**
+   * Get cache status (useful for testing)
+   */
+  static getCacheStatus(): { worldsCached: boolean; adventuresCached: boolean } {
+    return {
+      worldsCached: this.worldsCache !== null,
+      adventuresCached: this.adventuresCache !== null
+    };
+  }
+}
+
+// Export singleton instance
+export const contentService = new ContentService();

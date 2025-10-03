@@ -16,7 +16,7 @@ import type {
 } from 'shared';
 import type { Game } from '../services/games.service.js';
 
-// Character DTO mapper
+// Character DTO mapper (redacts internal fields)
 export function toCharacterDTO(character: Character): CharacterDTO {
   return {
     id: character.id,
@@ -30,8 +30,14 @@ export function toCharacterDTO(character: Character): CharacterDTO {
     inventory: character.inventory,
     currentHealth: character.currentHealth,
     maxHealth: character.maxHealth,
+    worldSlug: character.worldSlug,
     createdAt: character.createdAt,
     updatedAt: character.updatedAt,
+    // Explicitly exclude internal fields:
+    // - userId (server-only)
+    // - cookieId (server-only)
+    // - internalFlags (server-only)
+    // - systemMetadata (server-only)
   };
 }
 

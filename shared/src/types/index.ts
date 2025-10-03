@@ -3,7 +3,8 @@ import { z } from 'zod';
 // Character Schema
 export const CharacterSchema = z.object({
   id: z.string().uuid(),
-  userId: z.string().uuid(),
+  userId: z.string().uuid().optional(), // Optional for guest users
+  cookieId: z.string().uuid().optional(), // Optional for authenticated users
   name: z.string().min(1).max(50),
   race: z.string(),
   class: z.string(),
@@ -26,6 +27,7 @@ export const CharacterSchema = z.object({
   })),
   currentHealth: z.number().int().min(0),
   maxHealth: z.number().int().min(1),
+  worldSlug: z.string().min(1).max(100), // Required world validation
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

@@ -1,7 +1,6 @@
 import express from 'express';
 import type { Request, Response } from 'express';
-import { supabase } from '../services/supabase.js';
-import { CharacterSchema, CreateCharacterRequestSchema, UpdateCharacterRequestSchema, IdParamSchema } from 'shared';
+import { CreateCharacterRequestSchema, UpdateCharacterRequestSchema, IdParamSchema } from 'shared';
 import { z } from 'zod';
 import { aiService } from '../services/ai.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
@@ -9,13 +8,16 @@ import { toCharacterDTO } from '../utils/dto-mappers.js';
 import { validateRequest } from '../middleware/validation.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { ApiErrorCode } from 'shared';
+import { CharactersService } from '../services/characters.service.js';
 
 const router = express.Router();
 
-// Get all characters for a user
+// Get all characters for a user (guest or authenticated)
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest || false;
+    
     if (!userId) {
       return sendErrorWithStatus(
         res,
@@ -25,15 +27,9 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       );
     }
 
-    const { data, error } = await supabase
-      .from('characters')
-      .select('*')
-      .eq('userId', userId)
-      .order('createdAt', { ascending: false });
-
-    if (error) throw error;
+    const characters = await CharactersService.getCharacters(userId, isGuest);
+    const characterDTOs = characters.map(toCharacterDTO);
     
-    const characterDTOs = data?.map(toCharacterDTO) || [];
     sendSuccess(res, characterDTOs, req);
   } catch (error) {
     console.error('Error fetching characters:', error);
@@ -51,6 +47,7 @@ router.get('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), async
   try {
     const { id } = req.params;
     const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest || false;
 
     if (!userId) {
       return sendErrorWithStatus(
@@ -61,15 +58,9 @@ router.get('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), async
       );
     }
 
-    const { data, error } = await supabase
-      .from('characters')
-      .select('*')
-      .eq('id', id)
-      .eq('userId', userId)
-      .single();
-
-    if (error) throw error;
-    if (!data) {
+    const character = await CharactersService.getCharacterById(id, userId, isGuest);
+    
+    if (!character) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.NOT_FOUND,
@@ -78,7 +69,7 @@ router.get('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), async
       );
     }
 
-    const characterDTO = toCharacterDTO(data);
+    const characterDTO = toCharacterDTO(character);
     sendSuccess(res, characterDTO, req);
   } catch (error) {
     console.error('Error fetching character:', error);
@@ -95,6 +86,8 @@ router.get('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), async
 router.post('/', optionalAuth, validateRequest(CreateCharacterRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
     const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest || false;
+    
     if (!userId) {
       return sendErrorWithStatus(
         res,
@@ -104,26 +97,23 @@ router.post('/', optionalAuth, validateRequest(CreateCharacterRequestSchema, 'bo
       );
     }
 
-    const characterData = CharacterSchema.parse({
-      ...req.body,
-      userId,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    const { data, error } = await supabase
-      .from('characters')
-      .insert([characterData])
-      .select()
-      .single();
-
-    if (error) throw error;
+    const character = await CharactersService.createCharacter(req.body, userId, isGuest);
+    const characterDTO = toCharacterDTO(character);
     
-    const characterDTO = toCharacterDTO(data);
     sendSuccess(res, characterDTO, req, 201);
   } catch (error) {
     console.error('Error creating character:', error);
+    
+    // Handle validation errors specifically
+    if (error instanceof Error && error.message.includes('Invalid world slug')) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        error.message,
+        req
+      );
+    }
+    
     sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,
@@ -138,6 +128,7 @@ router.patch('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), val
   try {
     const { id } = req.params;
     const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest || false;
 
     if (!userId) {
       return sendErrorWithStatus(
@@ -148,19 +139,9 @@ router.patch('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), val
       );
     }
 
-    const { data, error } = await supabase
-      .from('characters')
-      .update({
-        ...req.body,
-        updatedAt: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('userId', userId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (!data) {
+    const character = await CharactersService.updateCharacter(id, req.body, userId, isGuest);
+    
+    if (!character) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.NOT_FOUND,
@@ -169,10 +150,21 @@ router.patch('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), val
       );
     }
 
-    const characterDTO = toCharacterDTO(data);
+    const characterDTO = toCharacterDTO(character);
     sendSuccess(res, characterDTO, req);
   } catch (error) {
     console.error('Error updating character:', error);
+    
+    // Handle validation errors specifically
+    if (error instanceof Error && error.message.includes('Invalid world slug')) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        error.message,
+        req
+      );
+    }
+    
     sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,
@@ -187,6 +179,7 @@ router.delete('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), as
   try {
     const { id } = req.params;
     const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest || false;
 
     if (!userId) {
       return sendErrorWithStatus(
@@ -197,13 +190,17 @@ router.delete('/:id', optionalAuth, validateRequest(IdParamSchema, 'params'), as
       );
     }
 
-    const { error } = await supabase
-      .from('characters')
-      .delete()
-      .eq('id', id)
-      .eq('userId', userId);
-
-    if (error) throw error;
+    const success = await CharactersService.deleteCharacter(id, userId, isGuest);
+    
+    if (!success) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Character not found',
+        req
+      );
+    }
+    
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting character:', error);

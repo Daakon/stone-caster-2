@@ -25,6 +25,7 @@ export const CharacterDTOSchema = z.object({
   })),
   currentHealth: z.number().int(),
   maxHealth: z.number().int(),
+  worldSlug: z.string(), // Include world slug in DTO
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

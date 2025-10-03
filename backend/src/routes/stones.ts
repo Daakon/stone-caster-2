@@ -11,28 +11,18 @@ import { PaymentService } from '../wrappers/payments.js';
 
 const router = Router();
 
-// Get stones wallet (auth or guest)
-router.get('/wallet', jwtAuth, async (req: Request, res: Response) => {
+// Get stones wallet (auth only in M1)
+router.get('/wallet', jwtAuth, requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.ctx?.userId;
     
     if (!userId) {
-      // Guest user - return empty wallet with casting stones only
-      const guestWallet = {
-        id: 'guest',
-        userId: 'guest',
-        castingStones: 0,
-        inventoryShard: 0,
-        inventoryCrystal: 0,
-        inventoryRelic: 0,
-        dailyRegen: 0,
-        lastRegenAt: undefined,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      const walletDTO = toStonesWalletDTO(guestWallet);
-      sendSuccess(res, walletDTO, req);
-      return;
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'Authentication required',
+        req
+      );
     }
 
     // Authenticated user - get full wallet
