@@ -244,9 +244,11 @@ export function toTurnResultDTO(turnResult: any): TurnResult {
     ai_response: {
       narrative: turnResult.ai_response.narrative,
       emotion: turnResult.ai_response.emotion,
+      choices: turnResult.ai_response.choices,
       npcResponses: turnResult.ai_response.npcResponses,
       worldStateChanges: turnResult.ai_response.worldStateChanges,
-      suggestedActions: turnResult.ai_response.suggestedActions,
+      relationshipDeltas: turnResult.ai_response.relationshipDeltas,
+      factionDeltas: turnResult.ai_response.factionDeltas,
     },
     created_at: turnResult.created_at,
     // Explicitly exclude internal fields:

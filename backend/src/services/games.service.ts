@@ -276,14 +276,23 @@ export class GamesService {
    * Apply a turn result to a game
    * @param gameId - Game ID
    * @param turnResult - Turn result from AI
+   * @param optionId - Selected option ID
    * @returns Turn record with ID and metadata
    */
-  async applyTurn(gameId: string, turnResult: TurnResponse): Promise<any> {
+  async applyTurn(gameId: string, turnResult: TurnResponse, optionId: string): Promise<any> {
     try {
+      // Load current game state
+      const currentGame = await this.loadGame(gameId);
+      if (!currentGame) {
+        throw new Error('Game not found for turn application');
+      }
+
       // Create turn record
       const turnRecord = {
         game_id: gameId,
+        option_id: optionId,
         ai_response: turnResult,
+        turn_number: currentGame.turn_count + 1,
         created_at: new Date().toISOString(),
       };
 
@@ -296,12 +305,6 @@ export class GamesService {
       if (turnError) {
         console.error('Error creating turn record:', turnError);
         throw new Error(`Failed to create turn record: ${turnError.message}`);
-      }
-
-      // Update game state
-      const currentGame = await this.loadGame(gameId);
-      if (!currentGame) {
-        throw new Error('Game not found for turn application');
       }
 
       const newState = {

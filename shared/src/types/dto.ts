@@ -181,6 +181,34 @@ export const ProfileDTOSchema = z.object({
   // - audit fields not needed by UI
 });
 
+// Turn DTO (redacted from internal state) - Layer M3
+export const TurnDTOSchema = z.object({
+  id: z.string().uuid(),
+  gameId: z.string().uuid(),
+  turnCount: z.number().int().min(0),
+  narrative: z.string().min(1),
+  emotion: z.enum(['neutral', 'happy', 'sad', 'angry', 'fearful', 'surprised', 'excited']),
+  choices: z.array(z.object({
+    id: z.string().uuid(),
+    label: z.string().min(1),
+    description: z.string().optional(),
+  })),
+  npcResponses: z.array(z.object({
+    npcId: z.string(),
+    response: z.string(),
+    emotion: z.string(),
+  })).optional(),
+  relationshipDeltas: z.record(z.string(), z.number()).optional(),
+  factionDeltas: z.record(z.string(), z.number()).optional(),
+  castingStonesBalance: z.number().int().min(0),
+  createdAt: z.string().datetime(),
+  // Explicitly exclude internal fields:
+  // - state_snapshot (internal)
+  // - prompt_text (internal)
+  // - ai_response (internal)
+  // - option_id (internal)
+});
+
 // Type exports
 export type CharacterDTO = z.infer<typeof CharacterDTOSchema>;
 export type GameDTO = z.infer<typeof GameDTOSchema>;
@@ -193,3 +221,4 @@ export type StonesWalletDTO = z.infer<typeof StonesWalletDTOSchema>;
 export type StonesPackDTO = z.infer<typeof StonesPackDTOSchema>;
 export type SubscriptionDTO = z.infer<typeof SubscriptionDTOSchema>;
 export type SearchResultDTO = z.infer<typeof SearchResultDTOSchema>;
+export type TurnDTO = z.infer<typeof TurnDTOSchema>;

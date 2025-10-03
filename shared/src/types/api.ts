@@ -20,6 +20,7 @@ export enum ApiErrorCode {
   PROMPT_VERSION_CONFLICT = 'PROMPT_VERSION_CONFLICT',
   CSRF_TOKEN_INVALID = 'CSRF_TOKEN_INVALID',
   REQUIRES_AUTH = 'REQUIRES_AUTH',
+  UPSTREAM_TIMEOUT = 'UPSTREAM_TIMEOUT',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
 }
 
@@ -128,13 +129,19 @@ export const CancelSubscriptionRequestSchema = z.object({
 export const TurnResponseSchema = z.object({
   narrative: z.string().min(1),
   emotion: z.enum(['neutral', 'happy', 'sad', 'angry', 'fearful', 'surprised', 'excited']),
+  choices: z.array(z.object({
+    id: z.string().uuid(),
+    label: z.string().min(1),
+    description: z.string().optional(),
+  })),
   npcResponses: z.array(z.object({
     npcId: z.string(),
     response: z.string(),
     emotion: z.string(),
   })).optional(),
   worldStateChanges: z.record(z.string(), z.unknown()).optional(),
-  suggestedActions: z.array(z.string()).optional(),
+  relationshipDeltas: z.record(z.string(), z.number()).optional(),
+  factionDeltas: z.record(z.string(), z.number()).optional(),
 });
 
 export const TurnResultSchema = z.object({

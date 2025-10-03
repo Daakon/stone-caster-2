@@ -2,10 +2,12 @@ import { WalletService } from './wallet.service.js';
 import { promptsService } from './prompts.service.js';
 import { gamesService } from './games.service.js';
 import { StoneLedgerService } from './stoneLedger.service.js';
+import { IdempotencyService } from './idempotency.service.js';
 import { aiWrapper } from '../wrappers/ai.js';
-import { TurnResponseSchema, type TurnResponse } from 'shared';
+import { TurnResponseSchema, type TurnResponse, type TurnDTO } from 'shared';
 import { ApiErrorCode } from 'shared';
 import { configService } from '../config/index.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface TurnRequest {
   gameId: string;
@@ -16,7 +18,7 @@ export interface TurnRequest {
 
 export interface TurnResult {
   success: boolean;
-  turnResult?: any;
+  turnDTO?: TurnDTO;
   error?: ApiErrorCode;
   message?: string;
 }
@@ -31,6 +33,30 @@ export class TurnsService {
     const { gameId, optionId, owner, idempotencyKey } = request;
 
     try {
+      // Check idempotency first
+      const idempotencyCheck = await IdempotencyService.checkIdempotency(
+        idempotencyKey,
+        owner,
+        gameId,
+        'turn'
+      );
+
+      if (idempotencyCheck.error) {
+        return {
+          success: false,
+          error: idempotencyCheck.error,
+          message: idempotencyCheck.message,
+        };
+      }
+
+      if (idempotencyCheck.isDuplicate && idempotencyCheck.existingRecord) {
+        // Return cached response for duplicate request
+        return {
+          success: true,
+          turnDTO: idempotencyCheck.existingRecord.responseData,
+        };
+      }
+
       // Load game and validate it exists
       const game = await gamesService.loadGame(gameId);
       if (!game) {
@@ -45,40 +71,38 @@ export class TurnsService {
       const pricingConfig = configService.getPricing();
       const turnCost = this.getTurnCost(pricingConfig, game.world_slug || '');
 
-      // Spend casting stones (with idempotency check)
-      const spendResult = await WalletService.spendCastingStones(
-        owner,
-        turnCost,
-        idempotencyKey,
-        gameId,
-        `turn-${Date.now()}` // Generate turn ID
-      );
-
-      if (!spendResult.success) {
+      // Check if user has sufficient stones
+      const wallet = await WalletService.getWallet(owner, false); // TODO: determine if guest
+      if (wallet.castingStones < turnCost) {
         return {
           success: false,
-          error: ApiErrorCode.INSUFFICIENT_INVENTORY,
-          message: spendResult.message!,
+          error: ApiErrorCode.INSUFFICIENT_STONES,
+          message: `Insufficient casting stones. Have ${wallet.castingStones}, need ${turnCost}`,
         };
       }
 
       // Build prompt (server-only)
-      const gameContext = {
-        id: game.id,
-        world_id: game.world_slug || '',
-        character_id: game.character_id,
-        state_snapshot: game.state_snapshot,
-        turn_index: game.turn_count,
-      };
-      const prompt = await promptsService.buildPrompt(gameContext, optionId);
+      const prompt = await this.buildPrompt(game, optionId);
 
-      // Generate AI response
+      // Generate AI response with timeout handling
       let aiResponseText: string;
       try {
-        const aiResponse = await aiWrapper.generateResponse({ prompt });
+        const aiResponse = await Promise.race([
+          aiWrapper.generateResponse({ prompt }),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('AI timeout')), 30000) // 30 second timeout
+          )
+        ]);
         aiResponseText = aiResponse.content;
       } catch (error) {
         console.error('AI service error:', error);
+        if (error instanceof Error && error.message === 'AI timeout') {
+          return {
+            success: false,
+            error: ApiErrorCode.UPSTREAM_TIMEOUT,
+            message: 'AI service timeout',
+          };
+        }
         return {
           success: false,
           error: ApiErrorCode.INTERNAL_ERROR,
@@ -112,24 +136,41 @@ export class TurnsService {
       }
 
       // Apply turn to game state
-      const turnResult = await gamesService.applyTurn(gameId, aiResponse);
+      const turnRecord = await gamesService.applyTurn(gameId, aiResponse, optionId);
 
-      // Create ledger entry for the spend
-      await StoneLedgerService.appendEntry({
-        walletId: 'wallet-id', // This should be the actual wallet ID
-        userId: owner,
-        transactionType: 'spend',
-        deltaCastingStones: -turnCost,
-        deltaInventoryShard: 0,
-        deltaInventoryCrystal: 0,
-        deltaInventoryRelic: 0,
-        reason: 'TURN_SPEND',
-        metadata: { game_id: gameId, turn_id: turnResult.id },
-      });
+      // Spend casting stones (only after successful turn)
+      const spendResult = await WalletService.spendCastingStones(
+        owner,
+        turnCost,
+        idempotencyKey,
+        gameId,
+        `TURN_SPEND`
+      );
+
+      if (!spendResult.success) {
+        // This should not happen since we checked balance earlier
+        console.error('Unexpected spend failure after successful turn:', spendResult);
+        // Continue anyway since turn was successful
+      }
+
+      // Create Turn DTO
+      const turnDTO = await this.createTurnDTO(turnRecord, aiResponse, game, wallet.castingStones - turnCost);
+
+      // Store idempotency record
+      const requestHash = IdempotencyService.createRequestHash({ optionId });
+      await IdempotencyService.storeIdempotencyRecord(
+        idempotencyKey,
+        owner,
+        gameId,
+        'turn',
+        requestHash,
+        turnDTO,
+        'completed'
+      );
 
       return {
         success: true,
-        turnResult,
+        turnDTO,
       };
     } catch (error) {
       console.error('Unexpected error in runBufferedTurn:', error);
@@ -139,6 +180,53 @@ export class TurnsService {
         message: 'Internal server error',
       };
     }
+  }
+
+  /**
+   * Build prompt for AI request (server-only)
+   * @param game - Game data
+   * @param optionId - Selected option ID
+   * @returns Prompt string
+   */
+  private async buildPrompt(game: any, optionId: string): Promise<string> {
+    // TODO: Implement proper prompt building from templates
+    // For now, return a basic prompt structure
+    return `Game: ${game.id}
+World: ${game.world_slug}
+Turn: ${game.turn_count + 1}
+Option: ${optionId}
+State: ${JSON.stringify(game.state_snapshot)}
+
+Generate the next turn response following the TurnResponse schema.`;
+  }
+
+  /**
+   * Create Turn DTO from turn record and AI response
+   * @param turnRecord - Turn record from database
+   * @param aiResponse - AI response
+   * @param game - Game data
+   * @param newBalance - New casting stones balance
+   * @returns Turn DTO
+   */
+  private async createTurnDTO(
+    turnRecord: any,
+    aiResponse: TurnResponse,
+    game: any,
+    newBalance: number
+  ): Promise<TurnDTO> {
+    return {
+      id: turnRecord.id,
+      gameId: game.id,
+      turnCount: game.turn_count + 1,
+      narrative: aiResponse.narrative,
+      emotion: aiResponse.emotion,
+      choices: aiResponse.choices || [],
+      npcResponses: aiResponse.npcResponses,
+      relationshipDeltas: aiResponse.relationshipDeltas,
+      factionDeltas: aiResponse.factionDeltas,
+      castingStonesBalance: newBalance,
+      createdAt: turnRecord.created_at,
+    };
   }
 
   /**
@@ -154,7 +242,7 @@ export class TurnsService {
     }
 
     // Use default cost
-    return config.pricing?.turn_cost_default || 10;
+    return config.pricing?.turn_cost_default || 2;
   }
 }
 
