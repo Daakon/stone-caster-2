@@ -84,3 +84,5 @@ export function ErrorModal({ isOpen, onClose, error, onRetry }: ErrorModalProps)
     </Dialog>
   );
 }
+
+

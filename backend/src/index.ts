@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { config } from './config/index.js';
 import charactersRouter from './routes/characters.js';
 import gamesRouter from './routes/games.js';
@@ -8,12 +9,14 @@ import storyRouter from './routes/story.js';
 import diceRouter from './routes/dice.js';
 import configRouter from './routes/config.js';
 import meRouter from './routes/me.js';
+import profileRouter from './routes/profile.js';
 import adventuresRouter from './routes/adventures.js';
 import searchRouter from './routes/search.js';
 import stonesRouter from './routes/stones.js';
 import subscriptionRouter from './routes/subscription.js';
 import telemetryRouter from './routes/telemetry.js';
 import webhooksRouter from './routes/webhooks.js';
+import contentRouter from './routes/content.js';
 import { observabilityMiddleware } from './middleware/observability.js';
 
 const app = express();
@@ -24,6 +27,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(cookieParser());
 app.use(observabilityMiddleware);
 
 // Health check
@@ -34,9 +38,11 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/config', configRouter);
 app.use('/api/me', meRouter);
+app.use('/api/profile', profileRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);
+app.use('/api/content', contentRouter);
 app.use('/api/adventures', adventuresRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/stones', stonesRouter);

@@ -29,8 +29,10 @@
   "license": "ISC",
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
+    "@types/cookie-parser": "^1.4.9",
     "@types/crypto-js": "^4.2.2",
     "@types/uuid": "^10.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
     "dotenv": "^16.3.1",

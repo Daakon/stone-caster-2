@@ -41,3 +41,4 @@ export const StoneCost: React.FC<StoneCostProps> = ({
     </div>
   );
 };
+

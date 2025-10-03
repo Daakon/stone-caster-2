@@ -202,5 +202,107 @@
       "Restore the connections between sacred places",
       "Bring balance back to the natural world"
     ]
+  },
+  {
+    "id": "paragon-city-hero-origins",
+    "worldId": "paragon-city",
+    "title": "Hero Origins",
+    "excerpt": "Discover your superpowers and become a hero",
+    "cover": "/images/adventures/paragon-city-hero-origins.jpg",
+    "tags": ["superhero", "origins", "powers", "discovery", "beginner"],
+    "difficulty": "easy",
+    "stoneCost": 4,
+    "length": "short",
+    "description": "You've just discovered you have superpowers! As a new hero in Paragon City, you must learn to control your abilities while facing your first challenges. Will you become a symbol of hope or fall to the temptations of power?",
+    "scenarios": [
+      "Discover and learn to control your superpowers",
+      "Choose your hero identity and costume",
+      "Face your first supervillain threat"
+    ]
+  },
+  {
+    "id": "paragon-city-supervillain-crisis",
+    "worldId": "paragon-city",
+    "title": "Supervillain Crisis",
+    "excerpt": "Stop a city-wide supervillain plot",
+    "cover": "/images/adventures/paragon-city-supervillain-crisis.jpg",
+    "tags": ["superhero", "crisis", "villain", "city", "action"],
+    "difficulty": "medium",
+    "stoneCost": 12,
+    "length": "medium",
+    "description": "A powerful supervillain has launched a coordinated attack across Paragon City. As an established hero, you must rally other heroes, protect civilians, and stop the villain's master plan before the city falls into chaos.",
+    "scenarios": [
+      "Coordinate with other heroes to respond to the crisis",
+      "Protect civilians from the supervillain's attacks",
+      "Confront the mastermind behind the city-wide plot"
+    ]
+  },
+  {
+    "id": "veloria-court-intrigue",
+    "worldId": "veloria",
+    "title": "Court Intrigue",
+    "excerpt": "Navigate the complex politics of the royal courts",
+    "cover": "/images/adventures/veloria-court-intrigue.jpg",
+    "tags": ["romance", "court", "politics", "intrigue", "nobility"],
+    "difficulty": "easy",
+    "stoneCost": 5,
+    "length": "short",
+    "description": "You've been invited to the Court of Hearts, where love and politics intertwine in a delicate dance. Navigate the complex social dynamics, form romantic connections, and uncover the secrets that could change the balance of power forever.",
+    "scenarios": [
+      "Learn the intricate rules of court etiquette",
+      "Form romantic connections with other courtiers",
+      "Uncover political secrets that threaten the court"
+    ]
+  },
+  {
+    "id": "veloria-royal-wedding",
+    "worldId": "veloria",
+    "title": "The Royal Wedding",
+    "excerpt": "Plan and participate in a grand royal wedding",
+    "cover": "/images/adventures/veloria-royal-wedding.jpg",
+    "tags": ["romance", "wedding", "royal", "celebration", "drama"],
+    "difficulty": "medium",
+    "stoneCost": 15,
+    "length": "medium",
+    "description": "The royal wedding of the century is approaching, and you're at the center of the preparations. But as love and politics collide, you must navigate romantic rivalries, political alliances, and unexpected complications that could derail the entire celebration.",
+    "scenarios": [
+      "Help plan the grand royal wedding ceremony",
+      "Navigate romantic rivalries and political tensions",
+      "Ensure the wedding proceeds despite unexpected complications"
+    ]
+  },
+  {
+    "id": "noctis-veil-shadow-awakening",
+    "worldId": "noctis-veil",
+    "title": "Shadow Awakening",
+    "excerpt": "Confront the darkness that lurks in the shadows",
+    "cover": "/images/adventures/noctis-veil-shadow-awakening.jpg",
+    "tags": ["horror", "shadows", "supernatural", "dark", "mystery"],
+    "difficulty": "easy",
+    "stoneCost": 6,
+    "length": "short",
+    "description": "You've arrived in Noctis Veil, a realm where shadows hold ancient secrets and supernatural forces lurk in the darkness. As the veil between worlds grows thin, you must confront your deepest fears and uncover the truth behind the growing shadow influence.",
+    "scenarios": [
+      "Explore the shadowy realm of Noctis Veil",
+      "Confront supernatural entities and dark forces",
+      "Uncover the ancient secrets hidden in the shadows"
+    ]
+  },
+  {
+    "id": "noctis-veil-eternal-darkness",
+    "worldId": "noctis-veil",
+    "title": "Eternal Darkness",
+    "excerpt": "Face the ultimate evil that threatens to consume all light",
+    "cover": "/images/adventures/noctis-veil-eternal-darkness.jpg",
+    "tags": ["horror", "darkness", "evil", "final", "epic"],
+    "difficulty": "hard",
+    "stoneCost": 25,
+    "length": "epic",
+    "description": "The ancient evil that has been growing in the shadows is finally ready to strike. As the eternal darkness threatens to consume all light and hope, you must gather allies, face your greatest fears, and make the ultimate sacrifice to save the realm from eternal night.",
+    "scenarios": [
+      "Gather allies to face the ultimate evil",
+      "Journey into the heart of eternal darkness",
+      "Make the ultimate sacrifice to save the realm"
+    ]
   }
 ]

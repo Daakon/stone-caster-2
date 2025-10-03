@@ -7,6 +7,7 @@ import type {
   WorldDTO,
   AdventureDTO,
   UserDTO,
+  ProfileDTO,
   StonesWalletDTO,
   StonesPackDTO,
   SubscriptionDTO,
@@ -201,6 +202,31 @@ export function toSearchResultDTO(
     name: item.name,
     description: item.description,
     relevance,
+  };
+}
+
+// Profile DTO mapper (redacts internal fields)
+export function toProfileDTO(profile: any): ProfileDTO {
+  return {
+    id: profile.id,
+    displayName: profile.display_name,
+    avatarUrl: profile.avatar_url,
+    email: profile.email,
+    preferences: {
+      showTips: profile.preferences?.show_tips ?? true,
+      theme: profile.preferences?.theme ?? 'auto',
+      notifications: profile.preferences?.notifications ?? {
+        email: true,
+        push: false,
+      },
+    },
+    createdAt: profile.created_at,
+    lastSeen: profile.last_seen,
+    // Explicitly exclude internal fields:
+    // - provider_id (internal)
+    // - access_tokens (internal)
+    // - internal_flags (internal)
+    // - audit_log (internal)
   };
 }
 

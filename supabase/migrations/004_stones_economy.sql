@@ -1,6 +1,25 @@
 -- Stones Economy Schema for Layer 0.6
 -- Creates tables for wallet management, stone ledger, and purchasable packs
 
+-- Create stone_packs table for purchasable packs (must be created first due to foreign key references)
+CREATE TABLE IF NOT EXISTS stone_packs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  description TEXT NOT NULL,
+  price_cents INTEGER NOT NULL CHECK (price_cents > 0),
+  currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+  stones_shard INTEGER NOT NULL DEFAULT 0 CHECK (stones_shard >= 0),
+  stones_crystal INTEGER NOT NULL DEFAULT 0 CHECK (stones_crystal >= 0),
+  stones_relic INTEGER NOT NULL DEFAULT 0 CHECK (stones_relic >= 0),
+  bonus_shard INTEGER NOT NULL DEFAULT 0 CHECK (bonus_shard >= 0),
+  bonus_crystal INTEGER NOT NULL DEFAULT 0 CHECK (bonus_crystal >= 0),
+  bonus_relic INTEGER NOT NULL DEFAULT 0 CHECK (bonus_relic >= 0),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Create stone_wallets table
 CREATE TABLE IF NOT EXISTS stone_wallets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -30,25 +49,6 @@ CREATE TABLE IF NOT EXISTS stone_ledger (
   pack_id UUID REFERENCES stone_packs(id) ON DELETE SET NULL,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Create stone_packs table for purchasable packs
-CREATE TABLE IF NOT EXISTS stone_packs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL,
-  description TEXT NOT NULL,
-  price_cents INTEGER NOT NULL CHECK (price_cents > 0),
-  currency VARCHAR(3) NOT NULL DEFAULT 'USD',
-  stones_shard INTEGER NOT NULL DEFAULT 0 CHECK (stones_shard >= 0),
-  stones_crystal INTEGER NOT NULL DEFAULT 0 CHECK (stones_crystal >= 0),
-  stones_relic INTEGER NOT NULL DEFAULT 0 CHECK (stones_relic >= 0),
-  bonus_shard INTEGER NOT NULL DEFAULT 0 CHECK (bonus_shard >= 0),
-  bonus_crystal INTEGER NOT NULL DEFAULT 0 CHECK (bonus_crystal >= 0),
-  bonus_relic INTEGER NOT NULL DEFAULT 0 CHECK (bonus_relic >= 0),
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Create payment_sessions table for tracking purchase sessions
