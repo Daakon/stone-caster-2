@@ -6,15 +6,24 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# Root lockfile
+# Copy all package files first
 COPY package.json package-lock.json ./
+COPY backend/package.json ./backend/
+COPY shared/package.json ./shared/
+
+# Install all dependencies (including workspace dependencies)
 RUN --mount=type=cache,target=/root/.npm npm ci
 
-# Build only what we need for the API
+# Copy source code
 COPY backend ./backend
 COPY shared ./shared
 
-# Emit to ./dist (matches your root package.json "build:server" script)
+# Install dependencies in each workspace to ensure they're available
+RUN cd shared && npm install
+RUN cd backend && npm install
+
+# Build shared first, then backend
+RUN npm run build --workspace=shared
 RUN npm run build:server
 
 ############################
@@ -23,6 +32,13 @@ RUN npm run build:server
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PORT=8080
+ENV SUPABASE_URL=http://localhost:54321
+ENV SUPABASE_SERVICE_KEY=service-local
+ENV SUPABASE_ANON_KEY=anon-local
+ENV OPENAI_API_KEY=openai-local
+ENV PRIMARY_AI_MODEL=gpt-4
+ENV SESSION_SECRET=dev-session-secret
 
 # Prod deps only
 COPY package.json package-lock.json ./
@@ -30,7 +46,7 @@ COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts
 
 # Bring in the built server
-COPY --from=build /app/dist ./dist
+COPY --from=build /app/backend/dist ./dist
 
 EXPOSE 8080
 CMD ["node", "dist/index.js"]
