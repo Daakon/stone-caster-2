@@ -89,7 +89,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
               </Button>
             ) : (
               <Button asChild size="sm" className="hidden md:inline-flex">
-                <Link to="/auth">Sign In</Link>
+                <Link to="/auth/signin">Sign In</Link>
               </Button>
             )}
 
@@ -146,7 +146,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
                       </Button>
                     ) : (
                       <Button asChild className="w-full">
-                        <Link to="/auth" onClick={() => setIsOpen(false)}>
+                        <Link to="/auth/signin" onClick={() => setIsOpen(false)}>
                           Sign In
                         </Link>
                       </Button>

@@ -18,7 +18,8 @@
     "verify:config": "node scripts/verify-config.js",
     "create:env-template": "node scripts/create-env-template.js",
     "setup:env": "npm run create:env-template",
-    "test:env-setup": "npm run build && node scripts/test-env-setup.js"
+    "test:env-setup": "npm run build && node scripts/test-env-setup.js",
+    "deploy": "cd .. && flyctl deploy --yes --detach"
   },
   "keywords": [
     "rpg",

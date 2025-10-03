@@ -1,5 +1,5 @@
 const API_BASE = (
-  import.meta.env.VITE_API_BASE ?? "https://api.stonecaster.ai"
+  import.meta.env.VITE_API_BASE ?? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai')
 ).replace(/\/+$/, "");
 
 export function apiUrl(path: string): string {

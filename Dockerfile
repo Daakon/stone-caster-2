@@ -40,13 +40,17 @@ ENV OPENAI_API_KEY=openai-local
 ENV PRIMARY_AI_MODEL=gpt-4
 ENV SESSION_SECRET=dev-session-secret
 
-# Prod deps only
+# Copy package.json files and install production dependencies
 COPY package.json package-lock.json ./
-# Install production deps without running lifecycle scripts (avoid husky prepare)
+COPY backend/package.json ./backend/
+COPY shared/package.json ./shared/
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts
 
-# Bring in the built server
+# Bring in the built server, shared package, and node_modules
 COPY --from=build /app/backend/dist ./dist
+COPY --from=build /app/shared/dist ./shared/dist
+COPY --from=build /app/shared/package.json ./shared/
+COPY --from=build /app/backend/node_modules ./node_modules
 
 EXPOSE 8080
 CMD ["node", "dist/index.js"]

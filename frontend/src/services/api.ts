@@ -1,6 +1,6 @@
 import type { Character, GameSave, WorldTemplate, StoryAction, AIResponse, DiceRoll, DiceRollResult } from 'shared';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai');
 
 class ApiService {
   private async fetchWithAuth(url: string, options: RequestInit = {}) {

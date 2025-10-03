@@ -24,7 +24,7 @@ const MagicLinkVerifySchema = z.object({
 
 const OAuthStartSchema = z.object({
   provider: z.enum(['google', 'github', 'discord']),
-  guestCookieId: z.string().uuid('Invalid guest cookie ID'),
+  guestCookieId: z.string().uuid('Invalid guest cookie ID').optional(),
 });
 
 const OAuthCallbackSchema = z.object({
@@ -161,7 +161,7 @@ router.get('/oauth/:provider/start', async (req: Request, res: Response) => {
 
     // Generate state parameter for CSRF protection
     const state = Buffer.from(JSON.stringify({
-      guestCookieId,
+      guestCookieId: guestCookieId || null,
       timestamp: Date.now(),
     })).toString('base64');
 

@@ -212,10 +212,10 @@ class ConfigServiceImpl implements ConfigService {
     const source = envSource ?? process.env;
     const serviceKey = source.SUPABASE_SERVICE_KEY ?? source.SUPABASE_SERVICE_ROLE_KEY;
     
-    // Provide safe defaults for local development when environment variables are missing
-    const supabaseUrl = source.SUPABASE_URL || 'http://localhost:54321';
-    const supabaseAnonKey = source.SUPABASE_ANON_KEY || 'anon-local';
-    const supabaseServiceKey = serviceKey || 'service-local';
+    // Use PROD_ prefixed variables for production, fallback to regular variables for development
+    const supabaseUrl = source.PROD_SUPABASE_URL || source.SUPABASE_URL || 'http://localhost:54321';
+    const supabaseAnonKey = source.PROD_SUPABASE_ANON_KEY || source.SUPABASE_ANON_KEY || 'anon-local';
+    const supabaseServiceKey = source.PROD_SUPABASE_SERVICE_KEY || serviceKey || 'service-local';
     const openaiApiKey = source.OPENAI_API_KEY || 'openai-local';
     const primaryAiModel = source.PRIMARY_AI_MODEL || 'gpt-4';
     const sessionSecret = source.SESSION_SECRET || 'dev-session-secret';
@@ -223,14 +223,14 @@ class ConfigServiceImpl implements ConfigService {
     // Only throw error for truly required variables in production
     if (source.NODE_ENV === 'production') {
       const required: Array<[string, string | undefined]> = [
-        ['SUPABASE_URL', source.SUPABASE_URL],
-        ['SUPABASE_SERVICE_KEY', serviceKey],
-        ['SUPABASE_ANON_KEY', source.SUPABASE_ANON_KEY],
-        ['OPENAI_API_KEY', source.OPENAI_API_KEY],
-        ['PRIMARY_AI_MODEL', source.PRIMARY_AI_MODEL],
-        ['SESSION_SECRET', source.SESSION_SECRET],
+        ['SUPABASE_URL', supabaseUrl],
+        ['SUPABASE_SERVICE_KEY', supabaseServiceKey],
+        ['SUPABASE_ANON_KEY', supabaseAnonKey],
+        ['OPENAI_API_KEY', openaiApiKey],
+        ['PRIMARY_AI_MODEL', primaryAiModel],
+        ['SESSION_SECRET', sessionSecret],
       ];
-      const missing = required.filter(([, value]) => !value).map(([key]) => key);
+      const missing = required.filter(([, value]) => !value || value.includes('-local')).map(([key]) => key);
       if (missing.length > 0) {
         throw new Error(`Missing required environment variables in production: ${missing.join(', ')}`);
       }

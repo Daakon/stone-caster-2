@@ -37,7 +37,8 @@
     "setup:env": "npm run setup:env --workspace=backend",
     "setup:config": "npm run setup:config --workspace=backend",
     "verify:config": "npm run verify:config --workspace=backend",
-    "test:env-setup": "npm run test:env-setup --workspace=backend"
+    "test:env-setup": "npm run test:env-setup --workspace=backend",
+    "deploy": "npm run deploy --workspace=backend"
   },
   "keywords": [
     "rpg",

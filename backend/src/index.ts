@@ -24,7 +24,32 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: config.cors.origin,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Define allowed origins
+    const allowedOrigins = [
+      'http://localhost:5173',  // Local development
+      'http://localhost:3000',  // Local development (alternative port)
+      'https://stonecaster.ai', // Production frontend
+      'https://www.stonecaster.ai', // Production frontend with www
+    ];
+    
+    // Check if origin is allowed
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // For development, also allow the configured origin
+    if (config.cors.origin && origin === config.cors.origin) {
+      return callback(null, true);
+    }
+    
+    // Log the blocked origin for debugging
+    console.log(`[CORS] Blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 app.use(express.json());

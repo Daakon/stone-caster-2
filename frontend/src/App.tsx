@@ -6,6 +6,7 @@ import { ThemeProvider } from './contexts/theme-context-provider';
 import { ToastProvider } from './components/ui/toast-provider';
 import { SkipNavigation } from './components/ui/skip-navigation';
 import { AppLayout } from './components/layout/AppLayout';
+import { GuestCookieService } from './services/guestCookie';
 import LandingPage from './pages/LandingPage';
 import AdventuresPage from './pages/AdventuresPage';
 import AdventureDetailPage from './pages/AdventureDetailPage';
@@ -17,6 +18,8 @@ import PaymentsPage from './pages/PaymentsPage';
 import ProfilePage from './pages/ProfilePage';
 import SupportPage from './pages/SupportPage';
 import GamePage from './pages/GamePage';
+import AuthPage from './pages/AuthPage';
+import AuthSuccessPage from './pages/AuthSuccessPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 const queryClient = new QueryClient();
@@ -25,6 +28,10 @@ function App() {
   const { loading, initialize } = useAuthStore();
 
   useEffect(() => {
+    // Initialize guest cookie for anonymous users
+    GuestCookieService.getOrCreateGuestCookie();
+    
+    // Initialize auth store
     initialize();
   }, [initialize]);
 
@@ -56,6 +63,10 @@ function App() {
           <AppLayout>
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/auth" element={<AuthPage />} />
+              <Route path="/auth/signin" element={<AuthPage mode="signin" />} />
+              <Route path="/auth/signup" element={<AuthPage mode="signup" />} />
+              <Route path="/auth/success" element={<AuthSuccessPage />} />
               <Route path="/adventures" element={<AdventuresPage />} />
               <Route path="/adventures/:id" element={<AdventureDetailPage />} />
               <Route path="/adventures/:id/characters" element={<CharacterSelectionPage />} />

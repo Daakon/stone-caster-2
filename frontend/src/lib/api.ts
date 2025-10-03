@@ -1,7 +1,8 @@
 import { type AppError, toAppError } from './errors';
 import { supabase } from './supabase';
+import { GuestCookieService } from '../services/guestCookie';
 
-const BASE = (import.meta.env.VITE_API_BASE_URL ?? 'https://stonecaster-api.fly.dev').replace(
+const BASE = (import.meta.env.VITE_API_BASE_URL ?? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai')).replace(
   /\/+$/,
   '',
 );
@@ -28,6 +29,12 @@ export async function apiFetch<T = unknown>(
     }
   } catch (error) {
     console.warn('Failed to get auth token:', error);
+  }
+
+  // Attach guest cookie for guest users
+  const guestCookieId = GuestCookieService.getGuestCookieForApi();
+  if (guestCookieId) {
+    headers.set('X-Guest-Cookie-Id', guestCookieId);
   }
 
   try {
