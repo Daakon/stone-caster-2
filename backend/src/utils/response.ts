@@ -94,6 +94,7 @@ export const ERROR_STATUS_MAP: Record<ApiErrorCode, number> = {
   [ApiErrorCode.PROMPT_NOT_FOUND]: 404,
   [ApiErrorCode.PROMPT_VERSION_CONFLICT]: 409,
   [ApiErrorCode.CSRF_TOKEN_INVALID]: 400,
+  [ApiErrorCode.REQUIRES_AUTH]: 401,
   [ApiErrorCode.INTERNAL_ERROR]: 500,
 };
 

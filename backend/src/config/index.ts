@@ -18,6 +18,12 @@ export const config = {
   cors: {
     origin: env.corsOrigin,
   },
+  frontend: {
+    url: env.frontendUrl,
+  },
+  api: {
+    url: env.apiUrl,
+  },
 };
 
 export { configService, configServiceReady };
