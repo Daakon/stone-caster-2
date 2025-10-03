@@ -1,346 +1,333 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { turnsService } from './turns.service.js';
+import { TurnsService } from './turns.service.js';
+import { IdempotencyService } from './idempotency.service.js';
 import { WalletService } from './wallet.service.js';
-import { promptsService } from './prompts.service.js';
 import { gamesService } from './games.service.js';
-import { StoneLedgerService } from './stoneLedger.service.js';
 import { aiWrapper } from '../wrappers/ai.js';
+import { configService } from '../config/index.js';
 import { ApiErrorCode } from 'shared';
 
 // Mock dependencies
+vi.mock('./idempotency.service.js');
 vi.mock('./wallet.service.js');
-vi.mock('./prompts.service.js');
 vi.mock('./games.service.js');
-vi.mock('./stoneLedger.service.js');
 vi.mock('../wrappers/ai.js');
+vi.mock('../config/index.js');
 
 describe('TurnsService', () => {
+  const mockIdempotencyService = vi.mocked(IdempotencyService);
   const mockWalletService = vi.mocked(WalletService);
-  const mockPromptsService = vi.mocked(promptsService);
   const mockGamesService = vi.mocked(gamesService);
-  const mockStoneLedgerService = vi.mocked(StoneLedgerService);
   const mockAiWrapper = vi.mocked(aiWrapper);
+  const mockConfigService = vi.mocked(configService);
+
+  const turnsService = new TurnsService();
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   describe('runBufferedTurn', () => {
-    it('should successfully process a valid turn', async () => {
-      const gameId = 'game-123';
-      const optionId = 'option-456';
-      const owner = 'user-789';
-      const idempotencyKey = 'key-abc';
+    const mockRequest = {
+      gameId: 'game-123',
+      optionId: 'option-456',
+      owner: 'user-789',
+      idempotencyKey: 'idempotency-key-123'
+    };
 
-      const mockGame = {
-        id: gameId,
-        adventure_id: 'adventure-123',
-        character_id: 'char-456',
-        user_id: owner,
-        world_id: 'world-123',
-        created_at: '2023-01-01T00:00:00Z',
-        state_snapshot: { currentScene: 'tavern' },
-        turn_index: 5,
-      };
+    const mockGame = {
+      id: 'game-123',
+      world_slug: 'test-world',
+      turn_count: 5,
+      state_snapshot: { test: 'state' }
+    };
 
-      const mockPrompt = 'You are in a tavern. What do you do?';
-      const mockAiResponse = {
-        narrative: 'You approach the bartender and ask for information.',
-        emotion: 'neutral',
-        suggestedActions: ['Ask about rumors', 'Order a drink', 'Look around'],
-        worldStateChanges: { tavern_visited: true },
-      };
+    const mockWallet = {
+      id: 'wallet-123',
+      castingStones: 10,
+      inventoryShard: 0,
+      inventoryCrystal: 0,
+      inventoryRelic: 0
+    };
 
-      const mockTurnResult = {
+    const mockAiResponse = {
+      narrative: 'You continue your journey...',
+      emotion: 'neutral' as const,
+      choices: [
+        { id: 'choice-1', label: 'Go left', description: 'Take the left path' },
+        { id: 'choice-2', label: 'Go right', description: 'Take the right path' }
+      ],
+      npcResponses: [
+        { npcId: 'npc-1', response: 'Hello there!', emotion: 'friendly' }
+      ],
+      worldStateChanges: { location: 'forest' },
+      relationshipDeltas: { 'npc-1': 5 },
+      factionDeltas: { 'guild': 2 }
+    };
+
+    const mockTurnRecord = {
+      id: 'turn-123',
+      created_at: '2024-01-01T00:00:00Z'
+    };
+
+    it('should execute turn successfully', async () => {
+      // Mock idempotency check - no duplicate
+      mockIdempotencyService.checkIdempotency.mockResolvedValue({
+        isDuplicate: false
+      });
+
+      // Mock config
+      mockConfigService.getPricing.mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {}
+      });
+
+      // Mock game loading
+      mockGamesService.loadGame.mockResolvedValue(mockGame);
+
+      // Mock wallet
+      mockWalletService.getWallet.mockResolvedValue(mockWallet);
+
+      // Mock AI response
+      mockAiWrapper.generateResponse.mockResolvedValue({
+        content: JSON.stringify(mockAiResponse)
+      });
+
+      // Mock turn application
+      mockGamesService.applyTurn.mockResolvedValue(mockTurnRecord);
+
+      // Mock spend stones
+      mockWalletService.spendCastingStones.mockResolvedValue({
+        success: true,
+        newBalance: 8
+      });
+
+      // Mock idempotency storage
+      mockIdempotencyService.storeIdempotencyRecord.mockResolvedValue({
+        id: 'idempotency-123',
+        key: 'idempotency-key-123',
+        ownerId: 'user-789',
+        gameId: 'game-123',
+        operation: 'turn',
+        requestHash: 'hash-123',
+        responseData: {},
+        status: 'completed',
+        createdAt: '2024-01-01T00:00:00Z'
+      });
+
+      const result = await turnsService.runBufferedTurn(mockRequest);
+
+      expect(result.success).toBe(true);
+      expect(result.turnDTO).toBeDefined();
+      expect(result.turnDTO?.narrative).toBe('You continue your journey...');
+      expect(result.turnDTO?.choices).toHaveLength(2);
+      expect(result.turnDTO?.castingStonesBalance).toBe(8);
+    });
+
+    it('should return cached response for duplicate idempotency key', async () => {
+      const cachedResponse = {
         id: 'turn-123',
-        game_id: gameId,
-        option_id: optionId,
-        ai_response: mockAiResponse,
-        created_at: '2023-01-01T00:00:00Z',
+        gameId: 'game-123',
+        turnCount: 6,
+        narrative: 'Cached response',
+        emotion: 'happy' as const,
+        choices: [],
+        castingStonesBalance: 8,
+        createdAt: '2024-01-01T00:00:00Z'
       };
 
-      // Mock service calls
-      mockGamesService.loadGame.mockResolvedValue(mockGame);
-      mockPromptsService.buildPrompt.mockResolvedValue(mockPrompt);
-      mockAiWrapper.generateResponse.mockResolvedValue({
-        content: JSON.stringify(mockAiResponse),
-        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
-      });
-      mockWalletService.spendCastingStones.mockResolvedValue({
-        success: true,
-        newBalance: 40,
-      });
-      mockGamesService.applyTurn.mockResolvedValue(mockTurnResult);
-      mockStoneLedgerService.appendEntry.mockResolvedValue({
-        id: 'ledger-123',
-        userId: owner,
-        createdAt: '2023-01-01T00:00:00Z',
-        walletId: 'wallet-id',
-        transactionType: 'spend' as const,
-        deltaCastingStones: -2,
-        deltaInventoryShard: 0,
-        deltaInventoryCrystal: 0,
-        deltaInventoryRelic: 0,
-        reason: 'TURN_SPEND',
-        metadata: {},
+      mockIdempotencyService.checkIdempotency.mockResolvedValue({
+        isDuplicate: true,
+        existingRecord: {
+          id: 'idempotency-123',
+          key: 'idempotency-key-123',
+          ownerId: 'user-789',
+          gameId: 'game-123',
+          operation: 'turn',
+          requestHash: 'hash-123',
+          responseData: cachedResponse,
+          status: 'completed',
+          createdAt: '2024-01-01T00:00:00Z'
+        }
       });
 
-      const result = await turnsService.runBufferedTurn({
-        gameId,
-        optionId,
-        owner,
-        idempotencyKey,
-      });
+      const result = await turnsService.runBufferedTurn(mockRequest);
 
-      expect(result).toEqual({
-        success: true,
-        turnResult: expect.objectContaining({
-          id: 'turn-123',
-          game_id: gameId,
-          option_id: optionId,
-          // Should not include internal fields
-          ai_response: expect.not.objectContaining({
-            state_snapshot: expect.anything(),
-            prompt_text: expect.anything(),
-          }),
-        }),
-      });
-
-      // Verify all services were called correctly
-      expect(mockGamesService.loadGame).toHaveBeenCalledWith(gameId);
-      expect(mockPromptsService.buildPrompt).toHaveBeenCalledWith(mockGame, optionId);
-      expect(mockAiWrapper.generateResponse).toHaveBeenCalledWith({ prompt: mockPrompt });
-      expect(mockWalletService.spendCastingStones).toHaveBeenCalledWith(owner, expect.any(Number), idempotencyKey, gameId, expect.any(String));
-      expect(mockGamesService.applyTurn).toHaveBeenCalledWith(gameId, mockAiResponse);
-      expect(mockStoneLedgerService.appendEntry).toHaveBeenCalledWith({
-        owner,
-        delta: expect.any(Number),
-        reason: 'TURN_SPEND',
-        game_id: gameId,
-        turn_id: expect.any(String),
-      });
-    });
-
-    it('should fail with INSUFFICIENT_STONES when wallet spend fails', async () => {
-      const gameId = 'game-123';
-      const optionId = 'option-456';
-      const owner = 'user-789';
-      const idempotencyKey = 'key-abc';
-
-      const mockGame = {
-        id: gameId,
-        adventure_id: 'adventure-123',
-        character_id: 'char-456',
-        user_id: owner,
-        world_id: 'world-123',
-        created_at: '2023-01-01T00:00:00Z',
-        state_snapshot: { currentScene: 'tavern' },
-        turn_index: 5,
-      };
-
-      // Mock insufficient stones
-      mockGamesService.loadGame.mockResolvedValue(mockGame);
-      mockWalletService.spendCastingStones.mockResolvedValue({
-        success: false,
-        newBalance: 0,
-        error: 'INSUFFICIENT_INVENTORY',
-        message: 'Insufficient casting stones',
-      });
-
-      const result = await turnsService.runBufferedTurn({
-        gameId,
-        optionId,
-        owner,
-        idempotencyKey,
-      });
-
-      expect(result).toEqual({
-        success: false,
-        error: ApiErrorCode.INSUFFICIENT_STONES,
-        message: 'Insufficient casting stones',
-      });
-
-      // Verify AI was not called
+      expect(result.success).toBe(true);
+      expect(result.turnDTO).toEqual(cachedResponse);
+      // Should not call other services for duplicate requests
+      expect(mockGamesService.loadGame).not.toHaveBeenCalled();
       expect(mockAiWrapper.generateResponse).not.toHaveBeenCalled();
-      expect(mockGamesService.applyTurn).not.toHaveBeenCalled();
     });
 
-    it('should fail with VALIDATION_FAILED for invalid AI response JSON', async () => {
-      const gameId = 'game-123';
-      const optionId = 'option-456';
-      const owner = 'user-789';
-      const idempotencyKey = 'key-abc';
-
-      const mockGame = {
-        id: gameId,
-        adventure_id: 'adventure-123',
-        character_id: 'char-456',
-        user_id: owner,
-        world_id: 'world-123',
-        created_at: '2023-01-01T00:00:00Z',
-        state_snapshot: { currentScene: 'tavern' },
-        turn_index: 5,
-      };
-
-      const mockPrompt = 'You are in a tavern. What do you do?';
-
-      // Mock services
-      mockGamesService.loadGame.mockResolvedValue(mockGame);
-      mockPromptsService.buildPrompt.mockResolvedValue(mockPrompt);
-      mockWalletService.spendCastingStones.mockResolvedValue({
-        success: true,
-        newBalance: 40,
+    it('should return error when game not found', async () => {
+      mockIdempotencyService.checkIdempotency.mockResolvedValue({
+        isDuplicate: false
       });
 
-      // Mock invalid AI response
-      mockAiWrapper.generateResponse.mockResolvedValue({
-        content: 'invalid json response',
-        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
+      mockConfigService.getPricing.mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {}
       });
 
-      const result = await turnsService.runBufferedTurn({
-        gameId,
-        optionId,
-        owner,
-        idempotencyKey,
-      });
-
-      expect(result).toEqual({
-        success: false,
-        error: ApiErrorCode.VALIDATION_FAILED,
-        message: 'Invalid AI response format',
-      });
-
-      // Verify turn was not applied
-      expect(mockGamesService.applyTurn).not.toHaveBeenCalled();
-    });
-
-    it('should fail with VALIDATION_FAILED for AI response missing required fields', async () => {
-      const gameId = 'game-123';
-      const optionId = 'option-456';
-      const owner = 'user-789';
-      const idempotencyKey = 'key-abc';
-
-      const mockGame = {
-        id: gameId,
-        adventure_id: 'adventure-123',
-        character_id: 'char-456',
-        user_id: owner,
-        world_id: 'world-123',
-        created_at: '2023-01-01T00:00:00Z',
-        state_snapshot: { currentScene: 'tavern' },
-        turn_index: 5,
-      };
-
-      const mockPrompt = 'You are in a tavern. What do you do?';
-
-      // Mock services
-      mockGamesService.loadGame.mockResolvedValue(mockGame);
-      mockPromptsService.buildPrompt.mockResolvedValue(mockPrompt);
-      mockWalletService.spendCastingStones.mockResolvedValue({
-        success: true,
-        newBalance: 40,
-      });
-
-      // Mock AI response missing required fields
-      const invalidResponse = {
-        narrative: 'You approach the bartender.',
-        // Missing required 'emotion' field
-      };
-      mockAiWrapper.generateResponse.mockResolvedValue({
-        content: JSON.stringify(invalidResponse),
-        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
-      });
-
-      const result = await turnsService.runBufferedTurn({
-        gameId,
-        optionId,
-        owner,
-        idempotencyKey,
-      });
-
-      expect(result).toEqual({
-        success: false,
-        error: ApiErrorCode.VALIDATION_FAILED,
-        message: 'AI response validation failed',
-      });
-
-      // Verify turn was not applied
-      expect(mockGamesService.applyTurn).not.toHaveBeenCalled();
-    });
-
-    it('should handle game not found', async () => {
-      const gameId = 'nonexistent-game';
-      const optionId = 'option-456';
-      const owner = 'user-789';
-      const idempotencyKey = 'key-abc';
-
-      // Mock game not found
       mockGamesService.loadGame.mockResolvedValue(null);
 
-      const result = await turnsService.runBufferedTurn({
-        gameId,
-        optionId,
-        owner,
-        idempotencyKey,
-      });
+      const result = await turnsService.runBufferedTurn(mockRequest);
 
-      expect(result).toEqual({
-        success: false,
-        error: ApiErrorCode.NOT_FOUND,
-        message: 'Game not found',
-      });
-
-      // Verify no other services were called
-      expect(mockWalletService.spendCastingStones).not.toHaveBeenCalled();
-      expect(mockAiWrapper.generateResponse).not.toHaveBeenCalled();
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(ApiErrorCode.NOT_FOUND);
+      expect(result.message).toBe('Game not found');
     });
 
-    it('should handle AI service errors gracefully', async () => {
-      const gameId = 'game-123';
-      const optionId = 'option-456';
-      const owner = 'user-789';
-      const idempotencyKey = 'key-abc';
+    it('should return error when insufficient stones', async () => {
+      mockIdempotencyService.checkIdempotency.mockResolvedValue({
+        isDuplicate: false
+      });
 
-      const mockGame = {
-        id: gameId,
-        adventure_id: 'adventure-123',
-        character_id: 'char-456',
-        user_id: owner,
-        world_id: 'world-123',
-        created_at: '2023-01-01T00:00:00Z',
-        state_snapshot: { currentScene: 'tavern' },
-        turn_index: 5,
+      mockConfigService.getPricing.mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {}
+      });
+
+      mockGamesService.loadGame.mockResolvedValue(mockGame);
+
+      const poorWallet = { ...mockWallet, castingStones: 1 };
+      mockWalletService.getWallet.mockResolvedValue(poorWallet);
+
+      const result = await turnsService.runBufferedTurn(mockRequest);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(ApiErrorCode.INSUFFICIENT_STONES);
+      expect(result.message).toContain('Insufficient casting stones');
+    });
+
+    it('should return error when AI service times out', async () => {
+      mockIdempotencyService.checkIdempotency.mockResolvedValue({
+        isDuplicate: false
+      });
+
+      mockConfigService.getPricing.mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {}
+      });
+
+      mockGamesService.loadGame.mockResolvedValue(mockGame);
+      mockWalletService.getWallet.mockResolvedValue(mockWallet);
+
+      // Mock AI timeout
+      mockAiWrapper.generateResponse.mockImplementation(
+        () => new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('AI timeout')), 100)
+        )
+      );
+
+      const result = await turnsService.runBufferedTurn(mockRequest);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(ApiErrorCode.UPSTREAM_TIMEOUT);
+      expect(result.message).toBe('AI service timeout');
+    });
+
+    it('should return error when AI response is invalid JSON', async () => {
+      mockIdempotencyService.checkIdempotency.mockResolvedValue({
+        isDuplicate: false
+      });
+
+      mockConfigService.getPricing.mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {}
+      });
+
+      mockGamesService.loadGame.mockResolvedValue(mockGame);
+      mockWalletService.getWallet.mockResolvedValue(mockWallet);
+
+      // Mock invalid JSON response
+      mockAiWrapper.generateResponse.mockResolvedValue({
+        content: 'invalid json response'
+      });
+
+      const result = await turnsService.runBufferedTurn(mockRequest);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(ApiErrorCode.VALIDATION_FAILED);
+      expect(result.message).toBe('Invalid AI response format');
+    });
+
+    it('should return error when AI response fails schema validation', async () => {
+      mockIdempotencyService.checkIdempotency.mockResolvedValue({
+        isDuplicate: false
+      });
+
+      mockConfigService.getPricing.mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {}
+      });
+
+      mockGamesService.loadGame.mockResolvedValue(mockGame);
+      mockWalletService.getWallet.mockResolvedValue(mockWallet);
+
+      // Mock invalid schema response
+      const invalidResponse = {
+        narrative: 'Test narrative',
+        // Missing required fields
       };
 
-      const mockPrompt = 'You are in a tavern. What do you do?';
+      mockAiWrapper.generateResponse.mockResolvedValue({
+        content: JSON.stringify(invalidResponse)
+      });
 
-      // Mock services
+      const result = await turnsService.runBufferedTurn(mockRequest);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(ApiErrorCode.VALIDATION_FAILED);
+      expect(result.message).toBe('AI response validation failed');
+    });
+
+    it('should use world-specific turn cost when configured', async () => {
+      mockIdempotencyService.checkIdempotency.mockResolvedValue({
+        isDuplicate: false
+      });
+
+      mockConfigService.getPricing.mockReturnValue({
+        turnCostDefault: 2,
+        turnCostByWorld: {
+          'test-world': 5
+        }
+      });
+
       mockGamesService.loadGame.mockResolvedValue(mockGame);
-      mockPromptsService.buildPrompt.mockResolvedValue(mockPrompt);
+      mockWalletService.getWallet.mockResolvedValue(mockWallet);
+      mockAiWrapper.generateResponse.mockResolvedValue({
+        content: JSON.stringify(mockAiResponse)
+      });
+      mockGamesService.applyTurn.mockResolvedValue(mockTurnRecord);
       mockWalletService.spendCastingStones.mockResolvedValue({
         success: true,
-        newBalance: 40,
+        newBalance: 5
+      });
+      mockIdempotencyService.storeIdempotencyRecord.mockResolvedValue({
+        id: 'idempotency-123',
+        key: 'idempotency-key-123',
+        ownerId: 'user-789',
+        gameId: 'game-123',
+        operation: 'turn',
+        requestHash: 'hash-123',
+        responseData: {},
+        status: 'completed',
+        createdAt: '2024-01-01T00:00:00Z'
       });
 
-      // Mock AI service error
-      mockAiWrapper.generateResponse.mockRejectedValue(new Error('AI service unavailable'));
+      const result = await turnsService.runBufferedTurn(mockRequest);
 
-      const result = await turnsService.runBufferedTurn({
-        gameId,
-        optionId,
-        owner,
-        idempotencyKey,
-      });
-
-      expect(result).toEqual({
-        success: false,
-        error: ApiErrorCode.INTERNAL_ERROR,
-        message: 'AI service error',
-      });
-
-      // Verify turn was not applied
-      expect(mockGamesService.applyTurn).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      // Should spend 5 stones (world-specific cost) instead of 2 (default)
+      expect(mockWalletService.spendCastingStones).toHaveBeenCalledWith(
+        'user-789',
+        5, // world-specific cost
+        'idempotency-key-123',
+        'game-123',
+        'TURN_SPEND'
+      );
     });
   });
 });

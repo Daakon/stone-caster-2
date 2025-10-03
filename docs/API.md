@@ -326,6 +326,93 @@ Delete a game save.
 
 **Response:** `204 No Content`
 
+### Take Turn
+
+Execute a turn in an existing game by selecting a choice.
+
+**Endpoint:** `POST /api/games/:id/turn`
+
+**Parameters:**
+- `id`: Game UUID
+
+**Headers:**
+- `x-user-id`: User UUID (required)
+- `Idempotency-Key`: UUID-like string (required) - prevents duplicate turns
+
+**Request Body:**
+```json
+{
+  "optionId": "uuid"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": {
+    "id": "uuid",
+    "gameId": "uuid",
+    "turnCount": 1,
+    "narrative": "You continue your journey through the ancient temple...",
+    "emotion": "neutral",
+    "choices": [
+      {
+        "id": "uuid",
+        "label": "Go left",
+        "description": "Take the left corridor"
+      },
+      {
+        "id": "uuid", 
+        "label": "Go right",
+        "description": "Take the right corridor"
+      }
+    ],
+    "npcResponses": [
+      {
+        "npcId": "guardian",
+        "response": "Halt! Who goes there?",
+        "emotion": "suspicious"
+      }
+    ],
+    "relationshipDeltas": {
+      "guardian": -5
+    },
+    "factionDeltas": {
+      "temple-guardians": -10
+    },
+    "castingStonesBalance": 13,
+    "createdAt": "2024-01-01T00:00:00Z"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Missing Idempotency-Key header
+- `401 Unauthorized` - Authentication required
+- `402 Payment Required` - Insufficient casting stones
+- `404 Not Found` - Game not found
+- `422 Unprocessable Entity` - Invalid request data or AI response validation failed
+- `504 Gateway Timeout` - AI service timeout
+
+**Error Response Format:**
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "INSUFFICIENT_STONES",
+    "message": "Insufficient casting stones. Have 1, need 2"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
 ## World Templates
 
 ### List World Templates
