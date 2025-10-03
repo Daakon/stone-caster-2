@@ -3,8 +3,9 @@ import type { StoneLedgerEntry } from 'shared';
 
 export interface LedgerEntryInput {
   walletId: string;
-  userId: string;
-  transactionType: 'convert' | 'purchase' | 'spend' | 'regen' | 'admin_adjust';
+  userId?: string;
+  cookieGroupId?: string;
+  transactionType: 'convert' | 'purchase' | 'spend' | 'regen' | 'admin_adjust' | 'STARTER';
   deltaCastingStones: number;
   deltaInventoryShard: number;
   deltaInventoryCrystal: number;
@@ -38,7 +39,8 @@ export class StoneLedgerService {
         .from('stone_ledger')
         .insert({
           wallet_id: input.walletId,
-          user_id: input.userId,
+          user_id: input.userId || null,
+          cookie_group_id: input.cookieGroupId || null,
           transaction_type: input.transactionType,
           delta_casting_stones: input.deltaCastingStones,
           delta_inventory_shard: input.deltaInventoryShard,

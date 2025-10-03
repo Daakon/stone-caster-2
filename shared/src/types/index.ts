@@ -28,6 +28,7 @@ export const CharacterSchema = z.object({
   currentHealth: z.number().int().min(0),
   maxHealth: z.number().int().min(1),
   worldSlug: z.string().min(1).max(100), // Required world validation
+  activeGameId: z.string().uuid().optional(), // Currently active game (enforces single-active constraint)
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -162,7 +163,7 @@ export type AIResponse = z.infer<typeof AIResponseSchema>;
 // Stone Wallet Schema
 export const StoneWalletSchema = z.object({
   id: z.string().uuid(),
-  userId: z.string().uuid(),
+  userId: z.string().uuid().optional(), // Optional for guest users
   castingStones: z.number().int().min(0),
   inventoryShard: z.number().int().min(0),
   inventoryCrystal: z.number().int().min(0),
