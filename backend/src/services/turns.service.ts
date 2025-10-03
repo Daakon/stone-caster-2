@@ -43,7 +43,7 @@ export class TurnsService {
 
       // Get turn cost from config
       const pricingConfig = configService.getPricing();
-      const turnCost = this.getTurnCost(pricingConfig, game.world_id || '');
+      const turnCost = this.getTurnCost(pricingConfig, game.world_slug || '');
 
       // Spend casting stones (with idempotency check)
       const spendResult = await WalletService.spendCastingStones(
@@ -65,10 +65,10 @@ export class TurnsService {
       // Build prompt (server-only)
       const gameContext = {
         id: game.id,
-        world_id: game.world_id || '',
+        world_id: game.world_slug || '',
         character_id: game.character_id,
         state_snapshot: game.state_snapshot,
-        turn_index: game.turn_index,
+        turn_index: game.turn_count,
       };
       const prompt = await promptsService.buildPrompt(gameContext, optionId);
 

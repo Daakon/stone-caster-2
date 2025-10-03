@@ -41,42 +41,41 @@ export function toCharacterDTO(character: Character): CharacterDTO {
   };
 }
 
-// Game DTO mapper (from GameSave)
+// Game DTO mapper (from GameSave) - Legacy support
 export function toGameDTO(gameSave: GameSave): GameDTO {
   return {
     id: gameSave.id,
-    characterId: gameSave.characterId,
     adventureId: gameSave.worldTemplateId, // Assuming this maps to adventure
-    name: gameSave.name,
-    currentScene: gameSave.storyState.currentScene,
-    storyHistory: gameSave.storyState.history,
-    availableOptions: [], // This would come from the current scene state
-    npcs: gameSave.storyState.npcs.map(npc => ({
-      id: npc.id,
-      name: npc.name,
-      relationship: npc.relationship,
-      lastInteraction: npc.lastInteraction,
-    })),
+    adventureTitle: gameSave.name,
+    adventureDescription: undefined,
+    characterId: gameSave.characterId,
+    characterName: undefined, // Would need to fetch character name
+    worldSlug: 'unknown', // Would need to fetch from adventure
+    worldName: 'Unknown World', // Would need to fetch from adventure
+    turnCount: 0, // Would need to calculate from story history
+    status: 'active' as const,
     createdAt: gameSave.createdAt,
     updatedAt: gameSave.updatedAt,
     lastPlayedAt: gameSave.lastPlayedAt,
   };
 }
 
-// Game DTO mapper (from Game)
+// Game DTO mapper (from Game) - Legacy support
 export function toGameDTOFromGame(game: Game): GameDTO {
   return {
     id: game.id,
-    characterId: game.character_id || '',
     adventureId: game.adventure_id,
-    name: `Game ${game.id.slice(0, 8)}`, // Generate a name from the ID
-    currentScene: 'start', // Default scene
-    storyHistory: [], // Empty history for new games
-    availableOptions: [], // Empty options for new games
-    npcs: [], // Empty NPCs for new games
+    adventureTitle: `Game ${game.id.slice(0, 8)}`, // Generate a name from the ID
+    adventureDescription: undefined,
+    characterId: game.character_id || undefined,
+    characterName: undefined, // Would need to fetch character name
+    worldSlug: game.world_slug,
+    worldName: 'Unknown World', // Would need to fetch from adventure
+    turnCount: game.turn_count,
+    status: game.status,
     createdAt: game.created_at,
     updatedAt: game.updated_at || game.created_at,
-    lastPlayedAt: game.created_at,
+    lastPlayedAt: game.last_played_at,
   };
 }
 
@@ -102,13 +101,13 @@ export function toWorldDTO(worldTemplate: WorldTemplate): WorldDTO {
 export function toAdventureDTO(adventure: any): AdventureDTO {
   return {
     id: adventure.id,
-    worldId: adventure.worldId,
-    name: adventure.name,
+    slug: adventure.slug,
+    title: adventure.title,
     description: adventure.description,
-    startingPrompt: adventure.startingPrompt,
-    isPublic: adventure.isPublic,
-    createdAt: adventure.createdAt,
-    updatedAt: adventure.updatedAt,
+    worldSlug: adventure.world_slug,
+    worldName: adventure.world_name || 'Unknown World',
+    tags: adventure.tags || [],
+    scenarios: adventure.scenarios || [],
   };
 }
 

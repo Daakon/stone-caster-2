@@ -94,7 +94,7 @@ export const UpdateCharacterRequestSchema = CreateCharacterRequestSchema.partial
 
 // Game request schemas
 export const CreateGameRequestSchema = z.object({
-  adventureId: z.string().uuid(),
+  adventureSlug: z.string().min(1).max(100),
   characterId: z.string().uuid().optional(),
 });
 

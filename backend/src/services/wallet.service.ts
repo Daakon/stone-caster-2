@@ -330,8 +330,99 @@ export class WalletService {
   /**
    * Get user's wallet balance
    */
-  static async getWallet(userId: string): Promise<StoneWallet> {
-    return this.getOrCreateWallet(userId);
+  static async getWallet(ownerId: string, isGuest: boolean = false): Promise<StoneWallet> {
+    if (isGuest) {
+      return this.getOrCreateGuestWallet(ownerId);
+    }
+    return this.getOrCreateWallet(ownerId);
+  }
+
+  /**
+   * Get or create a wallet for a guest user (cookie group)
+   */
+  static async getOrCreateGuestWallet(cookieGroupId: string): Promise<StoneWallet> {
+    try {
+      // Try to get existing wallet
+      const { data: existingWallet, error: fetchError } = await supabaseAdmin
+        .from('stone_wallets')
+        .select('*')
+        .eq('cookie_group_id', cookieGroupId)
+        .single();
+
+      if (existingWallet && !fetchError) {
+        return this.mapGuestWalletFromDb(existingWallet);
+      }
+
+      // Create new wallet if it doesn't exist
+      const { data: newWallet, error: createError } = await supabaseAdmin
+        .from('stone_wallets')
+        .insert({
+          cookie_group_id: cookieGroupId,
+          casting_stones: 0,
+          inventory_shard: 0,
+          inventory_crystal: 0,
+          inventory_relic: 0,
+          daily_regen: 0,
+          last_regen_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating guest wallet:', createError);
+        throw new Error(`Failed to create guest wallet: ${createError.message}`);
+      }
+
+      return this.mapGuestWalletFromDb(newWallet);
+    } catch (error) {
+      console.error('WalletService.getOrCreateGuestWallet error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add casting stones to a wallet (for starter grants, etc.)
+   */
+  static async addCastingStones(
+    ownerId: string,
+    isGuest: boolean,
+    amount: number,
+    transactionType: string,
+    metadata: Record<string, unknown> = {}
+  ): Promise<void> {
+    try {
+      const wallet = await this.getWallet(ownerId, isGuest);
+
+      const { error: updateError } = await supabaseAdmin
+        .from('stone_wallets')
+        .update({ 
+          casting_stones: wallet.castingStones + amount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', wallet.id);
+
+      if (updateError) {
+        console.error('Error updating wallet for stone grant:', updateError);
+        throw new Error(`Failed to update wallet: ${updateError.message}`);
+      }
+
+      // Record in ledger
+      await StoneLedgerService.appendEntry({
+        walletId: wallet.id,
+        userId: isGuest ? undefined : ownerId,
+        cookieGroupId: isGuest ? ownerId : undefined,
+        transactionType: transactionType as any,
+        deltaCastingStones: amount,
+        deltaInventoryShard: 0,
+        deltaInventoryCrystal: 0,
+        deltaInventoryRelic: 0,
+        reason: `Granted ${amount} casting stones`,
+        metadata,
+      });
+    } catch (error) {
+      console.error('WalletService.addCastingStones error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -355,6 +446,24 @@ export class WalletService {
     return {
       id: dbRow.id,
       userId: dbRow.user_id,
+      castingStones: dbRow.casting_stones,
+      inventoryShard: dbRow.inventory_shard,
+      inventoryCrystal: dbRow.inventory_crystal,
+      inventoryRelic: dbRow.inventory_relic,
+      dailyRegen: dbRow.daily_regen,
+      lastRegenAt: dbRow.last_regen_at,
+      createdAt: dbRow.created_at,
+      updatedAt: dbRow.updated_at,
+    };
+  }
+
+  /**
+   * Helper method to map guest wallet database row to StoneWallet type
+   */
+  private static mapGuestWalletFromDb(dbRow: any): StoneWallet {
+    return {
+      id: dbRow.id,
+      userId: undefined, // Guest wallets don't have user_id
       castingStones: dbRow.casting_stones,
       inventoryShard: dbRow.inventory_shard,
       inventoryCrystal: dbRow.inventory_crystal,

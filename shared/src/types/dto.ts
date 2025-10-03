@@ -30,32 +30,31 @@ export const CharacterDTOSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
-// Game DTO (redacted from internal state)
+// Game DTO (redacted from internal state) - Layer M2
 export const GameDTOSchema = z.object({
   id: z.string().uuid(),
-  characterId: z.string().uuid(),
   adventureId: z.string().uuid(),
-  name: z.string(),
-  currentScene: z.string(),
-  storyHistory: z.array(z.object({
-    role: z.enum(['player', 'narrator', 'npc']),
-    content: z.string(),
-    timestamp: z.string().datetime(),
-    emotion: z.string().optional(),
-  })),
-  availableOptions: z.array(z.object({
-    id: z.string().uuid(),
-    text: z.string(),
-    type: z.enum(['dialogue', 'action', 'skill_check', 'combat', 'exploration']),
-  })),
-  npcs: z.array(z.object({
-    id: z.string().uuid(),
-    name: z.string(),
-    relationship: z.number(),
-    lastInteraction: z.string().datetime().optional(),
-  })),
+  adventureTitle: z.string(),
+  adventureDescription: z.string().optional(),
+  characterId: z.string().uuid().optional(),
+  characterName: z.string().optional(),
+  worldSlug: z.string(),
+  worldName: z.string(),
+  turnCount: z.number().int().min(0),
+  status: z.enum(['active', 'completed', 'paused', 'abandoned']),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  lastPlayedAt: z.string().datetime(),
+});
+
+// Game List DTO (minimal metadata for listing)
+export const GameListDTOSchema = z.object({
+  id: z.string().uuid(),
+  adventureTitle: z.string(),
+  characterName: z.string().optional(),
+  worldName: z.string(),
+  turnCount: z.number().int().min(0),
+  status: z.enum(['active', 'completed', 'paused', 'abandoned']),
   lastPlayedAt: z.string().datetime(),
 });
 
@@ -80,16 +79,16 @@ export const WorldDTOSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
-// Adventure DTO (redacted from internal state)
+// Adventure DTO (redacted from internal state) - Layer M2
 export const AdventureDTOSchema = z.object({
   id: z.string().uuid(),
-  worldId: z.string().uuid(),
-  name: z.string(),
-  description: z.string(),
-  startingPrompt: z.string(),
-  isPublic: z.boolean(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  slug: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  worldSlug: z.string(),
+  worldName: z.string(),
+  tags: z.array(z.string()),
+  scenarios: z.array(z.string()),
 });
 
 // User/Me DTO
@@ -185,6 +184,7 @@ export const ProfileDTOSchema = z.object({
 // Type exports
 export type CharacterDTO = z.infer<typeof CharacterDTOSchema>;
 export type GameDTO = z.infer<typeof GameDTOSchema>;
+export type GameListDTO = z.infer<typeof GameListDTOSchema>;
 export type WorldDTO = z.infer<typeof WorldDTOSchema>;
 export type AdventureDTO = z.infer<typeof AdventureDTOSchema>;
 export type UserDTO = z.infer<typeof UserDTOSchema>;

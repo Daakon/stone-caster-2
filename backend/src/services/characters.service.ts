@@ -389,6 +389,7 @@ export class CharactersService {
       currentHealth: dbRow.current_health,
       maxHealth: dbRow.max_health,
       worldSlug: dbRow.world_slug,
+      activeGameId: dbRow.active_game_id || undefined,
       createdAt: dbRow.created_at,
       updatedAt: dbRow.updated_at,
     };
