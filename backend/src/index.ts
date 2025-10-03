@@ -8,6 +8,7 @@ import storyRouter from './routes/story.js';
 import diceRouter from './routes/dice.js';
 import configRouter from './routes/config.js';
 import meRouter from './routes/me.js';
+import profileRouter from './routes/profile.js';
 import adventuresRouter from './routes/adventures.js';
 import searchRouter from './routes/search.js';
 import stonesRouter from './routes/stones.js';
@@ -34,6 +35,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/config', configRouter);
 app.use('/api/me', meRouter);
+app.use('/api/profile', profileRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);

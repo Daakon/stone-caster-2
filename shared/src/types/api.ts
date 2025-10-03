@@ -18,6 +18,7 @@ export enum ApiErrorCode {
   FLAG_NOT_FOUND = 'FLAG_NOT_FOUND',
   PROMPT_NOT_FOUND = 'PROMPT_NOT_FOUND',
   PROMPT_VERSION_CONFLICT = 'PROMPT_VERSION_CONFLICT',
+  CSRF_TOKEN_INVALID = 'CSRF_TOKEN_INVALID',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
 }
 
@@ -172,6 +173,24 @@ export const PromptFiltersSchema = z.object({
   active: z.boolean().optional(),
 });
 
+// Profile request schemas
+export const UpdateProfileRequestSchema = z.object({
+  displayName: z.string().min(1).max(100).optional(),
+  avatarUrl: z.string().url().optional(),
+  preferences: z.object({
+    showTips: z.boolean().optional(),
+    theme: z.enum(['light', 'dark', 'auto']).optional(),
+    notifications: z.object({
+      email: z.boolean().optional(),
+      push: z.boolean().optional(),
+    }).optional(),
+  }).optional(),
+});
+
+export const RevokeSessionsRequestSchema = z.object({
+  csrfToken: z.string().min(1),
+});
+
 // Type exports
 export type ApiResponseMeta = z.infer<typeof ApiResponseMetaSchema>;
 export type ApiSuccessResponse<T = unknown> = {
@@ -192,6 +211,8 @@ export type ConvertStonesRequest = z.infer<typeof ConvertStonesRequestSchema>;
 export type PurchaseStonesRequest = z.infer<typeof PurchaseStonesRequestSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
 export type CancelSubscriptionRequest = z.infer<typeof CancelSubscriptionRequestSchema>;
+export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
+export type RevokeSessionsRequest = z.infer<typeof RevokeSessionsRequestSchema>;
 // TelemetryEvent type moved to types/index.ts for Layer 0.9
 export type TurnResponse = z.infer<typeof TurnResponseSchema>;
 export type TurnResult = z.infer<typeof TurnResultSchema>;

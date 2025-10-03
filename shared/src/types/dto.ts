@@ -158,12 +158,36 @@ export const SearchResultDTOSchema = z.object({
   relevance: z.number().min(0).max(1),
 });
 
+// Profile DTO (redacted from internal state)
+export const ProfileDTOSchema = z.object({
+  id: z.string().uuid(),
+  displayName: z.string().min(1).max(100),
+  avatarUrl: z.string().url().optional(),
+  email: z.string().email().optional(), // Only if policy allows
+  preferences: z.object({
+    showTips: z.boolean().default(true),
+    theme: z.enum(['light', 'dark', 'auto']).default('auto'),
+    notifications: z.object({
+      email: z.boolean().default(true),
+      push: z.boolean().default(false),
+    }).default({}),
+  }).default({}),
+  createdAt: z.string().datetime(),
+  lastSeen: z.string().datetime(),
+  // Explicitly exclude internal fields:
+  // - providerId (internal)
+  // - accessTokens (internal)
+  // - internalFlags (internal)
+  // - audit fields not needed by UI
+});
+
 // Type exports
 export type CharacterDTO = z.infer<typeof CharacterDTOSchema>;
 export type GameDTO = z.infer<typeof GameDTOSchema>;
 export type WorldDTO = z.infer<typeof WorldDTOSchema>;
 export type AdventureDTO = z.infer<typeof AdventureDTOSchema>;
 export type UserDTO = z.infer<typeof UserDTOSchema>;
+export type ProfileDTO = z.infer<typeof ProfileDTOSchema>;
 export type StonesWalletDTO = z.infer<typeof StonesWalletDTOSchema>;
 export type StonesPackDTO = z.infer<typeof StonesPackDTOSchema>;
 export type SubscriptionDTO = z.infer<typeof SubscriptionDTOSchema>;
