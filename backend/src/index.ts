@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { config } from './config/index.js';
 import charactersRouter from './routes/characters.js';
 import gamesRouter from './routes/games.js';
@@ -15,6 +16,7 @@ import stonesRouter from './routes/stones.js';
 import subscriptionRouter from './routes/subscription.js';
 import telemetryRouter from './routes/telemetry.js';
 import webhooksRouter from './routes/webhooks.js';
+import contentRouter from './routes/content.js';
 import { observabilityMiddleware } from './middleware/observability.js';
 
 const app = express();
@@ -25,6 +27,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(cookieParser());
 app.use(observabilityMiddleware);
 
 // Health check
@@ -39,6 +42,7 @@ app.use('/api/profile', profileRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);
+app.use('/api/content', contentRouter);
 app.use('/api/adventures', adventuresRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/stones', stonesRouter);

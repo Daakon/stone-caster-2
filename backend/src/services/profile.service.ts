@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase.js';
+import { supabaseAdmin } from './supabase.js';
 import { ProfileDTO } from '../../shared/src/types/dto.js';
 import { UpdateProfileRequest } from '../../shared/src/types/api.js';
 import { ApiErrorCode } from '../../shared/src/types/api.js';

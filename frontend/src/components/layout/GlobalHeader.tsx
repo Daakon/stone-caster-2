@@ -161,3 +161,5 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
     </header>
   );
 }
+
+

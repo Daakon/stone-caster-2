@@ -217,5 +217,176 @@
         "description": "NPCs are guided by the whispers of nature and their own spiritual journeys"
       }
     ]
+  },
+  {
+    "id": "paragon-city",
+    "title": "Paragon City",
+    "tagline": "Where Heroes Rise and Villains Fall",
+    "cover": "/images/worlds/paragon-city-cover.jpg",
+    "tags": ["superhero", "urban", "crime", "justice", "powers", "modern", "action"],
+    "description": "A sprawling metropolis where superpowered individuals fight for justice against criminal masterminds and supervillains. Paragon City is a place where ordinary people can become extraordinary heroes, but with great power comes great responsibility.",
+    "rules": [
+      {
+        "id": "hero_approval",
+        "name": "Hero Approval",
+        "description": "Public trust and support for superheroes",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 75
+      },
+      {
+        "id": "crime_level",
+        "name": "Crime Level",
+        "description": "The overall level of criminal activity in the city",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 45
+      },
+      {
+        "id": "superpower_regulation",
+        "name": "Superpower Regulation",
+        "description": "Government oversight and control of superpowered individuals",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 30
+      }
+    ],
+    "differentiators": [
+      {
+        "id": "relationships",
+        "type": "relationships",
+        "title": "Heroic Bonds",
+        "description": "Relationships are forged through shared battles and heroic deeds"
+      },
+      {
+        "id": "factions",
+        "type": "factions",
+        "title": "Heroes vs Villains",
+        "description": "The eternal struggle between those who protect the city and those who seek to destroy it"
+      },
+      {
+        "id": "npc_agency",
+        "type": "npcAgency",
+        "title": "Superpowered Agency",
+        "description": "NPCs have their own superpowers and agendas, both heroic and villainous"
+      }
+    ]
+  },
+  {
+    "id": "veloria",
+    "title": "Veloria - Court of Hearts",
+    "tagline": "Where Love and Intrigue Dance in Eternal Courts",
+    "cover": "/images/worlds/veloria-cover.jpg",
+    "tags": ["romance", "court", "intrigue", "nobility", "love", "drama", "elegant"],
+    "description": "A realm of eternal courts where love, romance, and political intrigue intertwine. Veloria is a place of beauty and elegance, where relationships are everything and every glance, every word, every gesture carries meaning. The Court of Hearts is where destinies are shaped by love and ambition.",
+    "rules": [
+      {
+        "id": "court_favor",
+        "name": "Court Favor",
+        "description": "Your standing and influence within the royal courts",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 50
+      },
+      {
+        "id": "romantic_tension",
+        "name": "Romantic Tension",
+        "description": "The intensity of romantic relationships and courtships",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 70
+      },
+      {
+        "id": "political_stability",
+        "name": "Political Stability",
+        "description": "The balance of power and stability within the courts",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 60
+      }
+    ],
+    "differentiators": [
+      {
+        "id": "relationships",
+        "type": "relationships",
+        "title": "Romantic Bonds",
+        "description": "Relationships are deepened through courtship, romance, and shared intimate moments"
+      },
+      {
+        "id": "factions",
+        "type": "factions",
+        "title": "Court Politics",
+        "description": "Different noble houses and court factions vie for power and influence"
+      },
+      {
+        "id": "npc_agency",
+        "type": "npcAgency",
+        "title": "Romantic Agency",
+        "description": "NPCs pursue their own romantic interests and political agendas"
+      }
+    ]
+  },
+  {
+    "id": "noctis-veil",
+    "title": "Noctis Veil",
+    "tagline": "Where Shadows Hold Ancient Secrets",
+    "cover": "/images/worlds/noctis-veil-cover.jpg",
+    "tags": ["horror", "gothic", "mystery", "shadows", "ancient", "dark", "supernatural"],
+    "description": "A realm shrouded in eternal twilight, where ancient evils lurk in the shadows and the line between the living and the dead grows thin. Noctis Veil is a place of gothic horror and supernatural mystery, where brave souls must confront their deepest fears to uncover the truth.",
+    "rules": [
+      {
+        "id": "shadow_influence",
+        "name": "Shadow Influence",
+        "description": "The growing power of darkness and shadow magic",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 65
+      },
+      {
+        "id": "ancient_secrets",
+        "name": "Ancient Secrets",
+        "description": "The number of hidden truths and mysteries yet to be uncovered",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 40
+      },
+      {
+        "id": "supernatural_activity",
+        "name": "Supernatural Activity",
+        "description": "The level of paranormal and otherworldly phenomena",
+        "type": "meter",
+        "min": 0,
+        "max": 100,
+        "current": 80
+      }
+    ],
+    "differentiators": [
+      {
+        "id": "relationships",
+        "type": "relationships",
+        "title": "Shadow Bonds",
+        "description": "Relationships are tested by shared encounters with the supernatural and dark forces"
+      },
+      {
+        "id": "factions",
+        "type": "factions",
+        "title": "Light vs Darkness",
+        "description": "The eternal struggle between those who seek to banish the shadows and those who embrace them"
+      },
+      {
+        "id": "npc_agency",
+        "type": "npcAgency",
+        "title": "Supernatural Agency",
+        "description": "NPCs are influenced by dark forces and supernatural entities with their own agendas"
+      }
+    ]
   }
 ]
