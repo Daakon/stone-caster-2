@@ -62,6 +62,8 @@ interface EnvConfig {
   anthropicApiKey: string | null;
   stripeSecretKey: string;
   stripeWebhookSecret: string;
+  frontendUrl: string;
+  apiUrl: string;
 }
 
 interface ConfigSnapshot {
@@ -252,6 +254,8 @@ class ConfigServiceImpl implements ConfigService {
       anthropicApiKey: source.ANTHROPIC_API_KEY ?? null,
       stripeSecretKey: source.STRIPE_SECRET_KEY || 'sk_test_local_dev_key',
       stripeWebhookSecret: source.STRIPE_WEBHOOK_SECRET || 'whsec_local_dev_secret',
+      frontendUrl: source.FRONTEND_URL ?? 'http://localhost:5173',
+      apiUrl: source.API_URL ?? 'http://localhost:3000',
     };
   }
 

@@ -1,5 +1,6 @@
 import { CookieGroupService } from './cookieGroup.service.js';
 import { RateLimitService } from './rateLimit.service.js';
+import { LedgerService } from './ledger.service.js';
 
 export interface AuthCallbackParams {
   userId: string;
@@ -37,6 +38,23 @@ export class AuthCallbackService {
         };
       }
 
+      // Check if linking has already been done (idempotency)
+      const hasExistingLink = await LedgerService.hasLinkMergeEntry({
+        userId,
+        guestCookieId: deviceCookieId,
+      });
+
+      if (hasExistingLink) {
+        // Return existing canonical group
+        const canonicalGroup = await CookieGroupService.getUserCanonicalGroup(userId);
+        if (canonicalGroup) {
+          return {
+            success: true,
+            canonicalGroupId: canonicalGroup.id,
+          };
+        }
+      }
+
       // Optional: Check rate limit for auth callbacks (if IP provided)
       if (ipAddress) {
         const isAllowed = await RateLimitService.checkCookieIssueRateLimit(ipAddress);
@@ -48,10 +66,27 @@ export class AuthCallbackService {
         }
       }
 
+      // Get device group before linking
+      const deviceGroup = await CookieGroupService.getCookieGroupByCookieId(deviceCookieId);
+      const sourceGroupId = deviceGroup?.id;
+
       // Link the device to the user's canonical group
       const canonicalGroup = await CookieGroupService.linkDeviceToUser({
         userId,
         deviceCookieId,
+      });
+
+      // Create ledger entry for the linking event
+      await LedgerService.createLinkMergeEntry({
+        userId,
+        guestCookieId: deviceCookieId,
+        canonicalGroupId: canonicalGroup.id,
+        sourceGroupId,
+        metadata: {
+          ipAddress,
+          userAgent,
+          timestamp: new Date().toISOString(),
+        },
       });
 
       // Update last seen for the device

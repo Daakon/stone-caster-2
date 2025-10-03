@@ -11,6 +11,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.ctx?.userId;
     const isGuest = req.ctx?.isGuest;
+    const user = req.ctx?.user;
     
     if (!userId) {
       return sendErrorWithStatus(
@@ -21,26 +22,16 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       );
     }
 
-    // Mock user data - in real implementation, this would come from database
-    const user = {
-      id: userId,
-      email: isGuest ? undefined : 'user@example.com',
-      isGuest: isGuest || false,
-      castingStones: {
-        shard: 10,
-        crystal: 5,
-        relic: 1,
+    // Return identity information based on authentication state
+    const identity = {
+      user: isGuest ? null : {
+        id: user?.id || userId,
+        email: user?.email,
       },
-      subscription: isGuest ? undefined : {
-        status: 'active',
-        currentPeriodEnd: '2023-12-31T23:59:59Z',
-      },
-      createdAt: '2023-01-01T00:00:00Z',
-      updatedAt: '2023-01-01T00:00:00Z',
+      kind: isGuest ? 'guest' : 'user',
     };
 
-    const userDTO = toUserDTO(user);
-    sendSuccess(res, userDTO, req);
+    sendSuccess(res, identity, req);
   } catch (error) {
     console.error('Error fetching user info:', error);
     sendErrorWithStatus(
