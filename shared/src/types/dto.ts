@@ -1,9 +1,15 @@
 import { z } from 'zod';
 
-// Character DTO (redacted from internal state)
+// Character DTO (redacted from internal state) - supports both generic and legacy formats
 export const CharacterDTOSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
+  worldSlug: z.string(), // Include world slug in DTO
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  // Generic world-specific data
+  worldData: z.record(z.unknown()).default({}),
+  // Legacy fields for backward compatibility
   race: z.string(),
   class: z.string(),
   level: z.number().int(),
@@ -25,9 +31,6 @@ export const CharacterDTOSchema = z.object({
   })),
   currentHealth: z.number().int(),
   maxHealth: z.number().int(),
-  worldSlug: z.string(), // Include world slug in DTO
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
 });
 
 // Game DTO (redacted from internal state) - Layer M2

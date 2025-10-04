@@ -1,10 +1,48 @@
 import { z } from 'zod';
 
-// Character Schema
+// Generic Character Schema - supports different world data points
 export const CharacterSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid().optional(), // Optional for guest users
   cookieId: z.string().uuid().optional(), // Optional for authenticated users
+  name: z.string().min(1).max(50),
+  worldSlug: z.string().min(1).max(100), // Required world validation
+  activeGameId: z.string().uuid().optional(), // Currently active game (enforces single-active constraint)
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  // Generic world-specific data - each world can define its own character structure
+  worldData: z.record(z.unknown()).default({}),
+  // Optional legacy fields for backward compatibility
+  race: z.string().optional(),
+  class: z.string().optional(),
+  level: z.number().int().min(1).max(20).optional(),
+  experience: z.number().int().min(0).optional(),
+  attributes: z.object({
+    strength: z.number().int().min(1).max(20).optional(),
+    dexterity: z.number().int().min(1).max(20).optional(),
+    constitution: z.number().int().min(1).max(20).optional(),
+    intelligence: z.number().int().min(1).max(20).optional(),
+    wisdom: z.number().int().min(1).max(20).optional(),
+    charisma: z.number().int().min(1).max(20).optional(),
+  }).optional(),
+  skills: z.array(z.string()).optional(),
+  inventory: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    quantity: z.number().int().min(1),
+  })).optional(),
+  currentHealth: z.number().int().min(0).optional(),
+  maxHealth: z.number().int().min(1).optional(),
+});
+
+export type Character = z.infer<typeof CharacterSchema>;
+
+// Legacy Character Schema for backward compatibility
+export const LegacyCharacterSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid().optional(),
+  cookieId: z.string().uuid().optional(),
   name: z.string().min(1).max(50),
   race: z.string(),
   class: z.string(),
@@ -27,13 +65,13 @@ export const CharacterSchema = z.object({
   })),
   currentHealth: z.number().int().min(0),
   maxHealth: z.number().int().min(1),
-  worldSlug: z.string().min(1).max(100), // Required world validation
-  activeGameId: z.string().uuid().optional(), // Currently active game (enforces single-active constraint)
+  worldSlug: z.string().min(1).max(100),
+  activeGameId: z.string().uuid().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
 
-export type Character = z.infer<typeof CharacterSchema>;
+export type LegacyCharacter = z.infer<typeof LegacyCharacterSchema>;
 
 // Game Save Schema
 export const GameSaveSchema = z.object({
@@ -302,3 +340,53 @@ export const MetricsSnapshotSchema = z.object({
 export type TelemetryEvent = z.infer<typeof TelemetryEventSchema>;
 export type TelemetryEventRequest = z.infer<typeof TelemetryEventRequestSchema>;
 export type MetricsSnapshot = z.infer<typeof MetricsSnapshotSchema>;
+
+// Premade Character Schema
+export const PremadeCharacterSchema = z.object({
+  id: z.string().uuid(),
+  worldSlug: z.string().min(1).max(100),
+  archetypeKey: z.string().min(1).max(100),
+  displayName: z.string().min(1).max(100),
+  summary: z.string().min(1),
+  avatarUrl: z.string().url().optional(),
+  baseTraits: z.record(z.string(), z.unknown()),
+  isActive: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export type PremadeCharacter = z.infer<typeof PremadeCharacterSchema>;
+
+// Character Creation Request Schema - supports both generic and legacy formats
+export const CreateCharacterRequestSchema = z.object({
+  worldSlug: z.string().min(1).max(100),
+  name: z.string().min(1).max(50).optional(),
+  archetypeKey: z.string().min(1).max(100).optional(),
+  fromPremade: z.boolean().optional().default(false),
+  // Generic world-specific data
+  worldData: z.record(z.unknown()).optional().default({}),
+  // Legacy fields for backward compatibility
+  race: z.string().optional(),
+  class: z.string().optional(),
+  level: z.number().int().min(1).max(20).optional(),
+  experience: z.number().int().min(0).optional(),
+  attributes: z.object({
+    strength: z.number().int().min(1).max(20).optional(),
+    dexterity: z.number().int().min(1).max(20).optional(),
+    constitution: z.number().int().min(1).max(20).optional(),
+    intelligence: z.number().int().min(1).max(20).optional(),
+    wisdom: z.number().int().min(1).max(20).optional(),
+    charisma: z.number().int().min(1).max(20).optional(),
+  }).optional(),
+  skills: z.array(z.string()).optional(),
+  inventory: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    quantity: z.number().int().min(1),
+  })).optional(),
+  currentHealth: z.number().int().min(0).optional(),
+  maxHealth: z.number().int().min(1).optional(),
+});
+
+export type CreateCharacterRequest = z.infer<typeof CreateCharacterRequestSchema>;

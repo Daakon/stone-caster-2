@@ -68,13 +68,19 @@ function App() {
               <Route path="/auth/signin" element={<AuthPage mode="signin" />} />
               <Route path="/auth/signup" element={<AuthPage mode="signup" />} />
               <Route path="/auth/success" element={<AuthSuccessPage />} />
+              {/* Legacy routes for backward compatibility */}
               <Route path="/adventures" element={<AdventuresPage />} />
               <Route path="/adventures/:id" element={<AdventureDetailPage />} />
               <Route path="/adventures/:id/characters" element={<CharacterCreationPage />} />
               <Route path="/adventures/:id/create-character" element={<CharacterCreatorPage />} />
               <Route path="/game/:gameId" element={<GamePage />} />
+              {/* New routing structure */}
               <Route path="/worlds" element={<WorldsPage />} />
-              <Route path="/worlds/:id" element={<WorldDetailPage />} />
+              <Route path="/worlds/:worldSlug" element={<WorldDetailPage />} />
+              <Route path="/worlds/:worldSlug/adventures" element={<AdventuresPage />} />
+              <Route path="/worlds/:worldSlug/adventures/:adventureSlug" element={<AdventureDetailPage />} />
+              <Route path="/worlds/:worldSlug/adventures/:adventureSlug/character" element={<CharacterCreationPage />} />
+              <Route path="/play/:gameId" element={<GamePage />} />
               <Route path="/wallet" element={<WalletPage />} />
               <Route path="/payments" element={<PaymentsPage />} />
               <Route path="/profile" element={<ProfilePage />} />

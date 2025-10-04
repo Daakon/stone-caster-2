@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/index.js';
 import { sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from 'shared';
+import { v4 as uuidv4 } from 'uuid';
+import { CookieUserLinkingService } from '../services/cookie-user-linking.service.js';
 
 // Extend Request type to include user context
 // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -36,6 +38,7 @@ export async function jwtAuth(req: Request, res: Response, next: NextFunction): 
       // No auth header - check for guest cookie
       const guestId = req.cookies?.guestId || req.headers['x-guest-cookie-id'] as string;
       if (guestId) {
+        // Use the actual guest cookie ID as the userId for guest users
         req.ctx = {
           userId: guestId,
           isGuest: true,
@@ -119,14 +122,30 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
     // Fall back to guest auth
     const guestId = req.cookies?.guestId || req.headers['x-guest-cookie-id'] as string;
     if (guestId) {
-      req.ctx = {
-        userId: guestId,
-        isGuest: true,
-        user: {
-          id: guestId,
+      // Check if this cookie is linked to an authenticated user
+      const linkedUserId = await CookieUserLinkingService.getUserIdFromCookie(guestId);
+      
+      if (linkedUserId) {
+        // Cookie is linked to an authenticated user - use the linked user ID
+        req.ctx = {
+          userId: linkedUserId,
+          isGuest: false,
+          user: {
+            id: linkedUserId,
+            isGuest: false,
+          },
+        };
+      } else {
+        // Use the actual guest cookie ID as the userId for guest users
+        req.ctx = {
+          userId: guestId,
           isGuest: true,
-        },
-      };
+          user: {
+            id: guestId,
+            isGuest: true,
+          },
+        };
+      }
     }
     
     next();

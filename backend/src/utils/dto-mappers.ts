@@ -21,18 +21,28 @@ export function toCharacterDTO(character: Character): CharacterDTO {
   return {
     id: character.id,
     name: character.name,
-    race: character.race,
-    class: character.class,
-    level: character.level,
-    experience: character.experience,
-    attributes: character.attributes,
-    skills: character.skills,
-    inventory: character.inventory,
-    currentHealth: character.currentHealth,
-    maxHealth: character.maxHealth,
     worldSlug: character.worldSlug,
     createdAt: character.createdAt,
     updatedAt: character.updatedAt,
+    // Generic world-specific data
+    worldData: character.worldData,
+    // Legacy fields for backward compatibility (with defaults)
+    race: character.race || 'Unknown',
+    class: character.class || 'Adventurer',
+    level: character.level || 1,
+    experience: character.experience || 0,
+    attributes: {
+      strength: character.attributes?.strength || 10,
+      dexterity: character.attributes?.dexterity || 10,
+      constitution: character.attributes?.constitution || 10,
+      intelligence: character.attributes?.intelligence || 10,
+      wisdom: character.attributes?.wisdom || 10,
+      charisma: character.attributes?.charisma || 10,
+    },
+    skills: character.skills || [],
+    inventory: character.inventory || [],
+    currentHealth: character.currentHealth || 100,
+    maxHealth: character.maxHealth || 100,
     // Explicitly exclude internal fields:
     // - userId (server-only)
     // - cookieId (server-only)

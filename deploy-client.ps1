@@ -5,7 +5,7 @@ Write-Host "Starting StoneCaster client deployment..." -ForegroundColor Green
 
 # Step 1: Set environment variables for client build
 Write-Host "Setting client build environment variables..." -ForegroundColor Yellow
-$env:VITE_SUPABASE_URL = "https://hwudmbeedmntgqqxrceb.supabase.co"
+$env:VITE_SUPABASE_URL = "https://obfadjnywufemhhhcxiy.supabase.co"
 $env:VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_QKJ2Ji-SjAQJIbs5NITDpw_IMVQ9JDl"
 
 # Step 2: Build the client

@@ -167,6 +167,56 @@ export const WorldFieldRenderer: React.FC<WorldFieldRendererProps> = ({
           </div>
         );
 
+      case 'checkbox':
+        return (
+          <div className="space-y-3">
+            {field.options.map((option: any) => {
+              const isSelected = Array.isArray(value) && value.includes(option.value);
+              return (
+                <div key={option.value} className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id={`${field.id}-${option.value}`}
+                    checked={isSelected}
+                    onChange={(e) => {
+                      const currentValues = Array.isArray(value) ? value : [];
+                      if (e.target.checked) {
+                        const newValues = [...currentValues, option.value];
+                        if (field.maxSelections && newValues.length > field.maxSelections) {
+                          return; // Don't add if max selections reached
+                        }
+                        onChange(newValues);
+                      } else {
+                        onChange(currentValues.filter((v: any) => v !== option.value));
+                      }
+                    }}
+                    disabled={!isSelected && field.maxSelections && Array.isArray(value) && value.length >= field.maxSelections}
+                    className="mt-1 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                  />
+                  <Label htmlFor={`${field.id}-${option.value}`} className="flex-1 cursor-pointer">
+                    <div className="font-medium">{option.label}</div>
+                    {option.description && (
+                      <div className="text-sm text-muted-foreground">
+                        {option.description}
+                      </div>
+                    )}
+                  </Label>
+                </div>
+              );
+            })}
+            {field.minSelections && (
+              <p className="text-xs text-muted-foreground">
+                Select at least {field.minSelections} option{field.minSelections > 1 ? 's' : ''}
+              </p>
+            )}
+            {field.maxSelections && (
+              <p className="text-xs text-muted-foreground">
+                Select up to {field.maxSelections} option{field.maxSelections > 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+        );
+
       default:
         return (
           <div className="text-muted-foreground">
