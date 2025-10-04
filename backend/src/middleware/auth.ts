@@ -34,7 +34,7 @@ export async function jwtAuth(req: Request, res: Response, next: NextFunction): 
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       // No auth header - check for guest cookie
-      const guestId = req.cookies?.guestId;
+      const guestId = req.cookies?.guestId || req.headers['x-guest-cookie-id'] as string;
       if (guestId) {
         req.ctx = {
           userId: guestId,
@@ -117,7 +117,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
     }
     
     // Fall back to guest auth
-    const guestId = req.cookies?.guestId;
+    const guestId = req.cookies?.guestId || req.headers['x-guest-cookie-id'] as string;
     if (guestId) {
       req.ctx = {
         userId: guestId,

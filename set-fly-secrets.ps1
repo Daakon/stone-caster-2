@@ -18,6 +18,11 @@ flyctl secrets set PRIMARY_AI_MODEL="gpt-4o-mini" -a stonecaster-api
 Write-Host "Setting CORS origin..." -ForegroundColor Yellow
 flyctl secrets set CORS_ORIGIN="https://stonecaster.ai" -a stonecaster-api
 
+# Set OAuth callback URLs
+Write-Host "Setting OAuth callback URLs..." -ForegroundColor Yellow
+flyctl secrets set FRONTEND_URL="https://stonecaster.ai" -a stonecaster-api
+flyctl secrets set API_URL="https://api.stonecaster.ai" -a stonecaster-api
+
 # Set session secret
 Write-Host "Setting session secret..." -ForegroundColor Yellow
 flyctl secrets set SESSION_SECRET="your_session_secret_here" -a stonecaster-api

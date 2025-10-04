@@ -12,16 +12,23 @@ const router = Router();
 // POST /api/games - spawn a new game
 router.post('/', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const userId = req.ctx?.userId;
-    const isGuest = req.ctx?.isGuest;
+    let userId = req.ctx?.userId;
+    let isGuest = req.ctx?.isGuest;
 
+    // If no user context, create a guest user
     if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
-        req
-      );
+      // Generate a new guest ID
+      const { v4: uuidv4 } = await import('uuid');
+      userId = uuidv4();
+      isGuest = true;
+      
+      // Set the guest cookie in the response
+      res.cookie('guestId', userId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+      });
     }
 
     // Validate request body
@@ -160,16 +167,23 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 // POST /api/games/:id/turn - take a turn in a game
 router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Request, res: Response) => {
   try {
-    const userId = req.ctx?.userId;
-    const isGuest = req.ctx?.isGuest;
+    let userId = req.ctx?.userId;
+    let isGuest = req.ctx?.isGuest;
 
+    // If no user context, create a guest user
     if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
-        req
-      );
+      // Generate a new guest ID
+      const { v4: uuidv4 } = await import('uuid');
+      userId = uuidv4();
+      isGuest = true;
+      
+      // Set the guest cookie in the response
+      res.cookie('guestId', userId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+      });
     }
 
     // Validate game ID parameter

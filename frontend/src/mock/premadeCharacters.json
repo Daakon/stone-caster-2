@@ -1,6 +1,6 @@
 [
   {
-    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "id": "premade-mystika-1",
     "worldId": "mystika",
     "name": "Aria Crystalborn",
     "class": "Veil-Touched Mage",
@@ -19,12 +19,14 @@
       "charisma": 60,
       "strength": 45,
       "dexterity": 50,
-      "constitution": 55
+      "constitution": 55,
+      "wisdom": 60
     },
-    "createdAt": "2024-01-15T10:30:00Z"
+    "createdAt": "2024-01-01T00:00:00Z",
+    "isPremade": true
   },
   {
-    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "id": "premade-mystika-2",
     "worldId": "mystika",
     "name": "Thorne Shifter",
     "class": "Elven Court Guardian",
@@ -43,12 +45,14 @@
       "charisma": 70,
       "strength": 70,
       "dexterity": 75,
-      "constitution": 60
+      "constitution": 60,
+      "wisdom": 55
     },
-    "createdAt": "2024-01-20T14:15:00Z"
+    "createdAt": "2024-01-01T00:00:00Z",
+    "isPremade": true
   },
   {
-    "id": "550e8400-e29b-41d4-a716-446655440003",
+    "id": "premade-aetherium-1",
     "worldId": "aetherium",
     "name": "Neo Vector",
     "class": "Neural Hacker",
@@ -66,35 +70,14 @@
       "charisma": 55,
       "strength": 40,
       "constitution": 50,
-      "magic": 45
+      "magic": 45,
+      "wisdom": 60
     },
-    "createdAt": "2024-01-10T09:45:00Z"
+    "createdAt": "2024-01-01T00:00:00Z",
+    "isPremade": true
   },
   {
-    "id": "550e8400-e29b-41d4-a716-446655440004",
-    "worldId": "aetherium",
-    "name": "Luna Corporate",
-    "class": "Corporate Neural Agent",
-    "avatar": "corporate-agent",
-    "backstory": "A high-ranking corporate agent with advanced neural implants. Recently began questioning the ethics of consciousness harvesting after a personal revelation.",
-    "worldSpecificData": {
-      "neural_implants": ["memory_enhancement", "emotion_regulation", "corporate_interface"],
-      "corporate_standing": "executive",
-      "aetherium_connection": 60,
-      "specialization": "corporate_espionage"
-    },
-    "skills": {
-      "intelligence": 70,
-      "charisma": 75,
-      "dexterity": 60,
-      "strength": 50,
-      "constitution": 55,
-      "magic": 40
-    },
-    "createdAt": "2024-01-25T16:20:00Z"
-  },
-  {
-    "id": "550e8400-e29b-41d4-a716-446655440005",
+    "id": "premade-whispercross-1",
     "worldId": "whispercross",
     "name": "Willow Whisperwind",
     "class": "Nature Guardian",
@@ -112,8 +95,10 @@
       "intelligence": 60,
       "strength": 50,
       "dexterity": 55,
-      "constitution": 60
+      "constitution": 60,
+      "wisdom": 70
     },
-    "createdAt": "2024-01-12T08:20:00Z"
+    "createdAt": "2024-01-01T00:00:00Z",
+    "isPremade": true
   }
 ]

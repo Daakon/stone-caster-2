@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { StoneCost } from './StoneCost';
-import { Gem, Send } from 'lucide-react';
+import { Gem, Send, Loader2 } from 'lucide-react';
 
 interface TurnInputProps {
   onSubmit: (action: string) => void;
@@ -56,8 +56,12 @@ export const TurnInput: React.FC<TurnInputProps> = ({
           disabled={!action.trim() || disabled}
           className="flex items-center gap-2"
         >
-          <Send className="h-4 w-4" />
-          Cast Stone
+          {disabled ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+          {disabled ? 'Processing...' : 'Cast Stone'}
         </Button>
       </div>
     </form>

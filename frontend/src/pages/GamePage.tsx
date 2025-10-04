@@ -11,6 +11,9 @@ import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { mockDataService } from '../services/mockData';
 import type { Adventure, World, Character } from '../services/mockData';
 import { Gem, Settings, Save } from 'lucide-react';
+import { submitTurn, getGame } from '../lib/api';
+import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
+import type { TurnDTO, GameDTO } from 'shared';
 
 interface GameState {
   worldRules: Record<string, number>;
@@ -37,6 +40,11 @@ export default function GamePage() {
   });
   const [wallet, setWallet] = useState(mockDataService.getWallet());
   const [isInvited] = useState(mockDataService.getInviteStatus().invited);
+  const [isSubmittingTurn, setIsSubmittingTurn] = useState(false);
+  const [turnError, setTurnError] = useState<string | null>(null);
+  const [game, setGame] = useState<GameDTO | null>(null);
+  const [isLoadingGame, setIsLoadingGame] = useState(true);
+  const [gameError, setGameError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isInvited) {
@@ -44,111 +52,175 @@ export default function GamePage() {
       return;
     }
 
-    // Load game data
-    if (gameId) {
-      const gameData = mockDataService.getGameState(gameId);
-      setGameState(gameData);
+    // Load real game data from backend
+    const loadGame = async () => {
+      if (!gameId) return;
 
-      // For demo purposes, we'll use the first adventure and character
-      const adventures = mockDataService.getAdventures();
-      const characters = mockDataService.getCharacters();
-      
-      if (adventures.length > 0 && characters.length > 0) {
-        const selectedAdventure = adventures[0];
-        const selectedCharacter = characters[0];
-        
-        setAdventure(selectedAdventure);
-        setCharacter(selectedCharacter);
-        
-        const worldData = mockDataService.getWorldById(selectedAdventure.worldId);
-        setWorld(worldData || null);
+      setIsLoadingGame(true);
+      setGameError(null);
 
-        // Initialize world rules if not set
-        if (worldData && Object.keys(gameData.worldRules).length === 0) {
-          const initialRules: Record<string, number> = {};
-          worldData.rules.forEach(rule => {
-            initialRules[rule.id] = rule.current;
-          });
-          setGameState(prev => ({
-            ...prev,
-            worldRules: initialRules
-          }));
-          mockDataService.updateGameState(gameId, { worldRules: initialRules });
+      try {
+        const result = await getGame(gameId);
+        
+        if (!result.ok) {
+          setGameError(result.error.message || 'Failed to load game');
+          return;
         }
+
+        const gameData = result.data;
+        setGame(gameData);
+
+        // Update game state with real data
+        setGameState(prev => ({
+          ...prev,
+          currentTurn: gameData.turnCount
+        }));
+
+        // Load adventure and character data from mock service for now
+        // TODO: Replace with real API calls when available
+        const adventures = mockDataService.getAdventures();
+        const characters = mockDataService.getCharacters();
+        
+        if (adventures.length > 0 && characters.length > 0) {
+          const selectedAdventure = adventures.find(a => a.id === gameData.adventureId) || adventures[0];
+          const selectedCharacter = characters.find(c => c.id === gameData.characterId) || characters[0];
+          
+          setAdventure(selectedAdventure);
+          setCharacter(selectedCharacter);
+          
+          const worldData = mockDataService.getWorldById(selectedAdventure.worldId);
+          setWorld(worldData || null);
+
+          // Initialize world rules if not set
+          if (worldData && Object.keys(gameState.worldRules).length === 0) {
+            const initialRules: Record<string, number> = {};
+            worldData.rules.forEach(rule => {
+              initialRules[rule.id] = rule.current;
+            });
+            setGameState(prev => ({
+              ...prev,
+              worldRules: initialRules
+            }));
+          }
+        }
+
+      } catch (error) {
+        console.error('Error loading game:', error);
+        setGameError('Failed to load game data');
+      } finally {
+        setIsLoadingGame(false);
       }
-    }
-  }, [gameId, navigate, isInvited]);
-
-  const handleTurnSubmit = (action: string) => {
-    if (!adventure || !character) return;
-
-    const stoneCost = 1; // Base cost for a turn
-    if (wallet.balance < stoneCost) {
-      alert('Not enough casting stones!');
-      return;
-    }
-
-    // Spend stones
-    const success = mockDataService.spendStones(stoneCost, `Turn ${gameState.currentTurn + 1}: ${action}`);
-    if (!success) {
-      alert('Failed to spend stones!');
-      return;
-    }
-
-    // Update wallet
-    setWallet(mockDataService.getWallet());
-
-    // Add to history
-    const newHistoryEntry = {
-      id: `history-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      type: 'player' as const,
-      content: action,
-      character: character.name
     };
 
-    const updatedHistory = [newHistoryEntry, ...gameState.history];
-    setGameState(prev => ({
-      ...prev,
-      history: updatedHistory,
-      currentTurn: prev.currentTurn + 1
-    }));
+    loadGame();
+  }, [gameId, navigate, isInvited]);
 
-    // Update game state in mock service
-    mockDataService.updateGameState(gameId!, {
-      history: updatedHistory,
-      currentTurn: gameState.currentTurn + 1
-    });
+  const handleTurnSubmit = async (action: string) => {
+    if (!adventure || !character || !gameId) return;
 
-    // Simulate NPC response after a delay
-    setTimeout(() => {
-      const npcResponses = [
-        "The world around you shifts in response to your action.",
-        "You sense that your choice has consequences beyond what you can see.",
-        "The environment reacts to your decision in unexpected ways.",
-        "You feel the weight of your action ripple through the world.",
-        "Something in the world has changed because of what you did."
-      ];
-      
-      const randomResponse = npcResponses[Math.floor(Math.random() * npcResponses.length)];
-      
-      const npcEntry = {
-        id: `history-${Date.now()}`,
+    setIsSubmittingTurn(true);
+    setTurnError(null);
+
+    try {
+      // Generate idempotency key and option ID
+      const idempotencyKey = generateIdempotencyKey();
+      const optionId = generateOptionId(action);
+
+      // Submit turn to Layer M3 turn engine
+      const result = await submitTurn<TurnDTO>(gameId, optionId, idempotencyKey);
+
+      if (!result.ok) {
+        // Handle specific error cases
+        switch (result.error.code) {
+          case 'INSUFFICIENT_STONES':
+            setTurnError('Not enough casting stones to take this turn.');
+            break;
+          case 'IDEMPOTENCY_REQUIRED':
+            setTurnError('Turn submission requires an idempotency key.');
+            break;
+          case 'VALIDATION_FAILED':
+            setTurnError('The AI response was invalid. Please try again.');
+            break;
+          case 'UPSTREAM_TIMEOUT':
+            setTurnError('The AI service timed out. Please try again.');
+            break;
+          case 'NOT_FOUND':
+            setTurnError('Game not found. Please refresh the page.');
+            break;
+          case 'FORBIDDEN':
+            setTurnError('You do not have permission to take turns in this game.');
+            break;
+          default:
+            setTurnError(result.error.message || 'Failed to submit turn. Please try again.');
+        }
+        return;
+      }
+
+      const turnDTO = result.data;
+
+      // Add player action to history
+      const playerEntry = {
+        id: `player-${Date.now()}`,
         timestamp: new Date().toISOString(),
-        type: 'npc' as const,
-        content: randomResponse
+        type: 'player' as const,
+        content: action,
+        character: character.name
       };
 
-      const finalHistory = [npcEntry, ...updatedHistory];
+      // Add AI narrative to history
+      const narrativeEntry = {
+        id: `narrative-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: 'npc' as const,
+        content: turnDTO.narrative
+      };
+
+      // Add NPC responses if any
+      const npcEntries = turnDTO.npcResponses?.map((npc, index) => ({
+        id: `npc-${Date.now()}-${index}`,
+        timestamp: new Date().toISOString(),
+        type: 'npc' as const,
+        content: npc.response
+      })) || [];
+
+      // Update game state with new history and turn count
+      const newHistory = [narrativeEntry, ...npcEntries, playerEntry, ...gameState.history];
       setGameState(prev => ({
         ...prev,
-        history: finalHistory
+        history: newHistory,
+        currentTurn: turnDTO.turnCount
       }));
 
-      mockDataService.updateGameState(gameId!, {
-        history: finalHistory
+      // Update wallet balance from the response
+      setWallet(prev => ({
+        ...prev,
+        balance: turnDTO.castingStonesBalance
+      }));
+
+      // Update world rules if there are relationship/faction deltas
+      if (turnDTO.relationshipDeltas || turnDTO.factionDeltas) {
+        setGameState(prev => ({
+          ...prev,
+          worldRules: {
+            ...prev.worldRules,
+            ...turnDTO.relationshipDeltas,
+            ...turnDTO.factionDeltas
+          }
+        }));
+      }
+
+      // Update mock service for consistency (until we fully migrate away from it)
+      mockDataService.updateGameState(gameId, {
+        history: newHistory,
+        currentTurn: turnDTO.turnCount
       });
-    }, 2000);
+
+    } catch (error) {
+      console.error('Turn submission error:', error);
+      setTurnError('Network error. Please check your connection and try again.');
+    } finally {
+      setIsSubmittingTurn(false);
+    }
   };
 
   const handleSaveGame = () => {
@@ -160,12 +232,42 @@ export default function GamePage() {
     return null; // Will redirect
   }
 
-  if (!adventure || !world || !character) {
+  if (isLoadingGame) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading game...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Game Not Found</h2>
+          <p className="text-muted-foreground mb-4">{gameError}</p>
+          <Button onClick={() => navigate('/adventures')}>
+            Back to Adventures
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!game || !adventure || !world || !character) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading game data...</p>
         </div>
       </div>
     );
@@ -240,11 +342,16 @@ export default function GamePage() {
                 <CardTitle>Your Turn</CardTitle>
               </CardHeader>
               <CardContent>
+                {turnError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-600">{turnError}</p>
+                  </div>
+                )}
                 <TurnInput
                   onSubmit={handleTurnSubmit}
                   stoneCost={1}
-                  disabled={wallet.balance < 1}
-                  placeholder="Describe your action..."
+                  disabled={wallet.balance < 1 || isSubmittingTurn}
+                  placeholder={isSubmittingTurn ? "Processing your turn..." : "Describe your action..."}
                 />
               </CardContent>
             </Card>

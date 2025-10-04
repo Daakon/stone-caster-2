@@ -10,7 +10,8 @@ import { GuestCookieService } from './services/guestCookie';
 import LandingPage from './pages/LandingPage';
 import AdventuresPage from './pages/AdventuresPage';
 import AdventureDetailPage from './pages/AdventureDetailPage';
-import CharacterSelectionPage from './pages/CharacterSelectionPage';
+import CharacterCreationPage from './pages/CharacterSelectionPage';
+import CharacterCreatorPage from './pages/CharacterCreatorPage';
 import WorldsPage from './pages/WorldsPage';
 import WorldDetailPage from './pages/WorldDetailPage';
 import WalletPage from './pages/WalletPage';
@@ -69,7 +70,8 @@ function App() {
               <Route path="/auth/success" element={<AuthSuccessPage />} />
               <Route path="/adventures" element={<AdventuresPage />} />
               <Route path="/adventures/:id" element={<AdventureDetailPage />} />
-              <Route path="/adventures/:id/characters" element={<CharacterSelectionPage />} />
+              <Route path="/adventures/:id/characters" element={<CharacterCreationPage />} />
+              <Route path="/adventures/:id/create-character" element={<CharacterCreatorPage />} />
               <Route path="/game/:gameId" element={<GamePage />} />
               <Route path="/worlds" element={<WorldsPage />} />
               <Route path="/worlds/:id" element={<WorldDetailPage />} />

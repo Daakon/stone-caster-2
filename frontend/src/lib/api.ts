@@ -139,3 +139,43 @@ export async function apiDelete<T = unknown>(
 ): Promise<{ ok: true; data: T } | { ok: false; error: AppError }> {
   return apiFetch<T>(path, { method: 'DELETE' });
 }
+
+// Game creation
+export async function createGame(
+  adventureSlug: string,
+  characterId?: string,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiPost('/api/games', {
+    adventureSlug,
+    characterId,
+  });
+}
+
+// Get game by ID
+export async function getGame(
+  gameId: string,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/games/${gameId}`);
+}
+
+// Create character
+export async function createCharacter(
+  characterData: any,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiPost('/api/characters', characterData);
+}
+
+// Turn submission with idempotency key
+export async function submitTurn<T = unknown>(
+  gameId: string,
+  optionId: string,
+  idempotencyKey: string,
+): Promise<{ ok: true; data: T } | { ok: false; error: AppError }> {
+  return apiFetch<T>(`/api/games/${gameId}/turn`, {
+    method: 'POST',
+    body: JSON.stringify({ optionId }),
+    headers: {
+      'Idempotency-Key': idempotencyKey,
+    },
+  });
+}
