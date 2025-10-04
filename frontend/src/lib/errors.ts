@@ -5,6 +5,7 @@ export interface AppError {
   http: number;
   message: string;
   details?: unknown;
+  traceId?: string;
 }
 
 export function toAppError(

@@ -52,7 +52,6 @@ export default function CharacterSelectionPage() {
   const [gameCreationError, setGameCreationError] = useState<{code: ApiErrorCode; message?: string; existingGameId?: string} | null>(null);
   const [userCharacters, setUserCharacters] = useState<Character[]>([]);
   const [premadeCharacters, setPremadeCharacters] = useState<PremadeCharacter[]>([]);
-  const [isLoadingCharactersState, setIsLoadingCharactersState] = useState(true);
   
   const { startAdventure, isStarting } = useStartAdventure();
   const telemetry = useAdventureTelemetry();

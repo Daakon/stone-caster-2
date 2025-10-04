@@ -1,8 +1,8 @@
-# Stone Caster UX Flow - Layer M4
+# Stone Caster UX Flow - Layer M5
 
 ## Overview
 
-This document describes the user experience flow for Stone Caster's Layer M4 implementation, focusing on the unified play surface with live data, mobile-first design, and comprehensive error handling.
+This document describes the user experience flow for Stone Caster's Layer M5 implementation, focusing on hardening, observability, and QA readiness. Layer M5 builds upon Layer M4's unified play surface with enhanced diagnostics, telemetry, and self-serve testing capabilities.
 
 ## Core User Flows
 
@@ -30,12 +30,14 @@ This document describes the user experience flow for Stone Caster's Layer M4 imp
 5. **Response**: AI response added to history with narrative and choices
 6. **State Update**: Stone balance, turn count, and world rules updated
 
-#### Error Handling
-- **Insufficient Stones**: Clear error message with "Go to Wallet" CTA
-- **Timeout**: Retry guidance with server status information
-- **Validation**: Action-specific error messages with suggestions
-- **Network**: Connection error with retry options
-- **Idempotency**: Duplicate action prevention with wait guidance
+#### Error Handling (Layer M5 Enhanced)
+- **Insufficient Stones**: Clear error message with "Go to Wallet" CTA and traceId
+- **Timeout**: Retry guidance with server status information and traceId
+- **Validation**: Action-specific error messages with suggestions and traceId
+- **Network**: Connection error with retry options and traceId
+- **Idempotency**: Duplicate action prevention with wait guidance and traceId
+- **TraceId Display**: All errors show copyable traceId for support reporting
+- **Actionable CTAs**: Error banners include specific action buttons (Go to Wallet, Get Help, Try Again)
 
 ### 3. Data Flow (Live APIs)
 
@@ -103,19 +105,37 @@ This document describes the user experience flow for Stone Caster's Layer M4 imp
 - **Text Size**: Readable font sizes with scaling support
 - **Motion**: Respects prefers-reduced-motion
 
-## Telemetry & Analytics
+## Layer M5: Observability & Telemetry
 
-### Event Tracking
-- **Game Loaded**: Time to load game data
-- **Turn Started**: Action initiation with metadata
-- **Turn Completed**: Success with duration and turn count
-- **Turn Failed**: Error codes and retry attempts
-- **Error Shown**: Error types and user actions
+### Structured Logging Flow
+1. **Request Initiation**: Every API request gets unique traceId
+2. **Context Capture**: Logs include route, method, user context, latency
+3. **Error Logging**: Errors logged with traceId, error code, and context
+4. **Response Headers**: traceId included in response headers for debugging
+5. **Log Aggregation**: Structured JSON logs for easy parsing and analysis
 
-### Deduplication
-- **Event Keys**: Unique keys prevent duplicate tracking
-- **Time Windows**: 1-second deduplication window
-- **Cleanup**: Old events cleaned up after 5 minutes
+### Telemetry Event Flow
+1. **Event Initiation**: Frontend triggers gameplay events (turn_started, turn_completed, etc.)
+2. **Configuration Check**: Telemetry service checks if telemetry is enabled and applies sampling
+3. **Event Queuing**: Events queued for batch processing to avoid blocking UI
+4. **API Submission**: Events sent to `/api/telemetry/gameplay` endpoint
+5. **Database Storage**: Events stored in `telemetry_events` table with user context
+6. **Error Handling**: Failed telemetry doesn't break user flow
+
+### QA Testing Flow
+1. **Configuration Check**: QA can check `/api/telemetry/config` for current settings
+2. **Event Verification**: QA can verify events are being recorded during testing
+3. **Error Reporting**: QA can copy traceIds from error banners for bug reports
+4. **Log Correlation**: QA can correlate frontend errors with backend logs using traceIds
+5. **Telemetry Toggle**: QA can enable/disable telemetry without code deployment
+
+### Error Reporting Flow
+1. **Error Occurrence**: User encounters error during gameplay
+2. **Error Display**: Error banner shows with actionable message and traceId
+3. **TraceId Copy**: User can copy traceId for support reporting
+4. **Support Ticket**: User includes traceId in bug report or support ticket
+5. **Log Lookup**: Support team uses traceId to find relevant logs and telemetry
+6. **Issue Resolution**: Support team can trace full request flow for debugging
 
 ## Performance Considerations
 

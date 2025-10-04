@@ -45,7 +45,6 @@ export default function GamePage() {
   const [isSubmittingTurn, setIsSubmittingTurn] = useState(false);
   const [turnError, setTurnError] = useState<string | null>(null);
   const [game, setGame] = useState<GameDTO | null>(null);
-  const [isLoadingGameState, setIsLoadingGameState] = useState(true);
   const [gameStartTime, setGameStartTime] = useState<number | null>(null);
   const [hasTrackedFirstTurn, setHasTrackedFirstTurn] = useState(false);
   

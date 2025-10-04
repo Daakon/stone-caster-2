@@ -328,6 +328,43 @@ export const TelemetryEventRequestSchema = z.object({
   props: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
+// Layer M5: Specific gameplay telemetry event types
+export const GameplayTelemetryEventSchema = z.object({
+  name: z.enum([
+    'turn_started',
+    'turn_completed', 
+    'turn_failed',
+    'spawn_success',
+    'spawn_conflict',
+    'guest_to_auth_merge',
+    'purchase_attempt',
+    'purchase_success',
+    'purchase_failed',
+    'error_shown',
+    'retry_attempted',
+    'game_loaded'
+  ]),
+  props: z.object({
+    gameId: z.string().uuid().optional(),
+    characterId: z.string().uuid().optional(),
+    worldId: z.string().optional(),
+    turnNumber: z.number().optional(),
+    errorCode: z.string().optional(),
+    errorMessage: z.string().optional(),
+    duration: z.number().optional(),
+    ownerKind: z.enum(['guest', 'user']).optional(),
+    stoneCost: z.number().optional(),
+    stoneBalance: z.number().optional(),
+    packId: z.string().optional(),
+    amount: z.number().optional(),
+    currency: z.string().optional(),
+    retryCount: z.number().optional(),
+    loadTime: z.number().optional(),
+  }).optional().default({}),
+});
+
+export type GameplayTelemetryEvent = z.infer<typeof GameplayTelemetryEventSchema>;
+
 export const MetricsSnapshotSchema = z.object({
   requestCounts: z.record(z.string(), z.number().int().min(0)),
   averageLatencies: z.record(z.string(), z.number().min(0)),

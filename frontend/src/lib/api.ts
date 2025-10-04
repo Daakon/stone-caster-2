@@ -52,6 +52,10 @@ export async function apiFetch<T = unknown>(
       // Handle structured error responses
       if (json && json.error && typeof json.error === 'object') {
         const error = json.error as AppError;
+        // Include traceId from response meta if available
+        if (json.meta?.traceId) {
+          error.traceId = json.meta.traceId;
+        }
         return { ok: false, error };
       }
 

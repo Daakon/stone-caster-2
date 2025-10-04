@@ -1,34 +1,57 @@
-# Stone Caster Test Plan - Layer M4
+# Stone Caster Test Plan - Layer M5
 
 ## Overview
 
-This document outlines the comprehensive test plan for Layer M4 - Unified Play UI implementation, covering unit tests, integration tests, and end-to-end tests with mobile-first design and live data integration.
+This document outlines the comprehensive test plan for Layer M5 - Hardening & QA Readiness, focusing on observability, telemetry, error handling, and tester enablement. Layer M5 builds upon Layer M4's unified play UI with enhanced diagnostics and self-serve QA capabilities.
 
 ## Test Objectives
 
-- Verify unified play surface with live data integration
-- Ensure mobile-first design works across all viewport sizes
-- Validate turn execution with real API responses
-- Test comprehensive error handling and recovery mechanisms
+- Verify structured logging with traceIds and meaningful context
+- Test configurable telemetry system for gameplay events
+- Validate enhanced error handling with actionable messages and traceIds
+- Ensure self-serve QA capabilities with clear runbooks
+- Test telemetry toggles and configuration endpoints
+- Verify traceId capture and error reporting workflows
 - Confirm accessibility compliance (0 serious/critical axe violations)
-- Verify telemetry tracking without duplicate events
 - Test mobile navigation with hamburger menu and drawer
 - Validate responsive layout transitions between breakpoints
 
 ## Unit Tests
 
-### Game Telemetry Hook Tests
-- **File:** `frontend/src/hooks/useGameTelemetry.test.ts`
+### Layer M5: Telemetry Service Tests
+- **File:** `frontend/src/services/telemetry.test.ts`
 - **Coverage:**
-  - `trackTurnStarted()` - event tracking with metadata
+  - `initialize()` - config loading and validation
+  - `shouldRecord()` - sampling logic and feature flag checks
+  - `recordEvent()` - event queuing and batch processing
+  - `trackTurnStarted()` - turn initiation tracking
   - `trackTurnCompleted()` - success tracking with duration
   - `trackTurnFailed()` - error tracking with error codes
-  - `trackGameLoaded()` - load time tracking
+  - `trackSpawnSuccess()` - game spawn success tracking
+  - `trackSpawnConflict()` - spawn conflict tracking
+  - `trackGuestToAuthMerge()` - user upgrade tracking
+  - `trackPurchaseAttempt()` - purchase initiation tracking
+  - `trackPurchaseSuccess()` - purchase completion tracking
+  - `trackPurchaseFailed()` - purchase failure tracking
   - `trackErrorShown()` - error display tracking
   - `trackRetryAttempted()` - retry action tracking
-  - Deduplication - prevent duplicate events within 1 second
+  - `trackGameLoaded()` - load time tracking
   - Error handling - graceful API failure handling
-  - Cleanup - old events removed after 5 minutes
+  - Queue processing - batch event submission
+  - Configuration - telemetry toggle behavior
+
+### Layer M5: Enhanced Error Banner Tests
+- **File:** `frontend/src/components/ui/error-banner.test.tsx`
+- **Coverage:**
+  - TraceId display and copy functionality
+  - Actionable error messages with proper CTAs
+  - Wallet navigation for insufficient stones
+  - Help system integration
+  - Retry functionality with loading states
+  - Dismiss functionality
+  - Accessibility attributes and ARIA labels
+  - Mobile and desktop layouts
+  - Error code specific behavior
 
 ### Turn Error Handler Component Tests
 - **File:** `frontend/src/components/gameplay/TurnErrorHandler.test.tsx`
@@ -69,6 +92,20 @@ This document outlines the comprehensive test plan for Layer M4 - Unified Play U
 
 ## Integration Tests
 
+### Layer M5: Telemetry Endpoint Tests
+- **File:** `backend/src/routes/telemetry.integration.test.ts`
+- **Coverage:**
+  - `POST /api/telemetry/event` - basic telemetry event recording
+  - `POST /api/telemetry/gameplay` - gameplay-specific telemetry events
+  - `GET /api/telemetry/config` - telemetry configuration endpoint
+  - Rate limiting - prevent spam and abuse
+  - Feature flag integration - respect telemetry_enabled setting
+  - Sampling rate - proper sampling behavior
+  - User context - guest vs authenticated user handling
+  - Error handling - graceful failure without breaking user flow
+  - Validation - proper request validation with Zod schemas
+  - Response format - consistent response envelope with traceId
+
 ### Turn Endpoint Tests
 - **File:** `backend/src/routes/games.turn.integration.test.ts`
 - **Coverage:**
@@ -83,6 +120,7 @@ This document outlines the comprehensive test plan for Layer M4 - Unified Play U
     - Internal server error (500)
   - Idempotency behavior - same key returns same response
   - Response envelope format with trace ID
+  - Structured logging - proper log entries with traceId and context
 
 ### Database Integration Tests
 - **Coverage:**
@@ -91,7 +129,79 @@ This document outlines the comprehensive test plan for Layer M4 - Unified Play U
   - Stone wallet updates and ledger entries
   - Game state updates
 
+## QA Testing Scenarios
+
+### Layer M5: Self-Serve QA Runbook
+
+#### Guest User Happy Path
+1. **Setup**: Open browser in incognito mode
+2. **Navigate**: Go to Stone Caster homepage
+3. **Create Character**: Use character creation flow
+4. **Start Adventure**: Select world and begin game
+5. **Take Turns**: Submit 2-3 turns successfully
+6. **Verify**: Check telemetry events in browser dev tools
+7. **Capture**: Screenshot of successful gameplay
+
+#### Authenticated User Upgrade Flow
+1. **Setup**: Start as guest user (follow guest happy path)
+2. **Sign Up**: Create account and sign in
+3. **Verify Merge**: Confirm guest data is preserved
+4. **Continue Game**: Take additional turns
+5. **Check Telemetry**: Verify guest_to_auth_merge event
+6. **Capture**: Screenshot of merged user state
+
+#### Insufficient Stones Scenario
+1. **Setup**: Use account with low stone balance
+2. **Attempt Turn**: Try to take turn that costs more stones than available
+3. **Verify Error**: Check error banner shows "Go to Wallet" button
+4. **Check TraceId**: Verify traceId is displayed and copyable
+5. **Navigate Wallet**: Click "Go to Wallet" button
+6. **Purchase Stones**: Complete stone purchase flow
+7. **Return to Game**: Resume turn submission
+8. **Capture**: Screenshot of error state and recovery
+
+#### Turn Replay Scenario
+1. **Setup**: Start a game and take a turn
+2. **Duplicate Request**: Submit same turn again (simulate network retry)
+3. **Verify Idempotency**: Check that duplicate is handled gracefully
+4. **Check Logs**: Verify idempotency is logged with traceId
+5. **Capture**: Screenshot of idempotency handling
+
+#### Conflict Resume Scenario
+1. **Setup**: Start game, then start another game with same character
+2. **Verify Conflict**: Check that conflict error is shown
+3. **Resume Original**: Click "Resume Game" button
+4. **Verify Navigation**: Confirm return to original game
+5. **Check Telemetry**: Verify spawn_conflict event recorded
+6. **Capture**: Screenshot of conflict resolution
+
+#### Telemetry Configuration Testing
+1. **Check Config**: Visit `/api/telemetry/config` endpoint
+2. **Verify Settings**: Confirm telemetry enabled/disabled status
+3. **Toggle Settings**: Use admin panel to change telemetry settings
+4. **Test Events**: Submit telemetry events and verify recording
+5. **Check Sampling**: Verify sampling rate behavior
+6. **Capture**: Screenshot of telemetry configuration
+
+#### Error Reporting Workflow
+1. **Trigger Error**: Cause a deliberate error (e.g., invalid request)
+2. **Check Error Banner**: Verify error message and traceId display
+3. **Copy TraceId**: Use copy button to copy traceId
+4. **Report Issue**: Paste traceId into bug report template
+5. **Verify Logs**: Check backend logs for matching traceId
+6. **Capture**: Screenshot of error state with traceId
+
 ## End-to-End Tests
+
+### Layer M5: Observability E2E Tests
+- **File:** `frontend/e2e/observability.spec.ts`
+- **Coverage:**
+  - Telemetry configuration endpoint accessibility
+  - Error banner traceId display and copy functionality
+  - Telemetry event recording during gameplay
+  - Error handling with actionable messages
+  - Mobile and desktop error state consistency
+  - Accessibility compliance for error states
 
 ### Unified Game E2E Tests
 - **File:** `frontend/e2e/unified-game.spec.ts`
@@ -267,41 +377,41 @@ cd frontend && npm run test:a11y
 
 ## Acceptance Criteria Verification
 
-### ✅ Live Data Integration
-- [x] All game data loaded from real APIs (no mock data)
-- [x] Game, character, world, and wallet data from live endpoints
-- [x] Real-time updates after turn submission
-- [x] Proper error handling for API failures
+### ✅ Layer M5: Structured Logging
+- [x] All player-facing actions leave structured logs with traceIds
+- [x] Logs include route, status, latency, and meaningful context
+- [x] Error logs show error code, message, and traceId without raw stack traces
+- [x] Request traceIds are included in response headers
 
-### ✅ Mobile-First Design
-- [x] Responsive layout works at 375×812px
-- [x] Hamburger menu and drawer navigation
-- [x] Touch-friendly interface elements
-- [x] Proper breakpoint transitions
+### ✅ Layer M5: Configurable Telemetry
+- [x] Telemetry can be toggled via config/env (off in local dev, on for QA)
+- [x] Events cover: turn success/failure, spawn success/conflict, guest→auth merge, purchase attempts
+- [x] Payloads exclude PII and internal secrets
+- [x] Events capture only what QA needs (event type, owner kind, traceId, metadata)
 
-### ✅ Unified Play Surface
-- [x] Story history with real-time updates
-- [x] Turn input with stone cost indicators
-- [x] Stone balance and world rule meters
-- [x] Character information display
+### ✅ Layer M5: Enhanced Error Handling
+- [x] UI surfaces actionable copy for failures (e.g., "Casting Stones are low—see wallet")
+- [x] Error cards include traceId (copyable) for bug reports
+- [x] Buttons/link back to retry flows and help systems
+- [x] Error states are mobile-first and accessible
 
-### ✅ Error Handling & Recovery
-- [x] Comprehensive error states for all failure scenarios
-- [x] Retry mechanisms with user guidance
-- [x] Wallet navigation for insufficient stones
-- [x] Help system integration
+### ✅ Layer M5: Self-Serve QA
+- [x] Step-by-step QA scenarios in TEST_PLAN.md and UX_FLOW.md
+- [x] Runbook explains how to retrieve logs/telemetry
+- [x] Clear instructions for what to screenshot/copy for bug reports
+- [x] Telemetry configuration endpoint for QA testing
 
-### ✅ Accessibility Compliance
-- [x] 0 serious/critical axe violations
-- [x] Keyboard navigation support
-- [x] Screen reader compatibility
-- [x] Proper ARIA labels and semantic HTML
+### ✅ Layer M5: Non-Regression Testing
+- [x] Automated tests assert logging/telemetry toggles
+- [x] Playwright script validates traceIds appear in UI error banners
+- [x] Telemetry toggling behaves as expected without reload loops
+- [x] No new axe serious/critical issues introduced
 
-### ✅ Telemetry & Analytics
-- [x] Event tracking without duplicates
-- [x] Proper deduplication mechanisms
-- [x] Error tracking and retry analytics
-- [x] Performance metrics collection
+### ✅ Layer M5: Performance & Accessibility
+- [x] Logging/telemetry additions do not block event loop
+- [x] Turn responsiveness stays within acceptable limits
+- [x] 0 serious/critical axe violations on key flows
+- [x] Mobile-first design maintained at 375×812px
 
 ### ✅ Cross-Platform Testing
 - [x] Mobile and desktop layouts tested
