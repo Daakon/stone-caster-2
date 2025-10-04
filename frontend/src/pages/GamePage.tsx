@@ -13,6 +13,7 @@ import type { Adventure, World, Character } from '../services/mockData';
 import { Gem, Settings, Save } from 'lucide-react';
 import { submitTurn, getGame } from '../lib/api';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
+import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import type { TurnDTO, GameDTO } from 'shared';
 
 interface GameState {
@@ -44,6 +45,10 @@ export default function GamePage() {
   const [turnError, setTurnError] = useState<string | null>(null);
   const [game, setGame] = useState<GameDTO | null>(null);
   const [isLoadingGame, setIsLoadingGame] = useState(true);
+  const [gameStartTime, setGameStartTime] = useState<number | null>(null);
+  const [hasTrackedFirstTurn, setHasTrackedFirstTurn] = useState(false);
+  
+  const telemetry = useAdventureTelemetry();
   const [gameError, setGameError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,6 +56,9 @@ export default function GamePage() {
       navigate('/');
       return;
     }
+
+    // Set game start time for telemetry
+    setGameStartTime(Date.now());
 
     // Load real game data from backend
     const loadGame = async () => {
@@ -157,6 +165,18 @@ export default function GamePage() {
       }
 
       const turnDTO = result.data;
+
+      // Track time to first turn if this is the first turn
+      if (!hasTrackedFirstTurn && gameStartTime && game) {
+        const duration = Date.now() - gameStartTime;
+        await telemetry.trackTimeToFirstTurn(
+          'existing', // We don't know the character type here, so default to existing
+          character.id,
+          game.adventureId || 'unknown',
+          duration
+        );
+        setHasTrackedFirstTurn(true);
+      }
 
       // Add player action to history
       const playerEntry = {

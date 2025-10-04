@@ -65,7 +65,7 @@ export const SearchQuerySchema = z.object({
 });
 
 // Character request schemas
-export const CreateCharacterRequestSchema = z.object({
+export const CreateCharacterLegacyRequestSchema = z.object({
   name: z.string().min(1).max(50),
   race: z.string().min(1),
   class: z.string().min(1),
@@ -91,7 +91,12 @@ export const CreateCharacterRequestSchema = z.object({
   worldSlug: z.string().min(1).max(100), // Required world validation
 });
 
-export const UpdateCharacterRequestSchema = CreateCharacterRequestSchema.partial();
+export const UpdateCharacterRequestSchema = CreateCharacterLegacyRequestSchema.partial();
+
+// Premade character query schema
+export const PremadeCharacterQuerySchema = z.object({
+  world: z.string().min(1).max(100),
+});
 
 // Game request schemas
 export const CreateGameRequestSchema = z.object({
@@ -212,8 +217,9 @@ export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
 
 export type IdParam = z.infer<typeof IdParamSchema>;
 export type SearchQuery = z.infer<typeof SearchQuerySchema>;
-export type CreateCharacterRequest = z.infer<typeof CreateCharacterRequestSchema>;
+export type CreateCharacterLegacyRequest = z.infer<typeof CreateCharacterLegacyRequestSchema>;
 export type UpdateCharacterRequest = z.infer<typeof UpdateCharacterRequestSchema>;
+export type PremadeCharacterQuery = z.infer<typeof PremadeCharacterQuerySchema>;
 export type CreateGameRequest = z.infer<typeof CreateGameRequestSchema>;
 export type GameTurnRequest = z.infer<typeof GameTurnRequestSchema>;
 export type ConvertStonesRequest = z.infer<typeof ConvertStonesRequestSchema>;

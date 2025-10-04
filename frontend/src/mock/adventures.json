@@ -1,10 +1,10 @@
 [
   {
-    "id": "mystika-awakening",
+    "id": "mystika-tutorial",
     "worldId": "mystika",
-    "title": "The Awakening",
+    "title": "The Mystika Tutorial",
     "excerpt": "A young Crystalborn discovers their powers during a Veil-storm",
-    "cover": "/images/adventures/mystika-awakening.jpg",
+    "cover": "/images/adventures/mystika-tutorial.jpg",
     "tags": ["beginner", "crystalborn", "veil-storm", "discovery"],
     "difficulty": "easy",
     "stoneCost": 5,
@@ -17,11 +17,11 @@
     ]
   },
   {
-    "id": "mystika-veil-guardian",
+    "id": "mystika-forest-quest",
     "worldId": "mystika",
-    "title": "Veil Guardian",
+    "title": "Forest of Whispers",
     "excerpt": "Protect the Veil from a catastrophic breach",
-    "cover": "/images/adventures/mystika-veil-guardian.jpg",
+    "cover": "/images/adventures/mystika-forest-quest.jpg",
     "tags": ["veil", "guardian", "crisis", "magic"],
     "difficulty": "medium",
     "stoneCost": 10,
@@ -34,11 +34,11 @@
     ]
   },
   {
-    "id": "mystika-crystal-empire",
+    "id": "mystika-tower-challenge",
     "worldId": "mystika",
-    "title": "The Crystal Empire",
+    "title": "Tower of Trials",
     "excerpt": "Build a new empire from the ashes of the old world",
-    "cover": "/images/adventures/mystika-crystal-empire.jpg",
+    "cover": "/images/adventures/mystika-tower-challenge.jpg",
     "tags": ["empire", "crystal", "politics", "rebuilding"],
     "difficulty": "hard",
     "stoneCost": 20,

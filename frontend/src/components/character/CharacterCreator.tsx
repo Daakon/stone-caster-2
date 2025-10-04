@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
 import type { Character, World } from '../../services/mockData';
 import { mockDataService } from '../../services/mockData';
+import { createCharacter } from '../../lib/api';
 import { WorldFieldRenderer } from './WorldFieldRenderer';
 
 interface CharacterCreatorProps {
@@ -26,6 +27,7 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<CharacterFormData>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const worldData = mockDataService.getWorldById(worldId);
@@ -131,7 +133,7 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Validate all fields
     const newErrors: Record<string, string> = {};
     allFields.forEach((field: any) => {
@@ -146,24 +148,49 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
       return;
     }
 
-    // Create character
-    const character: Omit<Character, 'id' | 'createdAt'> = {
-      worldId,
-      name: formData.name,
-      avatar: formData.avatar || 'default',
-      backstory: formData.backstory || '',
-      worldSpecificData: {}
-    };
+    setIsSubmitting(true);
+    try {
+      // Create character data for API using the new generic model
+      const characterData = {
+        name: formData.name,
+        worldSlug: worldId,
+        // Add all form data as world-specific data
+        worldData: {} as Record<string, any>
+      };
 
-    // Add all form data to world-specific data
-    Object.keys(formData).forEach((key: string) => {
-      if (key !== 'name' && key !== 'avatar' && key !== 'backstory') {
-        character.worldSpecificData[key] = formData[key];
+      // Add all form data to world-specific data
+      Object.keys(formData).forEach((key: string) => {
+        if (key !== 'name') {
+          characterData.worldData[key] = formData[key];
+        }
+      });
+
+      // Call the real API to create the character
+      const result = await createCharacter(characterData);
+      
+      if (!result.ok) {
+        setErrors({ submit: result.error.message || 'Failed to create character' });
+        return;
       }
-    });
 
-    const newCharacter = mockDataService.createCharacter(character);
-    onCharacterCreated(newCharacter);
+      // Convert API response to Character format for compatibility
+      const newCharacter: Character = {
+        id: result.data.id,
+        worldId: worldId,
+        name: result.data.name,
+        avatar: formData.avatar || 'default',
+        backstory: formData.backstory || '',
+        worldSpecificData: characterData.worldData,
+        createdAt: result.data.createdAt || new Date().toISOString()
+      };
+
+      onCharacterCreated(newCharacter);
+    } catch (error) {
+      console.error('Error creating character:', error);
+      setErrors({ submit: 'Failed to create character. Please try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const progress = ((currentStep + 1) / totalSteps) * 100;
@@ -202,15 +229,23 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
             />
           </div>
 
+          {/* Submit error display */}
+          {errors.submit && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{errors.submit}</p>
+            </div>
+          )}
+
           <div className="flex justify-between">
             <Button
               variant="outline"
               onClick={currentStep === 0 ? onCancel : handlePrevious}
+              disabled={isSubmitting}
             >
               {currentStep === 0 ? 'Cancel' : 'Previous'}
             </Button>
-            <Button onClick={handleNext}>
-              {currentStep === totalSteps - 1 ? 'Create Character' : 'Next'}
+            <Button onClick={handleNext} disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : (currentStep === totalSteps - 1 ? 'Create Character' : 'Next')}
             </Button>
           </div>
         </CardContent>

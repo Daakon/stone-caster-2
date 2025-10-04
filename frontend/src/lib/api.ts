@@ -158,11 +158,40 @@ export async function getGame(
   return apiGet(`/api/games/${gameId}`);
 }
 
-// Create character
+// Get premade characters for a world
+export async function getPremadeCharacters(
+  worldSlug: string,
+): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet(`/api/premades?world=${encodeURIComponent(worldSlug)}`);
+}
+
+// Get characters for a user (optionally filtered by world)
+export async function getCharacters(
+  worldSlug?: string,
+): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  const path = worldSlug ? `/api/characters?world=${encodeURIComponent(worldSlug)}` : '/api/characters';
+  return apiGet(path);
+}
+
+// Create character (supports both new and legacy formats)
 export async function createCharacter(
   characterData: any,
 ): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
   return apiPost('/api/characters', characterData);
+}
+
+// Create character from premade
+export async function createCharacterFromPremade(
+  worldSlug: string,
+  archetypeKey: string,
+  name?: string,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiPost('/api/characters', {
+    worldSlug,
+    archetypeKey,
+    name,
+    fromPremade: true,
+  });
 }
 
 // Turn submission with idempotency key

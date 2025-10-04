@@ -34,6 +34,7 @@ export interface SpawnResult {
   game?: GameDTO;
   error?: ApiErrorCode;
   message?: string;
+  existingGameId?: string;
 }
 
 export class GamesService {
@@ -79,6 +80,7 @@ export class GamesService {
             success: false,
             error: ApiErrorCode.CONFLICT,
             message: 'Character is already active in another game',
+            existingGameId: character.activeGameId,
           };
         }
 
@@ -90,6 +92,11 @@ export class GamesService {
             message: 'Character and adventure must be from the same world',
           };
         }
+      }
+
+      // For guest users, ensure they have a cookie group
+      if (isGuest) {
+        await this.ensureGuestCookieGroup(ownerId);
       }
 
       // Check for starter stones grant (if enabled and first spawn)
@@ -172,7 +179,7 @@ export class GamesService {
         .select(`
           *,
           adventures!inner(id, slug, title, description, world_slug),
-          characters(id, name)
+          characters!games_character_id_fkey(id, name)
         `)
         .eq('id', gameId);
 
@@ -218,7 +225,7 @@ export class GamesService {
           status,
           last_played_at,
           adventures!inner(title, world_slug),
-          characters(name)
+          characters!games_character_id_fkey(name)
         `)
         .order('last_played_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -332,6 +339,78 @@ export class GamesService {
       return createdTurn;
     } catch (error) {
       console.error('Unexpected error in applyTurn:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ensure guest user has a cookie group
+   * @param cookieId - Cookie ID for the guest user
+   */
+  private async ensureGuestCookieGroup(cookieId: string): Promise<void> {
+    try {
+      // Check if the cookie group itself exists in cookie_groups table
+      const { data: existingGroup, error: groupError } = await supabaseAdmin
+        .from('cookie_groups')
+        .select('id')
+        .eq('id', cookieId)
+        .single();
+
+      if (existingGroup && !groupError) {
+        console.log(`Cookie group ${cookieId} already exists`);
+        return; // Cookie group exists
+      }
+
+      // Cookie group doesn't exist - create it manually
+      console.log(`Creating cookie group for guest user ${cookieId}`);
+      
+      // First, create the cookie group
+      const { data: newGroup, error: groupCreateError } = await supabaseAdmin
+        .from('cookie_groups')
+        .insert({
+          id: cookieId,
+          user_id: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (groupCreateError) {
+        // If it's a duplicate key error, that's okay - the group already exists
+        if (groupCreateError.code === '23505' && groupCreateError.message.includes('duplicate key')) {
+          console.log(`Cookie group already exists for guest user ${cookieId} (duplicate key)`);
+          return;
+        }
+        
+        console.error('Error creating cookie group:', groupCreateError);
+        throw new Error(`Failed to create cookie group: ${groupCreateError.message}`);
+      }
+
+      // Then, create the cookie group member
+      const { error: memberCreateError } = await supabaseAdmin
+        .from('cookie_group_members')
+        .insert({
+          cookie_id: cookieId,
+          group_id: cookieId,
+          device_label: 'Guest Device',
+          created_at: new Date().toISOString(),
+        });
+
+      if (memberCreateError) {
+        // If it's a duplicate key error, that's okay - the member already exists
+        if (memberCreateError.code === '23505' && memberCreateError.message.includes('duplicate key')) {
+          console.log(`Cookie group member already exists for guest user ${cookieId}`);
+          return;
+        }
+        
+        console.error('Error creating cookie group member:', memberCreateError);
+        throw new Error(`Failed to create cookie group member: ${memberCreateError.message}`);
+      }
+
+      console.log(`Created cookie group and member for guest user ${cookieId}`);
+    } catch (error) {
+      console.error('Error ensuring guest cookie group:', error);
       throw error;
     }
   }

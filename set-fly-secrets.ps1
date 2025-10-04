@@ -5,7 +5,7 @@ Write-Host "Setting Fly.io secrets for StoneCaster..." -ForegroundColor Green
 
 # Set Supabase secrets
 Write-Host "Setting Supabase secrets..." -ForegroundColor Yellow
-flyctl secrets set SUPABASE_URL="https://hwudmbeedmntgqqxrceb.supabase.co" -a stonecaster-api
+flyctl secrets set SUPABASE_URL="https://obfadjnywufemhhhcxiy.supabase.co" -a stonecaster-api
 flyctl secrets set SUPABASE_ANON_KEY="sb_publishable_QKJ2Ji-SjAQJIbs5NITDpw_IMVQ9JDl" -a stonecaster-api
 flyctl secrets set SUPABASE_SERVICE_KEY="your_service_key_here" -a stonecaster-api
 

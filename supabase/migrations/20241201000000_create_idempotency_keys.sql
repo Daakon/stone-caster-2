@@ -33,7 +33,7 @@ CREATE POLICY "Users can view own idempotency records" ON idempotency_keys
   FOR SELECT USING (
     auth.uid()::text = owner_id OR 
     owner_id IN (
-      SELECT cookie_group_id::text 
+      SELECT id::text 
       FROM cookie_groups 
       WHERE user_id = auth.uid()
     )
@@ -44,7 +44,7 @@ CREATE POLICY "Users can insert own idempotency records" ON idempotency_keys
   FOR INSERT WITH CHECK (
     auth.uid()::text = owner_id OR 
     owner_id IN (
-      SELECT cookie_group_id::text 
+      SELECT id::text 
       FROM cookie_groups 
       WHERE user_id = auth.uid()
     )
@@ -55,7 +55,7 @@ CREATE POLICY "Users can update own idempotency records" ON idempotency_keys
   FOR UPDATE USING (
     auth.uid()::text = owner_id OR 
     owner_id IN (
-      SELECT cookie_group_id::text 
+      SELECT id::text 
       FROM cookie_groups 
       WHERE user_id = auth.uid()
     )

@@ -1,21 +1,26 @@
 import { supabaseAdmin } from './supabase.js';
 import { WorldValidationService } from './worldValidation.service.js';
+import { PremadeCharactersService } from './premade-characters.service.js';
 import type { Character } from 'shared';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateCharacterInput {
   name: string;
-  race: string;
-  class: string;
+  worldSlug: string;
+  // Generic world-specific data
+  worldData?: Record<string, unknown>;
+  // Legacy fields for backward compatibility
+  race?: string;
+  class?: string;
   level?: number;
   experience?: number;
-  attributes: {
-    strength: number;
-    dexterity: number;
-    constitution: number;
-    intelligence: number;
-    wisdom: number;
-    charisma: number;
+  attributes?: {
+    strength?: number;
+    dexterity?: number;
+    constitution?: number;
+    intelligence?: number;
+    wisdom?: number;
+    charisma?: number;
   };
   skills?: string[];
   inventory?: Array<{
@@ -26,11 +31,20 @@ export interface CreateCharacterInput {
   }>;
   currentHealth?: number;
   maxHealth?: number;
+}
+
+export interface CreateCharacterFromPremadeInput {
   worldSlug: string;
+  name?: string;
+  archetypeKey?: string;
+  fromPremade: boolean;
 }
 
 export interface UpdateCharacterInput {
   name?: string;
+  // Generic world-specific data
+  worldData?: Record<string, unknown>;
+  // Legacy fields for backward compatibility
   race?: string;
   class?: string;
   level?: number;
@@ -83,13 +97,16 @@ export class CharactersService {
         throw new Error(worldValidation.error || 'Invalid world slug');
       }
 
-      // Calculate health if not provided
-      const currentHealth = input.currentHealth ?? input.maxHealth ?? this.calculateMaxHealth(input.attributes.constitution);
-      const maxHealth = input.maxHealth ?? this.calculateMaxHealth(input.attributes.constitution);
+      // Calculate health if not provided (for legacy characters)
+      const currentHealth = input.currentHealth ?? input.maxHealth ?? (input.attributes?.constitution ? this.calculateMaxHealth(input.attributes.constitution) : 100);
+      const maxHealth = input.maxHealth ?? (input.attributes?.constitution ? this.calculateMaxHealth(input.attributes.constitution) : 100);
 
       const characterData = {
         id: uuidv4(),
         name: input.name,
+        world_slug: input.worldSlug,
+        world_data: input.worldData ?? {},
+        // Legacy fields for backward compatibility
         race: input.race,
         class: input.class,
         level: input.level ?? 1,
@@ -99,10 +116,10 @@ export class CharactersService {
         inventory: input.inventory ?? [],
         current_health: currentHealth,
         max_health: maxHealth,
-        world_slug: input.worldSlug,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         // Set owner based on user type
+        // Support both cookie_id and user_id for seamless guest-to-user migration
         ...(isGuest ? { cookie_id: ownerId } : { user_id: ownerId })
       };
 
@@ -120,6 +137,134 @@ export class CharactersService {
       return this.mapCharacterFromDb(data);
     } catch (error) {
       console.error('CharactersService.createCharacter error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get mock premade character data (temporary fix)
+   */
+  private static getMockPremadeCharacter(worldSlug: string, archetypeKey: string): any {
+    // Mock data matching what the API endpoint returns
+    const mockPremadeCharacters = [
+      {
+        id: 'mock-1',
+        worldSlug: 'mystika',
+        archetypeKey: 'elven-court-guardian',
+        displayName: 'Thorne Shifter',
+        summary: 'A noble guardian of the elven courts, bound by ancient oaths to protect the realm.',
+        avatarUrl: null,
+        baseTraits: {
+          class: 'shifter_warden',
+          faction_alignment: 'shifter_tribes',
+          crystal_affinity: 'nature_bond',
+          personality_traits: ['wild', 'protective', 'intuitive']
+        },
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'mock-2',
+        worldSlug: 'mystika',
+        archetypeKey: 'crystalborn-scholar',
+        displayName: 'Lysara Brightmind',
+        summary: 'A brilliant scholar who studies the mysteries of the Veil and its effects on reality.',
+        avatarUrl: null,
+        baseTraits: {
+          class: 'crystalborn_scholar',
+          faction_alignment: 'crystalborn_academy',
+          crystal_affinity: 'knowledge_seeker',
+          personality_traits: ['curious', 'analytical', 'determined']
+        },
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+
+    return mockPremadeCharacters.find(
+      char => char.worldSlug === worldSlug && char.archetypeKey === archetypeKey
+    ) || null;
+  }
+
+  /**
+   * Create a new character from a premade template
+   */
+  static async createCharacterFromPremade(
+    input: CreateCharacterFromPremadeInput,
+    ownerId: string,
+    isGuest: boolean = false
+  ): Promise<Character> {
+    try {
+      // Validate world slug
+      const worldValidation = await WorldValidationService.validateWorldSlug(input.worldSlug);
+      if (!worldValidation.isValid) {
+        throw new Error(worldValidation.error || 'Invalid world slug');
+      }
+
+      if (!input.fromPremade || !input.archetypeKey) {
+        throw new Error('Archetype key is required when creating from premade');
+      }
+
+      // Get the premade character template
+      // TEMPORARY FIX: Use mock data instead of database lookup
+      // TODO: Replace with actual database lookup when premade_characters table is set up
+      const premadeCharacter = this.getMockPremadeCharacter(input.worldSlug, input.archetypeKey);
+
+      if (!premadeCharacter) {
+        throw new Error(`Premade character '${input.archetypeKey}' not found for world '${input.worldSlug}'`);
+      }
+
+      // Extract base traits and create character data
+      const baseTraits = premadeCharacter.baseTraits as any;
+      const skills = baseTraits.skills || {};
+      
+      // Use provided name or fall back to premade display name
+      const characterName = input.name || premadeCharacter.displayName;
+
+      // Create character data from premade template
+      const characterData = {
+        id: uuidv4(),
+        name: characterName,
+        race: baseTraits.race || 'Unknown',
+        class: baseTraits.class || premadeCharacter.archetypeKey,
+        level: 1,
+        experience: 0,
+        attributes: {
+          strength: skills.strength || 10,
+          dexterity: skills.dexterity || 10,
+          constitution: skills.constitution || 10,
+          intelligence: skills.intelligence || 10,
+          wisdom: skills.wisdom || 10,
+          charisma: skills.charisma || 10,
+        },
+        skills: Object.keys(skills).filter(key => typeof skills[key] === 'string'),
+        inventory: [],
+        current_health: this.calculateMaxHealth(skills.constitution || 10),
+        max_health: this.calculateMaxHealth(skills.constitution || 10),
+        world_slug: input.worldSlug,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        // Set owner based on user type
+        // Support both cookie_id and user_id for seamless guest-to-user migration
+        ...(isGuest ? { cookie_id: ownerId } : { user_id: ownerId })
+      };
+
+      const { data, error } = await supabaseAdmin
+        .from('characters')
+        .insert([characterData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating character from premade:', error);
+        throw new Error(`Failed to create character: ${error.message}`);
+      }
+
+      return this.mapCharacterFromDb(data);
+    } catch (error) {
+      console.error('CharactersService.createCharacterFromPremade error:', error);
       throw error;
     }
   }
@@ -379,6 +524,13 @@ export class CharactersService {
       userId: dbRow.user_id || undefined,
       cookieId: dbRow.cookie_id || undefined,
       name: dbRow.name,
+      worldSlug: dbRow.world_slug,
+      activeGameId: dbRow.active_game_id || undefined,
+      createdAt: dbRow.created_at,
+      updatedAt: dbRow.updated_at,
+      // Generic world-specific data
+      worldData: dbRow.world_data || {},
+      // Legacy fields for backward compatibility
       race: dbRow.race,
       class: dbRow.class,
       level: dbRow.level,
@@ -388,10 +540,6 @@ export class CharactersService {
       inventory: dbRow.inventory,
       currentHealth: dbRow.current_health,
       maxHealth: dbRow.max_health,
-      worldSlug: dbRow.world_slug,
-      activeGameId: dbRow.active_game_id || undefined,
-      createdAt: dbRow.created_at,
-      updatedAt: dbRow.updated_at,
     };
   }
 }

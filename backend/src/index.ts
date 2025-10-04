@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import swaggerUi from 'swagger-ui-express';
 import { config } from './config/index.js';
+import { swaggerSpec } from './config/swagger.js';
 import charactersRouter from './routes/characters.js';
 import gamesRouter from './routes/games.js';
 import worldsRouter from './routes/worlds.js';
@@ -18,6 +20,8 @@ import telemetryRouter from './routes/telemetry.js';
 import webhooksRouter from './routes/webhooks.js';
 import contentRouter from './routes/content.js';
 import authRouter from './routes/auth.js';
+import premadeCharactersRouter from './routes/premade-characters.js';
+import cookieLinkingRouter from './routes/cookie-linking.js';
 import { observabilityMiddleware } from './middleware/observability.js';
 
 const app = express();
@@ -30,7 +34,8 @@ app.use(cors({
     
     // Define allowed origins
     const allowedOrigins = [
-      'http://localhost:5173',  // Local development
+      'http://localhost:5173',  // Local development (Vite default)
+      'http://localhost:4173',  // Local development (Vite preview)
       'http://localhost:3000',  // Local development (alternative port)
       'https://stonecaster.ai', // Production frontend
       'https://www.stonecaster.ai', // Production frontend with www
@@ -66,6 +71,7 @@ app.use('/api/config', configRouter);
 app.use('/api/me', meRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/characters', charactersRouter);
+app.use('/api/premades', premadeCharactersRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);
 app.use('/api/content', contentRouter);
@@ -77,7 +83,15 @@ app.use('/api/telemetry', telemetryRouter);
 app.use('/api/story', storyRouter);
 app.use('/api/dice', diceRouter);
 app.use('/api/webhooks', webhooksRouter);
+app.use('/api/cookie-linking', cookieLinkingRouter);
 app.use('/api/auth', authRouter);
+
+// Swagger API documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'StoneCaster API Documentation',
+}));
 
 // Error handling
 // _next is intentionally unused (error handler signature). Disable unused var rule for this line.

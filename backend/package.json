@@ -32,6 +32,8 @@
     "@supabase/supabase-js": "^2.38.0",
     "@types/cookie-parser": "^1.4.9",
     "@types/crypto-js": "^4.2.2",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -41,6 +43,8 @@
     "node-fetch": "^3.3.2",
     "openai": "^4.20.0",
     "stripe": "^19.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "uuid": "^13.0.0",
     "zod": "^3.22.4"
   },

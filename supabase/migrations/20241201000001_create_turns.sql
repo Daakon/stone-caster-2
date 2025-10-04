@@ -1,20 +1,29 @@
--- Create turns table for Layer M3
--- Stores turn results and AI responses
+-- Update turns table for Layer M3
+-- Add missing columns to existing turns table
 
-CREATE TABLE IF NOT EXISTS turns (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  game_id UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  option_id UUID NOT NULL, -- The choice/option that was selected
-  ai_response JSONB NOT NULL, -- Full AI response (TurnResponse)
-  turn_number INTEGER NOT NULL, -- Turn count when this turn was made
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  
-  -- Ensure turns are ordered by game and turn number
-  UNIQUE(game_id, turn_number)
-);
+-- Add turn_number column if it doesn't exist
+ALTER TABLE turns ADD COLUMN IF NOT EXISTS turn_number INTEGER;
 
--- Index for fast lookups by game
-CREATE INDEX IF NOT EXISTS idx_turns_game_id ON turns(game_id);
+-- Update existing turns to have turn numbers (if any exist)
+-- This will set turn_number to 1 for existing turns
+UPDATE turns SET turn_number = 1 WHERE turn_number IS NULL;
+
+-- Make turn_number NOT NULL after setting defaults
+ALTER TABLE turns ALTER COLUMN turn_number SET NOT NULL;
+
+-- Add unique constraint for game_id and turn_number (if it doesn't exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'turns_game_turn_unique'
+    ) THEN
+        ALTER TABLE turns ADD CONSTRAINT turns_game_turn_unique UNIQUE(game_id, turn_number);
+    END IF;
+END $$;
+
+-- Index for fast lookups by game (already exists from M2)
+-- CREATE INDEX IF NOT EXISTS idx_turns_game_id ON turns(game_id);
 
 -- Index for ordering turns
 CREATE INDEX IF NOT EXISTS idx_turns_game_turn ON turns(game_id, turn_number);
@@ -29,7 +38,7 @@ CREATE POLICY "Users can view turns for own games" ON turns
       SELECT id FROM games 
       WHERE user_id = auth.uid() OR 
             cookie_group_id IN (
-              SELECT cookie_group_id 
+              SELECT id 
               FROM cookie_groups 
               WHERE user_id = auth.uid()
             )
@@ -43,7 +52,7 @@ CREATE POLICY "Users can insert turns for own games" ON turns
       SELECT id FROM games 
       WHERE user_id = auth.uid() OR 
             cookie_group_id IN (
-              SELECT cookie_group_id 
+              SELECT id 
               FROM cookie_groups 
               WHERE user_id = auth.uid()
             )
