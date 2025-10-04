@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -44,84 +45,84 @@ export default function GamePage() {
   const [isSubmittingTurn, setIsSubmittingTurn] = useState(false);
   const [turnError, setTurnError] = useState<string | null>(null);
   const [game, setGame] = useState<GameDTO | null>(null);
-  const [isLoadingGame, setIsLoadingGame] = useState(true);
+  const [isLoadingGameState, setIsLoadingGameState] = useState(true);
   const [gameStartTime, setGameStartTime] = useState<number | null>(null);
   const [hasTrackedFirstTurn, setHasTrackedFirstTurn] = useState(false);
   
   const telemetry = useAdventureTelemetry();
-  const [gameError, setGameError] = useState<string | null>(null);
+  const [gameErrorState, setGameErrorState] = useState<string | null>(null);
 
+  // Use React Query to load game data (prevents duplicate calls in StrictMode)
+  const { data: gameData, isLoading: isLoadingGame, error: gameError } = useQuery({
+    queryKey: ['game', gameId],
+    queryFn: async () => {
+      if (!gameId) throw new Error('No game ID provided');
+      console.log(`[GamePage] React Query: Loading game data for ID: ${gameId}`);
+      const result = await getGame(gameId);
+      if (!result.ok) {
+        throw new Error(result.error.message || 'Failed to load game');
+      }
+      return result.data;
+    },
+    enabled: !!gameId && !!isInvited,
+    staleTime: 30 * 1000, // 30 seconds cache for game data
+    retry: 1,
+  });
+
+  // Handle navigation and game start time
   useEffect(() => {
     if (!isInvited) {
       navigate('/');
       return;
     }
-
-    // Set game start time for telemetry
     setGameStartTime(Date.now());
+  }, [isInvited, navigate]);
 
-    // Load real game data from backend
-    const loadGame = async () => {
-      if (!gameId) return;
+  // Update game state when data changes
+  useEffect(() => {
+    if (gameData) {
+      setGame(gameData);
+      setGameState(prev => ({
+        ...prev,
+        currentTurn: gameData.turnCount
+      }));
 
-      setIsLoadingGame(true);
-      setGameError(null);
-
-      try {
-        const result = await getGame(gameId);
+      // Load adventure and character data from mock service for now
+      // TODO: Replace with real API calls when available
+      const adventures = mockDataService.getAdventures();
+      const characters = mockDataService.getCharacters();
+      
+      if (adventures.length > 0 && characters.length > 0) {
+        const selectedAdventure = adventures.find(a => a.id === gameData.adventureId) || adventures[0];
+        const selectedCharacter = characters.find(c => c.id === gameData.characterId) || characters[0];
         
-        if (!result.ok) {
-          setGameError(result.error.message || 'Failed to load game');
-          return;
-        }
-
-        const gameData = result.data;
-        setGame(gameData);
-
-        // Update game state with real data
-        setGameState(prev => ({
-          ...prev,
-          currentTurn: gameData.turnCount
-        }));
-
-        // Load adventure and character data from mock service for now
-        // TODO: Replace with real API calls when available
-        const adventures = mockDataService.getAdventures();
-        const characters = mockDataService.getCharacters();
+        setAdventure(selectedAdventure);
+        setCharacter(selectedCharacter);
         
-        if (adventures.length > 0 && characters.length > 0) {
-          const selectedAdventure = adventures.find(a => a.id === gameData.adventureId) || adventures[0];
-          const selectedCharacter = characters.find(c => c.id === gameData.characterId) || characters[0];
-          
-          setAdventure(selectedAdventure);
-          setCharacter(selectedCharacter);
-          
-          const worldData = mockDataService.getWorldById(selectedAdventure.worldId);
-          setWorld(worldData || null);
+        const worldData = mockDataService.getWorldById(selectedAdventure.worldId);
+        setWorld(worldData || null);
 
-          // Initialize world rules if not set
-          if (worldData && Object.keys(gameState.worldRules).length === 0) {
-            const initialRules: Record<string, number> = {};
-            worldData.rules.forEach(rule => {
-              initialRules[rule.id] = rule.current;
-            });
-            setGameState(prev => ({
-              ...prev,
-              worldRules: initialRules
-            }));
-          }
+        // Initialize world rules if not set
+        if (worldData && Object.keys(gameState.worldRules).length === 0) {
+          const initialRules: Record<string, number> = {};
+          worldData.rules.forEach(rule => {
+            initialRules[rule.id] = rule.current;
+          });
+          setGameState(prev => ({
+            ...prev,
+            worldRules: initialRules
+          }));
         }
-
-      } catch (error) {
-        console.error('Error loading game:', error);
-        setGameError('Failed to load game data');
-      } finally {
-        setIsLoadingGame(false);
       }
-    };
+    }
+  }, [gameData, gameState.worldRules]);
 
-    loadGame();
-  }, [gameId, navigate, isInvited]);
+  // Handle game error
+  useEffect(() => {
+    if (gameError) {
+      setGameErrorState(gameError.message);
+    }
+  }, [gameError]);
 
   const handleTurnSubmit = async (action: string) => {
     if (!adventure || !character || !gameId) return;
@@ -263,7 +264,7 @@ export default function GamePage() {
     );
   }
 
-  if (gameError) {
+  if (gameErrorState) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -273,7 +274,7 @@ export default function GamePage() {
             </svg>
           </div>
           <h2 className="text-xl font-semibold mb-2">Game Not Found</h2>
-          <p className="text-muted-foreground mb-4">{gameError}</p>
+          <p className="text-muted-foreground mb-4">{gameErrorState}</p>
           <Button onClick={() => navigate('/adventures')}>
             Back to Adventures
           </Button>

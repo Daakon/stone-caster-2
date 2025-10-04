@@ -208,3 +208,36 @@ export async function submitTurn<T = unknown>(
     },
   });
 }
+
+// World templates
+export async function getWorldTemplates(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/worlds');
+}
+
+// Game saves (legacy compatibility)
+export async function createGameSave(
+  gameSaveData: any,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiPost('/api/games', gameSaveData);
+}
+
+export async function getGameSave(
+  gameId: string,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/games/${gameId}`);
+}
+
+// Character operations (legacy compatibility)
+export async function getCharacter(
+  characterId: string,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/characters/${characterId}`);
+}
+
+// Story actions
+export async function processStoryAction(
+  gameId: string,
+  action: any,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiPost('/api/story', { ...action, gameSaveId: gameId });
+}

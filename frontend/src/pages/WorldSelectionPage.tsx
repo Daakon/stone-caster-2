@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { apiService } from '../services/api';
+import { getWorldTemplates, createGameSave } from '../lib/api';
 
 export default function WorldSelectionPage() {
   const navigate = useNavigate();
@@ -9,12 +9,18 @@ export default function WorldSelectionPage() {
 
   const { data: worlds, isLoading } = useQuery({
     queryKey: ['worlds'],
-    queryFn: () => apiService.getWorldTemplates(),
+    queryFn: async () => {
+      const result = await getWorldTemplates();
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
   });
 
   const createGameMutation = useMutation({
     mutationFn: async (worldTemplateId: string) => {
-      return apiService.createGameSave({
+      const result = await createGameSave({
         characterId,
         worldTemplateId,
         name: `New Adventure - ${new Date().toLocaleDateString()}`,
@@ -25,6 +31,10 @@ export default function WorldSelectionPage() {
           worldState: {},
         },
       });
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
     },
     onSuccess: (gameSave) => {
       navigate(`/play/${gameSave.id}`);

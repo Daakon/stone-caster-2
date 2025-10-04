@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { createCharacter } from '../lib/api';
 import type { Character } from 'shared';
 
 const RACES = ['Human', 'Elf', 'Dwarf', 'Halfling', 'Orc', 'Tiefling', 'Dragonborn'];
@@ -22,7 +22,13 @@ export default function CharacterCreationPage() {
   });
 
   const createCharacterMutation = useMutation({
-    mutationFn: (character: Partial<Character>) => apiService.createCharacter(character),
+    mutationFn: async (character: Partial<Character>) => {
+      const result = await createCharacter(character);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
     onSuccess: () => {
       navigate('/characters');
     },

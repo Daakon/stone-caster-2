@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { apiService } from '../services/api';
+import { getGameSave, getCharacter, processStoryAction } from '../lib/api';
 import type { StoryAction } from 'shared';
 
 export default function GamePlayPage() {
@@ -12,18 +12,36 @@ export default function GamePlayPage() {
 
   const { data: gameSave, isLoading, refetch } = useQuery({
     queryKey: ['game', gameId],
-    queryFn: () => apiService.getGameSave(gameId!),
+    queryFn: async () => {
+      const result = await getGameSave(gameId!);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
     enabled: !!gameId,
   });
 
   const { data: character } = useQuery({
     queryKey: ['character', gameSave?.characterId],
-    queryFn: () => apiService.getCharacter(gameSave!.characterId),
+    queryFn: async () => {
+      const result = await getCharacter(gameSave!.characterId);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
     enabled: !!gameSave?.characterId,
   });
 
   const storyActionMutation = useMutation({
-    mutationFn: (action: StoryAction) => apiService.processStoryAction(gameId!, action),
+    mutationFn: async (action: StoryAction) => {
+      const result = await processStoryAction(gameId!, action);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
     onSuccess: () => {
       refetch();
       setInputValue('');
@@ -100,7 +118,7 @@ export default function GamePlayPage() {
               <p>Welcome to your adventure! What would you like to do?</p>
             </div>
           ) : (
-            gameSave.storyState.history.map((entry, index) => (
+            gameSave.storyState.history.map((entry: any, index: number) => (
               <div
                 key={index}
                 className={`story-message ${entry.role}`}
@@ -125,7 +143,7 @@ export default function GamePlayPage() {
             <>
               <p className="suggestions-label">Suggested actions:</p>
               <div className="suggestions-grid">
-                {storyActionMutation.data.aiResponse.suggestedActions.map((suggestion, i) => (
+                {storyActionMutation.data.aiResponse.suggestedActions.map((suggestion: string, i: number) => (
                   <button
                     key={i}
                     onClick={() => handleSuggestedAction(suggestion)}

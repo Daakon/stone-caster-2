@@ -1,17 +1,20 @@
-import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { apiService } from '../services/api';
+import { getCharacters } from '../lib/api';
 
 export default function CharacterListPage() {
-  const { data: characters, isLoading, refetch } = useQuery({
+  const { data: characters, isLoading } = useQuery({
     queryKey: ['characters'],
-    queryFn: () => apiService.getCharacters(),
+    queryFn: async () => {
+      const result = await getCharacters();
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
   });
 
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
+  // Removed problematic useEffect that was causing duplicate API calls
 
   if (isLoading) {
     return (

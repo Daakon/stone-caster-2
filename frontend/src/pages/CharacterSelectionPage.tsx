@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -51,7 +52,7 @@ export default function CharacterSelectionPage() {
   const [gameCreationError, setGameCreationError] = useState<{code: ApiErrorCode; message?: string; existingGameId?: string} | null>(null);
   const [userCharacters, setUserCharacters] = useState<Character[]>([]);
   const [premadeCharacters, setPremadeCharacters] = useState<PremadeCharacter[]>([]);
-  const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
+  const [isLoadingCharactersState, setIsLoadingCharactersState] = useState(true);
   
   const { startAdventure, isStarting } = useStartAdventure();
   const telemetry = useAdventureTelemetry();
@@ -63,47 +64,60 @@ export default function CharacterSelectionPage() {
   const currentTier = mockDataService.getCurrentTier();
   const limits = mockDataService.getLimitsByTier(currentTier);
 
-  // Load user characters and premade characters
-  useEffect(() => {
-    const loadCharacters = async () => {
-      const currentWorldSlug = worldSlug || world?.id;
-      if (!currentWorldSlug || !adventure) return;
-      
-      setIsLoadingCharacters(true);
-      
-      // Track that character selection has started
-      await telemetry.trackCharacterSelectionStarted(adventure.id);
-      
-      try {
-        // Load user's existing characters (from API)
-        const charactersResult = await getCharacters(currentWorldSlug);
-        if (charactersResult.ok) {
-          setUserCharacters(charactersResult.data);
-        } else {
-          console.error('Error loading user characters:', charactersResult.error);
-          setUserCharacters([]);
-        }
-        
-        // Load premade characters for this world
-        const premadeResult = await getPremadeCharacters(currentWorldSlug);
-        if (premadeResult.ok) {
-          setPremadeCharacters(premadeResult.data);
-        } else {
-          console.error('Error loading premade characters:', premadeResult.error);
-          setPremadeCharacters([]);
-        }
-        
-      } catch (error) {
-        console.error('Error loading characters:', error);
-        setUserCharacters([]);
-        setPremadeCharacters([]);
-      } finally {
-        setIsLoadingCharacters(false);
+  // Use React Query to load characters (prevents duplicate calls in StrictMode)
+  const currentWorldSlug = worldSlug || world?.id;
+  
+  const { data: userCharactersData, isLoading: isLoadingUserCharacters } = useQuery({
+    queryKey: ['characters', currentWorldSlug],
+    queryFn: async () => {
+      if (!currentWorldSlug) return [];
+      console.log(`[CharacterSelectionPage] React Query: Loading user characters for world: ${currentWorldSlug}`);
+      const result = await getCharacters(currentWorldSlug);
+      if (!result.ok) {
+        throw new Error(result.error.message);
       }
-    };
+      return result.data;
+    },
+    enabled: !!currentWorldSlug && !!adventure,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-    loadCharacters();
-  }, [worldSlug, world, adventure]); // Removed telemetry from dependencies
+  const { data: premadeCharactersData, isLoading: isLoadingPremades } = useQuery({
+    queryKey: ['premades', currentWorldSlug],
+    queryFn: async () => {
+      if (!currentWorldSlug) return [];
+      console.log(`[CharacterSelectionPage] React Query: Loading premade characters for world: ${currentWorldSlug}`);
+      const result = await getPremadeCharacters(currentWorldSlug);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    enabled: !!currentWorldSlug && !!adventure,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Update state when data changes
+  useEffect(() => {
+    if (userCharactersData) {
+      setUserCharacters(userCharactersData);
+    }
+  }, [userCharactersData]);
+
+  useEffect(() => {
+    if (premadeCharactersData) {
+      setPremadeCharacters(premadeCharactersData);
+    }
+  }, [premadeCharactersData]);
+
+  const isLoadingCharacters = isLoadingUserCharacters || isLoadingPremades;
+
+  // Track character selection start (only once when adventure is available)
+  useEffect(() => {
+    if (adventure && !isLoadingCharacters) {
+      telemetry.trackCharacterSelectionStarted(adventure.id);
+    }
+  }, [adventure, isLoadingCharacters, telemetry]);
   
   if (!adventure || !world) {
     return (
