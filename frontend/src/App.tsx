@@ -19,6 +19,7 @@ import PaymentsPage from './pages/PaymentsPage';
 import ProfilePage from './pages/ProfilePage';
 import SupportPage from './pages/SupportPage';
 import GamePage from './pages/GamePage';
+import UnifiedGamePage from './pages/UnifiedGamePage';
 import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -94,7 +95,7 @@ function App() {
               <Route path="/worlds/:worldSlug/adventures" element={<AdventuresPage />} />
               <Route path="/worlds/:worldSlug/adventures/:adventureSlug" element={<AdventureDetailPage />} />
               <Route path="/worlds/:worldSlug/adventures/:adventureSlug/character" element={<CharacterCreationPage />} />
-              <Route path="/play/:gameId" element={<GamePage />} />
+              <Route path="/play/:gameId" element={<UnifiedGamePage />} />
               <Route path="/wallet" element={<WalletPage />} />
               <Route path="/payments" element={<PaymentsPage />} />
               <Route path="/profile" element={<ProfilePage />} />

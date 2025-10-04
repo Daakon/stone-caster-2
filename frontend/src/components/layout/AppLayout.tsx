@@ -26,7 +26,8 @@ const getLayoutVariant = (pathname: string): LayoutVariant => {
   // Play Shell - Character Select/Create, Game
   if (
     pathname.includes('/characters') ||
-    pathname.startsWith('/game/')
+    pathname.startsWith('/game/') ||
+    pathname.startsWith('/play/')
   ) {
     return 'play';
   }

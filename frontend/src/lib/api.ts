@@ -241,3 +241,21 @@ export async function processStoryAction(
 ): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
   return apiPost('/api/story', { ...action, gameSaveId: gameId });
 }
+
+// Content API - Layer M0
+export async function getContentWorlds(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/content/worlds');
+}
+
+export async function getContentAdventures(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/content/adventures');
+}
+
+// Wallet/Stones API
+export async function getWallet(): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet('/api/stones/wallet');
+}
+
+export async function getStonesHistory(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/stones/history');
+}

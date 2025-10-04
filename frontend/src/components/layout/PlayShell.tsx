@@ -1,13 +1,16 @@
 import { type ReactNode, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { GlobalHeader } from './GlobalHeader';
 import { PlayBottomNav } from './PlayBottomNav';
 import { PlayBottomSheet } from './PlayBottomSheet';
+import { MobileDrawerNav } from './MobileDrawerNav';
 
 interface PlayShellProps {
   children: ReactNode;
 }
 
 export function PlayShell({ children }: PlayShellProps) {
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<string>('story');
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 
@@ -26,6 +29,12 @@ export function PlayShell({ children }: PlayShellProps) {
     setActiveTab('story');
   };
 
+  // Use MobileDrawerNav for the new unified game page
+  if (location.pathname.startsWith('/play/')) {
+    return <MobileDrawerNav>{children}</MobileDrawerNav>;
+  }
+
+  // Use the original layout for other play routes
   return (
     <div className="min-h-screen flex flex-col">
       <GlobalHeader variant="compact" />
