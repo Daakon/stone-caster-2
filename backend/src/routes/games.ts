@@ -220,6 +220,7 @@ router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Reques
       optionId,
       owner: userId,
       idempotencyKey,
+      isGuest: isGuest || false,
     });
 
     if (!turnResult.success) {

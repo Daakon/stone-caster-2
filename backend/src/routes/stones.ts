@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toStonesWalletDTO, toStonesPackDTO } from '../utils/dto-mappers.js';
 import { validateRequest } from '../middleware/validation.js';
-import { jwtAuth, requireAuth } from '../middleware/auth.js';
+import { optionalAuth, requireAuth, jwtAuth } from '../middleware/auth.js';
 import { ConvertStonesRequestSchema, PurchaseStonesRequestSchema } from 'shared';
 import { ApiErrorCode } from 'shared';
 import { WalletService } from '../services/wallet.service.js';
@@ -11,22 +11,33 @@ import { PaymentService } from '../wrappers/payments.js';
 
 const router = Router();
 
-// Get stones wallet (auth only in M1)
-router.get('/wallet', jwtAuth, requireAuth, async (req: Request, res: Response) => {
+// Get stones wallet - Layer M1: supports both guest and authenticated users
+router.get('/wallet', optionalAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest;
     
     if (!userId) {
       return sendErrorWithStatus(
         res,
-        ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
+        ApiErrorCode.REQUIRES_AUTH,
+        'Authentication required to view stone balance',
+        req
+      );
+    }
+
+    if (isGuest) {
+      // Layer M1: Guest users see a clearly gated response
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.REQUIRES_AUTH,
+        'Guest users cannot view stone balance. Please sign in to access your wallet.',
         req
       );
     }
 
     // Authenticated user - get full wallet
-    const wallet = await WalletService.getWallet(userId);
+    const wallet = await WalletService.getWallet(userId, false);
     const walletDTO = toStonesWalletDTO(wallet);
     sendSuccess(res, walletDTO, req);
   } catch (error) {

@@ -14,6 +14,7 @@ export interface TurnRequest {
   optionId: string;
   owner: string;
   idempotencyKey: string;
+  isGuest: boolean;
 }
 
 export interface TurnResult {
@@ -30,7 +31,7 @@ export class TurnsService {
    * @returns Turn result with success status and data
    */
   async runBufferedTurn(request: TurnRequest): Promise<TurnResult> {
-    const { gameId, optionId, owner, idempotencyKey } = request;
+    const { gameId, optionId, owner, idempotencyKey, isGuest } = request;
 
     try {
       // Check idempotency first
@@ -72,7 +73,7 @@ export class TurnsService {
       const turnCost = this.getTurnCost(pricingConfig, game.world_slug || '');
 
       // Check if user has sufficient stones
-      const wallet = await WalletService.getWallet(owner, false); // TODO: determine if guest
+      const wallet = await WalletService.getWallet(owner, isGuest);
       if (wallet.castingStones < turnCost) {
         return {
           success: false,

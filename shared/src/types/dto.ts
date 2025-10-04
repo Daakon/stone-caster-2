@@ -212,6 +212,20 @@ export const TurnDTOSchema = z.object({
   // - option_id (internal)
 });
 
+// Content World DTO (Layer M0) - curated list of worlds with only UI-needed fields
+export const ContentWorldDTOSchema = z.object({
+  title: z.string(),
+  slug: z.string(),
+  tags: z.array(z.string()),
+  scenarios: z.array(z.string()),
+  displayRules: z.object({
+    allowMagic: z.boolean(),
+    allowTechnology: z.boolean(),
+    difficultyLevel: z.enum(['easy', 'medium', 'hard', 'deadly']),
+    combatSystem: z.enum(['d20', 'narrative', 'custom']),
+  }),
+});
+
 // Type exports
 export type CharacterDTO = z.infer<typeof CharacterDTOSchema>;
 export type GameDTO = z.infer<typeof GameDTOSchema>;
@@ -225,3 +239,4 @@ export type StonesPackDTO = z.infer<typeof StonesPackDTOSchema>;
 export type SubscriptionDTO = z.infer<typeof SubscriptionDTOSchema>;
 export type SearchResultDTO = z.infer<typeof SearchResultDTOSchema>;
 export type TurnDTO = z.infer<typeof TurnDTOSchema>;
+export type ContentWorldDTO = z.infer<typeof ContentWorldDTOSchema>;

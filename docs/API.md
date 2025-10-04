@@ -2,61 +2,373 @@
 
 Base URL: `http://localhost:3000` (development) or your deployed backend URL
 
-All endpoints require authentication via the `x-user-id` header with the user's UUID from Supabase Auth.
-
 ## Authentication
 
-All protected endpoints expect a `x-user-id` header:
+The API supports both guest and authenticated users:
 
-```http
-x-user-id: <user-uuid-from-supabase>
+- **Guest users**: Use persistent cookies for identification
+- **Authenticated users**: Use JWT tokens from Supabase Auth
+
+All responses follow the standard envelope format: `{ ok, data?, error?, meta: { traceId } }`
+
+## Content (Layer M0)
+
+### Get Available Worlds
+
+Get the curated list of worlds with only UI-needed fields.
+
+**Endpoint:** `GET /api/content/worlds`
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "title": "Mystika",
+      "slug": "mystika",
+      "tags": ["fantasy", "magic", "adventure"],
+      "scenarios": ["The Crystal Academy", "The Veil's Edge", "Ancient Ruins"],
+      "displayRules": {
+        "allowMagic": true,
+        "allowTechnology": false,
+        "difficultyLevel": "medium",
+        "combatSystem": "d20"
+      }
+    }
+  ],
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+## Identity
+
+### Get Current User Info
+
+Get identity information for the current user (guest or authenticated).
+
+**Endpoint:** `GET /api/me`
+
+**Response:** `200 OK`
+
+For guest users:
+```json
+{
+  "ok": true,
+  "data": {
+    "kind": "guest",
+    "user": null
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+For authenticated users:
+```json
+{
+  "ok": true,
+  "data": {
+    "kind": "user",
+    "user": {
+      "id": "user-uuid",
+      "email": "user@example.com"
+    }
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
 ```
 
 ## Characters
 
 ### List Characters
 
-Get all characters for the authenticated user.
+Get all characters for the current user (guest or authenticated).
 
 **Endpoint:** `GET /api/characters`
 
-**Headers:**
-- `x-user-id`: User UUID (required)
+**Authentication:** Guest cookie or JWT token
 
 **Response:** `200 OK`
 ```json
-[
-  {
-    "id": "uuid",
-    "userId": "uuid",
-    "name": "Aragorn",
-    "race": "Human",
-    "class": "Ranger",
-    "level": 5,
-    "experience": 12000,
-    "attributes": {
-      "strength": 16,
-      "dexterity": 14,
-      "constitution": 15,
-      "intelligence": 12,
-      "wisdom": 13,
-      "charisma": 14
-    },
-    "skills": ["Survival", "Tracking", "Swordsmanship"],
-    "inventory": [
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Aragorn",
+      "worldSlug": "mystika",
+      "race": "Human",
+      "class": "Ranger",
+      "level": 5,
+      "experience": 12000,
+      "attributes": {
+        "strength": 16,
+        "dexterity": 14,
+        "constitution": 15,
+        "intelligence": 12,
+        "wisdom": 13,
+        "charisma": 14
+      },
+      "skills": ["Survival", "Tracking", "Swordsmanship"],
+      "inventory": [
+        {
+          "id": "item-1",
+          "name": "Longsword",
+          "description": "A well-crafted blade",
+          "quantity": 1
+        }
+      ],
+      "currentHealth": 65,
+      "maxHealth": 75,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+### Get Premade Characters
+
+Get available premade characters for a specific world.
+
+**Endpoint:** `GET /api/premades?world={worldSlug}`
+
+**Parameters:**
+- `world`: World slug (required)
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "uuid",
+      "worldSlug": "mystika",
+      "archetypeKey": "elven-court-guardian",
+      "displayName": "Thorne Shifter",
+      "summary": "A noble guardian of the elven courts, bound by ancient oaths to protect the realm.",
+      "avatarUrl": null,
+      "baseTraits": {
+        "class": "shifter_warden",
+        "faction_alignment": "shifter_tribes",
+        "crystal_affinity": "nature_bond",
+        "personality_traits": ["wild", "protective", "intuitive"]
+      },
+      "isActive": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+**Error:** `404 Not Found` - World not found or has no premade characters
+
+## Stones Wallet
+
+### Get Stone Balance
+
+Get the current stone balance for authenticated users.
+
+**Endpoint:** `GET /api/stones/wallet`
+
+**Authentication:** JWT token required
+
+**Response:** `200 OK` (Authenticated users)
+```json
+{
+  "ok": true,
+  "data": {
+    "shard": 10,
+    "crystal": 5,
+    "relic": 2,
+    "dailyRegen": 1,
+    "lastRegenAt": "2024-01-01T00:00:00Z"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+**Error:** `401 Unauthorized` - Guest users cannot view stone balance
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "REQUIRES_AUTH",
+    "message": "Guest users cannot view stone balance. Please sign in to access your wallet."
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+## Games (Layer M2)
+
+### Spawn Game
+
+Create a new game from a character and adventure combination.
+
+**Endpoint:** `POST /api/games`
+
+**Authentication:** Guest cookie or JWT token
+
+**Request Body:**
+```json
+{
+  "adventureSlug": "mystika-tutorial",
+  "characterId": "character-uuid"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "ok": true,
+  "data": {
+    "id": "game-uuid",
+    "adventureId": "adventure-uuid",
+    "adventureTitle": "The Mystika Tutorial",
+    "adventureDescription": "Learn the basics of magic",
+    "characterId": "character-uuid",
+    "characterName": "Test Hero",
+    "worldSlug": "mystika",
+    "worldName": "Mystika",
+    "turnCount": 0,
+    "status": "active",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z",
+    "lastPlayedAt": "2024-01-01T00:00:00Z"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+**Error:** `409 Conflict` - Character already active in another game
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "CONFLICT",
+    "message": "Character is already active in another game"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+### Get Game
+
+Get a specific game by ID.
+
+**Endpoint:** `GET /api/games/:id`
+
+**Authentication:** Guest cookie or JWT token
+
+**Response:** `200 OK` (same structure as spawn response)
+
+## Turn Engine (Layer M3)
+
+### Take Turn
+
+Execute a turn in an existing game.
+
+**Endpoint:** `POST /api/games/:id/turn`
+
+**Authentication:** Guest cookie or JWT token
+
+**Headers:**
+- `Idempotency-Key`: UUID-like string (required) - prevents duplicate turns
+
+**Request Body:**
+```json
+{
+  "optionId": "option-uuid"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": {
+    "id": "turn-uuid",
+    "gameId": "game-uuid",
+    "turnCount": 1,
+    "narrative": "You continue your journey through the ancient temple...",
+    "emotion": "neutral",
+    "choices": [
       {
-        "id": "item-1",
-        "name": "Longsword",
-        "description": "A well-crafted blade",
-        "quantity": 1
+        "id": "choice-uuid",
+        "label": "Go left",
+        "description": "Take the left corridor"
+      },
+      {
+        "id": "choice-uuid-2",
+        "label": "Go right",
+        "description": "Take the right corridor"
       }
     ],
-    "currentHealth": 65,
-    "maxHealth": 75,
-    "createdAt": "2024-01-01T00:00:00Z",
-    "updatedAt": "2024-01-01T00:00:00Z"
+    "npcResponses": [
+      {
+        "npcId": "guardian",
+        "response": "Halt! Who goes there?",
+        "emotion": "suspicious"
+      }
+    ],
+    "relationshipDeltas": {
+      "guardian": -5
+    },
+    "factionDeltas": {
+      "temple-guardians": -10
+    },
+    "castingStonesBalance": 13,
+    "createdAt": "2024-01-01T00:00:00Z"
+  },
+  "meta": {
+    "traceId": "uuid"
   }
-]
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Missing Idempotency-Key header
+- `401 Unauthorized` - Authentication required
+- `402 Payment Required` - Insufficient casting stones
+- `404 Not Found` - Game not found
+- `422 Unprocessable Entity` - Invalid request data or AI response validation failed
+- `504 Gateway Timeout` - AI service timeout
+
+**Error Response Format:**
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "INSUFFICIENT_STONES",
+    "message": "Insufficient casting stones. Have 1, need 2"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
 ```
 
 ### Get Character

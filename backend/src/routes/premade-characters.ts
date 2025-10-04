@@ -81,46 +81,19 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
 
-    // For now, return mock data since Supabase isn't configured
-    // TODO: Replace with actual database call when Supabase is configured
-    const mockPremadeCharacters = [
-      {
-        id: 'mock-1',
-        worldSlug: world,
-        archetypeKey: 'elven-court-guardian',
-        displayName: 'Thorne Shifter',
-        summary: 'A noble guardian of the elven courts, bound by ancient oaths to protect the realm.',
-        avatarUrl: null,
-        baseTraits: {
-          class: 'shifter_warden',
-          faction_alignment: 'shifter_tribes',
-          crystal_affinity: 'nature_bond',
-          personality_traits: ['wild', 'protective', 'intuitive']
-        },
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'mock-2',
-        worldSlug: world,
-        archetypeKey: 'crystalborn-scholar',
-        displayName: 'Lysara Brightmind',
-        summary: 'A brilliant scholar who studies the mysteries of the Veil and its effects on reality.',
-        avatarUrl: null,
-        baseTraits: {
-          class: 'crystalborn_scholar',
-          faction_alignment: 'crystalborn_academy',
-          crystal_affinity: 'knowledge_seeker',
-          personality_traits: ['curious', 'analytical', 'determined']
-        },
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ];
+    // Layer M1: Use live Supabase data instead of mock data
+    const premadeCharacters = await PremadeCharactersService.getPremadeCharactersByWorld(world);
+    
+    if (premadeCharacters.length === 0) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        `World '${world}' has no premade characters available`,
+        req
+      );
+    }
 
-    sendSuccess(res, mockPremadeCharacters, req);
+    sendSuccess(res, premadeCharacters, req);
   } catch (error) {
     console.error('Error fetching premade characters:', error);
     sendErrorWithStatus(

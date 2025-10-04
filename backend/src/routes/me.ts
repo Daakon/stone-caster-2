@@ -6,20 +6,20 @@ import { ApiErrorCode } from 'shared';
 
 const router = Router();
 
-// Get current user info
+// Get current user info - Layer M0: supports both guest and authenticated users
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.ctx?.userId;
     const isGuest = req.ctx?.isGuest;
     const user = req.ctx?.user;
     
+    // Layer M0: Return guest identity when no user context is available
     if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        'User authentication required',
-        req
-      );
+      const guestIdentity = {
+        kind: 'guest' as const,
+        user: null,
+      };
+      return sendSuccess(res, guestIdentity, req);
     }
 
     // Return identity information based on authentication state
@@ -28,7 +28,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
         id: user?.id || userId,
         email: user?.email,
       },
-      kind: isGuest ? 'guest' : 'user',
+      kind: isGuest ? 'guest' as const : 'user' as const,
     };
 
     sendSuccess(res, identity, req);

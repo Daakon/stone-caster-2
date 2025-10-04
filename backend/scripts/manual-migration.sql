@@ -128,3 +128,4 @@ SELECT 'Testing constraint: both present' as test;
 SELECT 'Testing constraint: neither present' as test;
 -- This should fail (neither present)
 -- INSERT INTO characters (id, name, world_slug) VALUES ('test-4', 'Test Neither', 'mystika');
+

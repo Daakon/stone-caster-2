@@ -108,3 +108,4 @@ async function testCharacterCreation() {
 
 // Run the test
 testCharacterCreation();
+
