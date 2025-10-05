@@ -1,3 +1,5 @@
+import type { ProfileDTO } from './dto';
+
 export enum AuthState {
   GUEST = 'guest',
   COOKIED = 'cookied', 
@@ -10,6 +12,7 @@ export interface AuthUser {
   key?: string; // JWT token for authenticated users
   email?: string; // Only for authenticated users
   displayName?: string; // Only for authenticated users
+  profile?: ProfileDTO; // Hydrated profile when available
 }
 
 export interface AuthContext {
@@ -45,3 +48,4 @@ export interface PlayerSave {
   lastPlayed: string;
   // ... other save properties
 }
+

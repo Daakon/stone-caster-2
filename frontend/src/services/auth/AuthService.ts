@@ -1,10 +1,21 @@
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
 import { GuestCookieService } from '../guestCookie';
 import { RoutePreservationService } from '../routePreservation';
+import { ProfileService } from '../profile';
 import type { AuthUser } from 'shared';
 import { AuthState } from 'shared';
 
-class AuthService {
+type AuthSyncContext =
+  | 'initial'
+  | 'auth_listener'
+  | 'password'
+  | 'signup'
+  | 'server_oauth'
+  | 'client_oauth'
+  | 'refresh';
+
+export class AuthService {
   private static instance: AuthService;
   private currentUser: AuthUser | null = null;
   private listeners: Set<(user: AuthUser | null) => void> = new Set();
@@ -31,13 +42,7 @@ class AuthService {
       
       if (session?.user) {
         console.log('[AuthService] Found authenticated session');
-        this.currentUser = {
-          state: AuthState.AUTHENTICATED,
-          id: session.user.id,
-          key: session.access_token,
-          email: session.user.email,
-          displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0]
-        };
+        await this.syncAuthenticatedSession(session, 'initial');
       } else {
         // Check for guest cookie
         const guestCookie = GuestCookieService.getGuestCookie();
@@ -56,9 +61,9 @@ class AuthService {
             id: newGuestCookie
           };
         }
+        this.notifyListeners();
       }
 
-      this.notifyListeners();
       return this.currentUser;
     } catch (error) {
       console.error('[AuthService] Initialization error:', error);
@@ -73,14 +78,7 @@ class AuthService {
       
       if (event === 'SIGNED_IN' && session) {
         console.log('[AuthService] User signed in via auth state change');
-        this.currentUser = {
-          state: AuthState.AUTHENTICATED,
-          id: session.user.id,
-          key: session.access_token,
-          email: session.user.email,
-          displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0]
-        };
-        this.notifyListeners();
+        await this.syncAuthenticatedSession(session, 'auth_listener');
       } else if (event === 'SIGNED_OUT') {
         console.log('[AuthService] User signed out via auth state change');
         // Fall back to guest state
@@ -100,9 +98,14 @@ class AuthService {
         this.notifyListeners();
       } else if (event === 'TOKEN_REFRESHED' && session) {
         console.log('[AuthService] Token refreshed');
-        if (this.currentUser?.state === AuthState.AUTHENTICATED) {
-          this.currentUser.key = session.access_token;
+        if (this.currentUser?.state === AuthState.AUTHENTICATED && this.currentUser.id === session.user.id && this.currentUser.profile) {
+          this.currentUser = {
+            ...this.currentUser,
+            key: session.access_token
+          };
           this.notifyListeners();
+        } else {
+          await this.syncAuthenticatedSession(session, 'refresh');
         }
       }
     });
@@ -123,17 +126,10 @@ class AuthService {
 
     if (data.session?.user) {
       console.log('[AuthService] Sign in successful');
-      this.currentUser = {
-        state: AuthState.AUTHENTICATED,
-        id: data.session.user.id,
-        key: data.session.access_token,
-        email: data.session.user.email,
-        displayName: data.session.user.user_metadata?.display_name || data.session.user.email?.split('@')[0]
-      };
+      await this.syncAuthenticatedSession(data.session, 'password');
 
       // Link guest account if exists
       await this.linkGuestAccount();
-      this.notifyListeners();
     }
   }
 
@@ -152,17 +148,12 @@ class AuthService {
 
     if (data.session?.user) {
       console.log('[AuthService] Sign up successful');
-      this.currentUser = {
-        state: AuthState.AUTHENTICATED,
-        id: data.session.user.id,
-        key: data.session.access_token,
-        email: data.session.user.email,
-        displayName: data.session.user.user_metadata?.display_name || data.session.user.email?.split('@')[0]
-      };
+      await this.syncAuthenticatedSession(data.session, 'signup');
 
       // Link guest account if exists
       await this.linkGuestAccount();
-      this.notifyListeners();
+    } else {
+      console.log('[AuthService] Sign up initiated; waiting for confirmation');
     }
   }
 
@@ -290,6 +281,95 @@ class AuthService {
     return this.currentUser?.displayName || 'Guest';
   }
 
+  private async syncAuthenticatedSession(session: Session, context: AuthSyncContext): Promise<void> {
+    const baseUser = this.buildBaseAuthenticatedUser(session);
+
+    const canReuseExistingProfile =
+      this.currentUser?.state === AuthState.AUTHENTICATED &&
+      this.currentUser.id === baseUser.id &&
+      this.currentUser.profile;
+
+    if (canReuseExistingProfile && this.currentUser?.profile) {
+      this.currentUser = {
+        ...baseUser,
+        profile: this.currentUser.profile,
+        displayName: this.currentUser.profile.displayName || baseUser.displayName,
+      };
+      this.logAuthenticatedUser(this.currentUser, context);
+      this.notifyListeners();
+      return;
+    }
+
+    this.currentUser = baseUser;
+    this.logAuthenticatedUser(this.currentUser, context);
+    this.notifyListeners();
+
+    void this.fetchProfileAndUpdate(baseUser, context);
+  }
+
+  private buildBaseAuthenticatedUser(session: Session): AuthUser {
+    return {
+      state: AuthState.AUTHENTICATED,
+      id: session.user.id,
+      key: session.access_token,
+      email: session.user.email,
+      displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || undefined,
+    };
+  }
+
+  private async fetchProfileAndUpdate(baseUser: AuthUser, context: AuthSyncContext): Promise<void> {
+    try {
+      const result = await ProfileService.getProfile();
+      if (!result.ok) {
+        console.warn('[AuthService] Unable to load profile during auth sync', {
+          context,
+          reason: result.error?.code ?? 'unknown',
+        });
+        return;
+      }
+
+      if (this.currentUser?.id !== baseUser.id || this.currentUser?.state !== AuthState.AUTHENTICATED) {
+        return;
+      }
+
+      const profile = result.data;
+
+      this.currentUser = {
+        ...baseUser,
+        displayName: profile.displayName || baseUser.displayName,
+        profile,
+      };
+
+      this.logAuthenticatedUser(this.currentUser, context);
+      this.notifyListeners();
+    } catch (error) {
+      console.warn('[AuthService] Unexpected error while loading profile during auth sync', {
+        context,
+        errorType: error instanceof Error ? error.name : 'unknown',
+      });
+    }
+  }
+
+  private logAuthenticatedUser(user: AuthUser, context: AuthSyncContext): void {
+    console.log('[AuthService] Authenticated user hydrated', {
+      context,
+      userId: user.id,
+      hasEmail: Boolean(user.email),
+      displayNamePreview: this.maskDisplayName(user.displayName),
+      profileLoaded: Boolean(user.profile),
+      profileId: user.profile?.id ?? null,
+    });
+  }
+
+  private maskDisplayName(displayName?: string): string {
+    if (!displayName) {
+      return 'unknown';
+    }
+
+    const firstChar = displayName.charAt(0) || '*';
+    return `${firstChar}*** (len=${displayName.length})`;
+  }
+
   private async handleOAuthCallback(): Promise<void> {
     try {
       // Check URL search parameters (for server-side redirects)
@@ -336,14 +416,7 @@ class AuthService {
       
       if (session) {
         console.log('[OAUTH] Session found, updating user state');
-        this.currentUser = {
-          state: AuthState.AUTHENTICATED,
-          id: session.user.id,
-          key: session.access_token,
-          email: session.user.email,
-          displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0]
-        };
-        this.notifyListeners();
+        await this.syncAuthenticatedSession(session, 'server_oauth');
       }
     } catch (error) {
       console.error('[OAUTH] Error handling server-side callback:', error);
@@ -374,15 +447,8 @@ class AuthService {
         
         if (data.session) {
           console.log('[OAUTH] Session set successfully, updating user state');
-          this.currentUser = {
-            state: AuthState.AUTHENTICATED,
-            id: data.session.user.id,
-            key: data.session.access_token,
-            email: data.session.user.email,
-            displayName: data.session.user.user_metadata?.display_name || data.session.user.email?.split('@')[0]
-          };
-          console.log('[OAUTH] Notifying listeners of auth state change');
-          this.notifyListeners();
+          await this.syncAuthenticatedSession(data.session, 'client_oauth');
+          console.log('[OAUTH] Auth state synchronized after client-side callback');
           
           // Clear the URL hash to clean up the OAuth parameters
           window.history.replaceState({}, document.title, window.location.pathname + window.location.search);

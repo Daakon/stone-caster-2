@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AuthService } from './AuthService';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../supabase';
 import { GuestCookieService } from '../guestCookie';
 import { RoutePreservationService } from '../routePreservation';
+import { ProfileService } from '../profile';
+import type { ProfileDTO } from 'shared/types/dto';
 
 // Mock dependencies
-vi.mock('../../lib/supabase', () => ({
+vi.mock('../supabase', () => ({
   supabase: {
     auth: {
       getSession: vi.fn(),
@@ -31,31 +33,129 @@ vi.mock('../routePreservation', () => ({
   }
 }));
 
+vi.mock('../profile', () => ({
+  ProfileService: {
+    getProfile: vi.fn(),
+  }
+}));
+
+vi.mock('shared', () => ({
+  AuthState: {
+    GUEST: 'guest',
+    COOKIED: 'cookied',
+    AUTHENTICATED: 'authenticated',
+  },
+}));
+
 const mockSupabase = vi.mocked(supabase);
 const mockGuestCookieService = vi.mocked(GuestCookieService);
 const mockRoutePreservationService = vi.mocked(RoutePreservationService);
+const mockProfileService = vi.mocked(ProfileService);
+const profileFixture: ProfileDTO = {
+  id: 'profile-123',
+  displayName: 'Test User',
+  avatarUrl: 'https://example.com/avatar.png',
+  email: 'test@example.com',
+  preferences: {
+    showTips: true,
+    theme: 'dark',
+    notifications: {
+      email: true,
+      push: false,
+    },
+  },
+  createdAt: '2025-01-01T00:00:00.000Z',
+  lastSeen: '2025-01-01T01:00:00.000Z',
+};
+
+let windowStubbed = false;
+let documentStubbed = false;
+let originalLocation: Location | undefined;
+let originalHistory: History | undefined;
+let originalDocumentTitle: string | undefined;
 
 describe('AuthService OAuth', () => {
   let authService: AuthService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockProfileService.getProfile.mockResolvedValue({ ok: true, data: profileFixture });
     authService = AuthService.getInstance();
-    
-    // Mock window.location
-    Object.defineProperty(window, 'location', {
-      value: {
-        pathname: '/auth/signin',
-        origin: 'http://localhost:5173',
-        search: '',
-        hash: '',
-        assign: vi.fn(),
-      },
-      writable: true,
-    });
+
+    const locationMock = {
+      pathname: '/auth/signin',
+      origin: 'http://localhost:5173',
+      search: '',
+      hash: '',
+      assign: vi.fn(),
+    };
+
+    const historyMock = {
+      replaceState: vi.fn(),
+    };
+
+    const documentMock = {
+      title: 'Stone Caster Test',
+    };
+
+    if (typeof globalThis.window === 'undefined') {
+      vi.stubGlobal('window', {
+        location: locationMock,
+        history: historyMock,
+      } as unknown as Window & typeof globalThis);
+      windowStubbed = true;
+    } else {
+      originalLocation = globalThis.window.location;
+      originalHistory = globalThis.window.history;
+      Object.defineProperty(globalThis.window, 'location', {
+        value: locationMock,
+        writable: true,
+      });
+      Object.defineProperty(globalThis.window, 'history', {
+        value: historyMock,
+        writable: true,
+      });
+      windowStubbed = false;
+    }
+
+    if (typeof globalThis.document === 'undefined') {
+      vi.stubGlobal('document', documentMock as unknown as Document);
+      documentStubbed = true;
+    } else {
+      originalDocumentTitle = globalThis.document.title;
+      globalThis.document.title = documentMock.title;
+      documentStubbed = false;
+    }
   });
 
   afterEach(() => {
+    if (windowStubbed || documentStubbed) {
+      vi.unstubAllGlobals();
+      windowStubbed = false;
+      documentStubbed = false;
+      originalLocation = undefined;
+      originalHistory = undefined;
+      originalDocumentTitle = undefined;
+    } else {
+      if (typeof globalThis.window !== 'undefined' && originalLocation && originalHistory) {
+        Object.defineProperty(globalThis.window, 'location', {
+          value: originalLocation,
+          writable: true,
+        });
+        Object.defineProperty(globalThis.window, 'history', {
+          value: originalHistory,
+          writable: true,
+        });
+      }
+
+      if (typeof globalThis.document !== 'undefined' && originalDocumentTitle !== undefined) {
+        globalThis.document.title = originalDocumentTitle;
+      }
+
+      originalLocation = undefined;
+      originalHistory = undefined;
+      originalDocumentTitle = undefined;
+    }
     vi.restoreAllMocks();
   });
 
@@ -194,11 +294,16 @@ describe('AuthService OAuth', () => {
       access_token: 'mock_token'
     };
 
-    authStateCallback('SIGNED_IN', mockSession);
+    await authStateCallback?.('SIGNED_IN', mockSession);
 
-    // Verify user state is updated
+    await vi.waitFor(() => {
+      const currentUser = authService.getCurrentUser();
+      expect(currentUser?.state).toBe('authenticated');
+      expect(currentUser?.profile).toEqual(profileFixture);
+    });
+
     const currentUser = authService.getCurrentUser();
-    expect(currentUser?.state).toBe('authenticated');
+    expect(mockProfileService.getProfile).toHaveBeenCalled();
     expect(currentUser?.id).toBe('user-123');
     expect(currentUser?.email).toBe('test@example.com');
   });
@@ -233,7 +338,7 @@ describe('AuthService OAuth', () => {
     await authService.initialize();
 
     // Simulate SIGNED_OUT event
-    authStateCallback('SIGNED_OUT', null);
+    await authStateCallback?.('SIGNED_OUT', null);
 
     // Verify user state falls back to guest
     const currentUser = authService.getCurrentUser();
@@ -270,3 +375,5 @@ describe('AuthService OAuth', () => {
     expect(mockRoutePreservationService.setIntendedRoute).toHaveBeenCalledWith('/profile');
   });
 });
+
+

@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { authService } from '../services/auth/AuthService';
 import type { AuthUser } from 'shared';
+import type { ProfileDTO } from 'shared/types/dto';
 
 interface AuthState {
   user: AuthUser | null;
+  profile: ProfileDTO | null;
   loading: boolean;
-  
+
   // Computed values - simple boolean flags and values
   isAuthenticated: boolean;
   isGuest: boolean;
@@ -13,7 +15,7 @@ interface AuthState {
   authToken: string | null;
   userId: string | null;
   displayName: string;
-  
+
   // Actions
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -24,46 +26,48 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  profile: null,
   loading: true,
-  
+
   // Computed values
   get isAuthenticated() {
     return get().user?.state === 'authenticated';
   },
-  
+
   get isGuest() {
     return get().user?.state === 'guest';
   },
-  
+
   get isCookied() {
     return get().user?.state === 'cookied';
   },
-  
+
   get authToken() {
     return get().user?.key || null;
   },
-  
+
   get userId() {
     return get().user?.id || null;
   },
-  
+
   get displayName() {
-    return get().user?.displayName || 'Guest';
+    const state = get();
+    return state.profile?.displayName || state.user?.displayName || 'Guest';
   },
-  
+
   initialize: async () => {
     try {
       console.log('[AuthStore] Initializing auth store');
       const user = await authService.initialize();
-      set({ user, loading: false });
-      
+      set({ user, profile: user?.profile ?? null, loading: false });
+
       // Subscribe to auth changes
       authService.subscribe((newUser) => {
-        set({ user: newUser, loading: false });
+        set({ user: newUser, profile: newUser?.profile ?? null, loading: false });
       });
     } catch (error) {
       console.error('[AuthStore] Initialization error:', error);
-      set({ user: null, loading: false });
+      set({ user: null, profile: null, loading: false });
     }
   },
 

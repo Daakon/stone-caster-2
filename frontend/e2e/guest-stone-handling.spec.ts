@@ -90,3 +90,4 @@ test.describe('Guest Stone Handling', () => {
     expect(currentUrl).not.toMatch(/\/auth/);
   });
 });
+
