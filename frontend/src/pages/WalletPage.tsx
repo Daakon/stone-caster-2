@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { StoneLedgerWidget } from '../components/gameplay/StoneLedgerWidget';
 import { TierGate } from '../components/ui/tier-gate';
+import { GatedRoute } from '../components/auth/GatedRoute';
 import { mockDataService } from '../services/mockData';
 import { 
   Gem, 
@@ -13,7 +14,7 @@ import {
   Gift
 } from 'lucide-react';
 
-export default function WalletPage() {
+function WalletPageContent() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const wallet = mockDataService.getWallet();
   const currentTier = mockDataService.getCurrentTier();
@@ -263,5 +264,13 @@ export default function WalletPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function WalletPage() {
+  return (
+    <GatedRoute requireAuth={true}>
+      <WalletPageContent />
+    </GatedRoute>
   );
 }

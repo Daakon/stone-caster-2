@@ -1,12 +1,82 @@
-# Stone Caster UX Flow - Layer M5
+# Stone Caster UX Flow - Layer M6
 
 ## Overview
 
-This document describes the user experience flow for Stone Caster's Layer M5 implementation, focusing on hardening, observability, and QA readiness. Layer M5 builds upon Layer M4's unified play surface with enhanced diagnostics, telemetry, and self-serve testing capabilities.
+This document describes the user experience flow for Stone Caster's Layer M6 implementation, focusing on secure profile management, guest-to-auth upgrades, and session safety. Layer M6 builds upon Layer M5's observability features with comprehensive user account management and security controls.
 
 ## Core User Flows
 
-### 1. Game Play Flow (Mobile-First)
+### 1. Profile Management Flow (Layer M6)
+
+#### Guest User Profile Access
+1. **Navigation**: Guest user navigates to `/profile`
+2. **Access Control**: System detects guest status and shows authentication required message
+3. **User Guidance**: Clear messaging explains benefits of signing in
+4. **Action Options**: 
+   - "Sign In" button redirects to authentication
+   - "Back to Home" returns to main page
+5. **Mobile Experience**: Responsive design works seamlessly at 375×812px
+
+#### Authenticated User Profile Management
+1. **Profile Access**: Authenticated user navigates to `/profile`
+2. **Data Loading**: Profile information loads with user's current settings
+3. **Profile Viewing**: 
+   - Display name, email, and avatar
+   - Account status and membership information
+   - Preferences and notification settings
+   - Session management options
+4. **Profile Editing**:
+   - Click "Edit" to enter edit mode
+   - Modify display name, avatar URL, and preferences
+   - Inline validation prevents invalid inputs
+   - "Save" commits changes with CSRF protection
+   - "Cancel" reverts to original values
+5. **Session Management**:
+   - View current session information
+   - "Revoke Other Sessions" with confirmation
+   - CSRF token validation for security
+   - Clear feedback on session revocation results
+
+#### Guest to Auth Upgrade Flow
+1. **Guest State**: User has active games/characters as guest
+2. **Authentication**: User signs in with valid credentials
+3. **Automatic Linking**: System automatically links guest data to authenticated account
+4. **Data Preservation**: All guest progress (games, characters, stones) is preserved
+5. **Idempotent Operation**: Repeating the process doesn't create duplicates
+6. **User Feedback**: Clear confirmation that account has been linked
+7. **Cookie Cleanup**: Guest cookie is cleared after successful linking
+
+### 2. Authentication Flow (Fixed)
+
+#### Sign-In Page Access
+1. **Landing Page**: User clicks "Sign In" button
+2. **Navigation**: System navigates to `/auth/signin`
+3. **Page Rendering**: Sign-in page renders without redirecting back to landing page
+4. **Guest Support**: Guests can stay on auth pages without being bounced back
+5. **Form Interaction**: User can interact with sign-in form normally
+
+#### OAuth Flow (Google/GitHub/Discord)
+1. **OAuth Initiation**: User clicks "Sign in with Google" (or other provider)
+2. **Provider Redirect**: System redirects to OAuth provider consent screen
+3. **Callback Handling**: System detects OAuth callback parameters (both URL search and hash fragments)
+4. **Session Creation**: Supabase session is created from OAuth tokens
+5. **State Update**: AuthService updates user state and notifies listeners
+6. **Route Redirect**: AuthRouter detects authenticated state and redirects to intended route
+7. **URL Cleanup**: OAuth parameters are removed from URL for clean navigation
+
+#### Guest Authentication
+1. **Guest Access**: Guests can access wallet balance and other read-only features
+2. **Cookie Management**: Guest cookies are properly managed and sent with API requests
+3. **API Access**: Guest users can make read-only API calls without 401 errors
+4. **Session Persistence**: Guest sessions persist across page refreshes
+
+#### Play Route Navigation
+1. **Character Access**: Users can navigate to `/play/:characterId` routes
+2. **Game Loading**: System loads character data and associated game
+3. **Error Handling**: Proper error messages for characters without active games
+4. **No 404 Errors**: Route resolves correctly without showing "Page Not Found"
+
+### 3. Game Play Flow (Mobile-First)
 
 #### Mobile Experience (375×812px)
 - **Header**: Compact header with logo, stone balance, and hamburger menu
@@ -30,12 +100,16 @@ This document describes the user experience flow for Stone Caster's Layer M5 imp
 5. **Response**: AI response added to history with narrative and choices
 6. **State Update**: Stone balance, turn count, and world rules updated
 
-#### Error Handling (Layer M5 Enhanced)
+#### Error Handling (Layer M6 Enhanced)
 - **Insufficient Stones**: Clear error message with "Go to Wallet" CTA and traceId
 - **Timeout**: Retry guidance with server status information and traceId
 - **Validation**: Action-specific error messages with suggestions and traceId
 - **Network**: Connection error with retry options and traceId
 - **Idempotency**: Duplicate action prevention with wait guidance and traceId
+- **Profile Access**: Clear messaging when guests try to access profile features
+- **CSRF Errors**: Clear guidance when CSRF tokens are invalid or expired
+- **Session Errors**: Helpful messages for session revocation failures
+- **Linking Errors**: Clear feedback when guest account linking fails
 - **TraceId Display**: All errors show copyable traceId for support reporting
 - **Actionable CTAs**: Error banners include specific action buttons (Go to Wallet, Get Help, Try Again)
 
@@ -104,6 +178,32 @@ This document describes the user experience flow for Stone Caster's Layer M5 imp
 - **Touch Targets**: Minimum 44px touch targets on mobile
 - **Text Size**: Readable font sizes with scaling support
 - **Motion**: Respects prefers-reduced-motion
+
+## Layer M6: Profile & Session Management
+
+### Profile Management Flow
+1. **Access Control**: System checks user authentication status
+2. **Guest Handling**: Guests see authentication required message with sign-in prompt
+3. **Profile Loading**: Authenticated users see their profile data and settings
+4. **Profile Editing**: Users can modify display name, avatar, and preferences
+5. **Session Management**: Users can revoke other sessions with CSRF protection
+6. **Data Persistence**: All changes are saved with proper validation and security
+
+### Guest Account Linking Flow
+1. **Guest State**: User has active games/characters as guest
+2. **Authentication**: User signs in with valid credentials
+3. **Automatic Detection**: System detects guest cookie and initiates linking
+4. **Data Migration**: Guest data is linked to authenticated account
+5. **Idempotency**: Repeating the process doesn't create duplicates
+6. **User Feedback**: Clear confirmation that account has been linked
+7. **Cleanup**: Guest cookie is cleared after successful linking
+
+### Session Safety Flow
+1. **CSRF Token**: System generates CSRF token for profile operations
+2. **Token Validation**: All profile updates require valid CSRF token
+3. **Session Revocation**: Users can revoke other sessions with confirmation
+4. **Security Logging**: All security operations are logged with traceId
+5. **Error Handling**: Clear feedback for security-related errors
 
 ## Layer M5: Observability & Telemetry
 

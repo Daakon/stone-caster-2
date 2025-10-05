@@ -8,8 +8,49 @@ import { UpdateProfileRequestSchema, RevokeSessionsRequestSchema, ApiErrorCode }
 
 const router = Router();
 
-// Apply authentication to all profile routes
-router.use(jwtAuth);
+// Apply authentication to all profile routes except guest routes
+router.use((req, res, next) => {
+  // Skip auth for guest routes
+  if (req.path.startsWith('/guest') || req.path === '/link-guest') {
+    return next();
+  }
+  return jwtAuth(req, res, next);
+});
+
+// Check if user can access gated routes
+router.get('/access', async (req: Request, res: Response) => {
+  try {
+    const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest;
+    
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.REQUIRES_AUTH,
+        'Authentication required to access profile features',
+        req
+      );
+    }
+
+    const canAccess = !isGuest;
+    const accessInfo = {
+      canAccess,
+      isGuest,
+      userId,
+      requiresAuth: !canAccess,
+    };
+
+    sendSuccess(res, accessInfo, req);
+  } catch (error) {
+    console.error('Error checking profile access:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to check profile access',
+      req
+    );
+  }
+});
 
 // Get current user's profile
 router.get('/', async (req: Request, res: Response) => {
@@ -66,12 +107,15 @@ router.put('/',
       }
 
       const updateData = req.body;
-      const profile = await ProfileService.updateProfile(userId, updateData);
+      const csrfToken = req.headers['x-csrf-token'] as string;
+      
+      const profile = await ProfileService.updateProfile(userId, updateData, csrfToken);
       
       // Log profile update for audit
       console.log(`Profile updated for user ${userId}`, {
         traceId: req.traceId,
         updatedFields: Object.keys(updateData),
+        csrfTokenUsed: !!csrfToken,
       });
       
       sendSuccess(res, profile, req);
@@ -86,6 +130,15 @@ router.put('/',
             res,
             ApiErrorCode.VALIDATION_FAILED,
             error.message,
+            req
+          );
+        }
+        
+        if (error.message.includes('Invalid or expired CSRF token')) {
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.CSRF_TOKEN_INVALID,
+            'Invalid or expired CSRF token. Please refresh the page and try again.',
             req
           );
         }
@@ -194,6 +247,7 @@ router.post('/csrf-token', async (req: Request, res: Response) => {
   }
 });
 
+
 // Guest profile routes (no authentication required)
 // Get guest profile by cookie ID
 router.get('/guest/:cookieId', async (req: Request, res: Response) => {
@@ -260,6 +314,43 @@ router.post('/guest', async (req: Request, res: Response) => {
   }
 });
 
+// Get guest account summary before linking
+router.get('/guest-summary/:cookieGroupId', async (req: Request, res: Response) => {
+  try {
+    const { cookieGroupId } = req.params;
+    
+    if (!cookieGroupId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'Cookie group ID is required',
+        req
+      );
+    }
+
+    const summary = await ProfileService.getGuestAccountSummary(cookieGroupId);
+    sendSuccess(res, summary, req);
+  } catch (error) {
+    console.error('Error getting guest account summary:', error);
+    
+    if (error instanceof Error && error.message === 'Guest account summary not found') {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Guest account summary not found',
+        req
+      );
+    }
+    
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to get guest account summary',
+      req
+    );
+  }
+});
+
 // Link guest account to authenticated user
 router.post('/link-guest', 
   rateLimit(300000, 5), // 5 requests per 5 minutes for account linking
@@ -286,17 +377,51 @@ router.post('/link-guest',
         );
       }
 
-      await ProfileService.linkCookieGroupToUser(userId, cookieGroupId);
+      // Check if linking has already been done (idempotency)
+      const hasExistingLink = await ProfileService.hasExistingLink(userId, cookieGroupId);
+      
+      if (hasExistingLink) {
+        // Return success for idempotent operation
+        return sendSuccess(res, { 
+          success: true, 
+          alreadyLinked: true,
+          message: 'Guest account already linked to this user'
+        }, req);
+      }
+
+      const linkResult = await ProfileService.linkCookieGroupToUser(userId, cookieGroupId);
       
       // Log account linking for audit
       console.log(`Guest account linked to user ${userId}`, {
         traceId: req.traceId,
         cookieGroupId,
+        linkResult,
       });
       
-      sendSuccess(res, { success: true }, req);
+      sendSuccess(res, { 
+        success: true, 
+        alreadyLinked: false,
+        message: 'Guest account successfully linked',
+        migrationSummary: {
+          charactersMigrated: linkResult.charactersMigrated,
+          gamesMigrated: linkResult.gamesMigrated,
+          stonesMigrated: linkResult.stonesMigrated,
+          ledgerEntriesCreated: linkResult.ledgerEntriesCreated,
+        }
+      }, req);
     } catch (error) {
       console.error('Error linking guest account:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('already linked') || error.message.includes('duplicate')) {
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.CONFLICT,
+            'Guest account is already linked to a user',
+            req
+          );
+        }
+      }
       
       sendErrorWithStatus(
         res,

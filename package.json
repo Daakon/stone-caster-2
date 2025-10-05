@@ -5,15 +5,17 @@
   "private": true,
   "workspaces": [
     "frontend",
-    "backend",
-    "shared"
+    "backend"
   ],
   "scripts": {
-    "dev": "npm run dev:server & npm run dev:client",
+    "dev": "npm run dev:clean",
+    "dev:clean": "npm run kill:ports && npm run dev:parallel",
+    "dev:parallel": "npm run dev:server & npm run dev:client",
     "dev:client": "npm run dev --workspace=frontend",
     "dev:server": "npm run dev:server:local",
     "dev:server:local": "npm run dev:local --workspace=backend",
     "dev:server:prod": "npm run dev --workspace=backend",
+    "kill:ports": "npx kill-port 3000 5173 5174 5175 || true",
     "start:client": "npm --workspace=frontend run preview",
     "start:server": "npm --workspace=backend run start",
     "start:server:local": "npm run start:local --workspace=backend",
@@ -50,6 +52,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "kill-port": "^2.0.1",
     "typescript": "^5.3.2"
   }
 }

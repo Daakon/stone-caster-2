@@ -24,6 +24,7 @@ import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useGameTelemetry } from '../hooks/useGameTelemetry';
 import type { TurnDTO } from 'shared';
 import { useAuthStore } from '../store/auth';
+import { GuestCookieService } from '../services/guestCookie';
 
 interface GameState {
   worldRules: Record<string, number>;
@@ -38,7 +39,7 @@ interface GameState {
 }
 
 export default function UnifiedGamePage() {
-  const { gameId } = useParams<{ gameId: string }>();
+  const { gameId, characterId } = useParams<{ gameId?: string; characterId?: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -59,18 +60,37 @@ export default function UnifiedGamePage() {
   const gameTelemetry = useGameTelemetry();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Load character data first if we have characterId but no gameId
+  const { data: characterForGame, isLoading: isLoadingCharacterForGame } = useQuery({
+    queryKey: ['character-for-game', characterId],
+    queryFn: async () => {
+      if (!characterId) throw new Error('No character ID provided');
+      const result = await getCharacter(characterId);
+      if (!result.ok) {
+        throw new Error(result.error.message || 'Failed to load character');
+      }
+      return result.data;
+    },
+    enabled: !!characterId && !gameId,
+    staleTime: 30 * 1000, // 30 seconds cache
+    retry: 1,
+  });
+
+  // Determine the actual gameId to use
+  const actualGameId = gameId || characterForGame?.activeGameId;
+
   // Load game data
   const { data: game, isLoading: isLoadingGame, error: gameError } = useQuery({
-    queryKey: ['game', gameId],
+    queryKey: ['game', actualGameId],
     queryFn: async () => {
-      if (!gameId) throw new Error('No game ID provided');
-      const result = await getGame(gameId);
+      if (!actualGameId) throw new Error('No game ID available');
+      const result = await getGame(actualGameId);
       if (!result.ok) {
         throw new Error(result.error.message || 'Failed to load game');
       }
       return result.data;
     },
-    enabled: !!gameId,
+    enabled: !!actualGameId,
     staleTime: 30 * 1000, // 30 seconds cache
     retry: 1,
   });
@@ -120,7 +140,7 @@ export default function UnifiedGamePage() {
 
   // Handle navigation and game start time
   useEffect(() => {
-    if (!user && !localStorage.getItem('guestId')) {
+    if (!user && !GuestCookieService.hasGuestCookie()) {
       navigate('/');
       return;
     }
@@ -307,7 +327,7 @@ export default function UnifiedGamePage() {
   };
 
   // Loading states
-  if (isLoadingGame || isLoadingCharacter || isLoadingWorlds) {
+  if (isLoadingGame || isLoadingCharacter || isLoadingWorlds || isLoadingCharacterForGame) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Breadcrumbs />
@@ -342,6 +362,26 @@ export default function UnifiedGamePage() {
         <div className="mt-4">
           <Button onClick={() => navigate('/worlds')}>
             Back to Worlds
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle case where character has no active game
+  if (characterId && characterForGame && !characterForGame.activeGameId) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Breadcrumbs />
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            This character is not currently in an active game. Please start a new adventure.
+          </AlertDescription>
+        </Alert>
+        <div className="mt-4">
+          <Button onClick={() => navigate('/worlds')}>
+            Start New Adventure
           </Button>
         </div>
       </div>

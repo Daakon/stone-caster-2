@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
+import { RoutePreservationService } from '../services/routePreservation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +10,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Github, Chrome, MessageSquare } from 'lucide-react';
-import { GuestCookieService } from '../services/guestCookie';
 
 interface AuthPageProps {
   mode?: 'signin' | 'signup';
@@ -22,82 +22,58 @@ export default function AuthPage({ mode: initialMode }: AuthPageProps = {}) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
-  const { signIn, signUp } = useAuthStore();
+  const { signIn, signUp, signInWithOAuth } = useAuthStore(); // Added signInWithOAuth
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const location = useLocation();
 
-  // Get return URL from query params
-  const returnTo = searchParams.get('returnTo') || '/';
+  // Get return URL from query params or route preservation
+  const returnTo = searchParams.get('returnTo') || RoutePreservationService.getIntendedRoute();
 
-  // Determine mode from URL path
+  // Handle /auth redirect to /auth/signin
   useEffect(() => {
+    if (location.pathname === '/auth') {
+      console.log('[REDIRECT] from=/auth to=/auth/signin trigger=manual');
+      navigate('/auth/signin', { replace: true });
+      return;
+    }
+    
+    // Determine mode from URL path
     const pathMode = location.pathname.includes('/signin') ? 'signin' : 'signup';
     setMode(pathMode);
-  }, [location.pathname]);
+  }, [location.pathname, navigate]);
 
-  // Check if user is already authenticated
-  useEffect(() => {
-    const { user } = useAuthStore.getState();
-    if (user) {
-      navigate(returnTo, { replace: true });
-    }
-  }, [navigate, returnTo]);
+  // Note: AuthRouter handles redirecting authenticated users away from auth pages
+  // This effect was causing redirect loops for guests
 
   // Check if we're in demo mode
   const isDemoMode = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://demo.supabase.co';
 
   // Handle tab change
   const handleTabChange = (value: string) => {
-    const newMode = value as 'signin' | 'signup';
-    setMode(newMode);
-    navigate(`/auth/${newMode}${returnTo !== '/' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`, { replace: true });
+    setMode(value as 'signin' | 'signup');
+    setError(''); // Clear errors on tab change
+    navigate(`/auth/${value}`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    
-    console.log(`[AuthPage] Starting ${mode} with email: ${email}`);
-    
-    // Client-side validation
-    if (!email || !password) {
-      setError('Please fill in all fields');
-      return;
-    }
-    
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-    
     setLoading(true);
+    setError('');
 
     try {
-      if (isDemoMode) {
-        console.log('[AuthPage] Demo mode detected for email/password auth');
-        setError('Email/password authentication is not available in demo mode. Please continue as guest or configure Supabase.');
-        setLoading(false);
-        return;
-      }
-
       if (mode === 'signin') {
-        console.log('[AuthPage] Attempting sign in');
         await signIn(email, password);
-        console.log('[AuthPage] Sign in successful');
       } else {
-        console.log('[AuthPage] Attempting sign up');
         await signUp(email, password);
-        console.log('[AuthPage] Sign up successful');
       }
-      
-      console.log(`[AuthPage] Redirecting to: ${returnTo}`);
+      // Clear the intended route and navigate to the return URL
+      RoutePreservationService.clearIntendedRoute();
       navigate(returnTo, { replace: true });
     } catch (err: unknown) {
       console.error(`[AuthPage] ${mode} error:`, err);
-      // narrow unknown to Error-like object
       const message = err && typeof err === 'object' && 'message' in err ? (err as { message?: unknown }).message : undefined;
-      setError(typeof message === 'string' ? message : 'Authentication failed');
+      setError(typeof message === 'string' ? message : `${mode} failed`);
     } finally {
       setLoading(false);
     }
@@ -116,53 +92,8 @@ export default function AuthPage({ mode: initialMode }: AuthPageProps = {}) {
         return;
       }
 
-      // Get or create guest cookie for account linking
-      const guestCookieId = GuestCookieService.getOrCreateGuestCookie();
-      console.log(`[AuthPage] Guest cookie ID: ${guestCookieId}`);
-
-      // Get the API base URL - use localhost for development, api.stonecaster.ai for production
-      const apiBaseUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai');
-      const oauthUrl = `${apiBaseUrl}/api/auth/oauth/${provider}/start?guestCookieId=${guestCookieId}`;
-      
-      console.log(`[AuthPage] Calling backend OAuth endpoint: ${oauthUrl}`);
-
-      // Call the backend OAuth start endpoint
-      const response = await fetch(oauthUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include cookies for guest ID
-      });
-      
-      console.log(`[AuthPage] OAuth response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[AuthPage] OAuth request failed:`, errorText);
-        throw new Error(`Failed to start OAuth flow: ${response.status} ${response.statusText}`);
-      }
-
-      const contentType = response.headers.get('content-type');
-      console.log(`[AuthPage] Response content type: ${contentType}`);
-
-      if (!contentType || !contentType.includes('application/json')) {
-        const responseText = await response.text();
-        console.error(`[AuthPage] Non-JSON response received:`, responseText.substring(0, 200));
-        throw new Error('Server returned non-JSON response. Please check your API configuration.');
-      }
-
-      const data = await response.json();
-      console.log(`[AuthPage] OAuth response data:`, data);
-      
-      if (data.ok && data.data?.url) {
-        console.log(`[AuthPage] Redirecting to OAuth provider: ${data.data.url}`);
-        // Redirect to OAuth provider
-        window.location.href = data.data.url;
-      } else {
-        console.error(`[AuthPage] OAuth response error:`, data.error);
-        throw new Error(data.error?.message || 'Failed to start OAuth flow');
-      }
+      // Use the new auth service
+      await signInWithOAuth(provider);
     } catch (err: unknown) {
       console.error(`[AuthPage] OAuth error:`, err);
       const message = err && typeof err === 'object' && 'message' in err ? (err as { message?: unknown }).message : undefined;
@@ -175,236 +106,168 @@ export default function AuthPage({ mode: initialMode }: AuthPageProps = {}) {
     { id: 'google', name: 'Google', icon: Chrome, color: 'bg-red-500 hover:bg-red-600' },
     { id: 'github', name: 'GitHub', icon: Github, color: 'bg-gray-800 hover:bg-gray-900' },
     { id: 'discord', name: 'Discord', icon: MessageSquare, color: 'bg-indigo-500 hover:bg-indigo-600' },
-  ] as const;
+  ];
 
   return (
-    <div className="flex justify-center items-center min-h-screen p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">🎲 Stonecaster</CardTitle>
-          {isDemoMode && (
-            <Alert className="mt-4">
-              <AlertDescription>
-                <strong>Demo Mode:</strong> Authentication is not configured. Use "Continue as Guest" to explore the app.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Tabs value={mode} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="signup" className="mt-6">
-              <div className="space-y-6">
-                {/* OAuth Providers */}
-                <div className="space-y-3">
-                  <div className="text-center text-sm text-muted-foreground">
-                    Sign up with
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {oauthProviders.map((provider) => {
-                      const Icon = provider.icon;
-                      const isLoading = oauthLoading === provider.id;
-                      return (
-                        <Button
-                          key={provider.id}
-                          variant="outline"
-                          className={`w-full justify-start ${provider.color} text-white border-0`}
-                          onClick={() => handleOAuthSignIn(provider.id as 'google' | 'github' | 'discord')}
-                          disabled={loading || oauthLoading !== null}
-                          aria-busy={isLoading}
-                        >
-                          <Icon className="h-4 w-4 mr-3" />
-                          {isLoading ? 'Connecting...' : `Continue with ${provider.name}`}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+      <div className="w-full max-w-md">
+        <Card className="border-0 shadow-2xl bg-white/10 backdrop-blur-sm">
+          <CardHeader className="text-center space-y-2">
+            <CardTitle className="text-2xl font-bold text-white">
+              {mode === 'signin' ? 'Welcome Back' : 'Join Stone Caster'}
+            </CardTitle>
+            <p className="text-slate-300">
+              {mode === 'signin' 
+                ? 'Sign in to continue your adventure' 
+                : 'Create your account to start playing'
+              }
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {error && (
+              <Alert variant="destructive" className="bg-red-500/20 border-red-500/50 text-red-100">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator className="w-full" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or continue with email
-                    </span>
-                  </div>
-                </div>
+            <Tabs value={mode} onValueChange={handleTabChange} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-slate-800/50">
+                <TabsTrigger value="signup" className="text-slate-300 data-[state=active]:text-white">
+                  Sign Up
+                </TabsTrigger>
+                <TabsTrigger value="signin" className="text-slate-300 data-[state=active]:text-white">
+                  Sign In
+                </TabsTrigger>
+              </TabsList>
 
-                <form onSubmit={handleSubmit} className="space-y-4" aria-label="Sign up form">
+              <TabsContent value="signup" className="space-y-4 mt-6">
+                <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="signup-email" className="text-slate-200">
+                      Email
+                    </Label>
                     <Input
-                      id="email"
+                      id="signup-email"
                       type="email"
+                      placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      aria-required="true"
-                      aria-invalid={!!error}
                       autoComplete="email"
-                      placeholder="Enter your email"
-                      disabled={loading || oauthLoading !== null}
+                      className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
                     />
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="signup-password" className="text-slate-200">
+                      Password
+                    </Label>
                     <Input
-                      id="password"
+                      id="signup-password"
                       type="password"
+                      placeholder="Create a password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      aria-required="true"
-                      aria-invalid={!!error}
                       autoComplete="new-password"
-                      minLength={6}
-                      placeholder="Enter your password"
-                      disabled={loading || oauthLoading !== null}
+                      className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
                     />
                   </div>
-
-                  {error && (
-                    <Alert variant="destructive" role="alert">
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-
                   <Button
                     type="submit"
-                    className="w-full"
-                    disabled={loading || oauthLoading !== null}
-                    aria-busy={loading}
+                    disabled={loading}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                   >
-                    {loading ? 'Loading...' : 'Sign Up'}
+                    {loading ? 'Creating Account...' : 'Create Account'}
                   </Button>
                 </form>
+              </TabsContent>
 
-                {/* Guest mode option */}
-                <div className="text-center">
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate(returnTo, { replace: true })}
-                    className="text-sm text-muted-foreground"
-                    disabled={loading || oauthLoading !== null}
-                  >
-                    Continue as Guest
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="signin" className="mt-6">
-              <div className="space-y-6">
-                {/* OAuth Providers */}
-                <div className="space-y-3">
-                  <div className="text-center text-sm text-muted-foreground">
-                    Sign in with
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {oauthProviders.map((provider) => {
-                      const Icon = provider.icon;
-                      const isLoading = oauthLoading === provider.id;
-                      return (
-                        <Button
-                          key={provider.id}
-                          variant="outline"
-                          className={`w-full justify-start ${provider.color} text-white border-0`}
-                          onClick={() => handleOAuthSignIn(provider.id as 'google' | 'github' | 'discord')}
-                          disabled={loading || oauthLoading !== null}
-                          aria-busy={isLoading}
-                        >
-                          <Icon className="h-4 w-4 mr-3" />
-                          {isLoading ? 'Connecting...' : `Continue with ${provider.name}`}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator className="w-full" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or continue with email
-                    </span>
-                  </div>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4" aria-label="Sign in form">
+              <TabsContent value="signin" className="space-y-4 mt-6">
+                <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="signin-email" className="text-slate-200">
+                      Email
+                    </Label>
                     <Input
-                      id="email"
+                      id="signin-email"
                       type="email"
+                      placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      aria-required="true"
-                      aria-invalid={!!error}
                       autoComplete="email"
-                      placeholder="Enter your email"
-                      disabled={loading || oauthLoading !== null}
+                      className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
                     />
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="signin-password" className="text-slate-200">
+                      Password
+                    </Label>
                     <Input
-                      id="password"
+                      id="signin-password"
                       type="password"
+                      placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      aria-required="true"
-                      aria-invalid={!!error}
                       autoComplete="current-password"
-                      minLength={6}
-                      placeholder="Enter your password"
-                      disabled={loading || oauthLoading !== null}
+                      className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
                     />
                   </div>
-
-                  {error && (
-                    <Alert variant="destructive" role="alert">
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-
                   <Button
                     type="submit"
-                    className="w-full"
-                    disabled={loading || oauthLoading !== null}
-                    aria-busy={loading}
+                    disabled={loading}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                   >
-                    {loading ? 'Loading...' : 'Sign In'}
+                    {loading ? 'Signing In...' : 'Sign In'}
                   </Button>
                 </form>
+              </TabsContent>
+            </Tabs>
 
-                {/* Guest mode option */}
-                <div className="text-center">
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate(returnTo, { replace: true })}
-                    className="text-sm text-muted-foreground"
-                    disabled={loading || oauthLoading !== null}
-                  >
-                    Continue as Guest
-                  </Button>
-                </div>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full bg-slate-600" />
               </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-slate-900 px-2 text-slate-400">Or continue with</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {oauthProviders.map((provider) => {
+                const Icon = provider.icon;
+                return (
+                  <Button
+                    key={provider.id}
+                    variant="outline"
+                    onClick={() => handleOAuthSignIn(provider.id as 'google' | 'github' | 'discord')}
+                    disabled={oauthLoading === provider.id || isDemoMode}
+                    className={`w-full ${provider.color} border-slate-600 text-white hover:text-white`}
+                  >
+                    {oauthLoading === provider.id ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Icon className="w-4 h-4 mr-2" />
+                    )}
+                    {oauthLoading === provider.id ? 'Connecting...' : `Continue with ${provider.name}`}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <div className="text-center">
+              <Button
+                variant="ghost"
+                onClick={() => navigate('/')}
+                className="text-slate-400 hover:text-white"
+              >
+                Continue as Guest
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

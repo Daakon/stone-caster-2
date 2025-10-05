@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -9,17 +9,70 @@ import { AdventureCard } from '../components/cards/AdventureCard';
 import { CardGrid } from '../components/cards/CardGrid';
 import { DrifterBubble } from '../components/guidance/DrifterBubble';
 import { Gem, Users, Zap, Shield, Brain, Globe } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuthStore } from '../store/auth';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { initialize } = useAuthStore();
   const [worlds, setWorlds] = useState<World[]>([]);
   const [adventures, setAdventures] = useState<Adventure[]>([]);
   const [email, setEmail] = useState('');
   const [showDrifter, setShowDrifter] = useState(false);
   const [isInvited] = useState(mockDataService.getInviteStatus().invited);
 
+  const handleOAuthCallback = useCallback(async () => {
+    try {
+      console.log('[LandingPage] Processing OAuth callback...');
+      
+      // The AuthService will handle the OAuth callback automatically
+      // Just re-initialize to get the updated auth state
+      await initialize();
+      
+      // Clear the URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Check if user is now authenticated
+      const { isAuthenticated } = useAuthStore.getState();
+      if (isAuthenticated) {
+        console.log('[LandingPage] OAuth successful, user authenticated');
+        navigate('/');
+      } else {
+        console.log('[LandingPage] OAuth failed or user not authenticated');
+        navigate('/auth/signin');
+      }
+    } catch (error) {
+      console.error('[LandingPage] OAuth callback error:', error);
+      navigate('/auth/signin?error=oauth_failed');
+    }
+  }, [initialize, navigate]);
+
   useEffect(() => {
+    // Debug: Log all URL parameters
+    console.log('[LandingPage] Current URL:', window.location.href);
+    console.log('[LandingPage] Search params:', Object.fromEntries(searchParams.entries()));
+    
+    // Check for OAuth callback
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    const error = searchParams.get('error');
+    
+    if (error) {
+      console.error('[LandingPage] OAuth error detected:', error);
+      console.error('[LandingPage] Error code:', searchParams.get('error_code'));
+      console.error('[LandingPage] Error description:', searchParams.get('error_description'));
+      // Don't return here, let the page load normally
+    }
+    
+    if (code && state) {
+      console.log('[LandingPage] OAuth callback detected, handling...');
+      handleOAuthCallback();
+      return;
+    } else {
+      console.log('[LandingPage] No OAuth callback detected, loading normal content');
+    }
+
     // Load featured content
     const worldsData = mockDataService.getWorlds().slice(0, 3);
     const adventuresData = mockDataService.getAdventures().slice(0, 6);
@@ -32,194 +85,264 @@ export default function LandingPage() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [searchParams, navigate, handleOAuthCallback]); // Added handleOAuthCallback to dependencies
 
-  const handleViewWorld = (worldId: string) => {
-    navigate(`/worlds/${worldId}`);
-  };
-
-  const handleLearnAboutWorld = (worldId: string) => {
-    navigate(`/worlds/${worldId}`);
-  };
-
-  const handleStartAdventure = (adventureId: string) => {
-    if (isInvited) {
-      navigate(`/adventures/${adventureId}/characters`);
-    } else {
-      // Show invite gate message
-      alert('This journey requires an invitation at this stage.');
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email) {
+      // TODO: Implement email signup
+      console.log('Email signup:', email);
     }
   };
 
-  const handleViewAdventureDetails = (adventureId: string) => {
+  const handleWorldViewDetails = (worldId: string) => {
+    navigate(`/worlds/${worldId}`);
+  };
+
+  const handleWorldLearnMore = (worldId: string) => {
+    navigate(`/worlds/${worldId}`);
+  };
+
+  const handleAdventureStart = (adventureId: string) => {
     navigate(`/adventures/${adventureId}`);
   };
 
-  const handleSubmitEmail = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) {
-      alert('Thank you for your interest! We\'ll notify you when invitations are available.');
-      setEmail('');
-    }
+  const handleAdventureViewDetails = (adventureId: string) => {
+    navigate(`/adventures/${adventureId}`);
   };
 
-  const differentiators = [
-    {
-      icon: Users,
-      title: 'Dynamic Relationships',
-      description: 'NPCs remember your choices and adapt their behavior based on your actions'
-    },
-    {
-      icon: Shield,
-      title: 'Warring Factions',
-      description: 'Your actions shift the balance of power between competing groups'
-    },
+  const features = [
     {
       icon: Brain,
-      title: 'NPC Agency',
-      description: 'Characters pursue their own goals, whether you\'re involved or not'
+      title: 'AI-Powered Storytelling',
+      description: 'Experience dynamic narratives that adapt to your choices and create unique adventures every time you play.'
+    },
+    {
+      icon: Users,
+      title: 'Multiplayer Adventures',
+      description: 'Join friends in shared worlds where your decisions impact everyone\'s story and create lasting memories together.'
     },
     {
       icon: Zap,
-      title: 'World-Specific Rules',
-      description: 'Each world introduces unique mechanics and laws of play'
+      title: 'Instant Character Creation',
+      description: 'Jump into the action with our streamlined character creation that gets you playing in minutes, not hours.'
+    },
+    {
+      icon: Shield,
+      title: 'Safe & Inclusive',
+      description: 'Play in a welcoming environment with content moderation and community guidelines that ensure everyone has fun.'
+    },
+    {
+      icon: Gem,
+      title: 'Rich World Building',
+      description: 'Explore meticulously crafted worlds with deep lore, complex characters, and endless possibilities for adventure.'
+    },
+    {
+      icon: Globe,
+      title: 'Cross-Platform',
+      description: 'Play anywhere, anytime - on your phone, tablet, or computer. Your adventures sync seamlessly across all devices.'
     }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Hero Section */}
-      <section className="relative py-20 px-4">
-        <div className="max-w-6xl mx-auto text-center">
-          <div className="mb-8">
-            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium mb-6">
-              <Gem className="h-4 w-4" />
-              Cast stones to shape living worlds
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              StoneCaster
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
+          <div className="text-center">
+            <h1 className="text-4xl sm:text-6xl font-bold text-white mb-6">
+              Your Story Awaits
             </h1>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-              An AI-driven RPG where your choices matter, relationships evolve, and every world has its own rules. 
-              Cast stones to influence the narrative and watch as your actions ripple through living, breathing worlds.
+            <p className="text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
+              Enter a world where AI-powered storytelling meets your imagination. 
+              Create characters, explore rich worlds, and shape epic adventures with friends.
             </p>
-          </div>
-
-          {/* Invite-Only Banner */}
-          <Card className="max-w-2xl mx-auto mb-12 border-primary/20 bg-primary/5">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Globe className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold">Currently Invite-Only Access</h3>
+            
+            {!isInvited && (
+              <div className="max-w-md mx-auto mb-8">
+                <form onSubmit={handleEmailSubmit} className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Enter your email for early access"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-white/10 border-white/20 text-white placeholder:text-slate-300"
+                  />
+                  <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
+                    Join Waitlist
+                  </Button>
+                </form>
               </div>
-              <p className="text-muted-foreground mb-4">
-                StoneCaster is in early access. Join our community to get notified when invitations become available.
-              </p>
-              <form onSubmit={handleSubmitEmail} className="flex gap-2">
-                <Input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={!email}>
-                  Notify Me
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+            )}
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" onClick={() => navigate('/adventures')}>
-              Explore Adventures
-            </Button>
-            <Button size="lg" variant="outline" onClick={() => navigate('/worlds')}>
-              Discover Worlds
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button 
+                size="lg" 
+                className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
+                onClick={() => navigate('/worlds')}
+              >
+                Explore Worlds
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="border-white/20 text-white hover:bg-white/10 px-8 py-3"
+                onClick={() => navigate('/auth/signin')}
+              >
+                Sign In
+              </Button>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Differentiators Section */}
-      <section className="py-16 px-4 bg-muted/30">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">What Makes StoneCaster Different</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Experience RPG storytelling that adapts to your choices and creates truly dynamic narratives.
+      {/* Features Section */}
+      <section className="py-20 bg-slate-800/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Why Choose Stone Caster?
+            </h2>
+            <p className="text-xl text-slate-300 max-w-2xl mx-auto">
+              Experience the future of role-playing games with cutting-edge AI technology 
+              and innovative gameplay mechanics.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {differentiators.map((diff, index) => (
-              <Card key={index} className="text-center">
-                <CardContent className="p-6">
-                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                    <diff.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-2">{diff.title}</h3>
-                  <p className="text-sm text-muted-foreground">{diff.description}</p>
-                </CardContent>
-              </Card>
-            ))}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <Card key={index} className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-colors">
+                  <CardContent className="p-6">
+                    <div className="flex items-center mb-4">
+                      <div className="p-2 bg-purple-600/20 rounded-lg">
+                        <Icon className="w-6 h-6 text-purple-400" />
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      {feature.title}
+                    </h3>
+                    <p className="text-slate-300">
+                      {feature.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* Featured Worlds */}
-      <section className="py-16 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Explore Living Worlds</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Each world has its own rules, factions, and unique mechanics that shape your adventure.
+      <section className="py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Featured Worlds
+            </h2>
+            <p className="text-xl text-slate-300 max-w-2xl mx-auto">
+              Discover handcrafted worlds filled with rich lore, complex characters, 
+              and endless possibilities for adventure.
             </p>
           </div>
-          <CardGrid columns={3}>
+          
+          <CardGrid>
             {worlds.map((world) => (
-              <WorldCard
-                key={world.id}
-                world={world}
-                onViewDetails={handleViewWorld}
-                onLearnMore={handleLearnAboutWorld}
+              <WorldCard 
+                key={world.id} 
+                world={world} 
+                onViewDetails={handleWorldViewDetails}
+                onLearnMore={handleWorldLearnMore}
               />
             ))}
           </CardGrid>
+          
+          <div className="text-center mt-12">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-white/20 text-white hover:bg-white/10"
+              onClick={() => navigate('/worlds')}
+            >
+              View All Worlds
+            </Button>
+          </div>
         </div>
       </section>
 
       {/* Featured Adventures */}
-      <section className="py-16 px-4 bg-muted/30">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Featured Adventures</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Begin your journey in these carefully crafted adventures across different worlds.
+      <section className="py-20 bg-slate-800/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Popular Adventures
+            </h2>
+            <p className="text-xl text-slate-300 max-w-2xl mx-auto">
+              Jump into these trending adventures and see what the community is playing.
             </p>
           </div>
-          <CardGrid columns={3}>
-            {adventures.map((adventure) => {
-              const world = worlds.find(w => w.id === adventure.worldId);
-              return (
-                <AdventureCard
-                  key={adventure.id}
-                  adventure={adventure}
-                  world={world}
-                  onStart={handleStartAdventure}
-                  onViewDetails={handleViewAdventureDetails}
-                  isInvited={isInvited}
-                />
-              );
-            })}
+          
+          <CardGrid>
+            {adventures.map((adventure) => (
+              <AdventureCard 
+                key={adventure.id} 
+                adventure={adventure} 
+                onStart={handleAdventureStart}
+                onViewDetails={handleAdventureViewDetails}
+                isInvited={isInvited}
+              />
+            ))}
           </CardGrid>
+          
+          <div className="text-center mt-12">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-white/20 text-white hover:bg-white/10"
+              onClick={() => navigate('/adventures')}
+            >
+              Browse All Adventures
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20">
+        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
+            Ready to Begin Your Adventure?
+          </h2>
+          <p className="text-xl text-slate-300 mb-8">
+            Join thousands of players already exploring the worlds of Stone Caster. 
+            Your epic story is just one click away.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              size="lg" 
+              className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
+              onClick={() => navigate('/character-creation')}
+            >
+              Create Character
+            </Button>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-white/20 text-white hover:bg-white/10 px-8 py-3"
+              onClick={() => navigate('/auth/signup')}
+            >
+              Sign Up Free
+            </Button>
+          </div>
         </div>
       </section>
 
       {/* Drifter Bubble */}
       {showDrifter && (
         <DrifterBubble
-          message="This gateway is open only to invited travelers — for now. But the worlds beyond are waiting to be explored by those brave enough to cast their first stone."
-          position="bottom-right"
+          message="Welcome to Stone Caster! I'm here to help you get started. Click on any world or adventure to begin your journey!"
           onDismiss={() => setShowDrifter(false)}
         />
       )}

@@ -1,0 +1,105 @@
+---
+title: No App Startup Rule
+description: Prevent starting frontend or backend development servers, but allow builds
+---
+
+# No App Startup Rule
+
+## Overview
+This rule prevents the AI from starting frontend or backend development servers while still allowing build operations.
+
+## Prohibited Commands
+The following commands are **FORBIDDEN** and should not be executed:
+
+### Frontend Development Servers
+- `npm run dev` (in frontend directory)
+- `npm run dev:client`
+- `npm run dev:parallel`
+- `npm run dev:clean`
+- `vite`
+- `vite dev`
+- `npm start` (if it starts dev server)
+
+### Backend Development Servers
+- `npm run dev:server`
+- `npm run dev:server:local`
+- `npm run dev:local` (in backend directory)
+- `npm start` (if it starts dev server)
+- `tsx watch`
+- `nodemon`
+- `node --watch`
+
+### Combined Development Commands
+- `npm run dev` (root level - starts both frontend and backend)
+- Any command that starts both frontend and backend simultaneously
+
+## Allowed Commands
+The following commands are **ALLOWED**:
+
+### Build Operations
+- `npm run build`
+- `npm run build:client`
+- `npm run build:server`
+- `npm run build:shared`
+- `tsc` (TypeScript compilation)
+- `vite build`
+- `npm run type-check`
+- `npm run lint`
+
+### Testing
+- `npm run test`
+- `npm run test:ci`
+- `npm run test:e2e`
+- `vitest run`
+- `playwright test`
+
+### Package Management
+- `npm install`
+- `npm ci`
+- `npm run setup`
+- `npm run setup:env`
+
+### Utility Commands
+- `npm run kill:ports`
+- `npm run verify:config`
+- `npm run type-check`
+- `npm run lint`
+
+## Rationale
+- Development servers can conflict with existing running instances
+- Port conflicts cause startup failures
+- Users should manually control when to start development servers
+- Build operations are safe and don't interfere with running processes
+- Testing and linting are safe operations
+
+## Enforcement
+When a prohibited command is requested:
+1. **DO NOT** execute the command
+2. **EXPLAIN** why the command is prohibited
+3. **SUGGEST** the user manually start the development server
+4. **OFFER** to help with build, test, or other safe operations instead
+
+## Example Responses
+
+### ❌ Prohibited Request
+User: "Start the development server"
+Response: "I cannot start development servers due to project rules. Please manually run `npm run dev:clean` to start both frontend and backend, or run them separately in different terminals."
+
+### ✅ Allowed Request
+User: "Build the project"
+Response: "I'll build the project for you." *proceeds with build*
+
+## Manual Development Server Startup
+If the user needs to start development servers, provide these instructions:
+
+```bash
+# Option 1: Start both with port cleanup
+npm run dev:clean
+
+# Option 2: Start separately in different terminals
+# Terminal 1 (Backend):
+npm run dev:server
+
+# Terminal 2 (Frontend):
+npm run dev:client
+```

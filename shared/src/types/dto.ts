@@ -184,6 +184,20 @@ export const ProfileDTOSchema = z.object({
   // - audit fields not needed by UI
 });
 
+// Update Profile Request Schema
+export const UpdateProfileRequestSchema = z.object({
+  displayName: z.string().min(1).max(100).optional(),
+  avatarUrl: z.string().url().optional(),
+  preferences: z.object({
+    showTips: z.boolean().optional(),
+    theme: z.enum(['light', 'dark', 'auto']).optional(),
+    notifications: z.object({
+      email: z.boolean().optional(),
+      push: z.boolean().optional(),
+    }).optional(),
+  }).optional(),
+});
+
 // Turn DTO (redacted from internal state) - Layer M3
 export const TurnDTOSchema = z.object({
   id: z.string().uuid(),
@@ -240,3 +254,4 @@ export type SubscriptionDTO = z.infer<typeof SubscriptionDTOSchema>;
 export type SearchResultDTO = z.infer<typeof SearchResultDTOSchema>;
 export type TurnDTO = z.infer<typeof TurnDTOSchema>;
 export type ContentWorldDTO = z.infer<typeof ContentWorldDTOSchema>;
+export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;

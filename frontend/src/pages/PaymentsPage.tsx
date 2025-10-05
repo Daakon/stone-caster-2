@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
+import { GatedRoute } from '../components/auth/GatedRoute';
 import { mockDataService } from '../services/mockData';
 import { 
   Crown, 
@@ -11,7 +12,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-export default function PaymentsPage() {
+function PaymentsPageContent() {
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'premium'>('free');
   const currentTier = mockDataService.getCurrentTier();
   
@@ -274,5 +275,13 @@ export default function PaymentsPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function PaymentsPage() {
+  return (
+    <GatedRoute requireAuth={true}>
+      <PaymentsPageContent />
+    </GatedRoute>
   );
 }

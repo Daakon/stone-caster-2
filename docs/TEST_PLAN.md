@@ -1,22 +1,93 @@
-# Stone Caster Test Plan - Layer M5
+# Stone Caster Test Plan - Layer M6
 
 ## Overview
 
-This document outlines the comprehensive test plan for Layer M5 - Hardening & QA Readiness, focusing on observability, telemetry, error handling, and tester enablement. Layer M5 builds upon Layer M4's unified play UI with enhanced diagnostics and self-serve QA capabilities.
+This document outlines the comprehensive test plan for Layer M6 - Profiles & Account Safety, focusing on secure profile management, guest-to-auth upgrades, session safety, and account controls. Layer M6 builds upon Layer M5's observability features with comprehensive user account management and security.
 
 ## Test Objectives
 
-- Verify structured logging with traceIds and meaningful context
-- Test configurable telemetry system for gameplay events
-- Validate enhanced error handling with actionable messages and traceIds
-- Ensure self-serve QA capabilities with clear runbooks
-- Test telemetry toggles and configuration endpoints
-- Verify traceId capture and error reporting workflows
-- Confirm accessibility compliance (0 serious/critical axe violations)
-- Test mobile navigation with hamburger menu and drawer
-- Validate responsive layout transitions between breakpoints
+- Verify secure profile management with CSRF protection and validation
+- Test guest-to-auth upgrade flow with data preservation and idempotency
+- Validate session safety controls including revocation and CSRF tokens
+- Ensure gated route access control with proper authentication flows
+- Test profile UI accessibility and mobile-first design
+- Verify error handling with actionable messages and traceIds
+- Validate comprehensive testing coverage for all new functionality
+- Test non-regression scenarios for existing functionality
 
 ## Unit Tests
+
+### Auth Flow Fixes Tests
+
+#### AuthRouter Component Tests
+- **File:** `frontend/src/components/AuthRouter.test.tsx`
+- **Coverage:**
+  - Guest user authentication status logging
+  - Authenticated user redirect behavior
+  - Guest user staying on auth pages (no redirect)
+  - Loading state handling
+- **Test Scenarios:**
+  - Guest users can stay on `/auth/signin` without being redirected
+  - Authenticated users are redirected away from auth pages
+  - Proper logging of authentication status
+  - No redirects during loading state
+
+#### Wallet Service Tests
+- **File:** `frontend/src/services/wallet.test.ts`
+- **Coverage:**
+  - `getWallet()` - wallet data retrieval for guests and authenticated users
+  - Error handling for network failures
+  - API response parsing and validation
+- **Test Scenarios:**
+  - Successful wallet data retrieval
+  - Network error handling
+  - API error response handling
+  - Guest user wallet access
+
+### Layer M6: Profile Service Tests
+- **File:** `frontend/src/services/profile.test.ts`
+- **Coverage:**
+  - `checkAccess()` - profile access validation and guest detection
+  - `getProfile()` - profile data retrieval and error handling
+  - `updateProfile()` - profile updates with validation
+  - `generateCSRFToken()` - CSRF token generation for security
+  - `revokeOtherSessions()` - session revocation with CSRF validation
+  - `linkGuestAccount()` - guest account linking with idempotency
+- **Test Scenarios:**
+  - Successful profile operations
+  - Authentication failures and access denied
+  - CSRF token validation and expiration
+  - Guest account linking success and conflicts
+  - Network errors and retry logic
+
+### Layer M6: Guest Linking Service Tests
+- **File:** `frontend/src/services/guestLinking.test.ts`
+- **Coverage:**
+  - `linkGuestAccount()` - guest account linking flow
+  - `hasGuestAccountToLink()` - guest cookie detection
+  - `getGuestCookieId()` - guest cookie retrieval
+  - `clearGuestCookie()` - guest cookie cleanup
+- **Test Scenarios:**
+  - Successful guest account linking
+  - Already linked account handling
+  - No guest cookie scenarios
+  - Linking failures and error handling
+  - Cookie cleanup after successful linking
+
+### Layer M6: Gated Route Component Tests
+- **File:** `frontend/src/components/auth/GatedRoute.test.tsx`
+- **Coverage:**
+  - `GatedRoute` component - access control and routing
+  - `useGatedAccess` hook - access state management
+  - Authentication requirement handling
+  - Guest user redirection and messaging
+  - Error state handling and fallbacks
+- **Test Scenarios:**
+  - Authenticated user access
+  - Guest user redirection
+  - Access check failures
+  - Loading states and error handling
+  - Custom fallback rendering
 
 ### Layer M5: Telemetry Service Tests
 - **File:** `frontend/src/services/telemetry.test.ts`
@@ -92,6 +163,24 @@ This document outlines the comprehensive test plan for Layer M5 - Hardening & QA
 
 ## Integration Tests
 
+### Layer M6: Profile API Integration Tests
+- **File:** `backend/src/routes/profile.integration.test.ts`
+- **Coverage:**
+  - `GET /api/profile/access` - access control validation
+  - `GET /api/profile` - profile data retrieval
+  - `PUT /api/profile` - profile updates with CSRF protection
+  - `POST /api/profile/csrf-token` - CSRF token generation
+  - `POST /api/profile/revoke-sessions` - session revocation
+  - `POST /api/profile/link-guest` - guest account linking
+- **Test Scenarios:**
+  - Authenticated user profile operations
+  - Guest user access restrictions
+  - CSRF token validation and expiration
+  - Session revocation with proper cleanup
+  - Guest account linking with idempotency
+  - Rate limiting and security controls
+  - Error handling and validation
+
 ### Layer M5: Telemetry Endpoint Tests
 - **File:** `backend/src/routes/telemetry.integration.test.ts`
 - **Coverage:**
@@ -130,6 +219,54 @@ This document outlines the comprehensive test plan for Layer M5 - Hardening & QA
   - Game state updates
 
 ## QA Testing Scenarios
+
+### Layer M6: Profile Management Scenarios
+
+#### Profile Access Control Testing
+1. **Guest User Profile Access**
+   - Navigate to `/profile` as guest user
+   - Verify "Authentication Required" message appears
+   - Confirm "Sign In" button is present and functional
+   - Verify guest-specific messaging about account benefits
+   - Test "Back to Home" navigation
+
+2. **Authenticated User Profile Access**
+   - Sign in with valid credentials
+   - Navigate to `/profile`
+   - Verify profile data loads correctly
+   - Confirm all profile sections are visible
+   - Test responsive layout on mobile (375×812px)
+
+#### Profile Management Testing
+3. **Profile Editing Flow**
+   - Click "Edit" button on profile page
+   - Modify display name and avatar URL
+   - Test form validation (empty name, invalid URL)
+   - Save changes and verify success message
+   - Cancel changes and verify reversion
+   - Test CSRF token handling
+
+4. **Session Management Testing**
+   - Access session management section
+   - Click "Revoke Other Sessions" button
+   - Verify confirmation message and session count
+   - Test CSRF token validation
+   - Verify current session remains active
+
+#### Guest Account Linking Testing
+5. **Guest to Auth Upgrade Flow**
+   - Start as guest user with active games/characters
+   - Sign in with valid credentials
+   - Verify guest account linking happens automatically
+   - Confirm all guest data is preserved
+   - Test idempotent linking (repeat sign-in)
+   - Verify guest cookie cleanup after linking
+
+6. **Guest Linking Error Scenarios**
+   - Test linking when no guest account exists
+   - Test linking when account already linked
+   - Test linking with network failures
+   - Verify appropriate error messages and recovery
 
 ### Layer M5: Self-Serve QA Runbook
 
@@ -192,6 +329,57 @@ This document outlines the comprehensive test plan for Layer M5 - Hardening & QA
 6. **Capture**: Screenshot of error state with traceId
 
 ## End-to-End Tests
+
+### Auth Flow Fixes E2E Tests
+- **File:** `frontend/e2e/auth-flow-fixes.spec.ts`
+- **Coverage:**
+  - Guest users can stay on sign-in page without redirecting
+  - Wallet balance display for guests
+  - Play route navigation with characterId
+  - Password field autocomplete attributes
+  - Successful sign-in flow handling
+- **Test Scenarios:**
+  - Navigate to `/auth/signin` and verify no redirect back to landing page
+  - Verify wallet balance is accessible for guest users
+  - Test `/play/:characterId` route resolves without 404 errors
+  - Check password fields have proper autocomplete attributes
+  - Test sign-in form submission doesn't cause redirect loops
+
+### OAuth Flow E2E Tests
+- **File:** `frontend/e2e/oauth-flow.spec.ts`
+- **Coverage:**
+  - Google OAuth flow completion and authenticated state
+  - OAuth callback handling with search parameters
+  - OAuth callback handling with hash fragments
+  - Intended route preservation after OAuth
+  - OAuth error handling
+  - Guest wallet access during OAuth flow
+- **Test Scenarios:**
+  - Complete Google OAuth flow and verify authenticated state
+  - Handle OAuth callback with URL search parameters
+  - Handle OAuth callback with URL hash fragments
+  - Preserve intended route after successful OAuth
+  - Handle OAuth errors gracefully
+  - Maintain guest wallet access during OAuth flow
+
+### Layer M6: Profile and Session Management E2E Tests
+- **File:** `frontend/e2e/profile-and-session.spec.ts`
+- **Coverage:**
+  - Profile access control and authentication requirements
+  - Profile management (view, edit, save, cancel)
+  - Session management (revoke other sessions)
+  - Guest account linking after authentication
+  - Error handling and recovery flows
+  - Accessibility compliance and screen reader support
+- **Test Scenarios:**
+  - Guest user profile access restrictions
+  - Authenticated user profile management
+  - Profile editing with validation
+  - Session revocation with confirmation
+  - Guest account linking success and conflicts
+  - Error states and recovery actions
+  - Mobile and desktop responsive behavior
+  - Accessibility features and keyboard navigation
 
 ### Layer M5: Observability E2E Tests
 - **File:** `frontend/e2e/observability.spec.ts`
@@ -376,6 +564,16 @@ cd frontend && npm run test:a11y
 - Clear idempotency records
 
 ## Acceptance Criteria Verification
+
+### ✅ Layer M6: Profile Management
+- **Profile API & UI**: ✅ Authenticated profile read returns current state; unauthenticated requests blocked with REQUIRES_AUTH error
+- **Profile Updates**: ✅ Validation enforced (name length, avatar URL, theme choices) with CSRF token requirements
+- **UI Feedback**: ✅ Success/error messages displayed; inline validation prevents obvious mistakes
+- **Guest Linking Flow**: ✅ Guest data linked to Supabase user exactly once; idempotent operation with single LINK_MERGE ledger entry
+- **Gated Actions**: ✅ Guest access to gated routes returns REQUIRES_AUTH with sign-in prompt; seamless access after authentication
+- **Session Revocation & CSRF**: ✅ CSRF token generation and validation; session revocation with clear messaging
+- **Testing & Docs**: ✅ Comprehensive test coverage; updated documentation with QA guidance
+- **Accessibility & Error Handling**: ✅ Profile UI fully accessible; 0 serious/critical axe issues; error banners include traceId
 
 ### ✅ Layer M5: Structured Logging
 - [x] All player-facing actions leave structured logs with traceIds

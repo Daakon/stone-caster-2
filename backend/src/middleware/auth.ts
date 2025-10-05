@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/index.js';
 import { sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from 'shared/types/api.js';
+import { AuthUser, AuthState } from 'shared/types/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import { CookieUserLinkingService } from '../services/cookie-user-linking.service.js';
 
@@ -12,6 +13,7 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
+      auth?: AuthUser;
       ctx?: {
         userId?: string;
         isGuest?: boolean;
@@ -98,6 +100,12 @@ export async function jwtAuth(req: Request, res: Response, next: NextFunction): 
 // Optional auth middleware (allows both authenticated and guest users)
 export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    console.log('[optionalAuth] Processing request:', req.path, 'headers:', {
+      authorization: req.headers.authorization ? 'present' : 'absent',
+      cookie: req.cookies?.guestId ? 'present' : 'absent',
+      'x-guest-cookie-id': req.headers['x-guest-cookie-id'] ? 'present' : 'absent'
+    });
+    
     const authHeader = req.headers.authorization;
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -146,12 +154,43 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
           },
         };
       }
+    } else {
+      // No guest cookie found - create a new guest ID
+      const { v4: uuidv4 } = await import('uuid');
+      const newGuestId = uuidv4();
+      req.ctx = {
+        userId: newGuestId,
+        isGuest: true,
+        user: {
+          id: newGuestId,
+          isGuest: true,
+        },
+      };
     }
+    
+    console.log('[optionalAuth] Final context:', {
+      userId: req.ctx?.userId,
+      isGuest: req.ctx?.isGuest,
+      user: req.ctx?.user
+    });
     
     next();
   } catch (error) {
     console.error('Optional auth middleware error:', error);
-    // Don't fail on optional auth errors, just continue without user context
+    // Don't fail on optional auth errors, but ensure we have a user context
+    if (!req.ctx) {
+      // Create a fallback guest context if none exists
+      const { v4: uuidv4 } = await import('uuid');
+      const fallbackGuestId = uuidv4();
+      req.ctx = {
+        userId: fallbackGuestId,
+        isGuest: true,
+        user: {
+          id: fallbackGuestId,
+          isGuest: true,
+        },
+      };
+    }
     next();
   }
 }
@@ -179,5 +218,84 @@ export function requireGuest(req: Request, res: Response, next: NextFunction): v
       req
     );
   }
+  next();
+}
+
+// New auth middleware using abstraction
+export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+  const guestCookie = req.headers['x-guest-cookie'] as string;
+
+  if (authHeader?.startsWith('Bearer ')) {
+    // Authenticated user - extract token for later verification
+    const token = authHeader.substring(7);
+    req.auth = {
+      state: AuthState.AUTHENTICATED,
+      id: 'pending-verification', // Will be set after JWT verification
+      key: token
+    };
+  } else if (guestCookie) {
+    // Guest or cookied user
+    req.auth = {
+      state: AuthState.COOKIED,
+      id: guestCookie
+    };
+  } else {
+    // No auth - create new guest
+    const newGuestId = uuidv4();
+    req.auth = {
+      state: AuthState.GUEST,
+      id: newGuestId
+    };
+  }
+
+  next();
+}
+
+// Enhanced JWT verification middleware
+export async function verifyJWT(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (req.auth?.state === AuthState.AUTHENTICATED && req.auth.key) {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(req.auth.key);
+      
+      if (error || !user) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.UNAUTHORIZED,
+          'Invalid or expired token',
+          req
+        );
+      }
+
+      // Update auth with verified user data
+      req.auth = {
+        state: AuthState.AUTHENTICATED,
+        id: user.id,
+        key: req.auth.key,
+        email: user.email,
+        displayName: user.user_metadata?.display_name || user.email?.split('@')[0]
+      };
+
+      // Also set legacy ctx for backward compatibility
+      req.ctx = {
+        userId: user.id,
+        isGuest: false,
+        user: {
+          id: user.id,
+          email: user.email,
+          isGuest: false,
+        },
+      };
+    } catch (error) {
+      console.error('JWT verification error:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Authentication failed',
+        req
+      );
+    }
+  }
+
   next();
 }

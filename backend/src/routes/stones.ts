@@ -26,18 +26,8 @@ router.get('/wallet', optionalAuth, async (req: Request, res: Response) => {
       );
     }
 
-    if (isGuest) {
-      // Layer M1: Guest users see a clearly gated response
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.REQUIRES_AUTH,
-        'Guest users cannot view stone balance. Please sign in to access your wallet.',
-        req
-      );
-    }
-
-    // Authenticated user - get full wallet
-    const wallet = await WalletService.getWallet(userId, false);
+    // Both guest and authenticated users can read wallet balance
+    const wallet = await WalletService.getWallet(userId, isGuest || false);
     const walletDTO = toStonesWalletDTO(wallet);
     sendSuccess(res, walletDTO, req);
   } catch (error) {

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuthStore } from '@/store/auth';
+import { RoutePreservationService } from '@/services/routePreservation';
 
 interface GlobalHeaderProps {
   variant?: 'full' | 'compact';
@@ -13,19 +14,33 @@ interface GlobalHeaderProps {
 
 export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, signOut } = useAuthStore();
+  const { isAuthenticated, signOut } = useAuthStore();
   const location = useLocation();
 
-  const navigation = [
+  // Base navigation items available to all users
+  const baseNavigation = [
     { name: 'Adventures', href: '/adventures' },
     { name: 'My Games', href: '/adventures' }, // TODO: Update to actual my games route
+  ];
+
+  // Authenticated-only navigation items
+  const authenticatedNavigation = [
     { name: 'Wallet', href: '/wallet' },
     { name: 'Profile', href: '/profile' },
   ];
 
+  // Combine navigation based on auth state
+  const navigation = isAuthenticated 
+    ? [...baseNavigation, ...authenticatedNavigation]
+    : baseNavigation;
+
   const handleSignOut = async () => {
     await signOut();
     setIsOpen(false);
+    // Redirect to a safe route after sign out
+    const safeRoute = RoutePreservationService.getSafeSignoutRoute(location.pathname);
+    console.log(`[REDIRECT] from=${location.pathname} to=${safeRoute} trigger=signout`);
+    window.location.href = safeRoute;
   };
 
   const isCompact = variant === 'compact';
@@ -78,7 +93,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
             
             <ThemeToggle />
             
-            {user ? (
+            {isAuthenticated ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -136,7 +151,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
 
                   {/* Mobile auth */}
                   <div className="pt-4 border-t border-border">
-                    {user ? (
+                    {isAuthenticated ? (
                       <Button
                         variant="ghost"
                         onClick={handleSignOut}

@@ -6,11 +6,15 @@ import { ThemeProvider } from './contexts/theme-context-provider';
 import { ToastProvider } from './components/ui/toast-provider';
 import { SkipNavigation } from './components/ui/skip-navigation';
 import { AppLayout } from './components/layout/AppLayout';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { AuthRouter } from './components/AuthRouter';
 import { GuestCookieService } from './services/guestCookie';
 import LandingPage from './pages/LandingPage';
 import AdventuresPage from './pages/AdventuresPage';
 import AdventureDetailPage from './pages/AdventureDetailPage';
 import CharacterCreationPage from './pages/CharacterSelectionPage';
+import CharacterSelectionPage from './pages/CharacterSelectionPage';
 import CharacterCreatorPage from './pages/CharacterCreatorPage';
 import WorldsPage from './pages/WorldsPage';
 import WorldDetailPage from './pages/WorldDetailPage';
@@ -44,6 +48,8 @@ function App() {
   const { loading, initialize } = useAuthStore();
 
   useEffect(() => {
+    console.log('[BOOT] App mounted');
+    
     // Initialize guest cookie for anonymous users
     GuestCookieService.getOrCreateGuestCookie();
     
@@ -66,53 +72,69 @@ function App() {
   }
 
   return (
-    <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <SkipNavigation 
-            links={[
-              { href: '#main-content', label: 'Skip to main content' },
-              { href: '#navigation', label: 'Skip to navigation' },
-              { href: '#footer', label: 'Skip to footer' },
-            ]}
-          />
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/auth" element={<AuthPage />} />
-              <Route path="/auth/signin" element={<AuthPage mode="signin" />} />
-              <Route path="/auth/signup" element={<AuthPage mode="signup" />} />
-              <Route path="/auth/success" element={<AuthSuccessPage />} />
-              {/* Legacy routes for backward compatibility */}
-              <Route path="/adventures" element={<AdventuresPage />} />
-              <Route path="/adventures/:id" element={<AdventureDetailPage />} />
-              <Route path="/adventures/:id/characters" element={<CharacterCreationPage />} />
-              <Route path="/adventures/:id/create-character" element={<CharacterCreatorPage />} />
-              <Route path="/game/:gameId" element={<GamePage />} />
-              {/* New routing structure */}
-              <Route path="/worlds" element={<WorldsPage />} />
-              <Route path="/worlds/:worldSlug" element={<WorldDetailPage />} />
-              <Route path="/worlds/:worldSlug/adventures" element={<AdventuresPage />} />
-              <Route path="/worlds/:worldSlug/adventures/:adventureSlug" element={<AdventureDetailPage />} />
-              <Route path="/worlds/:worldSlug/adventures/:adventureSlug/character" element={<CharacterCreationPage />} />
-              <Route path="/play/:gameId" element={<UnifiedGamePage />} />
-              <Route path="/wallet" element={<WalletPage />} />
-              <Route path="/payments" element={<PaymentsPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/tos" element={<SupportPage pageType="tos" />} />
-              <Route path="/privacy" element={<SupportPage pageType="privacy" />} />
-              <Route path="/ai-disclaimer" element={<SupportPage pageType="ai-disclaimer" />} />
-              <Route path="/faq" element={<SupportPage pageType="faq" />} />
-              <Route path="/about" element={<SupportPage pageType="about" />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </AppLayout>
-          <ToastProvider />
-        </BrowserRouter>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
+            }}
+          >
+            {(() => {
+              console.log('[BOOT] Router provider mounted');
+              return null;
+            })()}
+            <AuthRouter />
+            <SkipNavigation 
+              links={[
+                { href: '#main-content', label: 'Skip to main content' },
+                { href: '#navigation', label: 'Skip to navigation' },
+                { href: '#footer', label: 'Skip to footer' },
+              ]}
+            />
+            <AppLayout>
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/adventures" element={<AdventuresPage />} />
+                <Route path="/adventures/:adventureId/characters" element={<CharacterSelectionPage />} />
+                <Route path="/adventures/:id" element={<AdventureDetailPage />} />
+                <Route path="/character-creation" element={<CharacterCreationPage />} />
+                <Route path="/character-creator" element={<CharacterCreatorPage />} />
+                <Route path="/worlds" element={<WorldsPage />} />
+                <Route path="/worlds/:id" element={<WorldDetailPage />} />
+                <Route path="/wallet" element={
+                  <ProtectedRoute>
+                    <WalletPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/payments" element={
+                  <ProtectedRoute>
+                    <PaymentsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/support" element={<SupportPage pageType="faq" />} />
+                <Route path="/game/:id" element={<GamePage />} />
+                <Route path="/play/:characterId" element={<UnifiedGamePage />} />
+                <Route path="/unified-game/:id" element={<UnifiedGamePage />} />
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="/auth/signin" element={<AuthPage mode="signin" />} />
+                <Route path="/auth/signup" element={<AuthPage mode="signup" />} />
+                <Route path="/auth/success" element={<AuthSuccessPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </AppLayout>
+            <ToastProvider />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
 export default App;
-

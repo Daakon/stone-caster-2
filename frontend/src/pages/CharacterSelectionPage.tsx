@@ -39,9 +39,9 @@ import {
   Star
 } from 'lucide-react';
 
-export default function CharacterSelectionPage() {
-  const { id, worldSlug, adventureSlug } = useParams<{ 
-    id?: string; 
+function CharacterSelectionPageContent() {
+  const { adventureId, worldSlug, adventureSlug } = useParams<{ 
+    adventureId?: string; 
     worldSlug?: string; 
     adventureSlug?: string; 
   }>();
@@ -57,8 +57,8 @@ export default function CharacterSelectionPage() {
   const telemetry = useAdventureTelemetry();
   
   // Support both legacy and new routing
-  const adventureId = id || adventureSlug;
-  const adventure = adventureId ? mockDataService.getAdventureById(adventureId) : null;
+  const currentAdventureId = adventureId || adventureSlug;
+  const adventure = currentAdventureId ? mockDataService.getAdventureById(currentAdventureId) : null;
   const world = adventure ? mockDataService.getWorldById(adventure.worldId) : null;
   const currentTier = mockDataService.getCurrentTier();
   const limits = mockDataService.getLimitsByTier(currentTier);
@@ -503,4 +503,8 @@ export default function CharacterSelectionPage() {
       </div>
     </div>
   );
+}
+
+export default function CharacterSelectionPage() {
+  return <CharacterSelectionPageContent />;
 }

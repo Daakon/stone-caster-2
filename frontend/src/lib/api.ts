@@ -1,5 +1,5 @@
 import { type AppError, toAppError } from './errors';
-import { supabase } from './supabase';
+import { supabase } from '../services/supabase';
 import { GuestCookieService } from '../services/guestCookie';
 
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai')).replace(
@@ -121,10 +121,12 @@ export async function apiPost<T = unknown>(
 export async function apiPut<T = unknown>(
   path: string,
   body?: unknown,
+  headers?: Record<string, string>,
 ): Promise<{ ok: true; data: T } | { ok: false; error: AppError }> {
   return apiFetch<T>(path, {
     method: 'PUT',
     body: body ? JSON.stringify(body) : undefined,
+    headers,
   });
 }
 

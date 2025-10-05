@@ -180,13 +180,13 @@ Get available premade characters for a specific world.
 
 ### Get Stone Balance
 
-Get the current stone balance for authenticated users.
+Get the current stone balance for both authenticated users and guests.
 
 **Endpoint:** `GET /api/stones/wallet`
 
-**Authentication:** JWT token required
+**Authentication:** JWT token or guest cookie
 
-**Response:** `200 OK` (Authenticated users)
+**Response:** `200 OK` (Both authenticated users and guests)
 ```json
 {
   "ok": true,
@@ -203,13 +203,30 @@ Get the current stone balance for authenticated users.
 }
 ```
 
-**Error:** `401 Unauthorized` - Guest users cannot view stone balance
+**Guest Response:** `200 OK` (Guest users with empty wallet)
+```json
+{
+  "ok": true,
+  "data": {
+    "shard": 0,
+    "crystal": 0,
+    "relic": 0,
+    "dailyRegen": 0,
+    "lastRegenAt": null
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+**Error:** `401 Unauthorized` - No authentication provided
 ```json
 {
   "ok": false,
   "error": {
     "code": "REQUIRES_AUTH",
-    "message": "Guest users cannot view stone balance. Please sign in to access your wallet."
+    "message": "Authentication required to view stone balance"
   },
   "meta": {
     "traceId": "uuid"
@@ -959,6 +976,221 @@ Roll multiple different dice at once.
     "criticalFailure": false
   }
 ]
+```
+
+## Profile Management (Layer M6)
+
+### Get Profile
+
+Get the current user's profile information.
+
+**Endpoint:** `GET /api/profile`
+
+**Authentication:** JWT token required
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": {
+    "id": "profile-uuid",
+    "displayName": "Test User",
+    "avatarUrl": "https://example.com/avatar.jpg",
+    "email": "test@example.com",
+    "preferences": {
+      "showTips": true,
+      "theme": "auto",
+      "notifications": {
+        "email": true,
+        "push": false
+      }
+    },
+    "createdAt": "2024-01-01T00:00:00Z",
+    "lastSeen": "2024-01-01T00:00:00Z"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+**Error:** `401 Unauthorized` - Authentication required
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Authentication required"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+### Update Profile
+
+Update the current user's profile information.
+
+**Endpoint:** `PUT /api/profile`
+
+**Authentication:** JWT token required
+
+**Headers:**
+- `X-CSRF-Token`: CSRF token (required for security)
+
+**Request Body:**
+```json
+{
+  "displayName": "Updated Name",
+  "avatarUrl": "https://example.com/new-avatar.jpg",
+  "preferences": {
+    "showTips": false,
+    "theme": "dark",
+    "notifications": {
+      "email": false,
+      "push": true
+    }
+  }
+}
+```
+
+**Response:** `200 OK` (same structure as get profile)
+
+**Error Responses:**
+- `400 Bad Request` - Invalid CSRF token
+- `422 Unprocessable Entity` - Validation failed
+- `404 Not Found` - Profile not found
+
+### Generate CSRF Token
+
+Generate a new CSRF token for secure profile updates.
+
+**Endpoint:** `POST /api/profile/csrf-token`
+
+**Authentication:** JWT token required
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": {
+    "csrfToken": "csrf-token-uuid"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+### Revoke Other Sessions
+
+Revoke all other sessions except the current one.
+
+**Endpoint:** `POST /api/profile/revoke-sessions`
+
+**Authentication:** JWT token required
+
+**Request Body:**
+```json
+{
+  "csrfToken": "csrf-token-uuid"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": {
+    "revokedCount": 2,
+    "currentSessionPreserved": true
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+**Error:** `400 Bad Request` - Invalid CSRF token
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "CSRF_TOKEN_INVALID",
+    "message": "Invalid or expired CSRF token"
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+### Link Guest Account
+
+Link a guest account to the current authenticated user.
+
+**Endpoint:** `POST /api/profile/link-guest`
+
+**Authentication:** JWT token required
+
+**Request Body:**
+```json
+{
+  "cookieGroupId": "guest-cookie-group-uuid"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": {
+    "success": true,
+    "alreadyLinked": false,
+    "message": "Guest account successfully linked",
+    "migrationSummary": {
+      "charactersMigrated": 2,
+      "gamesMigrated": 1,
+      "stonesMigrated": 15,
+      "ledgerEntriesCreated": 3
+    }
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
+```
+
+### Get Guest Account Summary
+
+Get a summary of guest account data before linking.
+
+**Endpoint:** `GET /api/profile/guest-summary/:cookieGroupId`
+
+**Authentication:** JWT token required
+
+**Parameters:**
+- `cookieGroupId`: Guest cookie group UUID
+
+**Response:** `200 OK`
+```json
+{
+  "ok": true,
+  "data": {
+    "cookieGroupId": "guest-cookie-group-uuid",
+    "deviceLabel": "Chrome Browser",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "lastSeen": "2024-01-01T00:00:00Z",
+    "characterCount": 2,
+    "gameCount": 1,
+    "stoneBalance": 15,
+    "hasData": true
+  },
+  "meta": {
+    "traceId": "uuid"
+  }
+}
 ```
 
 ## Health Check
