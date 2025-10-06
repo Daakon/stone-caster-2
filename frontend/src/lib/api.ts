@@ -1,6 +1,7 @@
-import { type AppError, toAppError } from './errors';
+﻿import { type AppError, toAppError } from './errors';
 import { supabase } from '../services/supabase';
 import { GuestCookieService } from '../services/guestCookie';
+import type { GameListDTO } from '@shared';
 
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai')).replace(
   /\/+$/,
@@ -164,7 +165,23 @@ export async function getGame(
   return apiGet(`/api/games/${gameId}`);
 }
 
-// Get premade characters for a world
+
+// List current user's adventures (active games)
+export async function getMyAdventures(
+  params?: { limit?: number; offset?: number },
+): Promise<{ ok: true; data: GameListDTO[] } | { ok: false; error: AppError }> {
+  const searchParams = new URLSearchParams();
+
+  if (params?.limit !== undefined) {
+    searchParams.set('limit', String(params.limit));
+  }
+  if (params?.offset !== undefined) {
+    searchParams.set('offset', String(params.offset));
+  }
+
+  const query = searchParams.toString();
+  return apiGet(`/api/games${query ? `?${query}` : ''}`);
+}// Get premade characters for a world
 export async function getPremadeCharacters(
   worldSlug: string,
 ): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
@@ -265,3 +282,5 @@ export async function getWallet(): Promise<{ ok: true; data: any } | { ok: false
 export async function getStonesHistory(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
   return apiGet('/api/stones/history');
 }
+
+

@@ -65,6 +65,17 @@ Spawn a new game.
 
 **Authentication**: Guest or Authenticated
 
+#### GET /api/games
+List active adventures for the current owner (used by the `/my-adventures` UI).
+
+**Authentication**: Guest cookie (`guestId` or `X-Guest-Cookie-Id`) or authenticated user token
+
+**Query Params**:
+- `limit` (optional, default 20)
+- `offset` (optional, default 0)
+
+**Response**: `GameListDTO[]` sorted by `lastPlayedAt` descending.
+
 **Request Body**:
 ```typescript
 interface CreateGameRequest {
@@ -420,3 +431,4 @@ Critical operations support idempotency keys:
 - **Structured Logging**: JSON-formatted logs with correlation IDs
 - **Metrics**: Request counts, response times, error rates
 - **Health Checks**: `/health` endpoint for system status
+

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Authentication Flow Stabilization', () => {
   test.beforeEach(async ({ page }) => {
@@ -85,9 +85,9 @@ test.describe('Authentication Flow Stabilization', () => {
     // For now, we'll test the structure exists
     await page.goto('/');
 
-    // Check that Adventures and My Games are visible for all users
+    // Check that Adventures and My Adventures are visible for all users
     const adventuresLink = page.locator('a[href="/adventures"]');
-    const myGamesLink = page.locator('text=My Games');
+    const myGamesLink = page.locator('text=My Adventures');
     
     await expect(adventuresLink).toBeVisible();
     await expect(myGamesLink).toBeVisible();
@@ -178,6 +178,7 @@ test.describe('Authentication Flow Stabilization', () => {
     await expect(title).toBeVisible();
   });
 });
+
 
 
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/auth';
@@ -12,6 +12,7 @@ import { AuthRouter } from './components/AuthRouter';
 import { GuestCookieService } from './services/guestCookie';
 import LandingPage from './pages/LandingPage';
 import AdventuresPage from './pages/AdventuresPage';
+import MyAdventuresPage from './pages/MyAdventuresPage';
 import AdventureDetailPage from './pages/AdventureDetailPage';
 import CharacterCreationPage from './pages/CharacterSelectionPage';
 import CharacterSelectionPage from './pages/CharacterSelectionPage';
@@ -110,6 +111,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/adventures" element={<AdventuresPage />} />
+                <Route path="/my-adventures" element={<MyAdventuresPage />} />
                 <Route path="/adventures/:adventureId/characters" element={<CharacterSelectionPage />} />
                 <Route path="/adventures/:id" element={<AdventureDetailPage />} />
                 <Route path="/character-creation" element={<CharacterCreationPage />} />
@@ -151,3 +153,5 @@ function App() {
 }
 
 export default App;
+
+

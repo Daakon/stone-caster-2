@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Games E2E Tests', () => {
   test.beforeEach(async ({ page }) => {
@@ -388,8 +388,8 @@ test.describe('Games E2E Tests', () => {
       });
 
       // Navigate to games page
-      await page.click('text=My Games');
-      await expect(page).toHaveURL(/.*games/);
+      await page.click('text=My Adventures');
+      await expect(page).toHaveURL(/.*my-adventures/);
 
       // Verify games are listed
       await expect(page.locator('text=The Mystika Tutorial')).toBeVisible();
@@ -454,8 +454,8 @@ test.describe('Games E2E Tests', () => {
       });
 
       // Navigate to games page
-      await page.click('text=My Games');
-      await expect(page).toHaveURL(/.*games/);
+      await page.click('text=My Adventures');
+      await expect(page).toHaveURL(/.*my-adventures/);
 
       // Click on existing game
       await page.click('text=The Mystika Tutorial');
@@ -568,3 +568,4 @@ test.describe('Games E2E Tests', () => {
     });
   });
 });
+

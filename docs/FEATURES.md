@@ -13,6 +13,7 @@ Stone Caster is a text-based adventure game platform that allows users to create
 - **Seamless Play Flow**: Guest users can spawn games, submit turns, and play through adventures without authentication barriers
 
 ### Game Management
+- **My Adventures Dashboard**: Resume active games via `/my-adventures` with quick links to `/play/:gameId`
 - **Game Spawning**: Create new games from available adventures
 - **Turn-based Gameplay**: Submit actions and receive AI-generated narrative responses
 - **Game State Persistence**: Game progress is saved and can be resumed
@@ -128,3 +129,4 @@ Stone Caster is a text-based adventure game platform that allows users to create
 - **Performance Metrics**: Real-time performance monitoring
 - **User Analytics**: Privacy-respecting usage analytics
 - **Health Checks**: Automated system health monitoring
+

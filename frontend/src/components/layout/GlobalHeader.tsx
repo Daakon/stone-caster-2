@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
   // Base navigation items available to all users
   const baseNavigation = [
     { name: 'Adventures', href: '/adventures' },
-    { name: 'My Games', href: '/adventures' }, // TODO: Update to actual my games route
+    { name: 'My Adventures', href: '/my-adventures' },
   ];
 
   // Authenticated-only navigation items
@@ -52,7 +52,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
         {/* Logo */}
         <div className="mr-4 hidden md:flex">
           <Link to="/" className="mr-6 flex items-center space-x-2">
-            <span className="hidden font-bold sm:inline-block">🎲 StoneCaster</span>
+            <span className="hidden font-bold sm:inline-block">ðŸŽ² StoneCaster</span>
           </Link>
         </div>
 
@@ -80,7 +80,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
           <div className="w-full flex-1 md:w-auto md:flex-none">
             {/* Mobile logo */}
             <Link to="/" className="md:hidden flex items-center space-x-2">
-              <span className="font-bold">🎲 StoneCaster</span>
+              <span className="font-bold">ðŸŽ² StoneCaster</span>
             </Link>
           </div>
           
@@ -129,7 +129,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
                     className="flex items-center space-x-2 font-bold text-lg"
                     onClick={() => setIsOpen(false)}
                   >
-                    🎲 StoneCaster
+                    ðŸŽ² StoneCaster
                   </Link>
                   
                   {/* Mobile navigation */}
@@ -177,6 +177,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
     </header>
   );
 }
+
 
 
 

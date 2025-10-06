@@ -28,8 +28,8 @@ export function Breadcrumbs({ variant = 'back', label, href }: BreadcrumbsProps)
     }
     
     // Game
-    if (pathname.startsWith('/game/')) {
-      return 'Back to My Games';
+    if (pathname.startsWith('/game/') || pathname.startsWith('/play/')) {
+      return 'Back to My Adventures';
     }
     
     // Character selection
@@ -56,8 +56,8 @@ export function Breadcrumbs({ variant = 'back', label, href }: BreadcrumbsProps)
     }
     
     // Game
-    if (pathname.startsWith('/game/')) {
-      return '/adventures'; // TODO: Update to actual my games route
+    if (pathname.startsWith('/game/') || pathname.startsWith('/play/')) {
+      return '/my-adventures';
     }
     
     // Character selection
@@ -88,6 +88,8 @@ export function Breadcrumbs({ variant = 'back', label, href }: BreadcrumbsProps)
     </div>
   );
 }
+
+
 
 
 

@@ -1,4 +1,4 @@
-# Stone Caster UX Flow - Layer M6
+﻿# Stone Caster UX Flow - Layer M6
 
 ## Overview
 
@@ -15,7 +15,7 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 4. **Action Options**: 
    - "Sign In" button redirects to authentication
    - "Back to Home" returns to main page
-5. **Mobile Experience**: Responsive design works seamlessly at 375×812px
+5. **Mobile Experience**: Responsive design works seamlessly at 375Ã—812px
 
 #### Authenticated User Profile Management
 1. **Profile Access**: Authenticated user navigates to `/profile`
@@ -78,13 +78,13 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 
 ### 3. Game Play Flow (Mobile-First)
 
-#### Mobile Experience (375×812px)
+#### Mobile Experience (375Ã—812px)
 - **Header**: Compact header with logo, stone balance, and hamburger menu
 - **Navigation**: Slide-out drawer with navigation items and stone balance
 - **Main Content**: Story history, turn input, and game state in stacked layout
 - **Sidebar**: Character info, world rules, and stone balance in collapsible sections
 
-#### Desktop Experience (≥1024px)
+#### Desktop Experience (â‰¥1024px)
 - **Header**: Full header with navigation items and stone balance
 - **Layout**: Three-column grid with main content (2/3) and sidebar (1/3)
 - **Sidebar**: Persistent sidebar with character, world rules, and stone balance
@@ -133,7 +133,7 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 - **Hamburger Menu**: Slide-out drawer with navigation items
 - **Stone Balance**: Displayed in header and drawer
 - **User Info**: Email and sign-out option in drawer
-- **Navigation Items**: Home, Worlds, My Games, Wallet, Profile
+- **Navigation Items**: Home, Worlds, My Adventures, Wallet, Profile
 
 #### Desktop Navigation
 - **Persistent Sidebar**: Always visible navigation with user info
@@ -253,13 +253,13 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 
 ## Testing Scenarios
 
-### Mobile Testing (375×812)
+### Mobile Testing (375Ã—812)
 - **Navigation**: Hamburger menu and drawer functionality
 - **Turn Loop**: Complete turn submission and response
 - **Error Handling**: All error states with recovery actions
 - **Accessibility**: Touch targets and screen reader support
 
-### Desktop Testing (≥1024px)
+### Desktop Testing (â‰¥1024px)
 - **Layout**: Three-column grid with proper proportions
 - **Sidebar**: Persistent navigation and state display
 - **Keyboard**: Full keyboard navigation support
@@ -298,3 +298,4 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 - **Turn Response**: < 5 seconds for turn processing
 - **Error Rate**: < 5% turn submission failures
 - **Cache Hit Rate**: > 80% for repeated data requests
+

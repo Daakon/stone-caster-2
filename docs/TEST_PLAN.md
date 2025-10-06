@@ -11,6 +11,7 @@ Layer P0 focuses on enabling guest users to play the game without authentication
 
 ### Test Objectives
 - Verify guest users can spawn games without authentication
+- Ensure `/my-adventures` lists active games with a working Continue CTA linking to `/play/:gameId`
 - Test guest turn submission and AI response handling
 - Validate guest wallet operations and stone spending
 - Ensure proper error handling for insufficient stones
@@ -167,7 +168,7 @@ This section covers Layer M6 - Profiles & Account Safety, focusing on secure pro
   - Guest user staying on auth pages (no redirect)
   - Loading state handling
   - Redirect fallback to `location.state.from`
-  - Store transition from guest→authenticated after initial render
+  - Store transition from guestâ†’authenticated after initial render
   - Double navigation prevention with redirect guard
 - **Test Scenarios:**
   - Guest users can stay on `/auth/signin` without being redirected
@@ -399,7 +400,7 @@ This section covers Layer M6 - Profiles & Account Safety, focusing on secure pro
    - Navigate to `/profile`
    - Verify profile data loads correctly
    - Confirm all profile sections are visible
-   - Test responsive layout on mobile (375×812px)
+   - Test responsive layout on mobile (375Ã—812px)
 
 #### Profile Management Testing
 3. **Profile Editing Flow**
@@ -559,7 +560,7 @@ This section covers Layer M6 - Profiles & Account Safety, focusing on secure pro
 - **File:** `frontend/e2e/unified-game.spec.ts`
 - **Coverage:**
 
-#### Mobile-First Design (375×812)
+#### Mobile-First Design (375Ã—812)
 - Unified game interface display on mobile
 - Turn submission and result display
 - Error handling with recovery actions
@@ -567,7 +568,7 @@ This section covers Layer M6 - Profiles & Account Safety, focusing on secure pro
 - Touch-friendly interface elements
 - Responsive layout behavior
 
-#### Desktop Layout (≥1024px)
+#### Desktop Layout (â‰¥1024px)
 - Three-column grid layout
 - Persistent sidebar navigation
 - Desktop-specific interactions
@@ -729,53 +730,53 @@ cd frontend && npm run test:a11y
 
 ## Acceptance Criteria Verification
 
-### ✅ Layer M6: Profile Management
-- **Profile API & UI**: ✅ Authenticated profile read returns current state; unauthenticated requests blocked with REQUIRES_AUTH error
-- **Profile Updates**: ✅ Validation enforced (name length, avatar URL, theme choices) with CSRF token requirements
-- **UI Feedback**: ✅ Success/error messages displayed; inline validation prevents obvious mistakes
-- **Guest Linking Flow**: ✅ Guest data linked to Supabase user exactly once; idempotent operation with single LINK_MERGE ledger entry
-- **Gated Actions**: ✅ Guest access to gated routes returns REQUIRES_AUTH with sign-in prompt; seamless access after authentication
-- **Session Revocation & CSRF**: ✅ CSRF token generation and validation; session revocation with clear messaging
-- **Testing & Docs**: ✅ Comprehensive test coverage; updated documentation with QA guidance
-- **Accessibility & Error Handling**: ✅ Profile UI fully accessible; 0 serious/critical axe issues; error banners include traceId
+### âœ… Layer M6: Profile Management
+- **Profile API & UI**: âœ… Authenticated profile read returns current state; unauthenticated requests blocked with REQUIRES_AUTH error
+- **Profile Updates**: âœ… Validation enforced (name length, avatar URL, theme choices) with CSRF token requirements
+- **UI Feedback**: âœ… Success/error messages displayed; inline validation prevents obvious mistakes
+- **Guest Linking Flow**: âœ… Guest data linked to Supabase user exactly once; idempotent operation with single LINK_MERGE ledger entry
+- **Gated Actions**: âœ… Guest access to gated routes returns REQUIRES_AUTH with sign-in prompt; seamless access after authentication
+- **Session Revocation & CSRF**: âœ… CSRF token generation and validation; session revocation with clear messaging
+- **Testing & Docs**: âœ… Comprehensive test coverage; updated documentation with QA guidance
+- **Accessibility & Error Handling**: âœ… Profile UI fully accessible; 0 serious/critical axe issues; error banners include traceId
 
-### ✅ Layer M5: Structured Logging
+### âœ… Layer M5: Structured Logging
 - [x] All player-facing actions leave structured logs with traceIds
 - [x] Logs include route, status, latency, and meaningful context
 - [x] Error logs show error code, message, and traceId without raw stack traces
 - [x] Request traceIds are included in response headers
 
-### ✅ Layer M5: Configurable Telemetry
+### âœ… Layer M5: Configurable Telemetry
 - [x] Telemetry can be toggled via config/env (off in local dev, on for QA)
-- [x] Events cover: turn success/failure, spawn success/conflict, guest→auth merge, purchase attempts
+- [x] Events cover: turn success/failure, spawn success/conflict, guestâ†’auth merge, purchase attempts
 - [x] Payloads exclude PII and internal secrets
 - [x] Events capture only what QA needs (event type, owner kind, traceId, metadata)
 
-### ✅ Layer M5: Enhanced Error Handling
-- [x] UI surfaces actionable copy for failures (e.g., "Casting Stones are low—see wallet")
+### âœ… Layer M5: Enhanced Error Handling
+- [x] UI surfaces actionable copy for failures (e.g., "Casting Stones are lowâ€”see wallet")
 - [x] Error cards include traceId (copyable) for bug reports
 - [x] Buttons/link back to retry flows and help systems
 - [x] Error states are mobile-first and accessible
 
-### ✅ Layer M5: Self-Serve QA
+### âœ… Layer M5: Self-Serve QA
 - [x] Step-by-step QA scenarios in TEST_PLAN.md and UX_FLOW.md
 - [x] Runbook explains how to retrieve logs/telemetry
 - [x] Clear instructions for what to screenshot/copy for bug reports
 - [x] Telemetry configuration endpoint for QA testing
 
-### ✅ Layer M5: Non-Regression Testing
+### âœ… Layer M5: Non-Regression Testing
 - [x] Automated tests assert logging/telemetry toggles
 - [x] Playwright script validates traceIds appear in UI error banners
 - [x] Telemetry toggling behaves as expected without reload loops
 - [x] No new axe serious/critical issues introduced
 
-### ✅ Layer M5: Performance & Accessibility
+### âœ… Layer M5: Performance & Accessibility
 - [x] Logging/telemetry additions do not block event loop
 - [x] Turn responsiveness stays within acceptable limits
 - [x] 0 serious/critical axe violations on key flows
-- [x] Mobile-first design maintained at 375×812px
+- [x] Mobile-first design maintained at 375Ã—812px
 
-### ✅ Cross-Platform Testing
+### âœ… Cross-Platform Testing
 - [x] Mobile and desktop layouts tested
 - [x] Responsive behavior verified
 - [x] Data consistency across viewports
@@ -820,3 +821,4 @@ All acceptance criteria have been implemented and tested:
 - Database constraints and unique indexes
 - Proper transaction management
 - Extensive integration testing
+
