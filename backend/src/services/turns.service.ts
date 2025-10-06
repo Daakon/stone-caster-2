@@ -230,7 +230,7 @@ export class TurnsService {
       }
 
       // Create Turn DTO
-      const turnDTO = await this.createTurnDTO(turnRecord, aiResponse, game, wallet.castingStones - turnCost);
+      const turnDTO = await this.createTurnDTO(turnRecord, aiResponse, game, wallet.castingStones - turnCost, prompt);
 
       // Store idempotency record
       const requestHash = IdempotencyService.createRequestHash({ optionId });
@@ -319,13 +319,15 @@ export class TurnsService {
    * @param aiResponse - AI response
    * @param game - Game data
    * @param newBalance - New casting stones balance
+   * @param debugPrompt - Full prompt that was sent to AI (for debugging)
    * @returns Turn DTO
    */
   private async createTurnDTO(
     turnRecord: any,
     aiResponse: TurnResponse,
     game: any,
-    newBalance: number
+    newBalance: number,
+    debugPrompt?: string
   ): Promise<TurnDTO> {
     return {
       id: turnRecord.id,
@@ -339,6 +341,7 @@ export class TurnsService {
       factionDeltas: aiResponse.factionDeltas,
       castingStonesBalance: newBalance,
       createdAt: turnRecord.created_at,
+      debugPrompt: debugPrompt,
     };
   }
 
