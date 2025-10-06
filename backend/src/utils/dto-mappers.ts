@@ -43,6 +43,9 @@ export function toCharacterDTO(character: Character): CharacterDTO {
     inventory: character.inventory || [],
     currentHealth: character.currentHealth || 100,
     maxHealth: character.maxHealth || 100,
+    // Additional fields for frontend compatibility
+    avatar: character.avatar || 'default',
+    backstory: character.backstory || 'A brave adventurer',
     // Explicitly exclude internal fields:
     // - userId (server-only)
     // - cookieId (server-only)
@@ -94,6 +97,8 @@ export function toWorldDTO(worldTemplate: WorldTemplate): WorldDTO {
   return {
     id: worldTemplate.id,
     name: worldTemplate.name,
+    title: worldTemplate.title || worldTemplate.name, // Add title field
+    tagline: worldTemplate.tagline, // Add tagline field
     description: worldTemplate.description,
     genre: worldTemplate.genre,
     setting: worldTemplate.setting,
@@ -110,11 +115,11 @@ export function toWorldDTO(worldTemplate: WorldTemplate): WorldDTO {
 // Adventure DTO mapper (placeholder - would need Adventure entity)
 export function toAdventureDTO(adventure: any): AdventureDTO {
   return {
-    id: adventure.id,
-    slug: adventure.slug,
-    title: adventure.title,
-    description: adventure.description,
-    worldSlug: adventure.world_slug,
+    id: adventure.slug || adventure.id, // Use slug as ID for now
+    slug: adventure.slug || adventure.id,
+    title: adventure.title || adventure.name, // Prioritize title field
+    description: adventure.description || '',
+    worldSlug: adventure.worldId || adventure.world_slug || 'unknown',
     worldName: adventure.world_name || 'Unknown World',
     tags: adventure.tags || [],
     scenarios: adventure.scenarios || [],
@@ -150,6 +155,7 @@ export function toStonesWalletDTO(wallet: any): StonesWalletDTO {
       relic: 0,
       dailyRegen: 0,
       lastRegenAt: undefined,
+      balance: 0, // Add balance field for frontend compatibility
     };
   }
   
@@ -159,10 +165,10 @@ export function toStonesWalletDTO(wallet: any): StonesWalletDTO {
     relic: wallet.inventoryRelic || wallet.relic || 0,
     dailyRegen: wallet.dailyRegen || 0,
     lastRegenAt: wallet.lastRegenAt,
+    balance: wallet.castingStones || 0, // Add balance field for frontend compatibility
     // Explicitly exclude internal fields:
     // - id (server-only)
     // - userId (server-only)
-    // - castingStones (server-only)
     // - createdAt/updatedAt (server-only)
   };
 }

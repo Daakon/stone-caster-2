@@ -11,6 +11,32 @@ const router = Router();
 // Get all public worlds
 router.get('/', async (req: Request, res: Response) => {
   try {
+    // Try to load from ContentService first (Layer P1)
+    const { ContentService } = await import('../services/content.service.js');
+    const worlds = await ContentService.getWorlds();
+    
+    if (worlds.length > 0) {
+      // Transform ContentService data to WorldDTO format
+      const worldDTOs = worlds.map((world: any) => ({
+        id: world.slug,
+        name: world.name,
+        description: world.description,
+        genre: 'fantasy' as const, // Default genre
+        setting: world.description,
+        themes: world.tags || [],
+        availableRaces: ['Human', 'Elf', 'Dwarf'], // Default races
+        availableClasses: ['Fighter', 'Mage', 'Rogue'], // Default classes
+        rules: world.rules || [],
+        isPublic: true,
+        startingPrompt: `Welcome to ${world.name}! ${world.description}`,
+        createdAt: '2023-01-01T00:00:00Z',
+        updatedAt: '2023-01-01T00:00:00Z',
+      }));
+      
+      return sendSuccess(res, worldDTOs, req);
+    }
+    
+    // Fallback to Supabase if ContentService has no data
     const { data, error } = await supabase
       .from('world_templates')
       .select('*')

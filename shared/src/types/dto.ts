@@ -31,6 +31,9 @@ export const CharacterDTOSchema = z.object({
   })),
   currentHealth: z.number().int(),
   maxHealth: z.number().int(),
+  // Additional fields for frontend compatibility
+  avatar: z.string().optional(),
+  backstory: z.string().optional(),
 });
 
 // Game DTO (redacted from internal state) - Layer M2
@@ -71,6 +74,8 @@ export const GameListDTOSchema = z.object({
 export const WorldDTOSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
+  title: z.string().optional(), // Add title field
+  tagline: z.string().optional(), // Add tagline field
   description: z.string(),
   genre: z.enum(['fantasy', 'scifi', 'horror', 'mystery', 'historical', 'modern', 'custom']),
   setting: z.string(),
@@ -125,6 +130,7 @@ export const StonesWalletDTOSchema = z.object({
   relic: z.number().int().min(0),
   dailyRegen: z.number().int().min(0),
   lastRegenAt: z.string().datetime().optional(),
+  balance: z.number().int().min(0), // Add balance field for frontend compatibility
 });
 
 // Stones pack DTO

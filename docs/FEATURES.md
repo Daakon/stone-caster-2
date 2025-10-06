@@ -85,6 +85,32 @@ Stone Caster is a text-based adventure game platform that allows users to create
 - **Balance Tracking**: Guest wallet balances are maintained across sessions
 - **Insufficient Stones Handling**: Clear error messages when guests run out of stones
 
+## Layer P1 Features (Live Data Integration)
+
+### Real-time Data Loading
+- **Live API Integration**: Game page loads all data from server APIs instead of mock data
+- **React Query Caching**: Efficient data fetching with automatic caching and background updates
+- **Loading States**: Proper loading skeletons and error states for all data fetching
+- **Optimistic Updates**: Turn submission with optimistic UI updates and rollback on failure
+
+### Data Structure Consistency
+- **Unified DTOs**: Consistent data transfer objects between frontend and backend
+- **Field Mapping**: Proper mapping of API response fields to frontend expectations
+- **Backward Compatibility**: Support for both legacy and new data structures
+- **Type Safety**: Full TypeScript type safety across the data layer
+
+### API Endpoints
+- **Adventure API**: `/api/adventures` and `/api/adventures/:id` for adventure data
+- **Character API**: `/api/characters/:id` for character information
+- **World API**: `/api/worlds/:id` for world data and rules
+- **Wallet API**: `/api/stones/wallet` for stone balance and inventory
+
+### Error Handling
+- **Graceful Degradation**: Proper error states when data fails to load
+- **User-friendly Messages**: Clear error messages for different failure scenarios
+- **Retry Logic**: Automatic retry for transient failures
+- **Fallback Data**: Default values when optional data is missing
+
 ## Future Features (Planned)
 
 ### User Accounts
@@ -129,4 +155,9 @@ Stone Caster is a text-based adventure game platform that allows users to create
 - **Performance Metrics**: Real-time performance monitoring
 - **User Analytics**: Privacy-respecting usage analytics
 - **Health Checks**: Automated system health monitoring
+
+
+
+
+
 

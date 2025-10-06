@@ -9,6 +9,81 @@ This document outlines the comprehensive test plan for Stone Caster, covering al
 ### Overview
 Layer P0 focuses on enabling guest users to play the game without authentication barriers. This includes guest authentication, game spawning, turn submission, and stone management.
 
+## Layer P1 - Live Data Integration Tests
+
+### Overview
+Layer P1 focuses on replacing frontend mock data with live API integration. This includes real-time data loading, proper error handling, and ensuring all game data comes from server APIs.
+
+### Test Objectives
+- Verify GamePage loads all data from live APIs instead of mock data
+- Test React Query integration with proper caching and error handling
+- Validate data structure consistency between frontend and backend
+- Ensure proper loading states and error handling for all API calls
+- Test optimistic updates for turn submission with rollback on failure
+- Verify mobile-first design and accessibility compliance with live data
+
+### Backend Unit Tests
+
+#### Layer P1 Adventures API Tests
+- **File:** `backend/src/routes/layer-p1-adventures.test.ts`
+- **Coverage:**
+  - Adventure API endpoints with proper DTO mapping
+  - Content service integration for static adventure data
+  - Error handling for missing adventures
+  - Data structure validation
+- **Test Scenarios:**
+  - GET /api/adventures returns list of adventures
+  - GET /api/adventures/:id returns specific adventure
+  - GET /api/adventures/slug/:slug returns adventure by slug
+  - 404 error when adventure not found
+  - Proper DTO mapping with title and name fields
+  - Content service error handling
+
+### Frontend Unit Tests
+
+#### GamePage Live Data Tests
+- **File:** `frontend/src/pages/GamePage.layer-p1.test.tsx`
+- **Coverage:**
+  - React Query integration for all API calls
+  - Loading states and error handling
+  - Data structure compatibility
+  - Optimistic updates for turn submission
+- **Test Scenarios:**
+  - Loading skeleton while fetching game data
+  - Loading skeleton while fetching adventure, character, world, and wallet data
+  - Game page renders with live data from APIs
+  - Game data loading error handling
+  - Missing critical data error handling
+  - Turn submission with live data
+  - Insufficient stones error during turn submission
+  - World rules display from live data
+  - Guest users without character data handling
+
+### End-to-End Tests
+
+#### Layer P1 Live Data Integration Tests
+- **File:** `frontend/e2e/layer-p1-live-data.spec.ts`
+- **Coverage:**
+  - Complete game page loading with live data
+  - API error handling and graceful degradation
+  - Mobile responsiveness with live data
+  - Accessibility compliance with live data
+- **Test Scenarios:**
+  - Load game page with live data from APIs
+  - Handle API errors gracefully
+  - Handle missing adventure data
+  - Handle guest users without character data
+  - Display loading skeletons during data fetching
+  - Mobile viewport accessibility
+  - Turn submission with live data
+  - Insufficient stones error handling
+  - Accessibility checks with live data
+
+## Layer P0 - Guest Play Flow Tests
+
+### Overview
+Layer P0 focuses on enabling guest users to play the game without authentication barriers. This includes guest authentication, game spawning, turn submission, and stone management.
+
 ### Test Objectives
 - Verify guest users can spawn games without authentication
 - Ensure `/my-adventures` lists active games with a working Continue CTA linking to `/play/:gameId`

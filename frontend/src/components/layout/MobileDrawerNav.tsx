@@ -91,7 +91,7 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
         <div className="container flex h-14 max-w-screen-2xl items-center justify-between px-4">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
-            <span className="font-bold">ðŸŽ² StoneCaster</span>
+            <span className="font-bold">StoneCaster</span>
           </Link>
 
           {/* Right side - Stone balance and menu */}
@@ -125,7 +125,7 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
                       className="flex items-center space-x-2 font-bold text-lg"
                       onClick={() => setIsOpen(false)}
                     >
-                      ðŸŽ² StoneCaster
+                      StoneCaster
                     </Link>
                     <Button
                       variant="ghost"
@@ -211,7 +211,7 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
             {/* Logo */}
             <div className="flex h-14 items-center border-b border-border px-6">
               <Link to="/" className="flex items-center space-x-2">
-                <span className="font-bold">ðŸŽ² StoneCaster</span>
+                <span className="font-bold">StoneCaster</span>
               </Link>
             </div>
 

@@ -274,6 +274,28 @@ export async function getContentAdventures(): Promise<{ ok: true; data: any[] } 
   return apiGet('/api/content/adventures');
 }
 
+// Adventures API - Layer P1
+export async function getAdventures(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/adventures');
+}
+
+export async function getAdventureById(id: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/adventures/${id}`);
+}
+
+export async function getAdventureBySlug(slug: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/adventures/slug/${slug}`);
+}
+
+// Worlds API - Layer P1
+export async function getWorlds(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/worlds');
+}
+
+export async function getWorldById(id: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/worlds/${id}`);
+}
+
 // Wallet/Stones API
 export async function getWallet(): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
   return apiGet('/api/stones/wallet');

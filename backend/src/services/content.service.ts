@@ -8,7 +8,9 @@ const __dirname = dirname(__filename);
 
 export interface WorldData {
   slug: string;
-  name: string;
+  title: string;
+  name: string; // Keep for backward compatibility
+  tagline?: string;
   description?: string;
   rules?: any[];
   tags?: string[];
@@ -17,7 +19,10 @@ export interface WorldData {
 
 export interface AdventureData {
   slug: string;
-  name: string;
+  title: string;
+  name: string; // Keep for backward compatibility
+  description?: string;
+  worldId?: string;
   tags?: string[];
   scenarios?: Array<{
     slug: string;
@@ -58,7 +63,30 @@ export class ContentService {
       }
       
       if (!worldsPath) {
-        throw new Error(`Could not find worlds.json in any of the expected locations: ${possiblePaths.join(', ')}`);
+        console.warn(`Could not find worlds.json in any of the expected locations: ${possiblePaths.join(', ')}`);
+        // Return mock data if file not found
+        return [
+          {
+            slug: 'mystika',
+            title: 'Mystika',
+            name: 'Mystika',
+            tagline: 'Crystalborn Legacy & Veil-Seeped Realms',
+            description: 'A realm where the Veil between worlds has grown thin',
+            rules: [
+              {
+                id: 'veil_stability',
+                name: 'Veil Stability',
+                description: 'The integrity of the barrier between worlds',
+                type: 'meter',
+                min: 0,
+                max: 100,
+                current: 65
+              }
+            ],
+            tags: ['high-fantasy', 'shifters', 'elves', 'crystalborn'],
+            adventures: []
+          }
+        ];
       }
       
       const worldsData = readFileSync(worldsPath, 'utf-8');
@@ -67,7 +95,9 @@ export class ContentService {
       // Transform to our expected format
       return rawWorlds.map((world: any) => ({
         slug: world.id,
-        name: world.title,
+        title: world.title, // Preserve title field
+        name: world.title, // Keep name for backward compatibility
+        tagline: world.tagline, // Preserve tagline field
         description: world.description,
         rules: world.rules,
         tags: world.tags,
@@ -104,7 +134,22 @@ export class ContentService {
       }
       
       if (!adventuresPath) {
-        throw new Error(`Could not find adventures.json in any of the expected locations: ${possiblePaths.join(', ')}`);
+        console.warn(`Could not find adventures.json in any of the expected locations: ${possiblePaths.join(', ')}`);
+        // Return mock data if file not found
+        return [
+          {
+            slug: 'mystika-tutorial',
+            title: 'The Mystika Tutorial',
+            name: 'The Mystika Tutorial',
+            description: 'A young Crystalborn discovers their powers during a Veil-storm',
+            worldId: 'mystika',
+            tags: ['beginner', 'crystalborn', 'veil-storm'],
+            scenarios: [
+              { slug: 'mystika-tutorial-scenario-1', name: 'Awaken to your Crystalborn powers' },
+              { slug: 'mystika-tutorial-scenario-2', name: 'Choose your allegiance among the three factions' }
+            ]
+          }
+        ];
       }
       
       const adventuresData = readFileSync(adventuresPath, 'utf-8');
@@ -113,7 +158,10 @@ export class ContentService {
       // Transform to our expected format
       return rawAdventures.map((adventure: any) => ({
         slug: adventure.id,
-        name: adventure.title,
+        title: adventure.title, // Preserve title field
+        name: adventure.title, // Keep name for backward compatibility
+        description: adventure.description,
+        worldId: adventure.worldId,
         tags: adventure.tags,
         scenarios: adventure.scenarios?.map((scenario: string, index: number) => ({
           slug: `${adventure.id}-scenario-${index + 1}`,

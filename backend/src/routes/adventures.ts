@@ -10,19 +10,18 @@ const router = Router();
 // Get all public adventures
 router.get('/', async (req: Request, res: Response) => {
   try {
-    // Mock adventure data - in real implementation, this would come from database
-    const adventures = [
-      {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        worldId: '456e7890-e89b-12d3-a456-426614174001',
-        name: 'The Tavern Mystery',
-        description: 'A mysterious adventure that begins in a tavern',
-        startingPrompt: 'You find yourself in a dimly lit tavern...',
-        isPublic: true,
-        createdAt: '2023-01-01T00:00:00Z',
-        updatedAt: '2023-01-01T00:00:00Z',
-      },
-    ];
+    // Load static adventure data from content service
+    const { ContentService } = await import('../services/content.service.js');
+    const adventures = await ContentService.getAdventures();
+    
+    if (adventures.length === 0) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'No adventures available',
+        req
+      );
+    }
     
     const adventureDTOs = adventures.map(toAdventureDTO);
     sendSuccess(res, adventureDTOs, req);
@@ -37,27 +36,61 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// Get a single adventure
+// Get a single adventure by ID
 router.get('/:id', validateRequest(IdParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Mock adventure data - in real implementation, this would come from database
-    const adventure = {
-      id,
-      worldId: '456e7890-e89b-12d3-a456-426614174001',
-      name: 'The Tavern Mystery',
-      description: 'A mysterious adventure that begins in a tavern',
-      startingPrompt: 'You find yourself in a dimly lit tavern...',
-      isPublic: true,
-      createdAt: '2023-01-01T00:00:00Z',
-      updatedAt: '2023-01-01T00:00:00Z',
-    };
+    // Load static adventure data from content service
+    const { ContentService } = await import('../services/content.service.js');
+    const adventures = await ContentService.getAdventures();
+    
+    const adventure = adventures.find((a: any) => a.id === id);
+    if (!adventure) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Adventure not found',
+        req
+      );
+    }
 
     const adventureDTO = toAdventureDTO(adventure);
     sendSuccess(res, adventureDTO, req);
   } catch (error) {
     console.error('Error fetching adventure:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to fetch adventure',
+      req
+    );
+  }
+});
+
+// Get a single adventure by slug
+router.get('/slug/:slug', async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+
+    // Load static adventure data from content service
+    const { ContentService } = await import('../services/content.service.js');
+    const adventures = await ContentService.getAdventures();
+    
+    const adventure = adventures.find((a: any) => a.slug === slug);
+    if (!adventure) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Adventure not found',
+        req
+      );
+    }
+
+    const adventureDTO = toAdventureDTO(adventure);
+    sendSuccess(res, adventureDTO, req);
+  } catch (error) {
+    console.error('Error fetching adventure by slug:', error);
     sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,

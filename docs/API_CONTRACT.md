@@ -223,17 +223,29 @@ List available adventures.
 ```typescript
 interface AdventureDTO {
   id: string;
+  slug: string;
   title: string;
-  description: string;
+  description?: string;
   worldSlug: string;
   worldName: string;
-  estimatedDuration: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  isActive: boolean;
+  tags: string[];
+  scenarios: string[];
 }
 ```
 
-#### GET /api/adventures/:slug
+#### GET /api/adventures/:id
+Get adventure details by ID.
+
+**Authentication**: None required
+
+**Response** (200):
+```typescript
+interface AdventureDetailDTO extends AdventureDTO {
+  // Same as AdventureDTO for now
+}
+```
+
+#### GET /api/adventures/slug/:slug
 Get adventure details by slug.
 
 **Authentication**: None required
@@ -241,8 +253,7 @@ Get adventure details by slug.
 **Response** (200):
 ```typescript
 interface AdventureDetailDTO extends AdventureDTO {
-  scenes: SceneDTO[];
-  characters: CharacterTemplateDTO[];
+  // Same as AdventureDTO for now
 }
 ```
 
@@ -363,6 +374,69 @@ The following endpoints specifically support guest users:
 - **Behavior**: Uses guest-specific wallet lookup and ledger recording
 - **Idempotency**: Supports idempotency keys for duplicate request prevention
 
+### Worlds
+
+#### GET /api/worlds
+List available worlds.
+
+**Authentication**: None required
+
+**Response** (200):
+```typescript
+interface WorldDTO {
+  id: string;
+  name: string;
+  title?: string;
+  tagline?: string;
+  description: string;
+  genre: 'fantasy' | 'scifi' | 'horror' | 'mystery' | 'historical' | 'modern' | 'custom';
+  setting: string;
+  themes: string[];
+  availableRaces: string[];
+  availableClasses: string[];
+  rules: {
+    allowMagic: boolean;
+    allowTechnology: boolean;
+    difficultyLevel: 'easy' | 'medium' | 'hard' | 'deadly';
+    combatSystem: 'd20' | 'narrative' | 'custom';
+  };
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+#### GET /api/worlds/:id
+Get world details by ID.
+
+**Authentication**: None required
+
+**Response** (200):
+```typescript
+interface WorldDetailDTO extends WorldDTO {
+  // Same as WorldDTO for now
+}
+```
+
+### Wallet/Stones
+
+#### GET /api/stones/wallet
+Get user's stone wallet balance.
+
+**Authentication**: Guest cookie or JWT token
+
+**Response** (200):
+```typescript
+interface StonesWalletDTO {
+  shard: number;
+  crystal: number;
+  relic: number;
+  dailyRegen: number;
+  lastRegenAt?: string;
+  balance: number; // Frontend compatibility field
+}
+```
+
 ## Error Handling
 
 ### Standard Error Response
@@ -431,4 +505,9 @@ Critical operations support idempotency keys:
 - **Structured Logging**: JSON-formatted logs with correlation IDs
 - **Metrics**: Request counts, response times, error rates
 - **Health Checks**: `/health` endpoint for system status
+
+
+
+
+
 

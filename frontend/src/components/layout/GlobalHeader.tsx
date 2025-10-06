@@ -52,7 +52,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
         {/* Logo */}
         <div className="mr-4 hidden md:flex">
           <Link to="/" className="mr-6 flex items-center space-x-2">
-            <span className="hidden font-bold sm:inline-block">ðŸŽ² StoneCaster</span>
+            <span className="hidden font-bold sm:inline-block">StoneCaster</span>
           </Link>
         </div>
 
@@ -80,7 +80,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
           <div className="w-full flex-1 md:w-auto md:flex-none">
             {/* Mobile logo */}
             <Link to="/" className="md:hidden flex items-center space-x-2">
-              <span className="font-bold">ðŸŽ² StoneCaster</span>
+              <span className="font-bold">StoneCaster</span>
             </Link>
           </div>
           
@@ -129,7 +129,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
                     className="flex items-center space-x-2 font-bold text-lg"
                     onClick={() => setIsOpen(false)}
                   >
-                    ðŸŽ² StoneCaster
+                    StoneCaster
                   </Link>
                   
                   {/* Mobile navigation */}

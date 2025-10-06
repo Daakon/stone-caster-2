@@ -34,6 +34,9 @@ export const CharacterSchema = z.object({
   })).optional(),
   currentHealth: z.number().int().min(0).optional(),
   maxHealth: z.number().int().min(1).optional(),
+  // Additional fields for frontend compatibility
+  avatar: z.string().optional(),
+  backstory: z.string().optional(),
 });
 
 export type Character = z.infer<typeof CharacterSchema>;
@@ -108,6 +111,8 @@ export type GameSave = z.infer<typeof GameSaveSchema>;
 export const WorldTemplateSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(100),
+  title: z.string().optional(), // Add title field
+  tagline: z.string().optional(), // Add tagline field
   description: z.string(),
   genre: z.enum(['fantasy', 'scifi', 'horror', 'mystery', 'historical', 'modern', 'custom']),
   setting: z.string(),

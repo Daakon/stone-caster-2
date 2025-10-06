@@ -1,4 +1,4 @@
-﻿# Play Flow Layered Implementation Plan
+# Play Flow Layered Implementation Plan
 
 ## Overview
 This document outlines the layered path to deliver the end-to-end Play flow. Each layer is self-contained, leaves the system in a shippable state, and must be fully validated (unit, integration, Playwright, axe) before advancing. The canonical user entry point is the existing `/play/:gameId` route, which already renders server-fed game DTOs; all layers build on that surface.
@@ -40,23 +40,30 @@ This document outlines the layered path to deliver the end-to-end Play flow. Eac
 - Update Vitest component tests and Playwright suites to cover live data paths.
 - Exit criteria: Game page renders entirely from server APIs on mobile and desktop viewports with updated docs.
 
-## Layer P2 – Prompt Assembly Pipeline
-**Goal:** Build audited prompt templates that stitch all required context.
+## Layer P2 - Prompt Assembly Pipeline
+**Goal:** Build an auditable, low-token-cost prompt system that can stitch world, adventure, scenario, and player context before hitting the AI.
 
-- Formalize a server-side template registry (world/adventure/scenario/quest scopes) seeded from `GPT Prompts/Core` assets. During MVP this can remain as code modules or structured JSON loaded at boot.
-- Implement allowlisted variable interpolation for game state, character traits, world rules, scenario steps, and latest turn history.
-- Validate template metadata with Zod versions and enforce schema compatibility in `promptsService`.
-- Document prompt pipeline in `docs/UX_FLOW.md` and update `docs/API_CONTRACT.md` for any exposed template admin endpoints.
-- Exit criteria: prompts constructed from the registry with audit logs and unit/integration coverage, ready to migrate into Supabase when needed.
+### Deliverables
+- `backend/src/prompts/manifest.ts` master catalog that maps prompt scopes (core, world, adventure, scenario, quest) to file/module exports and declares schema version, hash, and allowlisted variables for each entry.
+- Lightweight type-safe modules (`backend/src/prompts/core.ts`, `backend/src/prompts/worlds/<slug>.ts`, etc.) generated from the GPT assets under `GPT Prompts/**` with redundant whitespace/comments stripped to keep token counts down.
+- A `PromptAssembler` service in `backend/src/services/prompts.service.ts` (or sibling) that composes the manifest entries with runtime data and enforces the variable allowlist.
+- Zod schemas describing template metadata (`PromptTemplateMetaSchema`) and assembled payloads (`PromptContextSchema`) so the pipeline fails fast when a template drifts.
 
-## Layer P3 – Turn Engine & Delta Application
-**Goal:** Harden server-side turn processing and state mutation.
+### Order of work
+1. **Inventory & Normalization**: Catalogue every file in `GPT Prompts/Core`, `GPT Prompts/Worlds`, and planned `GPT Prompts/Adventures` into a table noting scope, version, and required context keys. Decide which files form the MVP package (for example `Core/engine.system.json`, `Core/style.ui-global.json`, `Worlds/mystika/*.md`).
+2. **Code-first Source of Truth**: Convert the selected assets into TypeScript objects (`as const`) stored under `backend/src/prompts/raw/*`. Preserve original text in comments for traceability, but strip excess whitespace and unused sections to minimize tokens. Provide a simple script to resync from GPT assets when templates change.
+3. **Manifest Assembly**: Create `manifest.ts` that imports the raw modules and exposes a typed array of `{ id, scope, version, hash, variables, segments }`. Hash with SHA-256 of the concatenated segments so drift is detectable without re-reading large strings at runtime.
+4. **Variable Allowlist**: Define the canonical variable surface (`character.name`, `game.summary`, `world.rules`, `scenario.activeStep`, etc.) in a shared enum. During assembly, validate that templates reference only allowlisted tokens; fail CI if a template uses an unknown placeholder.
+5. **PromptAssembler Implementation**: Update `promptsService.buildPrompt` to pull manifest entries by scope, inject runtime context (game snapshot, character traits, last turn, world metadata), and emit a final string plus a structured `PromptAuditEntry { templateIds, version, hash, contextSummary }` for logging.
+6. **Master Prompt File**: Produce a succinct `masterPrompt.ts` (or similar) that concatenates the core/system segments first, then appends world/adventure/scenario content in a deterministic order, using newline delimiters and headers (for example `### World Rules`). Keep output human readable while avoiding large JSON blobs.
+7. **Testing & Tooling**: Add unit tests that expand each manifest entry with mock context, assert the allowlist passes, compare output against snapshots under `backend/tests/prompts/__snapshots__`, and verify token counts stay within agreed ceilings (use `tiktoken` in CI if available).
+8. **Documentation Updates**: Extend `docs/UX_FLOW.md` with a diagram of the prompt assembly pipeline and add API notes in `docs/API_CONTRACT.md` if new admin endpoints (for example `/api/prompts/templates`) are exposed later.
 
-- Extend `gamesService.applyTurn` to merge typed world state, advance scenario progress, and evaluate win/loss conditions (starting at `backend/src/services/games.service.ts:289`).
-- Expand `TurnResponseSchema` to include explicit delta types and rollback hints.
-- Add transactional guard around AI parsing -> state write -> stone spend (idempotent, rollback on failure).
-- Cover stone spend idempotency, AI timeout, malformed JSON, and guest wallet edge cases in integration tests.
-- Exit criteria: buffered turn loop resilient to upstream failures with deterministic state outcomes.
+### Exit criteria
+- Prompt manifest checked into the repo with hashes, schema versions, and variable allowlists.
+- `PromptAssembler` returns deterministic, low-noise strings for the Mystika tutorial flow using only server-side data, with updated unit tests covering happy and invalid paths.
+- Documentation reflects the pipeline, showing how to add or tweak prompt fragments without ballooning token counts.
+- System ready for a future Supabase registry because metadata and hashing are explicit, yet no database migration is required in this layer.
 
 ## Layer P4 – Client Game Experience
 **Goal:** Deliver polished mobile-first gameplay UI driven by live data.
