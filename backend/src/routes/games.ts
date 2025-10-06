@@ -81,11 +81,12 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     const userId = req.ctx?.userId;
     const isGuest = req.ctx?.isGuest;
 
+    // Allow both authenticated users and guests
     if (!userId) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
+        'User context required',
         req
       );
     }

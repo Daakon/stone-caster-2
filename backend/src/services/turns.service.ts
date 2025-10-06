@@ -145,7 +145,8 @@ export class TurnsService {
         turnCost,
         idempotencyKey,
         gameId,
-        `TURN_SPEND`
+        `TURN_SPEND`,
+        isGuest
       );
 
       if (!spendResult.success) {

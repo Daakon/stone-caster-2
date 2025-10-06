@@ -1,8 +1,147 @@
-# Stone Caster Test Plan - Layer M6
+# Stone Caster Test Plan
 
 ## Overview
 
-This document outlines the comprehensive test plan for Layer M6 - Profiles & Account Safety, focusing on secure profile management, guest-to-auth upgrades, session safety, and account controls. Layer M6 builds upon Layer M5's observability features with comprehensive user account management and security.
+This document outlines the comprehensive test plan for Stone Caster, covering all layers from P0 (Guest Play Flow) through M6 (Profiles & Account Safety). Each layer builds upon previous functionality with comprehensive testing coverage.
+
+## Layer P0 - Guest Play Flow Tests
+
+### Overview
+Layer P0 focuses on enabling guest users to play the game without authentication barriers. This includes guest authentication, game spawning, turn submission, and stone management.
+
+### Test Objectives
+- Verify guest users can spawn games without authentication
+- Test guest turn submission and AI response handling
+- Validate guest wallet operations and stone spending
+- Ensure proper error handling for insufficient stones
+- Test guest session persistence across page refreshes
+- Verify mobile-first design and accessibility compliance
+
+### Backend Unit Tests
+
+#### Layer P0 Regression Tests
+- **File:** `backend/src/routes/layer-p0-regression.test.ts`
+- **Coverage:**
+  - Guest authentication fixes in games route
+  - Guest wallet transaction handling
+  - Guest spawn->turn loop integration
+  - Insufficient stones error handling
+- **Test Scenarios:**
+  - Guest can fetch game by ID without 401 error
+  - Guest spawn flow works end-to-end
+  - Guest stone spending uses correct wallet method
+  - Insufficient stones error for guest users
+  - Complete guest spawn->turn loop success
+  - Insufficient stones in turn flow handling
+
+#### Wallet Service Tests
+- **File:** `backend/src/services/wallet.service.test.ts`
+- **Coverage:**
+  - `spendCastingStones()` with guest parameter
+  - Guest wallet creation and management
+  - Stone ledger recording for guest transactions
+- **Test Scenarios:**
+  - Guest stone spending with proper wallet method
+  - Guest wallet creation on first spawn
+  - Ledger entries for guest transactions
+  - Insufficient stones error handling
+
+#### Games Service Tests
+- **File:** `backend/src/services/games.service.test.ts`
+- **Coverage:**
+  - Guest game spawning
+  - Guest game fetching
+  - Starter stones grant for guests
+- **Test Scenarios:**
+  - Guest game spawn with starter stones
+  - Guest game retrieval
+  - Starter stones grant logic
+
+### Frontend E2E Tests
+
+#### Layer P0 Guest Play Flow Tests
+- **File:** `frontend/e2e/layer-p0-guest-play-flow.spec.ts`
+- **Coverage:**
+  - Complete guest spawn->turn loop through `/play/:gameId`
+  - Insufficient stones error handling
+  - Guest session persistence
+  - Mobile viewport compatibility
+- **Test Scenarios:**
+  - Guest can complete spawn->turn loop successfully
+  - Insufficient stones error displayed gracefully
+  - Guest session maintained across page refreshes
+  - Mobile viewport (375x812) compatibility
+  - No redirect to auth pages during guest play
+
+#### Guest Stone Handling Tests
+- **File:** `frontend/e2e/guest-stone-handling.spec.ts`
+- **Coverage:**
+  - Guest stone consumption without route redirect
+  - Guest stone action logging
+  - Adventure flow without authentication barriers
+- **Test Scenarios:**
+  - Guest can begin adventure with sufficient stones
+  - Sign-in CTA when guest has insufficient stones
+  - Guest stone actions logged in console
+  - Stone consumption without auth redirect
+
+### Integration Tests
+
+#### Turn Engine Integration Tests
+- **File:** `backend/src/routes/turn-engine-integration.test.ts`
+- **Coverage:**
+  - Guest spawn with device cookie
+  - Guest turn processing
+  - Stone economy flow for guests
+- **Test Scenarios:**
+  - Guest spawn with device cookie
+  - Guest turn submission and AI response
+  - Stone spending and balance updates
+
+#### Games API Integration Tests
+- **File:** `backend/src/routes/games.integration.test.ts`
+- **Coverage:**
+  - Guest game spawning
+  - Guest game fetching
+  - Error handling for guest users
+- **Test Scenarios:**
+  - Guest game spawn success
+  - Guest game retrieval
+  - Validation errors for guest requests
+
+### Accessibility Tests
+
+#### Axe Core Testing
+- **Coverage:** All guest play flow pages
+- **Requirements:** 0 serious/critical violations
+- **Pages Tested:**
+  - Adventure character selection
+  - Game play page (`/play/:gameId`)
+  - Error pages (insufficient stones)
+- **Test Scenarios:**
+  - Mobile viewport (375x812) accessibility
+  - Desktop viewport accessibility
+  - Keyboard navigation
+  - Screen reader compatibility
+
+### Performance Tests
+
+#### Guest Flow Performance
+- **Coverage:** Guest spawn->turn loop performance
+- **Metrics:**
+  - Game spawn response time < 2s
+  - Turn submission response time < 5s
+  - Page load time < 3s on mobile
+- **Test Scenarios:**
+  - Guest spawn performance
+  - Turn submission performance
+  - Page refresh performance
+
+## Layer M6 - Profiles & Account Safety Tests
+
+## Overview
+
+This section covers Layer M6 - Profiles & Account Safety, focusing on secure profile management, guest-to-auth upgrades, session safety, and account controls. Layer M6 builds upon Layer M5's observability features with comprehensive user account management and security.
 
 ## Test Objectives
 

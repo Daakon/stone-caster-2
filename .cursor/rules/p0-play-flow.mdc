@@ -1,0 +1,22 @@
+﻿# P0 Play Flow Tasks
+
+## When this rule applies
+Use this prompt whenever you are asked to work on Layer P0 items from `docs/play-flow-layer-plan.md` (closing M0-M3 gaps, guest turn flow hardening, docs/tests refresh).
+
+## Branching discipline
+- Before making changes, create and switch to a fresh branch named `P0/<area>-<short-title>` (for example `P0/server-guest-turns`).
+- Keep the branch focused on a single vertical slice of the P0 scope so follow-up layers stay clean.
+
+## Expectations
+- Start with a quick written plan that references the relevant sections of `docs/play-flow-layer-plan.md` and any code files you expect to touch.
+- Confirm any assumptions about guest identity, wallet behavior, or DTO exposure before coding; note them briefly in the conversation.
+- Solve the gaps called out for P0 (guest access to `/api/games/:id`, guest wallet ledger wiring, regression coverage, doc sync) but choose the implementation details that best fit our stack. You do not need to follow a prescribed patch—explain your approach and justify key decisions instead.
+- Keep prompts/templates server-side for now; flag anything that would block a future move into Supabase.
+
+## Testing & docs
+- Add or update targeted Vitest/Playwright coverage for the scenarios you touch (guest spawn/turn, insufficient stones, etc.).
+- Update `docs/FEATURES.md`, `docs/API_CONTRACT.md`, and `docs/TEST_PLAN.md` to reflect any behavior changes.
+
+## Delivery notes
+- Surface risks, follow-ups, or open questions once the branch work is ready for review.
+- Do not push or run remote operations; stop after local validation with the branch ready for PR review.

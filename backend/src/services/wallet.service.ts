@@ -279,10 +279,11 @@ export class WalletService {
     amount: number,
     idempotencyKey: string,
     gameId: string,
-    reason: string
+    reason: string,
+    isGuest: boolean = false
   ): Promise<{ success: boolean; newBalance: number; error?: string; message?: string }> {
     try {
-      const wallet = await this.getOrCreateWallet(userId);
+      const wallet = await this.getWallet(userId, isGuest);
 
       if (wallet.castingStones < amount) {
         throw new Error(`Insufficient casting stones. Have ${wallet.castingStones}, need ${amount}`);
