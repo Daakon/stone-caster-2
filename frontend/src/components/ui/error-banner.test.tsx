@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ErrorBanner } from './error-banner';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock clipboard API
 const mockWriteText = vi.fn();

@@ -1,7 +1,7 @@
 import { AlertTriangle, RefreshCw, ArrowRight, X, Copy, Check, ExternalLink } from 'lucide-react';
 import { Button } from './button';
 import { Card, CardContent } from './card';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 import { getFriendlyErrorMessage, isResumeError, isAuthError, isRetryableError } from '../../lib/error-messages';
 import { useState } from 'react';
 

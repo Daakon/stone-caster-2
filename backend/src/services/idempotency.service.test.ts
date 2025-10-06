@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { IdempotencyService } from './idempotency.service.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock Supabase
 vi.mock('./supabase.js', () => ({

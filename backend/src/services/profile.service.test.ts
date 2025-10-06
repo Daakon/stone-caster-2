@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProfileService } from './profile.service.js';
 import { supabaseAdmin } from '../config/supabase.js';
-import { UpdateProfileRequest } from 'shared';
+import { UpdateProfileRequest } from '@shared';
 
 // Mock Supabase admin client
 vi.mock('../config/supabase.js', () => ({

@@ -45,7 +45,7 @@ async function startDevServer() {
   let child;
   if (isWin) {
     // On Windows, use cmd /c to run npx
-    const command = 'npx tsx watch src/index.ts';
+    const command = 'npm run build && node dist/index.js';
     console.info(`[dev-with-default-env] Running: cmd /c "${command}"`);
     child = spawn('cmd', ['/c', command], { 
       stdio: 'inherit', 
@@ -54,10 +54,10 @@ async function startDevServer() {
       shell: true
     });
   } else {
-    // On Unix-like systems, use npx directly
-    const args = ['tsx', 'watch', 'src/index.ts'];
-    console.info(`[dev-with-default-env] Running: npx ${args.join(' ')}`);
-    child = spawn('npx', args, { 
+    // On Unix-like systems, use shell to run the command
+    const command = 'npm run build && node dist/index.js';
+    console.info(`[dev-with-default-env] Running: ${command}`);
+    child = spawn('sh', ['-c', command], { 
       stdio: 'inherit', 
       env: process.env, 
       cwd: workingDir

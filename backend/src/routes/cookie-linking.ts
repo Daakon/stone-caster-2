@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { validateRequest } from '../middleware/validation.js';
 import { requireAuth } from '../middleware/auth.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 import { CookieUserLinkingService } from '../services/cookie-user-linking.service.js';
 
 const router = express.Router();

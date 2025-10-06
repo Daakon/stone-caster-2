@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabase.js';
-import type { CookieGroup, CookieGroupMember } from 'shared';
+import type { CookieGroup, CookieGroupMember } from '@shared';
 
 export interface LinkDeviceToUserParams {
   userId: string;

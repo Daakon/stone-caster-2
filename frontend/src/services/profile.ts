@@ -1,5 +1,5 @@
 import { apiFetch, apiPost, apiPut } from '../lib/api';
-import type { ProfileDTO, UpdateProfileRequest } from 'shared';
+import type { ProfileDTO, UpdateProfileRequest } from '@shared';
 
 export interface ProfileAccessInfo {
   canAccess: boolean;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Character, GameSave, WorldTemplate } from 'shared';
+import type { Character, GameSave, WorldTemplate } from '@shared';
 import {
   toCharacterDTO,
   toGameDTO,

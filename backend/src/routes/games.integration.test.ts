@@ -4,7 +4,7 @@ import app from '../index.js';
 import { supabaseAdmin } from '../services/supabase.js';
 import { GamesService } from '../services/games.service.js';
 import { CharactersService } from '../services/characters.service.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock dependencies
 vi.mock('../services/supabase.js');

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../services/supabase.js';
 import { sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Admin authentication middleware
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {

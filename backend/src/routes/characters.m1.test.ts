@@ -4,7 +4,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import charactersRouter from './characters.js';
 import { supabase } from '../services/supabase.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock the supabase service
 vi.mock('../services/supabase.js', () => ({

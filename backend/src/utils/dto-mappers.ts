@@ -13,7 +13,7 @@ import type {
   SubscriptionDTO,
   SearchResultDTO,
   TurnResult,
-} from 'shared';
+} from '@shared';
 import type { Game } from '../services/games.service.js';
 
 // Character DTO mapper (redacts internal fields)

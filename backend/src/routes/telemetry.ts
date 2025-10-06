@@ -3,8 +3,8 @@ import { TelemetryService } from '../services/telemetry.service.js';
 import { RateLimitService } from '../services/rateLimit.service.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { validateRequest } from '../middleware/validation.js';
-import { TelemetryEventRequestSchema, GameplayTelemetryEventSchema } from 'shared';
-import { ApiErrorCode } from 'shared';
+import { TelemetryEventRequestSchema, GameplayTelemetryEventSchema } from '@shared';
+import { ApiErrorCode } from '@shared';
 import { optionalAuth } from '../middleware/auth.js';
 import type { Request, Response } from 'express';
 

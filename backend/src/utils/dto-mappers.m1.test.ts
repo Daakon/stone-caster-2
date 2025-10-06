@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { toCharacterDTO, toStonesWalletDTO } from './dto-mappers.js';
-import type { Character, StoneWallet } from 'shared';
+import type { Character, StoneWallet } from '@shared';
 
 describe('Layer M1 - DTO Redaction and Envelope Compliance', () => {
   describe('Character DTO Redaction', () => {

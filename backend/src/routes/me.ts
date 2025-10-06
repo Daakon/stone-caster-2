@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toUserDTO } from '../utils/dto-mappers.js';
 import { optionalAuth } from '../middleware/auth.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 const router = Router();
 

@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { configService } from '../services/config.service.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 const router = Router();
 

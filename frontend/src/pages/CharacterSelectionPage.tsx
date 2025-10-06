@@ -11,7 +11,7 @@ import type { Character } from '../services/mockData';
 import { getCharacters, getPremadeCharacters } from '../lib/api';
 import { useStartAdventure } from '../hooks/useStartAdventure';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Type for premade characters from API
 interface PremadeCharacter {

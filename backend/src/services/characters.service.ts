@@ -1,7 +1,7 @@
 import { supabaseAdmin } from './supabase.js';
 import { WorldValidationService } from './worldValidation.service.js';
 import { PremadeCharactersService } from './premade-characters.service.js';
-import type { Character } from 'shared';
+import type { Character } from '@shared';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateCharacterInput {

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabase.js';
-import type { StonePack } from 'shared';
+import type { StonePack } from '@shared';
 
 /**
  * Stone Packs Service - manages purchasable stone packs

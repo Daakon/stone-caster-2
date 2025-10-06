@@ -1,6 +1,6 @@
 // Layer M5: Frontend telemetry service for gameplay events
 import { apiPost } from '../lib/api';
-import type { GameplayTelemetryEvent } from 'shared';
+import type { GameplayTelemetryEvent } from '@shared';
 
 interface TelemetryConfig {
   enabled: boolean;

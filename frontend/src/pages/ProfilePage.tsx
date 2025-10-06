@@ -27,9 +27,9 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
-import type { ProfileDTO } from 'shared/types/dto';
-import { UpdateProfileRequestSchema } from 'shared/types/dto';
-import { ApiErrorCode } from 'shared/types/api';
+import type { ProfileDTO } from '@shared/types/dto';
+import { UpdateProfileRequestSchema } from '@shared/types/dto';
+import { ApiErrorCode } from '@shared/types/api';
 import { ZodError } from 'zod';
 
 interface ProfileFormData {
@@ -49,7 +49,7 @@ function ProfilePageContent() {
   const queryClient = useQueryClient();
   // const { toast } = useToast();
   const { user } = useAuthStore();
-  const { profile: playerProfile, loading: profileLoading } = usePlayerAccount(); // Use new usePlayerAccount hook
+  const { profile: playerProfile, loading: profileLoading, refreshProfile } = usePlayerAccount(); // Use new usePlayerAccount hook
   
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<ProfileFormData>({
@@ -105,6 +105,7 @@ function ProfilePageContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['csrf-token'] }); // Invalidate CSRF token after use
+      void refreshProfile();
       setIsEditing(false);
       setValidationErrors({});
       // toast({

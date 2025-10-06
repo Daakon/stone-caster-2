@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Character, GameSave } from 'shared';
+import type { Character, GameSave } from '@shared';
 
 interface GameState {
   currentCharacter: Character | null;

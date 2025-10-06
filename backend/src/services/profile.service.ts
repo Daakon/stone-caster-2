@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabase.js';
-import { ProfileDTO, UpdateProfileRequest, ApiErrorCode } from 'shared';
+import { ProfileDTO, UpdateProfileRequest, ApiErrorCode } from '@shared';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 

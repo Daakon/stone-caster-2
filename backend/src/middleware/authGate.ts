@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 /**
  * Middleware that requires authenticated user (no guests)

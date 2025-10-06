@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { supabase } from '../services/supabase.js';
 import { aiService } from '../services/ai.js';
 import { diceService } from '../services/dice.js';
-import { StoryActionSchema } from 'shared';
+import { StoryActionSchema } from '@shared';
 
 const router = express.Router();
 

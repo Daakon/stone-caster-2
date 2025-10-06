@@ -1,4 +1,5 @@
 {
+  "extends": "../tsconfig.paths.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2022",
@@ -24,10 +25,11 @@
     "noUncheckedSideEffectImports": true,
 
     /* Path mapping */
-    "baseUrl": ".",
+    "baseUrl": "..",
     "paths": {
-      "@/*": ["./src/*"],
-      "shared/*": ["../shared/src/*"]
+      "@/*": ["./frontend/src/*"],
+      "@shared": ["./shared/src/index.ts"],
+      "@shared/*": ["./shared/src/*"]
     }
   },
   "include": ["src"],

@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './supabase.js';
 import { configService } from './config.service.js';
-import type { TelemetryEventRequest } from 'shared';
+import type { TelemetryEventRequest } from '@shared';
 
 export interface TelemetryEventRecord {
   name: string;

@@ -5,7 +5,7 @@ import { WalletService } from './wallet.service.js';
 import { gamesService } from './games.service.js';
 import { aiWrapper } from '../wrappers/ai.js';
 import { configService } from '../config/index.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock dependencies
 vi.mock('./idempotency.service.js');

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { turnsService } from '../services/turns.service.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 import gamesRouter from './games.js';
 
 // Mock the turns service

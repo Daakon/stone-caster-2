@@ -4,7 +4,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import stonesRouter from './stones.js';
 import { WalletService } from '../services/wallet.service.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock the wallet service
 vi.mock('../services/wallet.service.js', () => ({

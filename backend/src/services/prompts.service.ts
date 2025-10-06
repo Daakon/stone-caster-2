@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './supabase.js';
 import { configService } from '../config/index.js';
-import type { Character, WorldTemplate, Prompt } from 'shared';
+import type { Character, WorldTemplate, Prompt } from '@shared';
 
 export interface GameContext {
   id: string;

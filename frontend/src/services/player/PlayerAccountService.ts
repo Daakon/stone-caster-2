@@ -1,5 +1,5 @@
 import { authService } from '../auth/AuthService';
-import type { PlayerProfile, PlayerCharacter, PlayerSave } from 'shared';
+import type { PlayerProfile, PlayerCharacter, PlayerSave } from '@shared';
 
 class PlayerAccountService {
   private getAuthHeaders(): Record<string, string> {
@@ -21,25 +21,6 @@ class PlayerAccountService {
     }
 
     return headers;
-  }
-
-  async getProfile(): Promise<PlayerProfile | null> {
-    try {
-      const headers = this.getAuthHeaders();
-      const response = await fetch('/api/profile', { headers });
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null; // Profile doesn't exist yet
-        }
-        throw new Error(`Failed to fetch profile: ${response.statusText}`);
-      }
-
-      return response.json();
-    } catch (error) {
-      console.error('[PlayerAccountService] Error fetching profile:', error);
-      return null;
-    }
   }
 
   async updateProfile(updates: Partial<PlayerProfile>): Promise<PlayerProfile | null> {

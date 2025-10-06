@@ -1,4 +1,4 @@
-import type { DiceRoll, DiceRollResult } from 'shared';
+import type { DiceRoll, DiceRollResult } from '@shared';
 
 export class DiceService {
   private rollDie(sides: number): number {

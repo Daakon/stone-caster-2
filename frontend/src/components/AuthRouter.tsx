@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { RoutePreservationService } from '../services/routePreservation';
@@ -10,7 +10,13 @@ import { RoutePreservationService } from '../services/routePreservation';
 export function AuthRouter() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, isGuest, isCookied, loading } = useAuthStore();
+  const hasRedirectedRef = useRef(false);
+  
+  // Use selectors to ensure component re-renders on store changes
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isGuest = useAuthStore((state) => state.isGuest);
+  const isCookied = useAuthStore((state) => state.isCookied);
+  const loading = useAuthStore((state) => state.loading);
 
   useEffect(() => {
     // Don't do anything while loading
@@ -25,15 +31,27 @@ export function AuthRouter() {
 
     // If user is authenticated and we're on an auth page, redirect to intended route
     if (isAuthenticated && location.pathname.startsWith('/auth')) {
+      // Guard against double navigation
+      if (hasRedirectedRef.current) {
+        console.log(`[REDIRECT] already redirected, skipping`);
+        return;
+      }
+      
       const intendedRoute = RoutePreservationService.getAndClearIntendedRoute();
-      console.log(`[REDIRECT] from=${location.pathname} to=${intendedRoute} trigger=signin`);
-      navigate(intendedRoute, { replace: true });
+      const fallbackRoute = location.state?.from ?? '/';
+      const redirectTo = intendedRoute || fallbackRoute;
+      
+      console.log(`[REDIRECT] from=${location.pathname} to=${redirectTo} trigger=signin`);
+      hasRedirectedRef.current = true;
+      navigate(redirectTo, { replace: true });
     }
     
     // If user is not authenticated and we're on an auth page, allow them to stay
     // This prevents the redirect loop that was bouncing guests back to /
     if (!isAuthenticated && location.pathname.startsWith('/auth')) {
       console.log(`[AUTH] allowing guest to stay on auth page: ${location.pathname}`);
+      // Reset redirect guard when not authenticated
+      hasRedirectedRef.current = false;
       // No redirect - let the auth page render
     }
   }, [isAuthenticated, isGuest, isCookied, loading, location.pathname, navigate]);

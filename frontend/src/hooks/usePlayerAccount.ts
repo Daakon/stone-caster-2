@@ -1,14 +1,35 @@
 import { useState, useEffect } from 'react';
 import { playerAccountService } from '../services/player/PlayerAccountService';
+import { authService } from '../services/auth/AuthService';
 import { useAuthStore } from '../store/auth';
-import type { PlayerProfile, PlayerCharacter, PlayerSave } from 'shared';
+import type { PlayerProfile, PlayerCharacter, PlayerSave } from '@shared';
+import type { ProfileDTO } from '@shared/types/dto';
+
+function toPlayerProfile(profile: ProfileDTO | null): PlayerProfile | null {
+  if (!profile) {
+    return null;
+  }
+
+  return {
+    id: profile.id,
+    displayName: profile.displayName,
+    avatarUrl: profile.avatarUrl,
+    email: profile.email,
+    preferences: profile.preferences ?? {},
+    lastSeenAt: profile.lastSeen,
+  };
+}
 
 export function usePlayerAccount() {
-  const { user } = useAuthStore();
-  const [profile, setProfile] = useState<PlayerProfile | null>(null);
+  const { user, profile: authProfile } = useAuthStore();
+  const [profile, setProfile] = useState<PlayerProfile | null>(toPlayerProfile(authProfile));
   const [characters, setCharacters] = useState<PlayerCharacter[]>([]);
   const [saves, setSaves] = useState<PlayerSave[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setProfile(toPlayerProfile(authProfile));
+  }, [authProfile]);
 
   useEffect(() => {
     if (!user) {
@@ -19,34 +40,50 @@ export function usePlayerAccount() {
       return;
     }
 
+    let isMounted = true;
+
     const loadPlayerData = async () => {
       setLoading(true);
       try {
-        const [profileData, charactersData, savesData] = await Promise.all([
-          playerAccountService.getProfile(),
+        const [charactersData, savesData] = await Promise.all([
           playerAccountService.getCharacters(),
           playerAccountService.getSaves()
         ]);
 
-        setProfile(profileData);
+        if (!isMounted) {
+          return;
+        }
+
         setCharacters(charactersData);
         setSaves(savesData);
       } catch (error) {
-        console.error('[usePlayerAccount] Error loading player data:', error);
+        if (isMounted) {
+          console.error('[usePlayerAccount] Error loading player data:', error);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    loadPlayerData();
-  }, [user]);
+    void loadPlayerData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
 
   const refreshProfile = async () => {
-    if (!user) return;
-    
+    if (!user) {
+      return;
+    }
+
     try {
-      const profileData = await playerAccountService.getProfile();
-      setProfile(profileData);
+      const updatedProfile = await authService.refreshProfile();
+      if (updatedProfile) {
+        setProfile(toPlayerProfile(updatedProfile));
+      }
     } catch (error) {
       console.error('[usePlayerAccount] Error refreshing profile:', error);
     }

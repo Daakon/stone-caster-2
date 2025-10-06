@@ -2,8 +2,8 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toSearchResultDTO } from '../utils/dto-mappers.js';
 import { validateRequest } from '../middleware/validation.js';
-import { SearchQuerySchema } from 'shared';
-import { ApiErrorCode } from 'shared';
+import { SearchQuerySchema } from '@shared';
+import { ApiErrorCode } from '@shared';
 
 const router = Router();
 

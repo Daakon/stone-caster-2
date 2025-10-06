@@ -3,8 +3,8 @@ import { supabase } from '../supabase';
 import { GuestCookieService } from '../guestCookie';
 import { RoutePreservationService } from '../routePreservation';
 import { ProfileService } from '../profile';
-import type { AuthUser } from 'shared';
-import { AuthState } from 'shared';
+import { AuthState, type AuthUser } from '@shared/types/auth';
+import type { ProfileDTO } from '@shared/types/dto';
 
 type AuthSyncContext =
   | 'initial'
@@ -19,6 +19,9 @@ export class AuthService {
   private static instance: AuthService;
   private currentUser: AuthUser | null = null;
   private listeners: Set<(user: AuthUser | null) => void> = new Set();
+  private profileLoad:
+    | { userId: string; promise: Promise<void> }
+    | null = null;
 
   static getInstance(): AuthService {
     if (!AuthService.instance) {
@@ -243,6 +246,24 @@ export class AuthService {
     }
   }
 
+  async refreshProfile(): Promise<ProfileDTO | null> {
+    if (!this.currentUser || this.currentUser.state !== AuthState.AUTHENTICATED) {
+      return null;
+    }
+
+    const baseUser: AuthUser = {
+      state: AuthState.AUTHENTICATED,
+      id: this.currentUser.id,
+      key: this.currentUser.key,
+      email: this.currentUser.email,
+      displayName: this.currentUser.displayName,
+    };
+
+    await this.fetchProfileAndUpdate(baseUser, 'refresh');
+
+    return this.currentUser?.profile ?? null;
+  }
+
   getCurrentUser(): AuthUser | null {
     return this.currentUser;
   }
@@ -318,6 +339,14 @@ export class AuthService {
   }
 
   private async fetchProfileAndUpdate(baseUser: AuthUser, context: AuthSyncContext): Promise<void> {
+    if (
+      this.profileLoad?.userId === baseUser.id
+    ) {
+      await this.profileLoad.promise;
+      return;
+    }
+
+    const promise = (async () => {
     try {
       const result = await ProfileService.getProfile();
       if (!result.ok) {
@@ -348,6 +377,15 @@ export class AuthService {
         errorType: error instanceof Error ? error.name : 'unknown',
       });
     }
+    })().finally(() => {
+      if (this.profileLoad?.userId === baseUser.id) {
+        this.profileLoad = null;
+      }
+    });
+
+    this.profileLoad = { userId: baseUser.id, promise };
+
+    await promise;
   }
 
   private logAuthenticatedUser(user: AuthUser, context: AuthSyncContext): void {
@@ -401,7 +439,7 @@ export class AuthService {
     }
   }
 
-  private async handleServerSideOAuthCallback(params: Record<string, string>): Promise<void> {
+  private async handleServerSideOAuthCallback(_params: Record<string, string>): Promise<void> {
     try {
       console.log('[OAUTH] Handling server-side callback');
       

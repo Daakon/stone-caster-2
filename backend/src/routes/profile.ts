@@ -4,7 +4,7 @@ import { validateRequest } from '../middleware/validation.js';
 import { jwtAuth } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/validation.js';
 import { ProfileService } from '../services/profile.service.js';
-import { UpdateProfileRequestSchema, RevokeSessionsRequestSchema, ApiErrorCode } from 'shared';
+import { UpdateProfileRequestSchema, RevokeSessionsRequestSchema, ApiErrorCode } from '@shared';
 
 const router = Router();
 

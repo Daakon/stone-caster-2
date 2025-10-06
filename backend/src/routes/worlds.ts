@@ -3,8 +3,8 @@ import { supabase } from '../services/supabase.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toWorldDTO } from '../utils/dto-mappers.js';
 import { validateRequest } from '../middleware/validation.js';
-import { IdParamSchema } from 'shared';
-import { ApiErrorCode } from 'shared';
+import { IdParamSchema } from '@shared';
+import { ApiErrorCode } from '@shared';
 
 const router = Router();
 

@@ -12,6 +12,7 @@ This document outlines the comprehensive test plan for Layer M6 - Profiles & Acc
 - Ensure gated route access control with proper authentication flows
 - Test profile UI accessibility and mobile-first design
 - Verify error handling with actionable messages and traceIds
+- Ensure authenticated sessions hydrate profile data exactly once per login to prevent duplicate API calls
 - Validate comprehensive testing coverage for all new functionality
 - Test non-regression scenarios for existing functionality
 
@@ -26,11 +27,35 @@ This document outlines the comprehensive test plan for Layer M6 - Profiles & Acc
   - Authenticated user redirect behavior
   - Guest user staying on auth pages (no redirect)
   - Loading state handling
+  - Redirect fallback to `location.state.from`
+  - Store transition from guest→authenticated after initial render
+  - Double navigation prevention with redirect guard
 - **Test Scenarios:**
   - Guest users can stay on `/auth/signin` without being redirected
   - Authenticated users are redirected away from auth pages
   - Proper logging of authentication status
   - No redirects during loading state
+  - Fallback to `location.state.from` when no intended route preserved
+  - Fallback to home (`/`) when no intended route or state.from
+  - Redirect guard prevents double navigation on re-renders
+  - Store selector-based re-rendering on auth state changes
+
+#### Auth Store Initialization Tests
+- **File:** `frontend/src/store/__tests__/authStore.initialize.test.ts`
+- **Coverage:**
+  - Subscription timing to catch early OAuth callback notifications
+  - Early SIGNED_IN notification handling during initialization
+  - State synchronization from `getCurrentUser()` after initialization
+  - Single subscription registration on multiple initialize calls
+  - Error handling during initialization
+  - Subscription callback updates for auth state changes
+- **Test Scenarios:**
+  - Subscription registered before `authService.initialize()` call
+  - Early SIGNED_IN notifications captured during OAuth callback
+  - Store state synced from `getCurrentUser()` when service already authenticated
+  - Multiple initialize calls only register subscription once
+  - Initialization errors handled gracefully with fallback to guest state
+  - Subscription callbacks properly update store state
 
 #### Wallet Service Tests
 - **File:** `frontend/src/services/wallet.test.ts`

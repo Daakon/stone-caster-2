@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createGame, createCharacterFromPremade } from '../lib/api';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 import { useAdventureTelemetry } from './useAdventureTelemetry';
 
 interface StartAdventureOptions {

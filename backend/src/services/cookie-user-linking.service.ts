@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabase.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 export interface CookieUserLink {
   id: string;

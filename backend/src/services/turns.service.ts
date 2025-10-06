@@ -4,8 +4,8 @@ import { gamesService } from './games.service.js';
 import { StoneLedgerService } from './stoneLedger.service.js';
 import { IdempotencyService } from './idempotency.service.js';
 import { aiWrapper } from '../wrappers/ai.js';
-import { TurnResponseSchema, type TurnResponse, type TurnDTO } from 'shared';
-import { ApiErrorCode } from 'shared';
+import { TurnResponseSchema, type TurnResponse, type TurnDTO } from '@shared';
+import { ApiErrorCode } from '@shared';
 import { configService } from '../config/index.js';
 import { v4 as uuidv4 } from 'uuid';
 

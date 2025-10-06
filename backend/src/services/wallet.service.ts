@@ -1,7 +1,7 @@
 import { supabaseAdmin } from './supabase.js';
 import { configService } from './config.service.js';
 import { StoneLedgerService } from './stoneLedger.service.js';
-import type { StoneWallet } from 'shared';
+import type { StoneWallet } from '@shared';
 
 export interface ConversionResult {
   fromType: 'shard' | 'crystal' | 'relic';

@@ -48,6 +48,19 @@ function App() {
   const { loading, initialize } = useAuthStore();
 
   useEffect(() => {
+    const buildId =
+      import.meta.env.VITE_BUILD_ID ??
+      import.meta.env.VITE_COMMIT_SHA ??
+      import.meta.env.VITE_APP_VERSION ??
+      'local-dev';
+
+    console.log('[BUILD]', {
+      mode: import.meta.env.MODE,
+      buildId,
+    });
+  }, []);
+
+  useEffect(() => {
     console.log('[BOOT] App mounted');
     
     // Initialize guest cookie for anonymous users

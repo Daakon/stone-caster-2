@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { configService } from '../config/index.js';
-import type { AIResponse, StoryAction, GameSave, Character } from 'shared';
+import type { AIResponse, StoryAction, GameSave, Character } from '@shared';
 
 const env = configService.getEnv();
 const openai = new OpenAI({

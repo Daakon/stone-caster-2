@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode, ContentWorldDTO } from 'shared';
+import { ApiErrorCode, ContentWorldDTO } from '@shared';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';

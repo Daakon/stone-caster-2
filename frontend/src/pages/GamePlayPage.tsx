@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getGameSave, getCharacter, processStoryAction } from '../lib/api';
-import type { StoryAction } from 'shared';
+import type { StoryAction } from '@shared';
 
 export default function GamePlayPage() {
   const { gameId } = useParams<{ gameId: string }>();

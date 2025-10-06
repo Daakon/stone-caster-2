@@ -9,7 +9,7 @@ import {
   Wifi, 
   HelpCircle
 } from 'lucide-react';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 interface TurnErrorHandlerProps {
   error: string;

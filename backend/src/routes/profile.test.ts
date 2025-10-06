@@ -3,7 +3,7 @@ import request from 'supertest';
 import express from 'express';
 import profileRouter from './profile.js';
 import { ProfileService } from '../services/profile.service.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock the ProfileService
 vi.mock('../services/profile.service.js', () => ({

@@ -1,4 +1,4 @@
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 /**
  * User-friendly error messages that translate technical API errors

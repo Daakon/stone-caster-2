@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './supabase.js';
-import { ApiErrorCode, GameDTO, GameListDTO, AdventureDTO } from 'shared';
-import type { TurnResponse } from 'shared';
+import { ApiErrorCode, GameDTO, GameListDTO, AdventureDTO } from '@shared';
+import type { TurnResponse } from '@shared';
 import { ContentService } from './content.service.js';
 import { CharactersService } from './characters.service.js';
 import { WalletService } from './wallet.service.js';

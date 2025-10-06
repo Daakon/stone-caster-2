@@ -3,7 +3,7 @@ import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { PaymentService } from '../wrappers/payments.js';
 import { WalletService } from '../services/wallet.service.js';
 import { supabaseAdmin } from '../services/supabase.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 const router = Router();
 

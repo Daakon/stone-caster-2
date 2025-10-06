@@ -1,4 +1,4 @@
-import type { MetricsSnapshot } from 'shared';
+import type { MetricsSnapshot } from '@shared';
 
 export interface RequestMetrics {
   route: string;

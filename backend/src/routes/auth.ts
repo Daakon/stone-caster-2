@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/index.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { AuthCallbackService } from '../services/authCallback.service.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 const router = Router();
 

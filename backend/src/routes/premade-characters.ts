@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode, PremadeCharacterQuerySchema } from 'shared';
+import { ApiErrorCode, PremadeCharacterQuerySchema } from '@shared';
 import { PremadeCharactersService } from '../services/premade-characters.service.js';
 import { WorldValidationService } from '../services/worldValidation.service.js';
 

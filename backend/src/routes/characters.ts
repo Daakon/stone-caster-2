@@ -1,13 +1,13 @@
 import express from 'express';
 import type { Request, Response } from 'express';
-import { CreateCharacterRequestSchema, CreateCharacterLegacyRequestSchema, UpdateCharacterRequestSchema, IdParamSchema } from 'shared';
+import { CreateCharacterRequestSchema, CreateCharacterLegacyRequestSchema, UpdateCharacterRequestSchema, IdParamSchema } from '@shared';
 import { z } from 'zod';
 import { aiService } from '../services/ai.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toCharacterDTO } from '../utils/dto-mappers.js';
 import { validateRequest } from '../middleware/validation.js';
 import { optionalAuth } from '../middleware/auth.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 import { CharactersService } from '../services/characters.service.js';
 
 const router = express.Router();

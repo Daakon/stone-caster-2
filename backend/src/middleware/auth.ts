@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/index.js';
 import { sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from 'shared/types/api.js';
-import { AuthUser, AuthState } from 'shared/types/auth.js';
+import { ApiErrorCode } from '@shared/types/api.js';
+import { AuthUser, AuthState } from '@shared/types/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import { CookieUserLinkingService } from '../services/cookie-user-linking.service.js';
 

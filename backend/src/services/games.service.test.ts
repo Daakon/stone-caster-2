@@ -5,7 +5,7 @@ import { WalletService } from './wallet.service.js';
 import { ContentService } from './content.service.js';
 import { configService } from './config.service.js';
 import { supabaseAdmin } from './supabase.js';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock dependencies
 vi.mock('./supabase.js', () => ({

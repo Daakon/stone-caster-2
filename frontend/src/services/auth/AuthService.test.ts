@@ -4,7 +4,7 @@ import { supabase } from '../supabase';
 import { GuestCookieService } from '../guestCookie';
 import { RoutePreservationService } from '../routePreservation';
 import { ProfileService } from '../profile';
-import type { ProfileDTO } from 'shared/types/dto';
+import type { ProfileDTO } from '@shared/types/dto';
 
 // Mock dependencies
 vi.mock('../supabase', () => ({

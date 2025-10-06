@@ -1,7 +1,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { diceService } from '../services/dice.js';
-import { DiceRollSchema } from 'shared';
+import { DiceRollSchema } from '@shared';
 
 const router = express.Router();
 

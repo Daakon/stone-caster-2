@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Request, Response } from 'express';
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 import {
   getTraceId,
   createSuccessResponse,

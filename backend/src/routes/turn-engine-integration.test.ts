@@ -7,7 +7,7 @@ import app from '../index.js';
 // import { promptsService } from '../services/prompts.service.js'; // TODO: Use in tests
 // import { StoneLedgerService } from '../services/stoneLedger.service.js'; // TODO: Use in tests
 // import { aiWrapper } from '../wrappers/ai.js'; // TODO: Use in tests
-import { ApiErrorCode } from 'shared';
+import { ApiErrorCode } from '@shared';
 
 // Mock all services
 vi.mock('../services/wallet.service.js');

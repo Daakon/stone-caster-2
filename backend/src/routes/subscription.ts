@@ -3,8 +3,8 @@ import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toSubscriptionDTO } from '../utils/dto-mappers.js';
 import { validateRequest } from '../middleware/validation.js';
 import { jwtAuth, requireAuth } from '../middleware/auth.js';
-import { CreateSubscriptionRequestSchema, CancelSubscriptionRequestSchema } from 'shared';
-import { ApiErrorCode } from 'shared';
+import { CreateSubscriptionRequestSchema, CancelSubscriptionRequestSchema } from '@shared';
+import { ApiErrorCode } from '@shared';
 
 const router = Router();
 

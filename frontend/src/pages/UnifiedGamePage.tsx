@@ -22,7 +22,7 @@ import {
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useGameTelemetry } from '../hooks/useGameTelemetry';
-import type { TurnDTO } from 'shared';
+import type { TurnDTO } from '@shared';
 import { useAuthStore } from '../store/auth';
 import { GuestCookieService } from '../services/guestCookie';
 

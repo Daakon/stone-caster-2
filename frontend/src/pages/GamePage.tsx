@@ -15,7 +15,7 @@ import { Gem, Settings, Save } from 'lucide-react';
 import { submitTurn, getGame } from '../lib/api';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
-import type { TurnDTO, GameDTO } from 'shared';
+import type { TurnDTO, GameDTO } from '@shared';
 
 interface GameState {
   worldRules: Record<string, number>;

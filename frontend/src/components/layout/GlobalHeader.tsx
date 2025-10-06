@@ -14,7 +14,8 @@ interface GlobalHeaderProps {
 
 export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { isAuthenticated, signOut } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const signOut = useAuthStore((state) => state.signOut);
   const location = useLocation();
 
   // Base navigation items available to all users

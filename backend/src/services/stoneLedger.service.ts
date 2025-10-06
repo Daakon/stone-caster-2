@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabase.js';
-import type { StoneLedgerEntry } from 'shared';
+import type { StoneLedgerEntry } from '@shared';
 
 export interface LedgerEntryInput {
   walletId: string;

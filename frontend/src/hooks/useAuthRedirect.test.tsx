@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { useAuthRedirect } from './useAuthRedirect';
 import { useAuthStore } from '../store/auth';
 import { RoutePreservationService } from '../services/routePreservation';
-import { AuthState } from 'shared';
+import { AuthState } from '@shared';
 
 // Mock dependencies
 vi.mock('../store/auth');
