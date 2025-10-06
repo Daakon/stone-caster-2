@@ -15,44 +15,93 @@ export class PromptLoader {
     this.loadOrderMap = new Map([
       // Foundation Layer
       ['world-codex', 1],
-      ['world-codex', 2],
       
       // Core Systems Layer
-      ['systems.unified', 3],
-      ['style.ui-global', 4],
+      ['systems.unified', 2],
+      ['style.ui-global', 3],
       
       // Engine Layer
-      ['core.rpg-storyteller', 5],
-      ['engine.system', 6],
-      ['awf.scheme', 7],
+      ['core.rpg-storyteller', 4],
+      ['engine.system', 5],
+      ['awf.scheme', 6],
       
       // AI Behavior Layer
-      ['agency.presence-and-guardrails', 8],
+      ['agency.presence-and-guardrails', 7],
+      
+      // Data Management Layer
+      ['save.instructions', 8],
+      ['validation.save', 9],
+      ['validation.assets', 10],
+      ['validation.world-specific', 11],
+      
+      // Performance Layer
+      ['performance.benchmarks', 12],
       
       // Content Layer
-      ['adventure', 9],
+      ['adventure', 13],
       
       // Enhancement Layer
-      ['essence-integration-enhancement', 10],
-      ['adventure-expanded', 11],
+      ['essence-integration-enhancement', 14],
+      ['adventure-expanded', 15],
     ]);
   }
 
   /**
    * Load all prompt files and create manifest entries
    */
-  async loadPromptManifest(): Promise<PromptTemplateMeta[]> {
+  async loadPromptManifest(worldSlug?: string): Promise<PromptTemplateMeta[]> {
     const manifest: PromptTemplateMeta[] = [];
     
     // Load core files
     const coreFiles = await this.loadDirectory('Core');
     manifest.push(...coreFiles);
     
-    // Load world files (will be filtered by world context later)
-    const worldFiles = await this.loadDirectory('Worlds');
-    manifest.push(...worldFiles);
+    // Load world-specific files if world is specified
+    if (worldSlug) {
+      const worldFiles = await this.loadWorldFiles(worldSlug);
+      manifest.push(...worldFiles);
+    }
     
     return manifest.sort((a, b) => a.loadOrder - b.loadOrder);
+  }
+
+  /**
+   * Load world-specific files for a given world
+   */
+  private async loadWorldFiles(worldSlug: string): Promise<PromptTemplateMeta[]> {
+    const worldFiles: PromptTemplateMeta[] = [];
+    const worldDir = join(this.promptsPath, 'Worlds', this.capitalizeFirst(worldSlug));
+    
+    console.log(`[PROMPT_LOADER] Loading world files from: ${worldDir}`);
+    
+    try {
+      const entries = readdirSync(worldDir, { withFileTypes: true });
+      console.log(`[PROMPT_LOADER] Found ${entries.length} entries in world directory`);
+      
+      for (const entry of entries) {
+        if (this.isPromptFile(entry.name)) {
+          const filePath = join(worldDir, entry.name);
+          console.log(`[PROMPT_LOADER] Loading file: ${entry.name}`);
+          const promptMeta = await this.loadPromptFile(filePath, `Worlds/${this.capitalizeFirst(worldSlug)}`);
+          if (promptMeta) {
+            console.log(`[PROMPT_LOADER] Successfully loaded template: ${promptMeta.id}`);
+            worldFiles.push(promptMeta);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`Could not load world directory ${worldDir}:`, error);
+    }
+    
+    console.log(`[PROMPT_LOADER] Loaded ${worldFiles.length} world files for ${worldSlug}`);
+    return worldFiles;
+  }
+
+  /**
+   * Capitalize first letter of string
+   */
+  private capitalizeFirst(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   /**

@@ -1,0 +1,915 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/awf.schema.json",
+  "title": "Action Wire Format (AWF v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scn", "txt"],
+  "properties": {
+    "scn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ph"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ph": {
+          "type": "string",
+          "minLength": 1,
+          "enum": [
+            "scene_preamble",
+            "scene_body",
+            "outcome_render",
+            "choice_menu_render",
+            "post_outcome_reflection"
+          ]
+        }
+      }
+    },
+    "txt": {
+      "type": "string"
+    },
+    "choices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Choice"
+      }
+    },
+    "acts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Action"
+      }
+    },
+    "entities": {
+      "type": "object",
+      "properties": {
+        "places": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Place"
+          }
+        },
+        "npcs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NPC"
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EntityLink"
+          }
+        }
+      }
+    },
+    "val": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "errors", "repairs"],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code"],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "msg": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "repairs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "EntityLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "type"],
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "works_at",
+            "visits",
+            "lives_in",
+            "owns",
+            "patrols",
+            "serves"
+          ]
+        }
+      }
+    },
+    "Place": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent_ref": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "number",
+          "minimum": 0
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "NPC": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "role"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default_location_ref": {
+          "type": "string"
+        },
+        "species": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "OriginRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "src"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "src": {
+          "type": "string",
+          "enum": ["known", "session", "new"]
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Choice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "gated": {
+          "type": "boolean"
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "AutoCheckPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_checks_per_turn": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "degree_enum": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "critical_success",
+              "success",
+              "partial",
+              "fail",
+              "critical_fail"
+            ]
+          }
+        }
+      },
+      "required": ["enabled", "max_checks_per_turn", "degree_enum"]
+    },
+    "Action_BASE": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eid", "t", "payload"],
+      "properties": {
+        "eid": {
+          "type": "string",
+          "minLength": 1
+        },
+        "t": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "pre": {
+          "type": "object"
+        },
+        "meta": {
+          "type": "string"
+        }
+      }
+    },
+    "Action_MOVE": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "MOVE"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "pool", "degree"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "pool": {
+                  "type": "string"
+                },
+                "dc": {
+                  "type": ["number", "null"]
+                },
+                "roll": {
+                  "type": ["number", "null"]
+                },
+                "modifier_total": {
+                  "type": ["number", "null"]
+                },
+                "degree": {
+                  "type": "string",
+                  "enum": [
+                    "critical_success",
+                    "success",
+                    "partial",
+                    "fail",
+                    "critical_fail"
+                  ]
+                },
+                "margin": {
+                  "type": ["number", "null"]
+                },
+                "context_modifiers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["source", "value"],
+                    "properties": {
+                      "source": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "number"
+                      },
+                      "note": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "result": {
+                  "type": "string",
+                  "pattern": "^[0-9]+[SFT]$"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_CHECK": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "CHECK"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "pool", "degree"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "pool": {
+                  "type": "string"
+                },
+                "dc": {
+                  "type": ["number", "null"]
+                },
+                "roll": {
+                  "type": ["number", "null"]
+                },
+                "modifier_total": {
+                  "type": ["number", "null"]
+                },
+                "degree": {
+                  "type": "string",
+                  "enum": [
+                    "critical_success",
+                    "success",
+                    "partial",
+                    "fail",
+                    "critical_fail"
+                  ]
+                },
+                "margin": {
+                  "type": ["number", "null"]
+                },
+                "context_modifiers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["source", "value"],
+                    "properties": {
+                      "source": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "number"
+                      },
+                      "note": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "result": {
+                  "type": "string",
+                  "pattern": "^[0-9]+[SFT]$"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_REL_DELTA": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "REL_DELTA"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["who", "key", "delta"],
+              "properties": {
+                "who": {
+                  "$ref": "#/definitions/OriginRef"
+                },
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "trust",
+                    "warmth",
+                    "respect",
+                    "romance",
+                    "desire",
+                    "awe"
+                  ]
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "why": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_STAT_DELTA": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "STAT_DELTA"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "delta"],
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "delta": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_FLAG_SET": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "FLAG_SET"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "value"],
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_NPC_ADD": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "NPC_ADD"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["who"],
+              "properties": {
+                "who": {
+                  "$ref": "#/definitions/OriginRef"
+                },
+                "gloss": {
+                  "type": "string",
+                  "maxLength": 140
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_PLACE_ADD": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "PLACE_ADD"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["where"],
+              "properties": {
+                "where": {
+                  "$ref": "#/definitions/OriginRef"
+                },
+                "gloss": {
+                  "type": "string",
+                  "maxLength": 140
+                },
+                "region": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_SCENE_ADD": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "SCENE_ADD"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["scene"],
+              "properties": {
+                "scene": {
+                  "$ref": "#/definitions/OriginRef"
+                },
+                "gloss": {
+                  "type": "string",
+                  "maxLength": 140
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_INVENTORY": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "INVENTORY"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["op", "item", "qty"],
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": ["add", "remove"]
+                },
+                "item": {
+                  "type": "string"
+                },
+                "qty": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_TIME_ADVANCE": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "TIME_ADVANCE"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["minutes"],
+              "properties": {
+                "minutes": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_CHOICE_SET": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "CHOICE_SET"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["choices"],
+              "properties": {
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/Choice"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_DESIRE_SHIFT": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "DESIRE_SHIFT"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["who", "key", "delta"],
+              "properties": {
+                "who": {
+                  "$ref": "#/definitions/OriginRef"
+                },
+                "key": {
+                  "type": "string",
+                  "enum": ["romance", "desire", "ambition", "fear", "curiosity"]
+                },
+                "delta": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_REL_ARC_PROPOSE": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "REL_ARC_PROPOSE"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["who", "type", "target"],
+              "properties": {
+                "who": {
+                  "$ref": "#/definitions/OriginRef"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["romance", "friendship", "rivalry", "mentorship"]
+                },
+                "target": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": ["public", "private"]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_PRESENCE_SET": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "PRESENCE_SET"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["who", "place_ref", "role", "status"],
+              "properties": {
+                "who": {
+                  "$ref": "#/definitions/OriginRef"
+                },
+                "place_ref": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "on_duty",
+                    "off_duty",
+                    "visiting",
+                    "working",
+                    "resting"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action_GOSSIP_ADD": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Action_BASE"
+        },
+        {
+          "properties": {
+            "t": {
+              "const": "GOSSIP_ADD"
+            },
+            "payload": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["about_pair", "source", "credibility", "content"],
+              "properties": {
+                "about_pair": {
+                  "type": "string",
+                  "pattern": "^npc:[^|]+\\|npc:[^|]+$"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "credibility": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "content": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Action": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/Action_MOVE"
+        },
+        {
+          "$ref": "#/definitions/Action_CHECK"
+        },
+        {
+          "$ref": "#/definitions/Action_REL_DELTA"
+        },
+        {
+          "$ref": "#/definitions/Action_STAT_DELTA"
+        },
+        {
+          "$ref": "#/definitions/Action_FLAG_SET"
+        },
+        {
+          "$ref": "#/definitions/Action_NPC_ADD"
+        },
+        {
+          "$ref": "#/definitions/Action_PLACE_ADD"
+        },
+        {
+          "$ref": "#/definitions/Action_SCENE_ADD"
+        },
+        {
+          "$ref": "#/definitions/Action_INVENTORY"
+        },
+        {
+          "$ref": "#/definitions/Action_TIME_ADVANCE"
+        },
+        {
+          "$ref": "#/definitions/Action_CHOICE_SET"
+        },
+        {
+          "$ref": "#/definitions/Action_DESIRE_SHIFT"
+        },
+        {
+          "$ref": "#/definitions/Action_REL_ARC_PROPOSE"
+        },
+        {
+          "$ref": "#/definitions/Action_PRESENCE_SET"
+        },
+        {
+          "$ref": "#/definitions/Action_GOSSIP_ADD"
+        }
+      ]
+    }
+  }
+}

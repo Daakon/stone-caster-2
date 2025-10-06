@@ -1,9 +1,13 @@
+import { createHash } from 'crypto';
 import { supabaseAdmin } from './supabase.js';
 import { configService } from '../config/index.js';
 import { PromptAssembler } from '../prompts/assembler.js';
 import { debugService } from './debug.service.js';
+import { getTemplatesForWorld, PromptTemplateMissingError } from '../prompting/templateRegistry.js';
+import { ServiceError } from '../utils/serviceError.js';
+import { ApiErrorCode } from '@shared';
 import type { Character, WorldTemplate, Prompt } from '@shared';
-import type { PromptContext, PromptAssemblyResult } from '../prompts/schemas.js';
+import type { PromptContext, PromptAssemblyResult, PromptAuditEntry } from '../prompts/schemas.js';
 
 export interface GameContext {
   id: string;
@@ -31,7 +35,10 @@ export class PromptsService {
       const aiConfig = configService.getAi();
       const schemaVersion = aiConfig.promptSchemaVersion || '1.0.0';
 
-      // Load world template for context
+      // Load templates using the new registry
+      const bundle = await getTemplatesForWorld(game.world_id);
+      
+      // Load world template for context (still needed for metadata)
       const worldTemplate = await this.loadWorldTemplate(game.world_id);
       if (!worldTemplate) {
         throw new Error(`World template not found: ${game.world_id}`);
@@ -46,8 +53,8 @@ export class PromptsService {
       // Build prompt context for initial game state
       const promptContext = this.buildInitialPromptContext(game, worldTemplate, character, schemaVersion);
       
-      // Use the new assembler
-      const result = await this.assembler.assemblePrompt(promptContext);
+      // Assemble prompt from bundle
+      const result = await this.assemblePromptFromBundle(bundle, promptContext);
       
       // Log to debug service
       const promptId = debugService.logPrompt(
@@ -69,8 +76,22 @@ export class PromptsService {
       
       return result.prompt;
     } catch (error) {
+      if (error instanceof PromptTemplateMissingError) {
+        throw new ServiceError(422, {
+          code: ApiErrorCode.PROMPT_TEMPLATE_MISSING,
+          message: `No templates available for world '${error.world}'.`,
+          details: { world: error.world }
+        });
+      }
+      if (error instanceof ServiceError) {
+        throw error; // Re-throw ServiceError as-is
+      }
       console.error('Error creating initial prompt:', error);
-      throw new Error(`Failed to create initial prompt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new ServiceError(500, {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: `Failed to create initial prompt: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: { originalError: error instanceof Error ? error.message : String(error) }
+      });
     }
   }
 
@@ -86,7 +107,10 @@ export class PromptsService {
       const aiConfig = configService.getAi();
       const schemaVersion = aiConfig.promptSchemaVersion || '1.0.0';
 
-      // Load world template for context
+      // Load templates using the new registry
+      const bundle = await getTemplatesForWorld(game.world_id);
+      
+      // Load world template for context (still needed for metadata)
       const worldTemplate = await this.loadWorldTemplate(game.world_id);
       if (!worldTemplate) {
         throw new Error(`World template not found: ${game.world_id}`);
@@ -101,8 +125,8 @@ export class PromptsService {
       // Build prompt context
       const promptContext = this.buildPromptContext(game, worldTemplate, character, optionId, schemaVersion);
       
-      // Use the new assembler
-      const result = await this.assembler.assemblePrompt(promptContext);
+      // Assemble prompt from bundle
+      const result = await this.assemblePromptFromBundle(bundle, promptContext);
       
       // Log to debug service
       const promptId = debugService.logPrompt(
@@ -124,8 +148,22 @@ export class PromptsService {
       
       return result.prompt;
     } catch (error) {
+      if (error instanceof PromptTemplateMissingError) {
+        throw new ServiceError(422, {
+          code: ApiErrorCode.PROMPT_TEMPLATE_MISSING,
+          message: `No templates available for world '${error.world}'.`,
+          details: { world: error.world }
+        });
+      }
+      if (error instanceof ServiceError) {
+        throw error; // Re-throw ServiceError as-is
+      }
       console.error('Error building prompt:', error);
-      throw new Error(`Failed to build prompt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new ServiceError(500, {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: `Failed to build prompt: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: { originalError: error instanceof Error ? error.message : String(error) }
+      });
     }
   }
 
@@ -358,6 +396,189 @@ export class PromptsService {
       console.error('Unexpected error loading character:', error);
       return null;
     }
+  }
+
+  /**
+   * Assemble prompt from template bundle
+   */
+  private async assemblePromptFromBundle(
+    bundle: import('../prompting/templateRegistry.js').TemplateBundle,
+    context: PromptContext
+  ): Promise<PromptAssemblyResult> {
+    // Create a simple prompt assembly from the bundle
+    const segments: string[] = [];
+    const templateIds: string[] = [];
+    
+    // Add core templates
+    if (bundle.core.system) {
+      segments.push(bundle.core.system);
+      templateIds.push('core-system');
+    }
+    if (bundle.core.tools) {
+      segments.push(bundle.core.tools);
+      templateIds.push('core-tools');
+    }
+    if (bundle.core.formatting) {
+      segments.push(bundle.core.formatting);
+      templateIds.push('core-formatting');
+    }
+    if (bundle.core.safety) {
+      segments.push(bundle.core.safety);
+      templateIds.push('core-safety');
+    }
+    
+    // Add world templates
+    if (bundle.world.lore) {
+      segments.push(bundle.world.lore);
+      templateIds.push('world-lore');
+    }
+    if (bundle.world.logic) {
+      segments.push(bundle.world.logic);
+      templateIds.push('world-logic');
+    }
+    if (bundle.world.style) {
+      segments.push(bundle.world.style);
+      templateIds.push('world-style');
+    }
+    
+    // Add adventure templates if available
+    if (bundle.adventures) {
+      for (const [slug, content] of Object.entries(bundle.adventures)) {
+        segments.push(content);
+        templateIds.push(`adventure-${slug}`);
+      }
+    }
+    
+    // Create the final prompt
+    const prompt = this.createFinalPrompt(segments, context);
+    
+    // Create audit entry
+    const audit: PromptAuditEntry = {
+      templateIds,
+      version: '1.0.0',
+      hash: this.createHash(segments.join('|')),
+      contextSummary: {
+        world: context.world.name,
+        adventure: context.adventure?.name || 'None',
+        character: context.character?.name || 'Guest',
+        turnIndex: context.game.turn_index,
+      },
+      tokenCount: this.estimateTokenCount(prompt),
+      assembledAt: new Date().toISOString(),
+    };
+
+    return {
+      prompt,
+      audit,
+      metadata: {
+        totalSegments: segments.length,
+        totalVariables: this.countVariables(context),
+        loadOrder: templateIds,
+        warnings: undefined,
+      },
+    };
+  }
+
+  /**
+   * Create the final prompt from assembled segments
+   */
+  private createFinalPrompt(segments: string[], context: PromptContext): string {
+    const header = this.createPromptHeader(context);
+    const body = segments.join('\n\n');
+    const footer = this.createPromptFooter(context);
+    
+    return `${header}\n\n${body}\n\n${footer}`.trim();
+  }
+
+  /**
+   * Create prompt header with context summary
+   */
+  private createPromptHeader(context: PromptContext): string {
+    const characterInfo = context.character 
+      ? `${context.character.name} (Level ${context.character.level} ${context.character.race} ${context.character.class})`
+      : 'Guest Player';
+    
+    return `# RPG Storyteller AI System
+
+## Current Context
+- **World**: ${context.world.name}
+- **Player**: ${characterInfo}
+- **Adventure**: ${context.adventure?.name || 'None'}
+- **Scene**: ${context.game.current_scene || 'Unknown'}
+- **Turn**: ${context.game.turn_index + 1}
+- **Schema Version**: ${context.system.schema_version}
+
+## Instructions
+You are an AI Game Master operating within the RPG Storyteller system. Follow the rules and guidelines below to generate appropriate responses.`;
+  }
+
+  /**
+   * Create prompt footer with output requirements
+   */
+  private createPromptFooter(context: PromptContext): string {
+    return `## Output Requirements
+
+Return a single JSON object in AWF v1 format with the following structure:
+
+\`\`\`json
+{
+  "scn": {
+    "id": "scene_id",
+    "ph": "scene_phase"
+  },
+  "txt": "Narrative text describing what happens",
+  "choices": [
+    {
+      "id": "choice_id",
+      "label": "Choice text"
+    }
+  ],
+  "acts": [
+    {
+      "eid": "action_id",
+      "t": "ACTION_TYPE",
+      "payload": {}
+    }
+  ],
+  "val": {
+    "ok": true,
+    "errors": [],
+    "repairs": []
+  }
+}
+\`\`\`
+
+Remember: Keep responses immersive, consistent with the world's tone, and appropriate for the character's level and situation.`;
+  }
+
+  /**
+   * Create a hash from a string
+   */
+  private createHash(input: string): string {
+    return createHash('sha256').update(input).digest('hex').substring(0, 16);
+  }
+
+  /**
+   * Estimate token count (rough approximation)
+   */
+  private estimateTokenCount(text: string): number {
+    // Rough approximation: 1 token ≈ 4 characters
+    return Math.ceil(text.length / 4);
+  }
+
+  /**
+   * Count variables in context object
+   */
+  private countVariables(context: PromptContext): number {
+    // Simple count of non-undefined values
+    let count = 0;
+    if (context.character) count++;
+    if (context.game) count++;
+    if (context.world) count++;
+    if (context.adventure) count++;
+    if (context.runtime) count++;
+    if (context.system) count++;
+    return count;
   }
 
 

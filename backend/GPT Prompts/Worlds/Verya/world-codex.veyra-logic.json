@@ -1,0 +1,55 @@
+{
+  "time_cycle": {
+    "day_length": "shortened",
+    "phases": ["dawn", "day", "dusk", "night"]
+  },
+  "weather_cycle": {
+    "patterns": ["clear", "overcast", "rain", "fog"],
+    "affects_visibility": true,
+    "affects_mood": true
+  },
+  "tech_profile": {
+    "era": "late-feudal",
+    "notable": [
+      "tournaments",
+      "knightly orders",
+      "feasts",
+      "court dances",
+      "alchemy (minor)"
+    ]
+  },
+  "race_logic": {
+    "fox": { "focus": "cunning", "court_role": "schemers, heirs" },
+    "lion": { "focus": "authority", "court_role": "generals, heirs" },
+    "bear": { "focus": "loyalty", "court_role": "guardians, champions" },
+    "avian": { "focus": "calculation", "court_role": "spymasters, watchers" },
+    "panther": { "focus": "stealth", "court_role": "assassins, courtiers" },
+    "badger": { "focus": "justice", "court_role": "magistrates, arbiters" },
+    "rabbit": {
+      "focus": "adaptability",
+      "court_role": "scouts, tavernkeepers"
+    },
+    "draconic": {
+      "focus": "mystic heritage",
+      "court_role": "keepers of ancient lore"
+    }
+  },
+  "magic_rules": {
+    "present_age": "low, ritualistic, often powerless",
+    "ancient_age": "high, sealed, draconic-linked",
+    "lore_fragments": true
+  },
+  "combat_logic": {
+    "focus": "knightly duels, jousts, and grand battles",
+    "stats": ["prestige", "scandal", "trust", "alliance"]
+  },
+  "relationship_logic": {
+    "dual_tracks": ["personal", "political"],
+    "pathways": [
+      "personal → political",
+      "political → personal",
+      "standalone pursuit of either"
+    ],
+    "risks": ["scandal", "betrayal", "rivalry"]
+  }
+}

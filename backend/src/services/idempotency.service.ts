@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { supabaseAdmin } from './supabase.js';
 import { ApiErrorCode } from '@shared';
 
@@ -137,9 +138,8 @@ export class IdempotencyService {
    * @returns Hash string
    */
   static createRequestHash(data: any): string {
-    const crypto = require('crypto');
     const dataString = JSON.stringify(data, Object.keys(data).sort());
-    return crypto.createHash('sha256').update(dataString).digest('hex');
+    return createHash('sha256').update(dataString).digest('hex');
   }
 
   /**

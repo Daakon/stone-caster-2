@@ -306,7 +306,8 @@ export class WalletService {
       // Record in ledger
       await StoneLedgerService.appendEntry({
         walletId: wallet.id,
-        userId,
+        userId: isGuest ? undefined : userId,
+        cookieGroupId: isGuest ? userId : undefined,
         transactionType: 'spend',
         deltaCastingStones: -amount,
         deltaInventoryShard: 0,

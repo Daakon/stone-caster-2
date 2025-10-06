@@ -20,8 +20,8 @@ export class PromptAssembler {
   /**
    * Initialize the assembler with the prompt manifest
    */
-  async initialize(): Promise<void> {
-    this.manifest = await getPromptManifest();
+  async initialize(worldSlug?: string): Promise<void> {
+    this.manifest = await getPromptManifest(worldSlug);
   }
 
   /**
@@ -32,17 +32,17 @@ export class PromptAssembler {
       await this.initialize();
     }
 
-    const worldId = context.world.name.toLowerCase();
-    const templates = this.manifest.getWorldTemplates(worldId);
+    // Get all templates from the manifest (already filtered by world during initialization)
+    const templates = this.manifest.getAllTemplates();
     
     if (templates.length === 0) {
-      throw new Error(`No templates found for world: ${worldId}`);
+      throw new Error(`No templates found for world: ${context.world.name}`);
     }
 
     // Validate templates
-    const validation = this.manifest.validateWorldTemplates(worldId);
+    const validation = this.manifest.validateAllTemplates();
     if (!validation.valid) {
-      console.warn(`Missing required templates for ${worldId}:`, validation.missing);
+      console.warn(`Missing required templates:`, validation.missing);
     }
 
     // Build context object for variable replacement
@@ -72,7 +72,7 @@ export class PromptAssembler {
     const audit: PromptAuditEntry = {
       templateIds,
       version: this.getPromptVersion(templates),
-      hash: this.manifest.getWorldTemplateHash(worldId),
+      hash: this.manifest.getWorldTemplateHash(context.world.name),
       contextSummary: {
         world: context.world.name,
         adventure: context.adventure?.name || 'None',

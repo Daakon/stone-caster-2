@@ -166,6 +166,86 @@ Format your response as JSON with:
       return `You ${success ? 'succeed' : 'fail'} at your ${skill} check.`;
     }
   }
+
+  /**
+   * Generate a turn response from a prompt (for TurnsService integration)
+   */
+  async generateTurnResponse(prompt: string): Promise<string> {
+    try {
+      console.log('[AI_SERVICE] Starting turn response generation...');
+      
+      // Check if we're in test mode (no real AI API calls)
+      const env = configService.getEnv();
+      if (!env.openaiApiKey || env.openaiApiKey.includes('your_ope')) {
+        console.log('[AI_SERVICE] Test mode: OpenAI API key not configured, returning test response');
+        
+        // Generate proper UUIDs for test choices
+        const { v4: uuidv4 } = await import('uuid');
+        const choice1Id = uuidv4();
+        const choice2Id = uuidv4();
+        const choice3Id = uuidv4();
+        
+        return JSON.stringify({
+          narrative: 'The world seems to pause for a moment as reality stabilizes... This is a test response while the prompt engine is being validated.',
+          emotion: 'neutral',
+          choices: [
+            { id: choice1Id, label: 'Look around', description: 'Examine your surroundings carefully' },
+            { id: choice2Id, label: 'Continue forward', description: 'Press on with determination' },
+            { id: choice3Id, label: 'Check inventory', description: 'Review your belongings' }
+          ],
+          npcResponses: [],
+          worldStateChanges: {},
+          relationshipDeltas: {},
+          factionDeltas: {}
+        });
+      }
+      
+      const model = await this.getActiveModel();
+      console.log(`[AI_SERVICE] Using model: ${model}`);
+      
+      console.log('[AI_SERVICE] Calling OpenAI API...');
+      const response = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.8,
+        max_tokens: 1000,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('No response from AI');
+      }
+
+      console.log('[AI_SERVICE] Successfully received AI response');
+      return content;
+    } catch (error) {
+      console.error('[AI_SERVICE] Error generating turn response:', error);
+      
+      // Generate proper UUIDs for fallback choices
+      const { v4: uuidv4 } = await import('uuid');
+      const choice1Id = uuidv4();
+      const choice2Id = uuidv4();
+      const choice3Id = uuidv4();
+      
+      // Return a fallback JSON response with proper schema
+      return JSON.stringify({
+        narrative: 'The world seems to pause for a moment as reality stabilizes...',
+        emotion: 'neutral',
+        choices: [
+          { id: choice1Id, label: 'Look around', description: 'Examine your surroundings carefully' },
+          { id: choice2Id, label: 'Continue forward', description: 'Press on with determination' },
+          { id: choice3Id, label: 'Check inventory', description: 'Review your belongings' }
+        ],
+        npcResponses: [],
+        worldStateChanges: {},
+        relationshipDeltas: {},
+        factionDeltas: {}
+      });
+    }
+  }
 }
 
 export const aiService = new AIService();

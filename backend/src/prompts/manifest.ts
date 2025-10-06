@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { PromptLoader } from './loader.js';
 import type { PromptTemplateMeta, WorldPromptConfig } from './schemas.js';
 
@@ -16,15 +17,19 @@ export class PromptManifest {
   /**
    * Initialize the manifest by loading all prompt files
    */
-  async initialize(): Promise<void> {
-    const templates = await this.loader.loadPromptManifest();
+  async initialize(worldSlug?: string): Promise<void> {
+    console.log(`[PROMPT_MANIFEST] Initializing manifest for world: ${worldSlug || 'all'}`);
+    const templates = await this.loader.loadPromptManifest(worldSlug);
     
+    console.log(`[PROMPT_MANIFEST] Loaded ${templates.length} templates`);
     for (const template of templates) {
+      console.log(`[PROMPT_MANIFEST] Adding template: ${template.id} (order: ${template.loadOrder})`);
       this.templates.set(template.id, template);
     }
     
     // Build world configurations
     this.buildWorldConfigs();
+    console.log(`[PROMPT_MANIFEST] Manifest initialized with ${this.templates.size} templates`);
   }
 
   /**
@@ -39,6 +44,14 @@ export class PromptManifest {
     return worldConfig.loadOrder
       .map(templateId => this.templates.get(templateId))
       .filter((template): template is PromptTemplateMeta => template !== undefined);
+  }
+
+  /**
+   * Get all templates in the manifest
+   */
+  getAllTemplates(): PromptTemplateMeta[] {
+    return Array.from(this.templates.values())
+      .sort((a, b) => a.loadOrder - b.loadOrder);
   }
 
   /**
@@ -83,6 +96,32 @@ export class PromptManifest {
     const missing: string[] = [];
     
     for (const requiredId of worldConfig.requiredSegments) {
+      if (!this.templates.has(requiredId)) {
+        missing.push(requiredId);
+      }
+    }
+    
+    return {
+      valid: missing.length === 0,
+      missing
+    };
+  }
+
+  /**
+   * Validate that all loaded templates are present
+   */
+  validateAllTemplates(): { valid: boolean; missing: string[] } {
+    const missing: string[] = [];
+    
+    // Check for basic required templates
+    const requiredTemplates = [
+      'systems.unified',
+      'engine.system',
+      'awf.scheme',
+      'agency.presence-and-guardrails'
+    ];
+    
+    for (const requiredId of requiredTemplates) {
       if (!this.templates.has(requiredId)) {
         missing.push(requiredId);
       }
@@ -158,8 +197,7 @@ export class PromptManifest {
    * Create a hash from a string
    */
   private createHash(input: string): string {
-    const crypto = require('crypto');
-    return crypto.createHash('sha256').update(input).digest('hex').substring(0, 16);
+    return createHash('sha256').update(input).digest('hex').substring(0, 16);
   }
 
   /**
@@ -202,10 +240,10 @@ let manifestInstance: PromptManifest | null = null;
 /**
  * Get the global prompt manifest instance
  */
-export async function getPromptManifest(promptsPath?: string): Promise<PromptManifest> {
+export async function getPromptManifest(promptsPath?: string, worldSlug?: string): Promise<PromptManifest> {
   if (!manifestInstance) {
     manifestInstance = new PromptManifest(promptsPath);
-    await manifestInstance.initialize();
+    await manifestInstance.initialize(worldSlug);
   }
   return manifestInstance;
 }

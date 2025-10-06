@@ -5,10 +5,11 @@ import { StoneLedgerService } from './stoneLedger.service.js';
 import { IdempotencyService } from './idempotency.service.js';
 import { gameStateService } from './game-state.service.js';
 import { debugService } from './debug.service.js';
-import { aiWrapper } from '../wrappers/ai.js';
+import { aiService } from './ai.js';
 import { TurnResponseSchema, type TurnResponse, type TurnDTO } from '@shared';
 import { ApiErrorCode } from '@shared';
 import { configService } from '../config/index.js';
+import { ServiceError } from '../utils/serviceError.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface TurnRequest {
@@ -88,19 +89,39 @@ export class TurnsService {
       await this.ensureInitialGameState(game);
 
       // Build prompt using the new assembly system
-      const prompt = await this.buildPrompt(game, optionId);
+      let prompt: string;
+      try {
+        console.log(`[TURNS_SERVICE] Building prompt for game ${gameId}, option ${optionId}`);
+        prompt = await this.buildPrompt(game, optionId);
+        console.log(`[TURNS_SERVICE] Successfully built prompt (${prompt.length} characters)`);
+      } catch (error) {
+        console.error('[TURNS_SERVICE] Error building prompt:', error);
+        if (error instanceof ServiceError) {
+          console.log(`[TURNS_SERVICE] Returning ServiceError: ${error.error.code} - ${error.error.message}`);
+          return {
+            success: false,
+            error: error.error.code,
+            message: error.error.message,
+          };
+        }
+        console.log('[TURNS_SERVICE] Returning generic error for prompt building');
+        return {
+          success: false,
+          error: ApiErrorCode.INTERNAL_ERROR,
+          message: 'Failed to build prompt',
+        };
+      }
 
       // Generate AI response with timeout handling
       let aiResponseText: string;
       const aiStartTime = Date.now();
       try {
-        const aiResponse = await Promise.race([
-          aiWrapper.generateResponse({ prompt }),
+        aiResponseText = await Promise.race([
+          aiService.generateTurnResponse(prompt),
           new Promise<never>((_, reject) => 
             setTimeout(() => reject(new Error('AI timeout')), 30000) // 30 second timeout
           )
         ]);
-        aiResponseText = aiResponse.content;
         
         // Log AI response to debug service
         debugService.logAiResponse(
@@ -129,17 +150,25 @@ export class TurnsService {
       // Parse and validate AI response
       let aiResponse: TurnResponse;
       try {
+        console.log(`[TURNS_SERVICE] Parsing AI response (${aiResponseText.length} characters)`);
+        console.log(`[TURNS_SERVICE] AI response preview: ${aiResponseText.substring(0, 200)}...`);
+        
         const parsedResponse = JSON.parse(aiResponseText);
+        console.log('[TURNS_SERVICE] Successfully parsed JSON, validating schema...');
+        
         const validationResult = TurnResponseSchema.safeParse(parsedResponse);
         
         if (!validationResult.success) {
-          console.error('AI response validation failed:', validationResult.error);
+          console.error('[TURNS_SERVICE] AI response validation failed:', validationResult.error);
+          console.error('[TURNS_SERVICE] Raw AI response:', aiResponseText);
           return {
             success: false,
             error: ApiErrorCode.VALIDATION_FAILED,
             message: 'AI response validation failed',
           };
         }
+        
+        console.log('[TURNS_SERVICE] Successfully validated AI response schema');
         
         aiResponse = validationResult.data;
       } catch (error) {

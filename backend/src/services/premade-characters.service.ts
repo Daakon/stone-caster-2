@@ -103,7 +103,7 @@ export class PremadeCharactersService {
       archetypeKey: char.id, // Use the ID as archetype key for mock data
       displayName: char.name,
       summary: char.backstory,
-      avatarUrl: null,
+      avatarUrl: undefined,
       baseTraits: {
         class: char.class,
         skills: char.skills,

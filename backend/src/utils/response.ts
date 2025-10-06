@@ -96,6 +96,7 @@ export const ERROR_STATUS_MAP: Record<ApiErrorCode, number> = {
   [ApiErrorCode.CSRF_TOKEN_INVALID]: 400,
   [ApiErrorCode.REQUIRES_AUTH]: 401,
   [ApiErrorCode.UPSTREAM_TIMEOUT]: 504,
+  [ApiErrorCode.PROMPT_TEMPLATE_MISSING]: 422,
   [ApiErrorCode.INTERNAL_ERROR]: 500,
 };
 
