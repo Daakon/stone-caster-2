@@ -95,19 +95,17 @@ export default function UnifiedGamePage() {
     retry: 1,
   });
 
-  // Load character data
-  const { data: character, isLoading: isLoadingCharacter } = useQuery({
-    queryKey: ['character', game?.characterId],
-    queryFn: async () => {
-      if (!game?.characterId) throw new Error('No character ID');
-      const result = await getCharacter(game.characterId);
-      if (!result.ok) {
-        throw new Error(result.error.message || 'Failed to load character');
-      }
-      return result.data;
-    },
-    enabled: !!game?.characterId,
-  });
+  // Character data is now included in the game response, no need for separate query
+  const character = game ? {
+    id: game.characterId,
+    name: game.characterName,
+    worldData: game.characterWorldData,
+    level: game.characterLevel,
+    currentHealth: game.characterCurrentHealth,
+    maxHealth: game.characterMaxHealth,
+    race: game.characterRace,
+    class: game.characterClass,
+  } : null;
 
   // Load world data
   const { data: worlds, isLoading: isLoadingWorlds } = useQuery({
@@ -327,7 +325,7 @@ export default function UnifiedGamePage() {
   };
 
   // Loading states
-  if (isLoadingGame || isLoadingCharacter || isLoadingWorlds || isLoadingCharacterForGame) {
+  if (isLoadingGame || isLoadingWorlds || isLoadingCharacterForGame) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Breadcrumbs />

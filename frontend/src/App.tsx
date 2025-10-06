@@ -133,7 +133,7 @@ function App() {
                 } />
                 <Route path="/support" element={<SupportPage pageType="faq" />} />
                 <Route path="/game/:id" element={<GamePage />} />
-                <Route path="/play/:characterId" element={<UnifiedGamePage />} />
+                <Route path="/play/:gameId" element={<UnifiedGamePage />} />
                 <Route path="/unified-game/:id" element={<UnifiedGamePage />} />
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/auth/signin" element={<AuthPage mode="signin" />} />

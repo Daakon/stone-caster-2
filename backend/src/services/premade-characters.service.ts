@@ -1,4 +1,11 @@
 import { supabaseAdmin } from './supabase.js';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import { ApiErrorCode } from '@shared';
 
 export interface PremadeCharacterDTO {
@@ -12,6 +19,41 @@ export interface PremadeCharacterDTO {
 }
 
 export class PremadeCharactersService {
+  /**
+   * Load mock premade characters data from JSON file
+   */
+  private static loadMockPremadeCharacters(): any[] {
+    try {
+      // Path to the frontend mock data - try multiple possible locations
+      const possiblePaths = [
+        join(__dirname, '../../../frontend/src/mock/premadeCharacters.json'), // From backend/dist/services
+        join(__dirname, '../../../../frontend/src/mock/premadeCharacters.json'), // From backend/dist
+        join(process.cwd(), 'frontend/src/mock/premadeCharacters.json'), // From project root
+      ];
+      
+      let mockPath = '';
+      for (const path of possiblePaths) {
+        try {
+          readFileSync(path, 'utf-8');
+          mockPath = path;
+          break;
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+      
+      if (!mockPath) {
+        throw new Error(`Could not find premadeCharacters.json in any of the expected locations: ${possiblePaths.join(', ')}`);
+      }
+      
+      const mockData = readFileSync(mockPath, 'utf-8');
+      return JSON.parse(mockData);
+    } catch (error) {
+      console.error('Error loading mock premade characters:', error);
+      return [];
+    }
+  }
+
   /**
    * Get all active premade characters for a specific world
    * @param worldSlug - World identifier
@@ -27,15 +69,51 @@ export class PremadeCharactersService {
         .order('display_name');
 
       if (error) {
-        console.error('Error fetching premade characters:', error);
-        throw new Error('Failed to fetch premade characters');
+        console.error('Error fetching premade characters from database:', error);
+        // Fall back to mock data
+        return this.getMockPremadeCharactersByWorld(worldSlug);
       }
 
-      return (data || []).map(this.mapToDTO);
+      const dbCharacters = (data || []).map(this.mapToDTO);
+      
+      // If no characters found in database, try mock data
+      if (dbCharacters.length === 0) {
+        console.log(`No premade characters found in database for world '${worldSlug}', trying mock data`);
+        return this.getMockPremadeCharactersByWorld(worldSlug);
+      }
+
+      return dbCharacters;
     } catch (error) {
       console.error('Unexpected error in getPremadeCharactersByWorld:', error);
-      throw error;
+      // Fall back to mock data
+      return this.getMockPremadeCharactersByWorld(worldSlug);
     }
+  }
+
+  /**
+   * Get mock premade characters for a specific world
+   */
+  private static getMockPremadeCharactersByWorld(worldSlug: string): PremadeCharacterDTO[] {
+    const mockCharacters = this.loadMockPremadeCharacters();
+    const worldCharacters = mockCharacters.filter(char => char.worldId === worldSlug);
+    
+    return worldCharacters.map(char => ({
+      id: char.id,
+      worldSlug: char.worldId,
+      archetypeKey: char.id, // Use the ID as archetype key for mock data
+      displayName: char.name,
+      summary: char.backstory,
+      avatarUrl: null,
+      baseTraits: {
+        class: char.class,
+        skills: char.skills,
+        worldSpecificData: char.worldSpecificData,
+        ...char
+      },
+      isActive: true,
+      createdAt: char.createdAt || new Date().toISOString(),
+      updatedAt: char.createdAt || new Date().toISOString()
+    }));
   }
 
   /**
@@ -84,15 +162,32 @@ export class PremadeCharactersService {
         .limit(1);
 
       if (error) {
-        console.error('Error validating world slug:', error);
-        return false;
+        console.error('Error validating world slug from database:', error);
+        // Fall back to mock data validation
+        return this.validateWorldSlugFromMock(worldSlug);
       }
 
-      return (data || []).length > 0;
+      const hasDbCharacters = (data || []).length > 0;
+      
+      // If no characters in database, check mock data
+      if (!hasDbCharacters) {
+        return this.validateWorldSlugFromMock(worldSlug);
+      }
+
+      return hasDbCharacters;
     } catch (error) {
       console.error('Unexpected error in validateWorldSlug:', error);
-      return false;
+      // Fall back to mock data validation
+      return this.validateWorldSlugFromMock(worldSlug);
     }
+  }
+
+  /**
+   * Validate world slug using mock data
+   */
+  private static validateWorldSlugFromMock(worldSlug: string): boolean {
+    const mockCharacters = this.loadMockPremadeCharacters();
+    return mockCharacters.some(char => char.worldId === worldSlug);
   }
 
   /**

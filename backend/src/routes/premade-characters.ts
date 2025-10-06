@@ -70,9 +70,9 @@ router.get('/', async (req: Request, res: Response) => {
 
     const { world } = validationResult.data;
 
-    // Validate world slug exists
-    const worldValidation = await WorldValidationService.validateWorldSlug(world);
-    if (!worldValidation.isValid) {
+    // Validate world slug exists by checking if it has premade characters
+    const hasPremadeCharacters = await PremadeCharactersService.validateWorldSlug(world);
+    if (!hasPremadeCharacters) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.NOT_FOUND,

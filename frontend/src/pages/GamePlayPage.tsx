@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getGameSave, getCharacter, processStoryAction } from '../lib/api';
+import { getGameSave, processStoryAction } from '../lib/api';
 import type { StoryAction } from '@shared';
 
 export default function GamePlayPage() {
@@ -22,17 +22,17 @@ export default function GamePlayPage() {
     enabled: !!gameId,
   });
 
-  const { data: character } = useQuery({
-    queryKey: ['character', gameSave?.characterId],
-    queryFn: async () => {
-      const result = await getCharacter(gameSave!.characterId);
-      if (!result.ok) {
-        throw new Error(result.error.message);
-      }
-      return result.data;
-    },
-    enabled: !!gameSave?.characterId,
-  });
+  // Character data is now included in the game response, no need for separate query
+  const character = gameSave ? {
+    id: gameSave.characterId,
+    name: gameSave.characterName,
+    worldData: gameSave.characterWorldData,
+    level: gameSave.characterLevel,
+    currentHealth: gameSave.characterCurrentHealth,
+    maxHealth: gameSave.characterMaxHealth,
+    race: gameSave.characterRace,
+    class: gameSave.characterClass,
+  } : null;
 
   const storyActionMutation = useMutation({
     mutationFn: async (action: StoryAction) => {

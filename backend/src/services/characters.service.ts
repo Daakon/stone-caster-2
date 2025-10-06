@@ -91,10 +91,10 @@ export class CharactersService {
     isGuest: boolean = false
   ): Promise<Character> {
     try {
-      // Validate world slug
-      const worldValidation = await WorldValidationService.validateWorldSlug(input.worldSlug);
-      if (!worldValidation.isValid) {
-        throw new Error(worldValidation.error || 'Invalid world slug');
+      // Validate world slug using PremadeCharactersService (which has mock data fallback)
+      const hasPremadeCharacters = await PremadeCharactersService.validateWorldSlug(input.worldSlug);
+      if (!hasPremadeCharacters) {
+        throw new Error(`Invalid world slug: ${input.worldSlug}`);
       }
 
       // Calculate health if not provided (for legacy characters)
@@ -197,10 +197,10 @@ export class CharactersService {
     isGuest: boolean = false
   ): Promise<Character> {
     try {
-      // Validate world slug
-      const worldValidation = await WorldValidationService.validateWorldSlug(input.worldSlug);
-      if (!worldValidation.isValid) {
-        throw new Error(worldValidation.error || 'Invalid world slug');
+      // Validate world slug using PremadeCharactersService (which has mock data fallback)
+      const hasPremadeCharacters = await PremadeCharactersService.validateWorldSlug(input.worldSlug);
+      if (!hasPremadeCharacters) {
+        throw new Error(`Invalid world slug: ${input.worldSlug}`);
       }
 
       if (!input.fromPremade || !input.archetypeKey) {

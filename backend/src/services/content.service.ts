@@ -38,8 +38,29 @@ export class ContentService {
    */
   static loadStaticWorlds(): WorldData[] {
     try {
-      // Path to the frontend mock data
-      const worldsPath = join(__dirname, '../../../frontend/src/mock/worlds.json');
+      // Path to the frontend mock data - try multiple possible locations
+      const possiblePaths = [
+        join(__dirname, '../../../frontend/src/mock/worlds.json'), // From backend/dist/services
+        join(__dirname, '../../../../frontend/src/mock/worlds.json'), // From backend/dist
+        join(process.cwd(), 'frontend/src/mock/worlds.json'), // From project root
+        join(process.cwd(), '../frontend/src/mock/worlds.json'), // From backend directory
+      ];
+      
+      let worldsPath = '';
+      for (const path of possiblePaths) {
+        try {
+          readFileSync(path, 'utf-8');
+          worldsPath = path;
+          break;
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+      
+      if (!worldsPath) {
+        throw new Error(`Could not find worlds.json in any of the expected locations: ${possiblePaths.join(', ')}`);
+      }
+      
       const worldsData = readFileSync(worldsPath, 'utf-8');
       const rawWorlds = JSON.parse(worldsData);
       
@@ -63,8 +84,29 @@ export class ContentService {
    */
   static loadStaticAdventures(): AdventureData[] {
     try {
-      // Path to the frontend mock data
-      const adventuresPath = join(__dirname, '../../../frontend/src/mock/adventures.json');
+      // Path to the frontend mock data - try multiple possible locations
+      const possiblePaths = [
+        join(__dirname, '../../../frontend/src/mock/adventures.json'), // From backend/dist/services
+        join(__dirname, '../../../../frontend/src/mock/adventures.json'), // From backend/dist
+        join(process.cwd(), 'frontend/src/mock/adventures.json'), // From project root
+        join(process.cwd(), '../frontend/src/mock/adventures.json'), // From backend directory
+      ];
+      
+      let adventuresPath = '';
+      for (const path of possiblePaths) {
+        try {
+          readFileSync(path, 'utf-8');
+          adventuresPath = path;
+          break;
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+      
+      if (!adventuresPath) {
+        throw new Error(`Could not find adventures.json in any of the expected locations: ${possiblePaths.join(', ')}`);
+      }
+      
       const adventuresData = readFileSync(adventuresPath, 'utf-8');
       const rawAdventures = JSON.parse(adventuresData);
       

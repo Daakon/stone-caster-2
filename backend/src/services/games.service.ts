@@ -179,7 +179,7 @@ export class GamesService {
         .select(`
           *,
           adventures!inner(id, slug, title, description, world_slug),
-          characters!games_character_id_fkey(id, name)
+          characters!games_character_id_fkey(id, name, world_data, level, current_health, max_health, race, class)
         `)
         .eq('id', gameId);
 
@@ -473,6 +473,12 @@ export class GamesService {
       adventureDescription: dbRow.adventures?.description,
       characterId: dbRow.character_id,
       characterName: dbRow.characters?.name,
+      characterWorldData: dbRow.characters?.world_data,
+      characterLevel: dbRow.characters?.level,
+      characterCurrentHealth: dbRow.characters?.current_health,
+      characterMaxHealth: dbRow.characters?.max_health,
+      characterRace: dbRow.characters?.race,
+      characterClass: dbRow.characters?.class,
       worldSlug: dbRow.world_slug,
       worldName,
       turnCount: dbRow.turn_count,
