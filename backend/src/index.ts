@@ -22,6 +22,7 @@ import contentRouter from './routes/content.js';
 import authRouter from './routes/auth.js';
 import premadeCharactersRouter from './routes/premade-characters.js';
 import cookieLinkingRouter from './routes/cookie-linking.js';
+import debugRouter from './routes/debug.js';
 import { observabilityMiddleware } from './middleware/observability.js';
 
 const app = express();
@@ -85,6 +86,7 @@ app.use('/api/dice', diceRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/cookie-linking', cookieLinkingRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/debug', debugRouter);
 
 // Swagger API documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {

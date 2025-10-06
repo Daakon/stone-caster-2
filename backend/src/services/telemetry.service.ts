@@ -63,13 +63,17 @@ export class TelemetryService {
       }
 
       // Record the event in the database
+      // For guest users, we need to set user_id to null and use cookie_id
+      // For authenticated users, we use user_id and set cookie_id to null
+      const isGuestUser = event.cookieId && event.userId === event.cookieId;
+      
       const result = await supabaseAdmin
         .from('telemetry_events')
         .insert({
           name: event.name,
           props: event.props || {},
           trace_id: event.traceId,
-          user_id: event.userId || null,
+          user_id: isGuestUser ? null : event.userId || null, // null for guest users
           cookie_id: event.cookieId || null,
         })
         .select('id')

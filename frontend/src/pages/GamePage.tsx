@@ -11,9 +11,12 @@ import { TurnInput } from '../components/gameplay/TurnInput';
 import { HistoryFeed } from '../components/gameplay/HistoryFeed';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, Settings, Save } from 'lucide-react';
-import { submitTurn, getGame, getAdventureById, getCharacter, getWorldById, getWallet } from '../lib/api';
+import { submitTurn, getGame, getAdventureById, getCharacter, getWorldById, getWallet, createInitialPrompt, approvePrompt } from '../lib/api';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
+import { useDebugPanel } from '../hooks/useDebugPanel';
+import { DebugPanel } from '../components/debug/DebugPanel';
+import { PromptApprovalModal } from '../components/gameplay/PromptApprovalModal';
 import type { TurnDTO, GameDTO } from '@shared';
 
 interface GameState {
@@ -48,7 +51,16 @@ export default function GamePage() {
   const [hasTrackedFirstTurn, setHasTrackedFirstTurn] = useState(false);
   
   const telemetry = useAdventureTelemetry();
+  const debugPanel = useDebugPanel();
   const [gameErrorState, setGameErrorState] = useState<string | null>(null);
+  
+  // Prompt approval state
+  const [showPromptApproval, setShowPromptApproval] = useState(false);
+  const [currentPrompt, setCurrentPrompt] = useState<string>('');
+  const [currentPromptId, setCurrentPromptId] = useState<string>('');
+  const [currentPromptMetadata, setCurrentPromptMetadata] = useState<any>(null);
+  const [isPromptLoading, setIsPromptLoading] = useState(false);
+  const [hasInitializedGame, setHasInitializedGame] = useState(false);
 
   // Use React Query to load game data (prevents duplicate calls in StrictMode)
   const { data: gameData, isLoading: isLoadingGame, error: gameError } = useQuery({
@@ -146,8 +158,14 @@ export default function GamePage() {
         ...prev,
         currentTurn: gameData.turnCount
       }));
+      
+      // Check if game needs initialization (turn count is 0 and no history and not already initialized)
+      if (gameData.turnCount === 0 && gameState.history.length === 0 && !hasInitializedGame) {
+        setHasInitializedGame(true);
+        handleGameInitialization();
+      }
     }
-  }, [gameData]);
+  }, [gameData, gameState.history.length, hasInitializedGame]);
 
   // Update adventure, character, world, and wallet state when data changes
   useEffect(() => {
@@ -194,7 +212,7 @@ export default function GamePage() {
   }, [gameError]);
 
   const handleTurnSubmit = async (action: string) => {
-    if (!adventure || !character || !gameId) return;
+    if (!adventure || !character || !gameId || isSubmittingTurn) return;
 
     setIsSubmittingTurn(true);
     setTurnError(null);
@@ -317,6 +335,66 @@ export default function GamePage() {
   const handleSaveGame = () => {
     // In a real implementation, this would save to the backend
     alert('Game saved!');
+  };
+
+  const handleGameInitialization = async () => {
+    if (!gameId) return;
+    
+    setIsPromptLoading(true);
+    try {
+      const result = await createInitialPrompt(gameId);
+      
+      if (result.ok) {
+        const { prompt, needsApproval, promptId, metadata } = result.data;
+        
+        if (needsApproval) {
+          // Show approval modal
+          setCurrentPrompt(prompt);
+          setCurrentPromptId(promptId);
+          setCurrentPromptMetadata(metadata);
+          setShowPromptApproval(true);
+        } else {
+          // Auto-approve if no approval needed
+          await handlePromptApproval(true);
+        }
+      } else {
+        console.error('Failed to create initial prompt:', result.error);
+        setGameErrorState('Failed to initialize game. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error during game initialization:', error);
+      setGameErrorState('Failed to initialize game. Please try again.');
+    } finally {
+      setIsPromptLoading(false);
+    }
+  };
+
+  const handlePromptApproval = async (approved: boolean) => {
+    if (!gameId || !currentPromptId) return;
+    
+    setIsPromptLoading(true);
+    try {
+      const result = await approvePrompt(gameId, currentPromptId, approved);
+      
+      if (result.ok) {
+        if (approved) {
+          // Game is now initialized, close modal and continue
+          setShowPromptApproval(false);
+          // The game will continue normally
+        } else {
+          // Prompt was rejected, show error
+          setGameErrorState('Game initialization was cancelled. Please refresh to try again.');
+        }
+      } else {
+        console.error('Failed to approve prompt:', result.error);
+        setGameErrorState('Failed to process prompt approval. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error approving prompt:', error);
+      setGameErrorState('Failed to process prompt approval. Please try again.');
+    } finally {
+      setIsPromptLoading(false);
+    }
   };
 
   if (!isInvited) {
@@ -618,6 +696,24 @@ export default function GamePage() {
           </div>
         </div>
       </div>
+      
+      {/* Debug Panel */}
+      <DebugPanel 
+        gameId={gameId} 
+        isVisible={debugPanel.isVisible} 
+        onToggle={debugPanel.toggle} 
+      />
+      
+      {/* Prompt Approval Modal */}
+      <PromptApprovalModal
+        isOpen={showPromptApproval}
+        onClose={() => setShowPromptApproval(false)}
+        onApprove={handlePromptApproval}
+        prompt={currentPrompt}
+        promptId={currentPromptId}
+        metadata={currentPromptMetadata}
+        isLoading={isPromptLoading}
+      />
     </div>
   );
 }

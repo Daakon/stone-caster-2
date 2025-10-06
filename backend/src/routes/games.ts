@@ -5,6 +5,7 @@ import { requireIdempotencyKey } from '../middleware/validation.js';
 import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema } from '@shared';
 import { GamesService } from '../services/games.service.js';
 import { turnsService } from '../services/turns.service.js';
+import { promptsService } from '../services/prompts.service.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -236,6 +237,160 @@ router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Reques
     sendSuccess(res, turnResult.turnDTO, req);
   } catch (error) {
     console.error('Error executing turn:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Internal server error',
+      req
+    );
+  }
+});
+
+// POST /api/games/:id/initial-prompt - create initial AI prompt for a new game
+router.post('/:id/initial-prompt', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest;
+
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User context required',
+        req
+      );
+    }
+
+    // Validate game ID parameter
+    const paramValidation = IdParamSchema.safeParse(req.params);
+    if (!paramValidation.success) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'Invalid game ID',
+        req,
+        paramValidation.error.errors
+      );
+    }
+
+    const { id: gameId } = paramValidation.data;
+
+    // Get the game to validate ownership and get world info
+    const gamesService = new GamesService();
+    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+
+    if (!game) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Game not found',
+        req
+      );
+    }
+
+    // Check if game has already been initiated (has turns)
+    if (game.turnCount > 0) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'Game has already been initiated',
+        req
+      );
+    }
+
+    // Create initial prompt with approval mechanism
+    const promptResult = await promptsService.createInitialPromptWithApproval(
+      gameId,
+      game.worldSlug,
+      game.characterId
+    );
+
+    sendSuccess(res, promptResult, req);
+  } catch (error) {
+    console.error('Error creating initial prompt:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Internal server error',
+      req
+    );
+  }
+});
+
+// POST /api/games/:id/approve-prompt - approve a prompt for AI processing
+router.post('/:id/approve-prompt', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest;
+
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User context required',
+        req
+      );
+    }
+
+    // Validate game ID parameter
+    const paramValidation = IdParamSchema.safeParse(req.params);
+    if (!paramValidation.success) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'Invalid game ID',
+        req,
+        paramValidation.error.errors
+      );
+    }
+
+    // Validate request body
+    const bodyValidation = z.object({
+      promptId: z.string(),
+      approved: z.boolean(),
+    }).safeParse(req.body);
+
+    if (!bodyValidation.success) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'Invalid request data',
+        req,
+        bodyValidation.error.errors
+      );
+    }
+
+    const { id: gameId } = paramValidation.data;
+    const { promptId, approved } = bodyValidation.data;
+
+    // Validate game ownership
+    const gamesService = new GamesService();
+    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+
+    if (!game) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Game not found',
+        req
+      );
+    }
+
+    // Approve the prompt
+    const approvalResult = await promptsService.approvePrompt(promptId, approved);
+
+    if (!approvalResult.success) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        approvalResult.message,
+        req
+      );
+    }
+
+    sendSuccess(res, { message: approvalResult.message }, req);
+  } catch (error) {
+    console.error('Error approving prompt:', error);
     sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,

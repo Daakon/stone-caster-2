@@ -42,12 +42,15 @@ router.post(
       }
 
       // Record the telemetry event
+      const userId = (req as any).ctx?.userId;
+      const isGuest = (req as any).ctx?.isGuest;
+      
       const result = await TelemetryService.recordEvent({
         name,
         props: props || {},
         traceId,
-        userId: (req as any).ctx?.userId,
-        cookieId: (req as any).ctx?.cookieId,
+        userId: userId,
+        cookieId: isGuest ? userId : undefined, // For guest users, use userId as cookieId
       });
 
       if (!result.success) {

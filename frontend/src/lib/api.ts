@@ -305,4 +305,22 @@ export async function getStonesHistory(): Promise<{ ok: true; data: any[] } | { 
   return apiGet('/api/stones/history');
 }
 
+// Initial Prompt API
+export async function createInitialPrompt(
+  gameId: string
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiPost(`/api/games/${gameId}/initial-prompt`, {});
+}
+
+export async function approvePrompt(
+  gameId: string,
+  promptId: string,
+  approved: boolean
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiPost(`/api/games/${gameId}/approve-prompt`, {
+    promptId,
+    approved,
+  });
+}
+
 

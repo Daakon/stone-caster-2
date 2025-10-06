@@ -40,30 +40,61 @@ This document outlines the layered path to deliver the end-to-end Play flow. Eac
 - Update Vitest component tests and Playwright suites to cover live data paths.
 - Exit criteria: Game page renders entirely from server APIs on mobile and desktop viewports with updated docs.
 
-## Layer P2 - Prompt Assembly Pipeline
+## Layer P2 - Prompt Assembly Pipeline ✅ COMPLETED
 **Goal:** Build an auditable, low-token-cost prompt system that can stitch world, adventure, scenario, and player context before hitting the AI.
 
-### Deliverables
-- `backend/src/prompts/manifest.ts` master catalog that maps prompt scopes (core, world, adventure, scenario, quest) to file/module exports and declares schema version, hash, and allowlisted variables for each entry.
-- Lightweight type-safe modules (`backend/src/prompts/core.ts`, `backend/src/prompts/worlds/<slug>.ts`, etc.) generated from the GPT assets under `GPT Prompts/**` with redundant whitespace/comments stripped to keep token counts down.
-- A `PromptAssembler` service in `backend/src/services/prompts.service.ts` (or sibling) that composes the manifest entries with runtime data and enforces the variable allowlist.
-- Zod schemas describing template metadata (`PromptTemplateMetaSchema`) and assembled payloads (`PromptContextSchema`) so the pipeline fails fast when a template drifts.
+### Deliverables ✅
+- ✅ `backend/src/prompts/manifest.ts` - Master catalog that maps prompt scopes to file exports with schema versions, hashes, and allowlisted variables
+- ✅ `backend/src/prompts/loader.ts` - Generic loader that dynamically reads JSON/MD files from GPT Prompts directory
+- ✅ `backend/src/prompts/assembler.ts` - PromptAssembler service that composes manifest entries with runtime data
+- ✅ `backend/src/prompts/schemas.ts` - Zod schemas for template metadata and assembled payloads
+- ✅ `backend/src/prompts/variables.ts` - Variable allowlist and validation system
 
-### Order of work
-1. **Inventory & Normalization**: Catalogue every file in `GPT Prompts/Core`, `GPT Prompts/Worlds`, and planned `GPT Prompts/Adventures` into a table noting scope, version, and required context keys. Decide which files form the MVP package (for example `Core/engine.system.json`, `Core/style.ui-global.json`, `Worlds/mystika/*.md`).
-2. **Code-first Source of Truth**: Convert the selected assets into TypeScript objects (`as const`) stored under `backend/src/prompts/raw/*`. Preserve original text in comments for traceability, but strip excess whitespace and unused sections to minimize tokens. Provide a simple script to resync from GPT assets when templates change.
-3. **Manifest Assembly**: Create `manifest.ts` that imports the raw modules and exposes a typed array of `{ id, scope, version, hash, variables, segments }`. Hash with SHA-256 of the concatenated segments so drift is detectable without re-reading large strings at runtime.
-4. **Variable Allowlist**: Define the canonical variable surface (`character.name`, `game.summary`, `world.rules`, `scenario.activeStep`, etc.) in a shared enum. During assembly, validate that templates reference only allowlisted tokens; fail CI if a template uses an unknown placeholder.
-5. **PromptAssembler Implementation**: Update `promptsService.buildPrompt` to pull manifest entries by scope, inject runtime context (game snapshot, character traits, last turn, world metadata), and emit a final string plus a structured `PromptAuditEntry { templateIds, version, hash, contextSummary }` for logging.
-6. **Master Prompt File**: Produce a succinct `masterPrompt.ts` (or similar) that concatenates the core/system segments first, then appends world/adventure/scenario content in a deterministic order, using newline delimiters and headers (for example `### World Rules`). Keep output human readable while avoiding large JSON blobs.
-7. **Testing & Tooling**: Add unit tests that expand each manifest entry with mock context, assert the allowlist passes, compare output against snapshots under `backend/tests/prompts/__snapshots__`, and verify token counts stay within agreed ceilings (use `tiktoken` in CI if available).
-8. **Documentation Updates**: Extend `docs/UX_FLOW.md` with a diagram of the prompt assembly pipeline and add API notes in `docs/API_CONTRACT.md` if new admin endpoints (for example `/api/prompts/templates`) are exposed later.
+### Implementation Details ✅
+1. ✅ **Generic File Loading**: System dynamically reads JSON/MD files from `GPT Prompts/` directory structure
+2. ✅ **Load Order Management**: Templates loaded in strict order (Foundation → Core Systems → Engine → AI Behavior → Data Management → Performance → Content → Enhancement)
+3. ✅ **Variable Allowlist**: Canonical variable surface defined with validation (`character.name`, `game.summary`, `world.rules`, etc.)
+4. ✅ **Context Assembly**: Runtime context built from game state, character data, world template, and adventure info
+5. ✅ **Audit Trail**: Complete audit logging with template IDs, versions, hashes, and context summaries
+6. ✅ **Token Estimation**: Rough token counting for cost monitoring
+7. ✅ **World-Specific Loading**: Automatically loads world-specific templates based on game context
+8. ✅ **Error Handling**: Graceful handling of missing templates and validation failures
 
-### Exit criteria
-- Prompt manifest checked into the repo with hashes, schema versions, and variable allowlists.
-- `PromptAssembler` returns deterministic, low-noise strings for the Mystika tutorial flow using only server-side data, with updated unit tests covering happy and invalid paths.
-- Documentation reflects the pipeline, showing how to add or tweak prompt fragments without ballooning token counts.
-- System ready for a future Supabase registry because metadata and hashing are explicit, yet no database migration is required in this layer.
+### Architecture
+```
+Game Context → PromptAssembler → PromptLoader → GPT Prompts/
+     ↓              ↓                ↓              ↓
+Character      Manifest         File System    JSON/MD Files
+World          Templates        Load Order     Dynamic Content
+Adventure      Validation       Variables      World-Specific
+Runtime        Assembly         Audit Trail    Core Systems
+```
+
+### Key Features
+- **Dynamic Loading**: No hardcoded world-specific files - reads actual GPT Prompts directory
+- **Load Order Enforcement**: Templates loaded in strict authority hierarchy
+- **Variable Validation**: Only allowlisted variables can be used in templates
+- **Audit Logging**: Complete traceability of prompt assembly process
+- **Token Management**: Estimation and monitoring of prompt size
+- **World Agnostic**: Works with any world by loading appropriate templates
+- **Debug System**: Real-time debug panel for viewing prompts, AI responses, and state changes
+- **Game State Management**: Initial game state creation and action-based state updates
+
+### Debug System ✅
+- ✅ **Debug Service**: Real-time logging of prompts, AI responses, and state changes
+- ✅ **Debug API**: REST endpoints for accessing debug data
+- ✅ **Debug Panel**: Frontend component for viewing debug information
+- ✅ **Game State Service**: Initial game state creation and action-based updates
+- ✅ **Database Schema**: Game states table with proper indexing and RLS
+
+### Exit Criteria ✅
+- ✅ Prompt manifest with hashes, schema versions, and variable allowlists
+- ✅ PromptAssembler returns deterministic strings using server-side data
+- ✅ Unit tests covering happy and invalid paths
+- ✅ Documentation reflects the pipeline architecture
+- ✅ System ready for future Supabase registry (metadata and hashing explicit)
+- ✅ Debug system for monitoring prompt assembly and AI responses
+- ✅ Game state management for initial states and action-based updates
 
 ## Layer P4 – Client Game Experience
 **Goal:** Deliver polished mobile-first gameplay UI driven by live data.

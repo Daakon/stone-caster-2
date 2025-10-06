@@ -15,6 +15,7 @@ export interface AiRuntimeConfig {
   promptSchemaVersion: string;
   maxTokensIn: number;
   maxTokensOut: number;
+  requirePromptApproval: boolean;
 }
 
 export interface AppRuntimeConfig {
@@ -396,6 +397,7 @@ class ConfigServiceImpl implements ConfigService {
       promptSchemaVersion: this.getConfigValue(rows, 'prompt_schema_version', value => this.parseString(value), '1.0.0'),
       maxTokensIn: this.getConfigValue(rows, 'max_tokens_in', value => this.parseNumber(value), 4096),
       maxTokensOut: this.getConfigValue(rows, 'max_tokens_out', value => this.parseNumber(value), 1024),
+      requirePromptApproval: this.getConfigValue(rows, 'require_prompt_approval', value => this.parseBoolean(value), true),
     };
   }
 
@@ -575,6 +577,7 @@ class ConfigServiceImpl implements ConfigService {
         promptSchemaVersion: '1.0.0',
         maxTokensIn: 4096,
         maxTokensOut: 1024,
+        requirePromptApproval: true,
       },
       app: {
         cookieTtlDays: 60,

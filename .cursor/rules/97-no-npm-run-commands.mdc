@@ -1,0 +1,62 @@
+---
+title: No NPM Run Commands Rule
+description: Prevent Cursor from executing npm run commands directly
+---
+
+# No NPM Run Commands Rule
+
+## Overview
+This rule prevents Cursor from executing `npm run` commands directly. All operations must use package.json scripts through the appropriate package manager (pnpm, npm, yarn) but never through direct `npm run` execution.
+
+## Prohibited Commands
+- `npm run <script>`
+- `npm start`
+- `npm test`
+- `npm build`
+- `npm dev`
+- Any direct npm script execution
+
+## Allowed Alternatives
+- Use `pnpm <script>` (preferred for this project)
+- Use `npm <script>` (without the `run` keyword)
+- Use `yarn <script>`
+- Use package.json script names directly with the package manager
+
+## Rationale
+- Ensures consistent package manager usage across the project
+- Prevents accidental execution of scripts in wrong environments
+- Maintains proper dependency resolution and lock file consistency
+- Aligns with project's pnpm-first approach
+
+## Enforcement
+- All AI agents must use the appropriate package manager directly
+- Script execution should go through the package manager's native interface
+- When suggesting commands, always use the full package manager command
+
+## Examples
+
+### ❌ Prohibited
+```bash
+npm run dev
+npm run test
+npm run build
+```
+
+### ✅ Allowed
+```bash
+pnpm dev
+pnpm test
+pnpm build
+npm dev
+npm test
+npm build
+yarn dev
+yarn test
+yarn build
+```
+
+## Scope
+- All terminal commands
+- All script execution
+- All development workflows
+- All CI/CD operations

@@ -3,6 +3,8 @@ import { promptsService } from './prompts.service.js';
 import { gamesService } from './games.service.js';
 import { StoneLedgerService } from './stoneLedger.service.js';
 import { IdempotencyService } from './idempotency.service.js';
+import { gameStateService } from './game-state.service.js';
+import { debugService } from './debug.service.js';
 import { aiWrapper } from '../wrappers/ai.js';
 import { TurnResponseSchema, type TurnResponse, type TurnDTO } from '@shared';
 import { ApiErrorCode } from '@shared';
@@ -82,11 +84,15 @@ export class TurnsService {
         };
       }
 
-      // Build prompt (server-only)
+      // Ensure initial game state exists
+      await this.ensureInitialGameState(game);
+
+      // Build prompt using the new assembly system
       const prompt = await this.buildPrompt(game, optionId);
 
       // Generate AI response with timeout handling
       let aiResponseText: string;
+      const aiStartTime = Date.now();
       try {
         const aiResponse = await Promise.race([
           aiWrapper.generateResponse({ prompt }),
@@ -95,6 +101,15 @@ export class TurnsService {
           )
         ]);
         aiResponseText = aiResponse.content;
+        
+        // Log AI response to debug service
+        debugService.logAiResponse(
+          gameId,
+          game.turn_count,
+          'prompt-id', // TODO: Get actual prompt ID from prompt assembly
+          aiResponseText,
+          Date.now() - aiStartTime
+        );
       } catch (error) {
         console.error('AI service error:', error);
         if (error instanceof Error && error.message === 'AI timeout') {
@@ -138,6 +153,36 @@ export class TurnsService {
 
       // Apply turn to game state
       const turnRecord = await gamesService.applyTurn(gameId, aiResponse, optionId);
+      
+      // Log state changes to debug service
+      const hasStateChanges = aiResponse.worldStateChanges || aiResponse.relationshipDeltas || aiResponse.factionDeltas;
+      if (hasStateChanges) {
+        const currentState = await gameStateService.loadGameState(gameId);
+        const beforeState = game.state_snapshot;
+        const afterState = currentState || {};
+        
+        // Extract changes from the response
+        const changes = [];
+        if (aiResponse.worldStateChanges) {
+          changes.push({ type: 'world_state', changes: aiResponse.worldStateChanges });
+        }
+        if (aiResponse.relationshipDeltas) {
+          changes.push({ type: 'relationships', changes: aiResponse.relationshipDeltas });
+        }
+        if (aiResponse.factionDeltas) {
+          changes.push({ type: 'factions', changes: aiResponse.factionDeltas });
+        }
+        
+        debugService.logStateChanges(
+          gameId,
+          game.turn_count,
+          'response-id', // TODO: Get actual response ID
+          [], // No actions in current schema
+          changes,
+          beforeState,
+          afterState
+        );
+      }
 
       // Spend casting stones (only after successful turn)
       const spendResult = await WalletService.spendCastingStones(
@@ -185,21 +230,58 @@ export class TurnsService {
   }
 
   /**
+   * Ensure initial game state exists for the game
+   * @param game - Game data
+   */
+  private async ensureInitialGameState(game: any): Promise<void> {
+    try {
+      // Check if game state already exists
+      const existingState = await gameStateService.loadGameState(game.id);
+      if (existingState) {
+        return; // Game state already exists
+      }
+
+      // Create initial game state
+      await gameStateService.createInitialGameState({
+        gameId: game.id,
+        worldId: game.world_slug,
+        characterId: game.character_id,
+        adventureName: game.adventure_id ? 'default' : undefined, // TODO: Get actual adventure name
+        startingScene: 'opening', // TODO: Get actual starting scene from adventure
+        initialFlags: {},
+        initialLedgers: {},
+      });
+
+      console.log(`[TURNS] Created initial game state for game ${game.id}`);
+    } catch (error) {
+      console.error('Error ensuring initial game state:', error);
+      // If game_states table doesn't exist, continue without it
+      // This allows the system to work without the game_states table
+      if (error instanceof Error && error.message.includes('Could not find the table')) {
+        console.log(`[TURNS] Game states table not available, continuing without game state tracking`);
+        return;
+      }
+      // Don't fail the turn for other errors, just log them
+    }
+  }
+
+  /**
    * Build prompt for AI request (server-only)
    * @param game - Game data
    * @param optionId - Selected option ID
    * @returns Prompt string
    */
   private async buildPrompt(game: any, optionId: string): Promise<string> {
-    // TODO: Implement proper prompt building from templates
-    // For now, return a basic prompt structure
-    return `Game: ${game.id}
-World: ${game.world_slug}
-Turn: ${game.turn_count + 1}
-Option: ${optionId}
-State: ${JSON.stringify(game.state_snapshot)}
+    // Use the new prompt assembly system
+    const gameContext = {
+      id: game.id,
+      world_id: game.world_slug,
+      character_id: game.character_id,
+      state_snapshot: game.state_snapshot,
+      turn_index: game.turn_count,
+    };
 
-Generate the next turn response following the TurnResponse schema.`;
+    return await promptsService.buildPrompt(gameContext, optionId);
   }
 
   /**
