@@ -204,6 +204,19 @@ Format your response as JSON with:
       console.log(`[AI_SERVICE] Using model: ${model}`);
       
       console.log('[AI_SERVICE] Calling OpenAI API...');
+      
+      // Log the cleaned prompt being sent to AI (actual string, not JSON-encoded)
+      const tokenCount = Math.ceil(prompt.length / 4); // Rough token estimation
+      console.log(`[AI_SERVICE] Sending prompt to AI (${prompt.length} chars, ~${tokenCount} tokens)`);
+      console.log('='.repeat(80));
+      console.log('PROMPT START (this is the exact string sent to AI):');
+      console.log('='.repeat(80));
+      const aiPromptPreview = prompt.length > 1500 ? prompt.substring(0, 1500) + '\n\n... (truncated)' : prompt;
+      console.log(aiPromptPreview);
+      console.log('='.repeat(80));
+      console.log('PROMPT END');
+      console.log('='.repeat(80));
+      
       const response = await openai.chat.completions.create({
         model,
         messages: [

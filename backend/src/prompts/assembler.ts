@@ -68,6 +68,11 @@ export class PromptAssembler {
     // Create the final prompt
     const prompt = this.createFinalPrompt(assembledSegments, context);
     
+    // Log prompt assembly details
+    console.log(`[PROMPT_ASSEMBLER] Assembled prompt with ${assembledSegments.length} segments`);
+    console.log(`[PROMPT_ASSEMBLER] Final prompt length: ${prompt.length} characters`);
+    console.log(`[PROMPT_ASSEMBLER] Templates used: ${templateIds.join(', ')}`);
+    
     // Create audit entry
     const audit: PromptAuditEntry = {
       templateIds,
@@ -185,7 +190,16 @@ export class PromptAssembler {
     const body = segments.join('\n\n');
     const footer = this.createPromptFooter(context);
     
-    return `${header}\n\n${body}\n\n${footer}`.trim();
+    // Minimize newlines and clean up the final prompt
+    const fullPrompt = `${header}\n\n${body}\n\n${footer}`.trim();
+    
+    // Remove excessive newlines and escape characters
+    return fullPrompt
+      .replace(/\r\n/g, '\n') // Normalize line endings
+      .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with 2
+      .replace(/\\n/g, '\n') // Convert literal \n to actual newlines
+      .replace(/\\r/g, '\r') // Convert literal \r to actual carriage returns
+      .trim();
   }
 
   /**

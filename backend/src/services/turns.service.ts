@@ -94,6 +94,14 @@ export class TurnsService {
         console.log(`[TURNS_SERVICE] Building prompt for game ${gameId}, option ${optionId}`);
         prompt = await this.buildPrompt(game, optionId);
         console.log(`[TURNS_SERVICE] Successfully built prompt (${prompt.length} characters)`);
+        
+        // Log a preview of the cleaned prompt for debugging
+        const preview = prompt.length > 500 ? prompt.substring(0, 500) + '...' : prompt;
+        const tokenCount = promptsService.calculateTokenCount(prompt);
+        console.log(`[TURNS_SERVICE] Prompt preview (cleaned and minimized, ${tokenCount} tokens):`);
+        console.log('─'.repeat(60));
+        console.log(preview);
+        console.log('─'.repeat(60));
       } catch (error) {
         console.error('[TURNS_SERVICE] Error building prompt:', error);
         if (error instanceof ServiceError) {
@@ -329,6 +337,9 @@ export class TurnsService {
     newBalance: number,
     debugPrompt?: string
   ): Promise<TurnDTO> {
+    // Calculate token count for the prompt
+    const promptTokenCount = debugPrompt ? promptsService.calculateTokenCount(debugPrompt) : undefined;
+
     return {
       id: turnRecord.id,
       gameId: game.id,
@@ -342,6 +353,7 @@ export class TurnsService {
       castingStonesBalance: newBalance,
       createdAt: turnRecord.created_at,
       debugPrompt: debugPrompt,
+      promptTokenCount: promptTokenCount,
     };
   }
 

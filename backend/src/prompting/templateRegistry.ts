@@ -297,10 +297,40 @@ class FSTemplateLoader {
    */
   private readFileSafely(filePath: string): string | null {
     try {
-      return readFileSync(filePath, 'utf-8');
+      const content = readFileSync(filePath, 'utf-8');
+      const ext = extname(filePath).toLowerCase();
+      
+      // Minimize JSON files before embedding them in prompts
+      if (ext === '.json') {
+        return this.minimizeJson(content);
+      }
+      
+      return content;
     } catch (error) {
       console.warn(`[TEMPLATE_REGISTRY] Could not read file ${filePath}:`, error);
       return null;
+    }
+  }
+  
+  /**
+   * Minimize JSON content by removing comments, whitespace, and formatting
+   */
+  private minimizeJson(content: string): string {
+    try {
+      // Remove JSON comments (// and /* */ style comments)
+      let cleaned = content
+        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
+        .replace(/\/\/.*$/gm, '') // Remove // comments
+        .replace(/^\s*[\r\n]/gm, '') // Remove empty lines
+        .trim();
+      
+      // Parse and re-stringify to ensure valid JSON and remove extra whitespace
+      const parsed = JSON.parse(cleaned);
+      return JSON.stringify(parsed, null, 0);
+    } catch (error) {
+      // If parsing fails, return the original content
+      console.warn(`[TEMPLATE_REGISTRY] Failed to parse JSON for minimization:`, error);
+      return content;
     }
   }
 }

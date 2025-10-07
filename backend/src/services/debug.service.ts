@@ -93,6 +93,12 @@ export class DebugService {
       character,
     });
 
+    // Log the actual cleaned prompt content for debugging
+    console.log(`[DEBUG] Cleaned prompt content (${result.prompt.length} chars):`);
+    console.log('─'.repeat(80));
+    console.log(result.prompt);
+    console.log('─'.repeat(80));
+
     return promptId;
   }
 

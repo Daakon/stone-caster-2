@@ -193,9 +193,12 @@ export class PromptLoader {
       let variables: string[] = [];
       
       if (ext === '.json') {
-        const parsed = JSON.parse(content);
+        // Clean the JSON content before parsing
+        console.log(`[PROMPT_LOADER] Cleaning JSON content for ${filename} (${content.length} -> ${this.cleanJsonContent(content).length} chars)`);
+        const cleanedContent = this.cleanJsonContent(content);
+        const parsed = JSON.parse(cleanedContent);
         segments = this.extractSegmentsFromJson(parsed, nameWithoutExt);
-        variables = this.extractVariablesFromContent(content);
+        variables = this.extractVariablesFromContent(cleanedContent);
       } else if (ext === '.md') {
         segments = this.extractSegmentsFromMarkdown(content, nameWithoutExt);
         variables = this.extractVariablesFromContent(content);
@@ -287,7 +290,36 @@ export class PromptLoader {
   }
 
   /**
-   * Format JSON content as a prompt segment
+   * Clean and minimize JSON content by removing unnecessary whitespace, comments, and formatting
+   */
+  private cleanJsonContent(content: string): string {
+    // Remove JSON comments (// and /* */ style comments)
+    let cleaned = content
+      .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
+      .replace(/\/\/.*$/gm, '') // Remove // comments
+      .replace(/^\s*[\r\n]/gm, '') // Remove empty lines
+      .trim();
+    
+    try {
+      // Parse and re-stringify to ensure valid JSON and remove extra whitespace
+      const parsed = JSON.parse(cleaned);
+      return JSON.stringify(parsed, null, 0);
+    } catch (error) {
+      // If parsing fails, return the cleaned content as-is
+      console.warn('Failed to parse JSON content for cleaning:', error);
+      return cleaned;
+    }
+  }
+
+  /**
+   * Minimize JSON content by removing unnecessary whitespace and formatting
+   */
+  private minimizeJson(obj: any): string {
+    return JSON.stringify(obj, null, 0);
+  }
+
+  /**
+   * Format JSON content as a prompt segment with minimized JSON in markdown code blocks
    */
   private formatJsonAsPrompt(parsed: any, filename: string): string {
     // Create a human-readable format from JSON
@@ -305,8 +337,8 @@ export class PromptLoader {
       formatted += `**About**: ${parsed.about || parsed.description}\n\n`;
     }
     
-    // Add key sections
-    const keySections = ['rules', 'mechanics', 'policies', 'constraints', 'guidelines'];
+    // Add key sections with minimized JSON in code blocks
+    const keySections = ['rules', 'mechanics', 'policies', 'constraints', 'guidelines', 'awf_contract', 'schemas', 'beats', 'scheduler', 'integration'];
     for (const section of keySections) {
       if (parsed[section]) {
         formatted += `### ${this.capitalize(section)}\n\n`;
@@ -315,23 +347,29 @@ export class PromptLoader {
       }
     }
     
+    // Add complete minimized JSON at the end for reference
+    formatted += `### Complete Configuration\n\n\`\`\`json\n${this.minimizeJson(parsed)}\n\`\`\`\n\n`;
+    
     return formatted.trim();
   }
 
   /**
-   * Format a JSON section for prompt use
+   * Format a JSON section for prompt use with minimized JSON in markdown code blocks
    */
   private formatJsonSection(section: any): string {
     if (typeof section === 'string') {
       return section;
     } else if (Array.isArray(section)) {
-      return section.map(item => `- ${typeof item === 'string' ? item : JSON.stringify(item)}`).join('\n');
-    } else if (typeof section === 'object') {
-      return Object.entries(section)
-        .map(([key, value]) => `- **${key}**: ${typeof value === 'string' ? value : JSON.stringify(value)}`)
-        .join('\n');
+      // For arrays, show a summary and include minimized JSON
+      const summary = section.length > 0 ? `${section.length} items` : 'Empty array';
+      return `${summary}\n\n\`\`\`json\n${this.minimizeJson(section)}\n\`\`\``;
+    } else if (typeof section === 'object' && section !== null) {
+      // For objects, show key summary and include minimized JSON
+      const keys = Object.keys(section);
+      const summary = keys.length > 0 ? `Keys: ${keys.join(', ')}` : 'Empty object';
+      return `${summary}\n\n\`\`\`json\n${this.minimizeJson(section)}\n\`\`\``;
     }
-    return JSON.stringify(section);
+    return `\`\`\`json\n${this.minimizeJson(section)}\n\`\`\``;
   }
 
   /**

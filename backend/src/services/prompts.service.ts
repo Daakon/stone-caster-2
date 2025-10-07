@@ -567,6 +567,13 @@ Remember: Keep responses immersive, consistent with the world's tone, and approp
   }
 
   /**
+   * Calculate token count for a prompt (public method for use by other services)
+   */
+  calculateTokenCount(prompt: string): number {
+    return this.estimateTokenCount(prompt);
+  }
+
+  /**
    * Count variables in context object
    */
   private countVariables(context: PromptContext): number {

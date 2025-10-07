@@ -231,8 +231,9 @@ export const TurnDTOSchema = z.object({
   factionDeltas: z.record(z.string(), z.number()).optional(),
   castingStonesBalance: z.number().int().min(0),
   createdAt: z.string().datetime(),
-  // Debug field for development - includes the full prompt sent to AI
+  // Debug fields for development - includes the full prompt sent to AI
   debugPrompt: z.string().optional(),
+  promptTokenCount: z.number().int().min(0).optional(),
   // Explicitly exclude internal fields:
   // - state_snapshot (internal)
   // - prompt_text (internal)

@@ -169,7 +169,7 @@ export function replaceTemplateVariables(
     }
     
     if (typeof value === 'object') {
-      return JSON.stringify(value);
+      return JSON.stringify(value, null, 0); // Minimize JSON
     }
     
     return String(value);
