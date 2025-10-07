@@ -3,6 +3,7 @@ import { join, resolve, basename, extname } from 'path';
 
 /**
  * Template bundle structure for organizing prompt templates
+ * @deprecated Use the new file-based template system instead
  */
 export type TemplateBundle = {
   core: { 
@@ -10,7 +11,6 @@ export type TemplateBundle = {
     safety?: string; 
     formatting?: string; 
     tools?: string; 
-    saveInstructions?: string;
     [k: string]: string | undefined 
   };
   world: { 
@@ -20,6 +20,21 @@ export type TemplateBundle = {
     [k: string]: string | undefined 
   };
   adventures?: Record<string, string>; // keyed by adventure slug or filename
+};
+
+/**
+ * New file-based template system result
+ */
+export type FileBasedTemplateResult = {
+  prompt: string;
+  filesLoaded: string[];
+  variablesReplaced: Record<string, string>;
+  metadata: {
+    templatePath: string;
+    totalFiles: number;
+    tokenCount: number;
+    assembledAt: string;
+  };
 };
 
 /**
@@ -46,9 +61,6 @@ class FSTemplateLoader {
     this.coreDir = join(this.projectRoot, 'GPT Prompts', 'Core');
     this.worldsDir = join(this.projectRoot, 'GPT Prompts', 'Worlds');
     
-    console.log(`[TEMPLATE_REGISTRY] Initialized with project root: ${this.projectRoot}`);
-    console.log(`[TEMPLATE_REGISTRY] Core directory: ${this.coreDir}`);
-    console.log(`[TEMPLATE_REGISTRY] Worlds directory: ${this.worldsDir}`);
   }
 
   /**
@@ -57,20 +69,16 @@ class FSTemplateLoader {
   async loadTemplatesForWorld(worldSlug: string): Promise<TemplateBundle> {
     const normalizedSlug = this.normalizeWorldSlug(worldSlug);
     
-    console.log(`[TEMPLATE_REGISTRY] Loading templates for world: ${normalizedSlug}`);
     
     try {
       // Load core templates
       const core = await this.loadCoreTemplates();
-      console.log(`[TEMPLATE_REGISTRY] Loaded ${Object.keys(core).length} core templates`);
       
       // Load world-specific templates
       const world = await this.loadWorldTemplates(normalizedSlug);
-      console.log(`[TEMPLATE_REGISTRY] Loaded ${Object.keys(world).length} world templates`);
       
       // Load adventure templates
       const adventures = await this.loadAdventureTemplates(normalizedSlug);
-      console.log(`[TEMPLATE_REGISTRY] Loaded ${Object.keys(adventures).length} adventure templates`);
       
       const bundle: TemplateBundle = { core, world, adventures };
       
@@ -80,8 +88,6 @@ class FSTemplateLoader {
         throw new PromptTemplateMissingError(normalizedSlug);
       }
       
-      const totalFiles = Object.keys(core).length + Object.keys(world).length + Object.keys(adventures).length;
-      console.log(`[TEMPLATE_REGISTRY] PromptTemplatesResolved { world: ${normalizedSlug}, source: 'fs', files: ${totalFiles} }`);
       
       return bundle;
     } catch (error) {
@@ -106,6 +112,7 @@ class FSTemplateLoader {
 
     try {
       const files = readdirSync(this.coreDir, { withFileTypes: true });
+      const loadedFiles: string[] = [];
       
       for (const file of files) {
         if (file.isFile() && this.isTemplateFile(file.name)) {
@@ -116,9 +123,14 @@ class FSTemplateLoader {
             const key = this.mapCoreFileToKey(file.name);
             if (key) {
               core[key] = content;
+              loadedFiles.push(`Core/${file.name}`);
             }
           }
         }
+      }
+
+      if (loadedFiles.length > 0) {
+        console.log(`[TEMPLATE_REGISTRY] Loaded core files: ${loadedFiles.join(', ')}`);
       }
     } catch (error) {
       console.warn(`[TEMPLATE_REGISTRY] Error loading core templates:`, error);
@@ -151,6 +163,7 @@ class FSTemplateLoader {
 
     try {
       const files = readdirSync(worldDir, { withFileTypes: true });
+      const loadedFiles: string[] = [];
       
       for (const file of files) {
         if (file.isFile() && this.isTemplateFile(file.name)) {
@@ -161,9 +174,14 @@ class FSTemplateLoader {
             const key = this.mapWorldFileToKey(file.name, worldSlug);
             if (key) {
               world[key] = content;
+              loadedFiles.push(`Worlds/${worldSlug}/${file.name}`);
             }
           }
         }
+      }
+
+      if (loadedFiles.length > 0) {
+        console.log(`[TEMPLATE_REGISTRY] Loaded world files: ${loadedFiles.join(', ')}`);
       }
     } catch (error) {
       console.warn(`[TEMPLATE_REGISTRY] Error loading world templates for ${worldSlug}:`, error);
@@ -194,6 +212,7 @@ class FSTemplateLoader {
 
     try {
       const files = readdirSync(worldDir, { withFileTypes: true });
+      const loadedFiles: string[] = [];
       
       for (const file of files) {
         if (file.isFile() && file.name.startsWith('adventure.') && file.name.endsWith('.json')) {
@@ -204,8 +223,13 @@ class FSTemplateLoader {
             // Extract adventure slug from filename: adventure.falebridge.json -> falebridge
             const slug = file.name.replace('adventure.', '').replace('.json', '');
             adventures[slug] = content;
+            loadedFiles.push(`Worlds/${worldSlug}/${file.name}`);
           }
         }
+      }
+
+      if (loadedFiles.length > 0) {
+        console.log(`[TEMPLATE_REGISTRY] Loaded adventure files: ${loadedFiles.join(', ')}`);
       }
     } catch (error) {
       console.warn(`[TEMPLATE_REGISTRY] Error loading adventure templates for ${worldSlug}:`, error);
@@ -224,7 +248,8 @@ class FSTemplateLoader {
     if (nameWithoutExt === 'engine.system') return 'system';
     if (nameWithoutExt === 'systems.unified') return 'tools';
     if (nameWithoutExt === 'style.ui-global') return 'formatting';
-    if (nameWithoutExt === 'save.instructions') return 'saveInstructions';
+    // Skip save instructions - not needed for AI prompts
+    if (nameWithoutExt === 'save.instructions') return null;
     if (nameWithoutExt === 'agency.presence-and-guardrails') return 'safety';
     
     // Include other core files under their basename
@@ -340,7 +365,206 @@ const fsLoader = new FSTemplateLoader();
 
 /**
  * Get templates for a specific world using filesystem provider
+ * @deprecated Use the new file-based template system instead
  */
 export async function getTemplatesForWorld(worldSlug: string): Promise<TemplateBundle> {
   return fsLoader.loadTemplatesForWorld(worldSlug);
+}
+
+/**
+ * New file-based template system
+ * Loads and processes the stone_caster_mvp_webapp_prompt_template_just_add_files.md template
+ */
+export class FileBasedTemplateLoader {
+  private readonly projectRoot: string;
+  private readonly templatePath: string;
+
+  constructor() {
+    this.projectRoot = resolve(process.cwd());
+    this.templatePath = join(this.projectRoot, 'src', 'prompting', 'stone_caster_mvp_webapp_prompt_template_just_add_files.md');
+  }
+
+  /**
+   * Load and process the file-based template for a specific world
+   */
+  async loadTemplateForWorld(
+    worldSlug: string, 
+    context: {
+      turn: number;
+      scene_id: string;
+      phase: string;
+      time_block_json: string;
+      weather_json: string;
+      player_min_json: string;
+      party_min_json: string;
+      flags_json: string;
+      last_outcome_min_json: string;
+    }
+  ): Promise<FileBasedTemplateResult> {
+    try {
+      // Check if template file exists
+      if (!existsSync(this.templatePath)) {
+        throw new Error(`Template file not found: ${this.templatePath}`);
+      }
+
+      // Read the template file
+      let template = readFileSync(this.templatePath, 'utf-8');
+      const filesLoaded: string[] = [];
+      const variablesReplaced: Record<string, string> = {};
+
+      // Replace variables in the template
+      const variableReplacements = {
+        '{{turn}}': context.turn.toString(),
+        '{{scene_id}}': context.scene_id,
+        '{{phase}}': context.phase,
+        '{{time_block_json}}': context.time_block_json,
+        '{{weather_json}}': context.weather_json,
+        '{{player_min_json}}': context.player_min_json,
+        '{{party_min_json}}': context.party_min_json,
+        '{{flags_json}}': context.flags_json,
+        '{{last_outcome_min_json}}': context.last_outcome_min_json,
+      };
+
+      for (const [placeholder, value] of Object.entries(variableReplacements)) {
+        if (template.includes(placeholder)) {
+          template = template.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), value);
+          variablesReplaced[placeholder] = value;
+        }
+      }
+
+      // Process file placeholders (<<<FILE ... >>>)
+      const filePlaceholderRegex = /<<<FILE\s+([^>]+?)>>>/gs;
+      let match;
+      
+      while ((match = filePlaceholderRegex.exec(template)) !== null) {
+        // Extract just the first line (file path) from the captured content
+        const filePath = match[1].split('\n')[0].trim();
+        const fullPath = this.resolveFilePath(filePath, worldSlug);
+        
+        if (existsSync(fullPath)) {
+          const fileContent = this.readFileSafely(fullPath);
+          if (fileContent) {
+            template = template.replace(match[0], fileContent);
+            filesLoaded.push(filePath);
+          } else {
+            // If file can't be read, replace with a placeholder
+            template = template.replace(match[0], `[FILE NOT FOUND: ${filePath}]`);
+            console.warn(`[TEMPLATE_LOADER] Could not read file: ${fullPath}`);
+          }
+        } else {
+          // If file doesn't exist, replace with a placeholder
+          template = template.replace(match[0], `[FILE NOT FOUND: ${filePath}]`);
+          console.warn(`[TEMPLATE_LOADER] File not found: ${fullPath}`);
+        }
+      }
+
+      // Estimate token count
+      const tokenCount = Math.ceil(template.length / 4);
+
+      return {
+        prompt: template,
+        filesLoaded,
+        variablesReplaced,
+        metadata: {
+          templatePath: this.templatePath,
+          totalFiles: filesLoaded.length,
+          tokenCount,
+          assembledAt: new Date().toISOString(),
+        },
+      };
+    } catch (error) {
+      console.error('[TEMPLATE_LOADER] Error loading file-based template:', error);
+      throw new Error(`Failed to load template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Resolve file path based on the template's file references
+   */
+  private resolveFilePath(filePath: string, worldSlug: string): string {
+    // Handle different file path patterns from the template
+    if (filePath.startsWith('Core/')) {
+      return join(this.projectRoot, '..', 'GPT Prompts', 'Core', filePath.replace('Core/', ''));
+    }
+    
+    if (filePath.startsWith('Worlds/')) {
+      // Handle world files like "Worlds/Mystika/world-codex.mystika-logic.json"
+      return join(this.projectRoot, '..', 'GPT Prompts', filePath);
+    }
+    
+    // Default: assume it's in the GPT Prompts directory
+    return join(this.projectRoot, '..', 'GPT Prompts', filePath);
+  }
+
+  /**
+   * Capitalize first letter
+   */
+  private capitalizeFirst(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  /**
+   * Safely read file content with error handling
+   */
+  private readFileSafely(filePath: string): string | null {
+    try {
+      const content = readFileSync(filePath, 'utf-8');
+      const ext = extname(filePath).toLowerCase();
+      
+      // Minimize JSON files before embedding them in prompts
+      if (ext === '.json') {
+        return this.minimizeJson(content);
+      }
+      
+      return content;
+    } catch (error) {
+      console.warn(`[TEMPLATE_LOADER] Could not read file ${filePath}:`, error);
+      return null;
+    }
+  }
+  
+  /**
+   * Minimize JSON content by removing comments, whitespace, and formatting
+   */
+  private minimizeJson(content: string): string {
+    try {
+      // Remove JSON comments (// and /* */ style comments)
+      let cleaned = content
+        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
+        .replace(/\/\/.*$/gm, '') // Remove // comments
+        .replace(/^\s*[\r\n]/gm, '') // Remove empty lines
+        .trim();
+      
+      // Parse and re-stringify to ensure valid JSON and remove extra whitespace
+      const parsed = JSON.parse(cleaned);
+      return JSON.stringify(parsed, null, 0);
+    } catch (error) {
+      // If parsing fails, return the original content
+      console.warn(`[TEMPLATE_LOADER] Failed to parse JSON for minimization:`, error);
+      return content;
+    }
+  }
+}
+
+// Singleton instance for the new file-based template loader
+const fileBasedLoader = new FileBasedTemplateLoader();
+
+/**
+ * Get file-based template for a specific world
+ */
+export async function getFileBasedTemplateForWorld(
+  worldSlug: string,
+  context: {
+    turn: number;
+    scene_id: string;
+    phase: string;
+    time_block_json: string;
+    weather_json: string;
+    player_min_json: string;
+    party_min_json: string;
+    flags_json: string;
+    last_outcome_min_json: string;
+  }
+): Promise<FileBasedTemplateResult> {
+  return fileBasedLoader.loadTemplateForWorld(worldSlug, context);
 }

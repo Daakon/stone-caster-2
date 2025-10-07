@@ -69,9 +69,6 @@ export class PromptAssembler {
     const prompt = this.createFinalPrompt(assembledSegments, context);
     
     // Log prompt assembly details
-    console.log(`[PROMPT_ASSEMBLER] Assembled prompt with ${assembledSegments.length} segments`);
-    console.log(`[PROMPT_ASSEMBLER] Final prompt length: ${prompt.length} characters`);
-    console.log(`[PROMPT_ASSEMBLER] Templates used: ${templateIds.join(', ')}`);
     
     // Create audit entry
     const audit: PromptAuditEntry = {
@@ -187,11 +184,12 @@ export class PromptAssembler {
    */
   private createFinalPrompt(segments: string[], context: PromptContext): string {
     const header = this.createPromptHeader(context);
+    const templateInfo = this.createTemplateInfoHeader(segments);
     const body = segments.join('\n\n');
     const footer = this.createPromptFooter(context);
     
     // Minimize newlines and clean up the final prompt
-    const fullPrompt = `${header}\n\n${body}\n\n${footer}`.trim();
+    const fullPrompt = `${header}\n\n${templateInfo}\n\n${body}\n\n${footer}`.trim();
     
     // Remove excessive newlines and escape characters
     return fullPrompt
@@ -203,11 +201,26 @@ export class PromptAssembler {
   }
 
   /**
+   * Create template information header showing which files are loaded
+   */
+  private createTemplateInfoHeader(segments: string[]): string {
+    const templateCount = segments.length;
+    return `## Template Information
+- **Total Templates Loaded**: ${templateCount}
+- **Template Sources**: Core system files, world-specific content, and adventure scenarios
+- **JSON Files**: Minimized and embedded in markdown code blocks for reference
+- **Character Data**: Name, race, skills, inventory, relationships, stats, and story flags
+- **Note**: Characters do not have levels or classes in this game system
+
+---`;
+  }
+
+  /**
    * Create prompt header with context summary
    */
   private createPromptHeader(context: PromptContext): string {
     const characterInfo = context.character 
-      ? `${context.character.name} (Level ${context.character.level} ${context.character.race} ${context.character.class})`
+      ? `${context.character.name} (${context.character.race})`
       : 'Guest Player';
     
     return `# RPG Storyteller AI System

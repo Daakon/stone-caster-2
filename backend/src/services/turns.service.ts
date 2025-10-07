@@ -91,21 +91,10 @@ export class TurnsService {
       // Build prompt using the new assembly system
       let prompt: string;
       try {
-        console.log(`[TURNS_SERVICE] Building prompt for game ${gameId}, option ${optionId}`);
         prompt = await this.buildPrompt(game, optionId);
-        console.log(`[TURNS_SERVICE] Successfully built prompt (${prompt.length} characters)`);
-        
-        // Log a preview of the cleaned prompt for debugging
-        const preview = prompt.length > 500 ? prompt.substring(0, 500) + '...' : prompt;
-        const tokenCount = promptsService.calculateTokenCount(prompt);
-        console.log(`[TURNS_SERVICE] Prompt preview (cleaned and minimized, ${tokenCount} tokens):`);
-        console.log('─'.repeat(60));
-        console.log(preview);
-        console.log('─'.repeat(60));
       } catch (error) {
         console.error('[TURNS_SERVICE] Error building prompt:', error);
         if (error instanceof ServiceError) {
-          console.log(`[TURNS_SERVICE] Returning ServiceError: ${error.error.code} - ${error.error.message}`);
           return {
             success: false,
             error: error.error.code,

@@ -3,7 +3,7 @@ import { supabaseAdmin } from './supabase.js';
 import { configService } from '../config/index.js';
 import { PromptAssembler } from '../prompts/assembler.js';
 import { debugService } from './debug.service.js';
-import { getTemplatesForWorld, PromptTemplateMissingError } from '../prompting/templateRegistry.js';
+import { getTemplatesForWorld, PromptTemplateMissingError, getFileBasedTemplateForWorld } from '../prompting/templateRegistry.js';
 import { ServiceError } from '../utils/serviceError.js';
 import { ApiErrorCode } from '@shared';
 import type { Character, WorldTemplate, Prompt } from '@shared';
@@ -25,11 +25,60 @@ export class PromptsService {
   }
 
   /**
-   * Create the initial AI prompt for a new game (before first turn)
+   * Create the initial AI prompt for a new game using the new file-based template system
    * @param game - Game context with state and metadata
    * @returns Formatted prompt string for game initialization
    */
   async createInitialPrompt(game: GameContext): Promise<string> {
+    try {
+      // Use the new file-based template system
+      const context = this.buildFileBasedTemplateContext(game, 'game_start');
+      const result = await getFileBasedTemplateForWorld(game.world_id, context);
+      
+      // Log to debug service
+      const promptId = debugService.logPrompt(
+        game.id,
+        0, // Initial prompt is turn 0
+        game.world_id,
+        game.character_id || 'Guest',
+        {
+          prompt: result.prompt,
+          audit: {
+            templateIds: result.filesLoaded,
+            version: '1.0.0',
+            hash: result.metadata.templatePath,
+            contextSummary: {
+              world: game.world_id,
+              turnIndex: 0,
+              character: game.character_id || 'Guest',
+            },
+            assembledAt: result.metadata.assembledAt,
+            tokenCount: result.metadata.tokenCount,
+          },
+          metadata: {
+            totalSegments: result.filesLoaded.length,
+            totalVariables: Object.keys(result.variablesReplaced).length,
+            loadOrder: result.filesLoaded,
+            warnings: undefined,
+          },
+        }
+      );
+      
+      console.log(`[PROMPTS_SERVICE] Created initial prompt using file-based template. Files loaded: ${result.filesLoaded.join(', ')}`);
+      
+      return result.prompt;
+    } catch (error) {
+      console.error('Error creating initial prompt with file-based template:', error);
+      // Fallback to old system
+      return this.createInitialPromptLegacy(game);
+    }
+  }
+
+  /**
+   * Legacy method for creating initial prompts (fallback)
+   * @deprecated Use the new file-based template system instead
+   */
+  private async createInitialPromptLegacy(game: GameContext): Promise<string> {
     try {
       // Get prompt schema version from config
       const aiConfig = configService.getAi();
@@ -65,14 +114,6 @@ export class PromptsService {
         result
       );
       
-      // Log audit information
-      console.log('Initial prompt assembled:', {
-        promptId,
-        templateCount: result.metadata.totalSegments,
-        tokenCount: result.audit.tokenCount,
-        world: result.audit.contextSummary.world,
-        turn: result.audit.contextSummary.turnIndex,
-      });
       
       return result.prompt;
     } catch (error) {
@@ -96,12 +137,61 @@ export class PromptsService {
   }
 
   /**
-   * Build a prompt for AI generation based on game context
+   * Build a prompt for AI generation using the new file-based template system
    * @param game - Game context with state and metadata
    * @param optionId - The option/action the player chose
    * @returns Formatted prompt string (server-only, never sent to client)
    */
   async buildPrompt(game: GameContext, optionId: string): Promise<string> {
+    try {
+      // Use the new file-based template system
+      const context = this.buildFileBasedTemplateContext(game, optionId);
+      const result = await getFileBasedTemplateForWorld(game.world_id, context);
+      
+      // Log to debug service
+      const promptId = debugService.logPrompt(
+        game.id,
+        game.turn_index,
+        game.world_id,
+        game.character_id || 'Guest',
+        {
+          prompt: result.prompt,
+          audit: {
+            templateIds: result.filesLoaded,
+            version: '1.0.0',
+            hash: result.metadata.templatePath,
+            contextSummary: {
+              world: game.world_id,
+              turnIndex: game.turn_index,
+              character: game.character_id || 'Guest',
+            },
+            assembledAt: result.metadata.assembledAt,
+            tokenCount: result.metadata.tokenCount,
+          },
+          metadata: {
+            totalSegments: result.filesLoaded.length,
+            totalVariables: Object.keys(result.variablesReplaced).length,
+            loadOrder: result.filesLoaded,
+            warnings: undefined,
+          },
+        }
+      );
+      
+      console.log(`[PROMPTS_SERVICE] Created prompt using file-based template. Files loaded: ${result.filesLoaded.join(', ')}`);
+      
+      return result.prompt;
+    } catch (error) {
+      console.error('Error building prompt with file-based template:', error);
+      // Fallback to old system
+      return this.buildPromptLegacy(game, optionId);
+    }
+  }
+
+  /**
+   * Legacy method for building prompts (fallback)
+   * @deprecated Use the new file-based template system instead
+   */
+  private async buildPromptLegacy(game: GameContext, optionId: string): Promise<string> {
     try {
       // Get prompt schema version from config
       const aiConfig = configService.getAi();
@@ -137,14 +227,6 @@ export class PromptsService {
         result
       );
       
-      // Log audit information
-      console.log('Prompt assembled:', {
-        promptId,
-        templateCount: result.metadata.totalSegments,
-        tokenCount: result.audit.tokenCount,
-        world: result.audit.contextSummary.world,
-        turn: result.audit.contextSummary.turnIndex,
-      });
       
       return result.prompt;
     } catch (error) {
@@ -179,9 +261,7 @@ export class PromptsService {
     return {
       character: character ? {
         name: character.name,
-        level: character.level,
         race: character.race,
-        class: character.class,
         skills: character.skills ? Object.fromEntries(character.skills.map(skill => [skill, 1])) : undefined,
         inventory: character.inventory?.map(item => item.name) || [],
         relationships: character.worldData?.relationships || {},
@@ -257,9 +337,7 @@ export class PromptsService {
     return {
       character: character ? {
         name: character.name,
-        level: character.level,
         race: character.race,
-        class: character.class,
         skills: character.skills ? Object.fromEntries(character.skills.map(skill => [skill, 1])) : undefined,
         inventory: character.inventory?.map(item => item.name) || [],
         relationships: character.worldData?.relationships || {},
@@ -333,6 +411,62 @@ export class PromptsService {
     const characterInfo = game.character_id ? `Character: ${game.character_id}` : 'Guest Player';
     
     return `Game Start | ${worldInfo} | ${characterInfo}`;
+  }
+
+  /**
+   * Build context for the file-based template system
+   */
+  private buildFileBasedTemplateContext(game: GameContext, optionId: string): {
+    turn: number;
+    scene_id: string;
+    phase: string;
+    time_block_json: string;
+    weather_json: string;
+    player_min_json: string;
+    party_min_json: string;
+    flags_json: string;
+    last_outcome_min_json: string;
+  } {
+    // Extract current scene and phase from game state
+    const currentScene = game.state_snapshot?.current_scene || 'opening';
+    const currentPhase = game.state_snapshot?.current_phase || 'start';
+    
+    // Build minimal JSON objects for the template
+    const timeBlock = {
+      hour: game.state_snapshot?.time?.hour || 12,
+      day: game.state_snapshot?.time?.day || 1,
+      season: game.state_snapshot?.time?.season || 'spring'
+    };
+    
+    const weather = {
+      condition: game.state_snapshot?.weather?.condition || 'clear',
+      temperature: game.state_snapshot?.weather?.temperature || 'mild'
+    };
+    
+    const player = game.character_id ? {
+      id: game.character_id,
+      name: game.state_snapshot?.character?.name || 'Unknown',
+      race: game.state_snapshot?.character?.race || 'Human',
+      level: game.state_snapshot?.character?.level || 1
+    } : null;
+    
+    const party = game.state_snapshot?.party || [];
+    
+    const flags = game.state_snapshot?.flags || {};
+    
+    const lastOutcome = game.state_snapshot?.last_outcome || null;
+    
+    return {
+      turn: game.turn_index,
+      scene_id: currentScene,
+      phase: currentPhase,
+      time_block_json: JSON.stringify(timeBlock),
+      weather_json: JSON.stringify(weather),
+      player_min_json: JSON.stringify(player),
+      party_min_json: JSON.stringify(party),
+      flags_json: JSON.stringify(flags),
+      last_outcome_min_json: JSON.stringify(lastOutcome)
+    };
   }
 
   private async loadWorldTemplate(worldSlug: string): Promise<WorldTemplate | null> {

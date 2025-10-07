@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { configService } from '../config/index.js';
+import { promptsService } from './prompts.service.js';
 import type { AIResponse, StoryAction, GameSave, Character } from '@shared';
 
 const env = configService.getEnv();
@@ -24,32 +25,19 @@ export class AIService {
     return configService.getAi().activeModel;
   }
 
-  private buildSystemPrompt(context: StoryContext): string {
-    return `You are an AI Game Master for a role-playing game. Your role is to:
-- Create engaging, immersive narratives
-- Respond to player actions dynamically
-- Maintain emotional continuity and world consistency
-- Give NPCs agency and believable personalities
-- Apply game mechanics fairly
+  private async buildSystemPrompt(context: StoryContext): Promise<string> {
+    // Use the template system instead of hardcoded strings
+    const gameContext = {
+      id: context.gameSave.id,
+      world_id: context.gameSave.worldTemplateId, // Use worldTemplateId instead of worldSlug
+      character_id: context.character.id,
+      state_snapshot: context.gameSave.storyState,
+      turn_index: context.gameSave.storyState.history.length,
+    };
 
-Current Context:
-- Character: ${context.character.name} (Level ${context.character.level} ${context.character.race} ${context.character.class})
-- Setting: ${context.gameSave.storyState.currentScene}
-- World State: ${JSON.stringify(context.gameSave.storyState.worldState)}
-
-Respond with narrative text that advances the story, considering:
-1. The player's recent action
-2. NPC personalities and relationships
-3. World state and consequences
-4. Emotional tone and atmosphere
-5. Suggest 2-3 possible next actions
-
-Format your response as JSON with:
-- narrative: string (the story text)
-- emotion: string (overall emotional tone)
-- npcResponses: array of NPC reactions (if applicable)
-- worldStateChanges: object with any world state updates
-- suggestedActions: array of suggested player actions`;
+    // Build prompt using the template system
+    // Use action type as optionId since StoryAction doesn't have an id
+    return await promptsService.buildPrompt(gameContext, context.action.type);
   }
 
   private buildConversationHistory(gameSave: GameSave): Array<{ role: 'user' | 'assistant'; content: string }> {
@@ -62,7 +50,7 @@ Format your response as JSON with:
   async generateStoryResponse(context: StoryContext): Promise<AIResponse> {
     try {
       const model = await this.getActiveModel();
-      const systemPrompt = this.buildSystemPrompt(context);
+      const systemPrompt = await this.buildSystemPrompt(context);
       const conversationHistory = this.buildConversationHistory(context.gameSave);
 
       const response = await openai.chat.completions.create({
@@ -201,21 +189,7 @@ Format your response as JSON with:
       }
       
       const model = await this.getActiveModel();
-      console.log(`[AI_SERVICE] Using model: ${model}`);
       
-      console.log('[AI_SERVICE] Calling OpenAI API...');
-      
-      // Log the cleaned prompt being sent to AI (actual string, not JSON-encoded)
-      const tokenCount = Math.ceil(prompt.length / 4); // Rough token estimation
-      console.log(`[AI_SERVICE] Sending prompt to AI (${prompt.length} chars, ~${tokenCount} tokens)`);
-      console.log('='.repeat(80));
-      console.log('PROMPT START (this is the exact string sent to AI):');
-      console.log('='.repeat(80));
-      const aiPromptPreview = prompt.length > 1500 ? prompt.substring(0, 1500) + '\n\n... (truncated)' : prompt;
-      console.log(aiPromptPreview);
-      console.log('='.repeat(80));
-      console.log('PROMPT END');
-      console.log('='.repeat(80));
       
       const response = await openai.chat.completions.create({
         model,
@@ -232,7 +206,6 @@ Format your response as JSON with:
         throw new Error('No response from AI');
       }
 
-      console.log('[AI_SERVICE] Successfully received AI response');
       return content;
     } catch (error) {
       console.error('[AI_SERVICE] Error generating turn response:', error);

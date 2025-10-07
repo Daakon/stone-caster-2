@@ -1,0 +1,32 @@
+{
+"id": "adv.whispercross.prompt.v2",
+"title": "Whispercross Glade",
+"scenes": [
+{
+"id": "camp_edge",
+"goal": "Scout the slaver perimeter without raising alarm.",
+"tags": ["scout","approach_safely"],
+"gates": [
+{"if":"alert_clock>=2","then":"reduce choices to stealthy options"}
+],
+"next_hooks": ["torchline","supply_wagon","back_fence"],
+"npcs_present": ["kiera","patrol_pair"],
+"places": ["torchline","watch_post"]
+}
+],
+"npcs": [
+{"id":"kiera","role":"panther_shifter","one_line":"Coiled grace; eyes track every shadow.","archetype_ref":"panther_shifter"},
+{"id":"patrol_pair","role":"slaver_guards","one_line":"Casual until footfalls change; then rigid.","archetype_ref":"warden"}
+],
+"places": [
+{"id":"torchline","type":"perimeter","one_line":"Sputtering pitch torches every twenty paces."},
+{"id":"watch_post","type":"blind","one_line":"Makeshift crow's nest over stacked crates."}
+],
+"factions": [
+{"id":"wardens","stance":"ally|wary","notes":"Local order keepers with limited numbers"},
+{"id":"slavers","stance":"hostile","notes":"Operate from a hardened camp across the ravine"}
+],
+"events": [
+{"id":"shift_change","when":"night","effect":"guards rotate; stealth easier, persuasion harder"}
+]
+}
