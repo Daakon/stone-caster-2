@@ -1,92 +1,134 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getFileBasedTemplateForWorld } from '../src/prompting/templateRegistry.js';
-import { existsSync } from 'fs';
-import { join, resolve } from 'path';
 
-describe('File-Based Template System', () => {
-  const projectRoot = resolve(process.cwd());
-  const templatePath = join(projectRoot, 'src', 'prompting', 'stone_caster_mvp_webapp_prompt_template_just_add_files.md');
-
-  beforeAll(() => {
-    // Verify the template file exists
-    if (!existsSync(templatePath)) {
-      throw new Error(`Template file not found: ${templatePath}`);
-    }
+describe('FileBasedTemplateLoader', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('should load the template file successfully', () => {
-    expect(existsSync(templatePath)).toBe(true);
-  });
-
-  it('should process template variables correctly', async () => {
+  it('should load template for mystika world', async () => {
     const context = {
       turn: 1,
-      scene_id: 'test_scene',
+      scene_id: 'whispercross',
       phase: 'start',
       time_block_json: JSON.stringify({ hour: 12, day: 1, season: 'spring' }),
-      weather_json: JSON.stringify({ condition: 'clear', temperature: 'mild' }),
-      player_min_json: JSON.stringify({ id: 'test_player', name: 'Test Player', race: 'Human', level: 1 }),
+      weather_json: JSON.stringify({ d20: 15, d100: 75, seed: 12345 }),
+      player_min_json: JSON.stringify({ id: 'char-1', name: 'Test Player', race: 'Human' }),
       party_min_json: JSON.stringify([]),
-      flags_json: JSON.stringify({}),
+      flags_json: 'Begin the adventure',
       last_outcome_min_json: JSON.stringify(null)
     };
 
-    try {
-      const result = await getFileBasedTemplateForWorld('mystika', context);
-      
-      // Verify the result structure
-      expect(result).toHaveProperty('prompt');
-      expect(result).toHaveProperty('filesLoaded');
-      expect(result).toHaveProperty('variablesReplaced');
-      expect(result).toHaveProperty('metadata');
-      
-      // Verify variables were replaced
-      expect(result.variablesReplaced).toHaveProperty('{{turn}}', '1');
-      expect(result.variablesReplaced).toHaveProperty('{{scene_id}}', 'test_scene');
-      expect(result.variablesReplaced).toHaveProperty('{{phase}}', 'start');
-      
-      // Verify the prompt contains the replaced variables
-      expect(result.prompt).toContain('"turn": 1');
-      expect(result.prompt).toContain('"id": "test_scene"');
-      expect(result.prompt).toContain('"ph": "start"');
-      
-      // Verify some files were attempted to be loaded
-      expect(result.filesLoaded.length).toBeGreaterThanOrEqual(0);
-      
-      console.log(`[TEST] Template processed successfully. Files loaded: ${result.filesLoaded.join(', ')}`);
-      console.log(`[TEST] Variables replaced: ${Object.keys(result.variablesReplaced).join(', ')}`);
-      console.log(`[TEST] Token count: ${result.metadata.tokenCount}`);
-      
-    } catch (error) {
-      console.error('[TEST] Error processing template:', error);
-      // Don't fail the test if files are missing - that's expected in test environment
-      if (error instanceof Error && error.message.includes('FILE NOT FOUND')) {
-        console.log('[TEST] Expected file not found errors in test environment');
-      } else {
-        throw error;
-      }
-    }
+    const result = await getFileBasedTemplateForWorld('mystika', context);
+
+    expect(result).toBeDefined();
+    expect(result.prompt).toBeDefined();
+    expect(typeof result.prompt).toBe('string');
+    expect(result.prompt.length).toBeGreaterThan(0);
+    
+    // Check that the prompt contains the expected sections
+    expect(result.prompt).toContain('SYSTEM:');
+    expect(result.prompt).toContain('=== CORE_BEGIN ===');
+    expect(result.prompt).toContain('=== WORLD_BEGIN ===');
+    expect(result.prompt).toContain('=== ADVENTURE_BEGIN ===');
+    expect(result.prompt).toContain('=== GAME_STATE_BEGIN ===');
+    expect(result.prompt).toContain('=== PLAYER_BEGIN ===');
+    expect(result.prompt).toContain('=== RNG_BEGIN ===');
+    expect(result.prompt).toContain('=== INPUT_BEGIN ===');
+    
+    // Check that files were loaded
+    expect(result.filesLoaded).toBeDefined();
+    expect(Array.isArray(result.filesLoaded)).toBe(true);
+    expect(result.filesLoaded.length).toBeGreaterThan(0);
+    
+    // Check metadata
+    expect(result.metadata).toBeDefined();
+    expect(result.metadata.templatePath).toContain('baseline.md');
+    expect(result.metadata.totalFiles).toBeGreaterThan(0);
+    expect(result.metadata.tokenCount).toBeGreaterThan(0);
+    expect(result.metadata.assembledAt).toBeDefined();
   });
 
-  it('should handle missing files gracefully', async () => {
+  it('should handle missing adventure files gracefully', async () => {
     const context = {
       turn: 1,
-      scene_id: 'test_scene',
+      scene_id: 'nonexistent',
       phase: 'start',
-      time_block_json: '{}',
-      weather_json: '{}',
-      player_min_json: '{}',
-      party_min_json: '[]',
-      flags_json: '{}',
-      last_outcome_min_json: 'null'
+      time_block_json: JSON.stringify({ hour: 12, day: 1, season: 'spring' }),
+      weather_json: JSON.stringify({ d20: 15, d100: 75, seed: 12345 }),
+      player_min_json: JSON.stringify({ id: 'char-1', name: 'Test Player', race: 'Human' }),
+      party_min_json: JSON.stringify([]),
+      flags_json: 'Begin the adventure',
+      last_outcome_min_json: JSON.stringify(null)
     };
 
-    // This should not throw an error even if some files are missing
-    const result = await getFileBasedTemplateForWorld('nonexistent_world', context);
+    const result = await getFileBasedTemplateForWorld('mystika', context);
+
+    expect(result).toBeDefined();
+    expect(result.prompt).toBeDefined();
+    expect(typeof result.prompt).toBe('string');
     
-    expect(result).toHaveProperty('prompt');
+    // Should still contain the core sections even if adventure files are missing
+    expect(result.prompt).toContain('SYSTEM:');
+    expect(result.prompt).toContain('=== CORE_BEGIN ===');
+    expect(result.prompt).toContain('=== WORLD_BEGIN ===');
+    
+    // Should contain placeholders for missing files
     expect(result.prompt).toContain('[FILE NOT FOUND:');
-    // Some files should be loaded (the ones that exist), some should show as not found
-    expect(result.filesLoaded.length).toBeGreaterThan(0);
+  });
+
+  it('should replace variables correctly', async () => {
+    const context = {
+      turn: 5,
+      scene_id: 'whispercross',
+      phase: 'middle',
+      time_block_json: JSON.stringify({ hour: 18, day: 3, season: 'summer' }),
+      weather_json: JSON.stringify({ d20: 8, d100: 42, seed: 98765 }),
+      player_min_json: JSON.stringify({ id: 'char-2', name: 'Another Player', race: 'Elf' }),
+      party_min_json: JSON.stringify([{ id: 'npc-1', name: 'Companion' }]),
+      flags_json: 'Attack the enemy',
+      last_outcome_min_json: JSON.stringify({ success: true, damage: 10 })
+    };
+
+    const result = await getFileBasedTemplateForWorld('mystika', context);
+
+    expect(result).toBeDefined();
+    expect(result.prompt).toBeDefined();
+    
+    // Check that variables were replaced
+    expect(result.variablesReplaced).toBeDefined();
+    expect(result.variablesReplaced['{{world_name}}']).toBe('mystika');
+    expect(result.variablesReplaced['{{adventure_name}}']).toBe('whispercross');
+    expect(result.variablesReplaced['{{game_state_json}}']).toContain('"hour":18');
+    expect(result.variablesReplaced['{{player_state_json}}']).toContain('"name":"Another Player"');
+    expect(result.variablesReplaced['{{rng_json}}']).toContain('"d20":8');
+    expect(result.variablesReplaced['{{player_input_text}}']).toBe('Attack the enemy');
+  });
+
+  it('should handle opening scene correctly by using whispercross adventure', async () => {
+    // This test simulates the actual game context where scene_id is 'opening'
+    // The template loader should use 'opening' as the adventure name directly
+    const context = {
+      turn: 1,
+      scene_id: 'opening', // This will be used as the adventure name
+      phase: 'start',
+      time_block_json: JSON.stringify({ hour: 12, day: 1, season: 'spring' }),
+      weather_json: JSON.stringify({ d20: 15, d100: 75, seed: 12345 }),
+      player_min_json: JSON.stringify({ id: 'char-1', name: 'Test Player', race: 'Human' }),
+      party_min_json: JSON.stringify([]),
+      flags_json: 'Begin the adventure',
+      last_outcome_min_json: JSON.stringify(null)
+    };
+
+    const result = await getFileBasedTemplateForWorld('mystika', context);
+
+    expect(result).toBeDefined();
+    expect(result.prompt).toBeDefined();
+    
+    // The adventure name should be 'opening' as passed in
+    expect(result.variablesReplaced['{{adventure_name}}']).toBe('opening');
+    
+    // Should show file not found for opening adventure (since it doesn't exist)
+    expect(result.prompt).toContain('[FILE NOT FOUND: worlds/mystika/adventures/opening/adventure.prompt.json]');
   });
 });

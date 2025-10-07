@@ -381,7 +381,7 @@ export class FileBasedTemplateLoader {
 
   constructor() {
     this.projectRoot = resolve(process.cwd());
-    this.templatePath = join(this.projectRoot, 'src', 'prompting', 'stone_caster_mvp_webapp_prompt_template_just_add_files.md');
+    this.templatePath = join(this.projectRoot, 'AI API Prompts', 'baseline.md');
   }
 
   /**
@@ -414,15 +414,12 @@ export class FileBasedTemplateLoader {
 
       // Replace variables in the template
       const variableReplacements = {
-        '{{turn}}': context.turn.toString(),
-        '{{scene_id}}': context.scene_id,
-        '{{phase}}': context.phase,
-        '{{time_block_json}}': context.time_block_json,
-        '{{weather_json}}': context.weather_json,
-        '{{player_min_json}}': context.player_min_json,
-        '{{party_min_json}}': context.party_min_json,
-        '{{flags_json}}': context.flags_json,
-        '{{last_outcome_min_json}}': context.last_outcome_min_json,
+        '{{world_name}}': worldSlug,
+        '{{adventure_name}}': context.scene_id || 'default',
+        '{{game_state_json}}': context.time_block_json,
+        '{{player_state_json}}': context.player_min_json,
+        '{{rng_json}}': context.weather_json,
+        '{{player_input_text}}': context.flags_json,
       };
 
       for (const [placeholder, value] of Object.entries(variableReplacements)) {
@@ -483,17 +480,17 @@ export class FileBasedTemplateLoader {
    */
   private resolveFilePath(filePath: string, worldSlug: string): string {
     // Handle different file path patterns from the template
-    if (filePath.startsWith('Core/')) {
-      return join(this.projectRoot, '..', 'GPT Prompts', 'Core', filePath.replace('Core/', ''));
+    if (filePath.startsWith('core.prompt.json')) {
+      return join(this.projectRoot, 'AI API Prompts', 'core.prompt.json');
     }
     
-    if (filePath.startsWith('Worlds/')) {
-      // Handle world files like "Worlds/Mystika/world-codex.mystika-logic.json"
-      return join(this.projectRoot, '..', 'GPT Prompts', filePath);
+    if (filePath.startsWith('worlds/')) {
+      // Handle world files like "worlds/mystika/world.prompt.json"
+      return join(this.projectRoot, 'AI API Prompts', filePath);
     }
     
-    // Default: assume it's in the GPT Prompts directory
-    return join(this.projectRoot, '..', 'GPT Prompts', filePath);
+    // Default: assume it's in the AI API Prompts directory
+    return join(this.projectRoot, 'AI API Prompts', filePath);
   }
 
   /**

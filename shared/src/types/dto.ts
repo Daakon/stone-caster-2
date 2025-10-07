@@ -231,9 +231,49 @@ export const TurnDTOSchema = z.object({
   factionDeltas: z.record(z.string(), z.number()).optional(),
   castingStonesBalance: z.number().int().min(0),
   createdAt: z.string().datetime(),
-  // Debug fields for development - includes the full prompt sent to AI
+  // Debug fields for development
   debugPrompt: z.string().optional(),
   promptTokenCount: z.number().int().min(0).optional(),
+  // Character and state data for debugging
+  debugCharacter: z.object({
+    id: z.string().nullable(),
+    name: z.string(),
+    race: z.string(),
+    level: z.number().int(),
+    health: z.object({
+      current: z.number().int(),
+      max: z.number().int(),
+    }),
+    attributes: z.record(z.unknown()),
+    skills: z.record(z.unknown()),
+    inventory: z.array(z.unknown()),
+    relationships: z.record(z.unknown()),
+  }).optional(),
+  debugGameState: z.object({
+    currentScene: z.string(),
+    currentPhase: z.string(),
+    time: z.record(z.unknown()),
+    weather: z.record(z.unknown()),
+    flags: z.record(z.unknown()),
+    party: z.array(z.unknown()),
+    lastOutcome: z.unknown().nullable(),
+  }).optional(),
+  debugWorld: z.object({
+    id: z.string(),
+    name: z.string(),
+  }).optional(),
+  debugTurn: z.object({
+    index: z.number().int(),
+    optionId: z.string(),
+  }).optional(),
+  debugAiResponse: z.object({
+    hasChoices: z.boolean(),
+    choiceCount: z.number().int(),
+    hasNpcResponses: z.boolean(),
+    npcResponseCount: z.number().int(),
+    hasRelationshipDeltas: z.boolean(),
+    hasFactionDeltas: z.boolean(),
+  }).optional(),
   // Explicitly exclude internal fields:
   // - state_snapshot (internal)
   // - prompt_text (internal)

@@ -329,6 +329,9 @@ export class TurnsService {
     // Calculate token count for the prompt
     const promptTokenCount = debugPrompt ? promptsService.calculateTokenCount(debugPrompt) : undefined;
 
+    // Build separate debug fields
+    const debugFields = this.buildSeparateDebugFields(game, aiResponse);
+
     return {
       id: turnRecord.id,
       gameId: game.id,
@@ -341,8 +344,56 @@ export class TurnsService {
       factionDeltas: aiResponse.factionDeltas,
       castingStonesBalance: newBalance,
       createdAt: turnRecord.created_at,
-      debugPrompt: debugPrompt,
+      debugPrompt: debugPrompt, // Keep original prompt for debugging
       promptTokenCount: promptTokenCount,
+      ...debugFields, // Spread the separate debug fields
+    };
+  }
+
+  /**
+   * Build separate debug fields for character and state information
+   */
+  private buildSeparateDebugFields(game: any, aiResponse: TurnResponse): any {
+    return {
+      debugCharacter: {
+        id: game.character_id,
+        name: game.state_snapshot?.character?.name || 'Unknown',
+        race: game.state_snapshot?.character?.race || 'Unknown',
+        level: game.state_snapshot?.character?.level || 1,
+        health: {
+          current: game.state_snapshot?.character?.currentHealth || 100,
+          max: game.state_snapshot?.character?.maxHealth || 100,
+        },
+        attributes: game.state_snapshot?.character?.attributes || {},
+        skills: game.state_snapshot?.character?.skills || {},
+        inventory: game.state_snapshot?.character?.inventory || [],
+        relationships: game.state_snapshot?.character?.relationships || {},
+      },
+      debugGameState: {
+        currentScene: game.state_snapshot?.current_scene || 'unknown',
+        currentPhase: game.state_snapshot?.current_phase || 'unknown',
+        time: game.state_snapshot?.time || {},
+        weather: game.state_snapshot?.weather || {},
+        flags: game.state_snapshot?.flags || {},
+        party: game.state_snapshot?.party || [],
+        lastOutcome: game.state_snapshot?.last_outcome || null,
+      },
+      debugWorld: {
+        id: game.world_id,
+        name: game.world_name || 'Unknown World',
+      },
+      debugTurn: {
+        index: game.turn_count,
+        optionId: game.state_snapshot?.last_option_id || 'unknown',
+      },
+      debugAiResponse: {
+        hasChoices: (aiResponse.choices?.length || 0) > 0,
+        choiceCount: aiResponse.choices?.length || 0,
+        hasNpcResponses: (aiResponse.npcResponses?.length || 0) > 0,
+        npcResponseCount: aiResponse.npcResponses?.length || 0,
+        hasRelationshipDeltas: Object.keys(aiResponse.relationshipDeltas || {}).length > 0,
+        hasFactionDeltas: Object.keys(aiResponse.factionDeltas || {}).length > 0,
+      }
     };
   }
 

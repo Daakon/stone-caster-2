@@ -1,0 +1,91 @@
+{
+  "id": "world.mystika.prompt.v3",
+  "name": "Mystika",
+  "version": "3.0.0",
+
+  "timeworld": {
+    "bands": [
+      { "id": "dawn_to_mid_day",       "ticks": 60, "icon": "🌅" },
+      { "id": "mid_day_to_evening",    "ticks": 60, "icon": "☀️" },
+      { "id": "evening_to_mid_night",  "ticks": 60, "icon": "🌇" },
+      { "id": "mid_night_to_dawn",     "ticks": 60, "icon": "🌙" }
+    ],
+    "weather_states": ["clear","overcast","rain","fog"],
+    "weather_transition_bias": { "clear->rain": 0.10, "rain->clear": 0.25, "overcast->rain": 0.20, "fog->clear": 0.15 },
+    "notes": {
+      "dawn_to_mid_day": "Foraging and quiet travel favored.",
+      "mid_day_to_evening": "Heat fatigue risk in open areas.",
+      "evening_to_mid_night": "Patrol swaps; stealth opportunities rise.",
+      "mid_night_to_dawn": "Long sightlines worsen; ambush risk rises."
+    }
+  },
+
+  "magic": {
+    "domains": ["Creation","Destruction","Arcane","Void","Elemental:Fire","Elemental:Water","Elemental:Earth","Elemental:Air"],
+    "rules": [
+      "Large workings require time and focus; true long-range instant teleport is not possible.",
+      "Void corrupts outcomes; repeated use imposes narrative costs."
+    ]
+  },
+
+  "essence_behavior": {
+    "Life":  ["empathetic focus","protective responses","care for vulnerable"],
+    "Death": ["merit through hardship","acceptance of loss","pragmatic severity"],
+    "Order": ["structured dialogue","systematic plans","duty-first"],
+    "Chaos": ["topic-jumps","impulse moves","playful or volatile tone"]
+  },
+
+  "species_rules": {
+    "shifter": {
+      "onset": "puberty; control improves with practice",
+      "forms": ["human","spirit_animal","partial_shift"],
+      "communication": [
+        "in animal form: no speech",
+        "use natural signals: scent, posture, chuffs, ear/tail set"
+      ],
+      "costs": "shifting expends energy; increases hunger and fatigue more than normal exertion"
+    },
+    "human": { "notes": "Widely adaptable; prevalent in low-essence regions." },
+    "elf":   { "notes": "Long-lived; fine attunement to ritual traces." }
+  },
+
+  "identity_language": {
+    "linguistic_subs": {
+      "intel": "gleanings",
+      "kilometer": "league",
+      "okay": "very well",
+      "minutes": "ticks"
+    }
+  },
+
+  "factions_world": [
+    { "id": "glade_packs", "kind": "shifter_allies", "notes": "Decentralized packs opposing slavers; coordinate via runners." },
+    { "id": "slavers",     "kind": "raider_network", "notes": "Supply human cargo to distant wealthy markets." },
+    { "id": "unaligned_settlements", "kind": "neutral", "notes": "Towns with mixed loyalties; individuals may aid either side." }
+  ],
+
+  "trade_and_geography": {
+    "distant_markets": "Far-off cities host wealthy buyers; demand fuels slaver routes.",
+    "routes": ["forest_tracks","old_roads","river_paths"]
+  },
+
+  "lore_index": {
+    "include_policy": {
+      "by_tags": "Only include entries whose tags intersect current scene tags or player query intent.",
+      "max_entries": 3,
+      "entry_size": "≤120 chars each"
+    },
+    "entries": [
+      { "id": "races_shifters", "tags": ["species","shifters"], "text": "Shifters bind to a spirit animal; puberty unlocks partial/true forms." },
+      { "id": "races_humans",   "tags": ["species","human"],    "text": "Humans adapt quickly; small charms bridge essence gaps." },
+      { "id": "races_elves",    "tags": ["species","elf"],      "text": "Elves read ritual traces like currents; patient and precise." },
+      { "id": "region_whispercross","tags": ["place","forest"], "text": "Damp glades, ward-scarred roots, old paths watched by quiet eyes." },
+      { "id": "markets_distant","tags": ["trade","slavery"],    "text": "Distant cities drive demand; caravans pay for silence and speed." }
+    ]
+  },
+
+  "tone": {
+    "style": ["grounded high fantasy","sensory woods imagery","kinship under pressure"],
+    "taboos": ["modern slang","explicit tech jargon"]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "id": "adv.whispercross.start.v3",
+  "title": "Whispercross Opening",
+  "use_once": true,
+  "opening": {
+    "scene": "forest_meet",
+    "summary": "You cross into Whispercross at dusk. A wounded shifter (Kiera) shadows your path; captives remain at the small camp she fled."
+  },
+
+  "scenes": [
+    {
+      "id": "forest_meet",
+      "goal": "Encounter Kiera; assess the nearby threat.",
+      "tags": ["first_meet","evening_to_mid_night","stealth","rescue"],
+      "npcs_present": ["kiera"],
+      "places": ["forest_path"],
+      "script": [
+        "Kiera eases from brush, favoring her left side—claw score along ribs.",
+        "She chuffs (shifter signal), then words, controlled: 'Small camp ahead. Torch rhythm—count three, then gap.'"
+      ],
+      "facts": { "kiera_injured_minor": true, "nearby_small_camp": true },
+      "transitions": { "follow_kiera": "camp_edge", "head_to_rillford": "rillford_gate" }
+    },
+    {
+      "id": "rillford_gate",
+      "goal": "Reach Rillford; get bearings and salves.",
+      "tags": ["town","supplies","healer"],
+      "npcs_present": [],
+      "places": ["rillford_square","healer_shed","the_marrow_tavern"]
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "kiera",
+      "species": "Panther Shifter",
+      "essence_alignment": ["Life"],
+      "injuries": ["minor_rib_gash"],
+      "notes": [
+        "Cannot speak in full animal form; communicates by posture/chuffs.",
+        "Shifting drains energy; needs food/rest sooner after shifts."
+      ],
+      "goals": { "short_term": ["scout perimeter","free nearest captives"], "long_term": ["secure whisper glade"] }
+    }
+  ],
+
+  "places": [
+    { "id": "forest_path",    "type": "trail",  "desc": "Drizzle dampens sound; ward-scarred roots underfoot." },
+    { "id": "rillford_gate",  "type": "gate",   "desc": "Lanterns and a nod from the watch." }
+  ],
+
+  "first_objective": {
+    "id": "rescue_captives_now",
+    "description": "Rescue the people Kiera escaped from at the small camp.",
+    "branch": {
+      "if_player_declines": "Kiera recommends returning to the Glade to gather allies before attempting the rescue."
+    }
+  },
+
+  "on_start_effects": [
+    { "act": "FLAG_SET", "payload": { "kiera_met": true } },
+    { "act": "REL_DELTA", "payload": { "who": "kiera", "key": "trust", "delta": 5, "why": "PC heeds her warning at first contact" } }
+  ]
+}

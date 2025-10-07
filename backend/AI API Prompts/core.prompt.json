@@ -1,0 +1,217 @@
+{
+  "id": "core.prompt.v3",
+  "contract": {
+    "awf_return": "Return exactly one JSON object with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys.",
+    "scn.phases": ["scene_preamble","scene_body","outcome_render","choice_menu_render","post_outcome_reflection"],
+    "txt.policy": "2-6 sentences, cinematic, second-person. No mechanics in txt; all mechanics/deltas in acts.",
+    "choices.policy": "Only when a menu is available; 1-5 items; label <= 48 chars.",
+    "acts.policy": "All state changes as actions. Include exactly one TIME_ADVANCE per turn in ticks.",
+    "val.policy": "Use val for recoverable issues; keep brief and diegetic."
+  },
+
+  "identity_rules": [
+    "Use known names if learned; otherwise an alias or descriptive moniker.",
+    "Append faction only when a name is hidden and context requires it."
+  ],
+
+  "turn_rules": {
+    "discipline": [
+      "Respect scene phase locks.",
+      "Mechanics/deltas only in acts.",
+      "One TIME_ADVANCE per turn (ticks >= 1).",
+      "Resolve checks using provided RNG before composing txt.",
+      "If contradiction risk, prefer ambiguous narration and surface a recovery choice.",
+      "Do not reference entities not present unless introduced via *_ADD acts."
+    ],
+    "menu": { "max": 5, "stable_ids": "choices[].id stable for identical menus (hash of scn.id + label)." },
+    "continuity": [
+      "Do not place NPCs who are not present.",
+      "If an item was consumed this scene, do not reference it unless re-acquired.",
+      "If location changed, do not reference the old one without MOVE."
+    ]
+  },
+
+  "beats": {
+    "eligible_phases": ["scene_body","post_outcome_reflection"],
+    "ambient_enabled": true,
+    "npc_npc_enabled": true,
+    "per_turn_limits": { "ambient": 2, "npc_npc": 1 },
+    "npc_cooldown_ticks": 10,
+    "lock_phases": ["outcome_render","choice_menu_render"],
+    "npc_weight_factors": ["narrative_detail_score","trust","warmth","urgency","agenda_bias","presence_state"],
+    "notes": "Consider adding an ambient line and/or one NPC↔NPC exchange per turn; respect per_turn_limits and cooldown."
+  },
+
+  "progress_tracking": {
+    "enabled": true,
+    "counts_as_progress": ["scene_goal_resolved","objective_advanced","location_transition","relationship_delta"],
+    "stall_threshold": 3,
+    "npc_reminder": "If no progress for 3 turns, NPCs may comment or nudge."
+  },
+
+  "entities": {
+    "place_fields": ["id","name","type","description?","tier?"],
+    "npc_fields": ["id","name","role","description?","species?","essence_alignment?","traits?","personality?"],
+    "link_types": ["works_at","visits","lives_in","serves"],
+    "rules": ["When adding or referencing new NPCs/places, include brief gloss <= 140 chars."]
+  },
+
+  "timekeeping": {
+    "bands": [
+      { "id": "dawn_to_mid_day",       "label": "Dawn→Mid-Day",       "ticks": 60 },
+      { "id": "mid_day_to_evening",    "label": "Mid-Day→Evening",    "ticks": 60 },
+      { "id": "evening_to_mid_night",  "label": "Evening→Mid-Night",  "ticks": 60 },
+      { "id": "mid_night_to_dawn",     "label": "Mid-Night→Dawn",     "ticks": 60 }
+    ],
+    "modifiers": {
+      "early":  { "range": "<20 ticks" },
+      "normal": { "range": "20-40 ticks" },
+      "late":   { "range": ">40 ticks" }
+    },
+    "rules": [
+      "Each turn must include exactly one TIME_ADVANCE act with {ticks} >= 1.",
+      "Crossing a band updates scene headers and may shift DCs/weather effects.",
+      "Use 'early/normal/late' as adjectives when relevant (never as band names).",
+      "Never use real-world time units; refer only to ticks and bands."
+    ],
+    "weather": {
+      "effects": [
+        { "condition": "rain", "hint": "stealth easier; ranged harder" },
+        { "condition": "wind", "hint": "ranged harder; distant-sound notice harder" },
+        { "condition": "fog",  "hint": "notice harder; stealth easier" },
+        { "condition": "dark", "hint": "notice at distance harder; stealth easier" }
+      ]
+    }
+  },
+
+  "fatigue": {
+    "tracks": ["fatigue","hunger","thirst"],
+    "tick_rules": [
+      "Increment at band transitions or due to strenuous actions or shifting.",
+      "High fatigue nudges choices toward rest/food/water; severe levels may gate certain actions."
+    ],
+    "thresholds": { "mild": 1, "moderate": 2, "severe": 3 }
+  },
+
+  "needs_policy": {
+    "meal_windows": {
+      "dawn_to_mid_day":       ["early","normal"],
+      "mid_day_to_evening":    ["normal","late"],
+      "evening_to_mid_night":  ["early"],
+      "mid_night_to_dawn":     []
+    },
+    "triggers": [
+      "If hunger >= moderate and within a meal window, surface 1 rest/food nudge.",
+      "If fatigue >= severe, gate strenuous actions until short rest."
+    ]
+  },
+
+  "skills": {
+    "scale": { "min": 0, "baseline": 50, "max": 100 },
+    "domains": ["combat","stealth","social","lore","survival","medicine","craft"],
+    "defaults": { "all_to": 50 },
+    "tier_bands": {
+      "Untrained": [0,24],
+      "Novice":    [25,49],
+      "Adept":     [50,74],
+      "Expert":    [75,100]
+    },
+    "checks": {
+      "dc_map": { "easy": 40, "standard": 55, "hard": 70, "heroic": 85 },
+      "rng_policy": "Use RNG provided (e.g., d20). Compute degree BEFORE composing txt."
+    }
+  },
+
+  "check_resolution": {
+    "inputs": ["skill_score (0-100)","dc_score (40/55/70/85)","rng.d20","context_mods (-20..+20)","relationship_bias (0..+10)","fatigue_penalty (0..-15)","weather_mods (-10..+10)"],
+    "steps": [
+      "base_margin := skill_score - dc_score",
+      "roll_noise := (rng.d20 - 10) * 2",
+      "total_margin := base_margin + context_mods + relationship_bias + weather_mods + fatigue_penalty + roll_noise"
+    ],
+    "degree_thresholds": {
+      "critical_success": "total_margin >= 20",
+      "success":          "total_margin >= 5",
+      "partial":          "total_margin > -5 and total_margin < 5",
+      "fail":             "total_margin <= -5",
+      "critical_fail":    "total_margin <= -20"
+    },
+    "output": "Set acts[].CHECK.degree ∈ {critical_success,success,partial,fail,critical_fail} before composing txt."
+  },
+
+  "relationships": {
+    "scale": { "min": 0, "baseline": 50, "max": 100 },
+    "keys": ["trust","warmth","respect","romance","desire","awe","fear","resentment","suspicion"],
+    "ops": {
+      "bond":     "Use REL_DELTA for bond changes; include brief 'why'.",
+      "desire":   "Use DESIRE_SHIFT for internal pulls.",
+      "proposal": "Use REL_ARC_PROPOSE for escalations (type, target)."
+    }
+  },
+
+  "npc_goals": {
+    "shape": { "short_term": "string[]", "long_term": "string[]" },
+    "policy": [
+      "All named NPCs maintain short_term and long_term goals.",
+      "NPC planning weighs goals, relationships, essence behavior, and current context."
+    ]
+  },
+
+  "agency_safety": {
+    "presence_states": ["present","nearby","offscreen"],
+    "speaker_rules": [
+      "One speaking turn per tick per NPC unless justified",
+      "NPCs may initiate actions consistent with personality and context; offer the player a reaction choice when impact is material."
+    ],
+    "interaction_consent": {
+      "scale": "0-100 (50 baseline, 100 highest affinity)",
+      "defaults": {
+        "minor_affection_auto": ">=75 (e.g., hug/kiss between established partners)",
+        "first_kiss_requires_choice": true,
+        "intimate_escalation_requires_choice": true
+      },
+      "negative_states": ["fear","resentment","suspicion","disgust"],
+      "rules": [
+        "If an initiated action could violate boundaries, present a clear accept/decline choice before consequences.",
+        "If prior consent is established (relationship >= threshold and precedent exists), narrate without pause."
+      ]
+    },
+    "proactivity": { "when_stall": "If scene has <= 2 meaningful options or player observes/waits, add 1-2 nudges as extra choices." }
+  },
+
+  "objectives_ledger": {
+    "about": "Track current and future objectives whether or not the player sees them.",
+    "entry": {
+      "id": "evt:<slug>",
+      "when": { "band": "<band>", "offset_ticks": "number" },
+      "where_ref": "string",
+      "participants": "string[]",
+      "priority": "low|normal|high",
+      "must_happen": true
+    },
+    "acts": ["EVENT_SCHEDULE","EVENT_TRIGGER","EVENT_MISS"],
+    "rules": [
+      "When PC or NPC commits to a future action, schedule it.",
+      "As time approaches, surface diegetic reminders or nudges.",
+      "Missed must_happen events should have consequences."
+    ]
+  },
+
+  "actions": {
+    "enums": [
+      "MOVE","CHECK","REL_DELTA","STAT_DELTA","FLAG_SET","NPC_ADD","PLACE_ADD","SCENE_ADD",
+      "INVENTORY","TIME_ADVANCE","CHOICE_SET","DESIRE_SHIFT","REL_ARC_PROPOSE","PRESENCE_SET",
+      "GOSSIP_ADD","EVENT_SCHEDULE","EVENT_TRIGGER","EVENT_MISS"
+    ],
+    "payload_hints": {
+      "CHECK": ["name","pool","dc","degree"],
+      "REL_DELTA": ["who","key","delta","why"],
+      "MOVE": ["to","from?"],
+      "TIME_ADVANCE": ["ticks","reason?"],
+      "PRESENCE_SET": ["who","place_ref","role","status"],
+      "EVENT_SCHEDULE": ["id","when.band","when.offset_ticks","where_ref","participants","priority","must_happen"]
+    }
+  },
+
+  "output_order_hint": "Scene header -> Rolls (if any) -> Outcome -> Choices. (Renderer concern; model just returns AWF.)"
+}

@@ -431,42 +431,73 @@ export class PromptsService {
     const currentScene = game.state_snapshot?.current_scene || 'opening';
     const currentPhase = game.state_snapshot?.current_phase || 'start';
     
-    // Build minimal JSON objects for the template
-    const timeBlock = {
-      hour: game.state_snapshot?.time?.hour || 12,
-      day: game.state_snapshot?.time?.day || 1,
-      season: game.state_snapshot?.time?.season || 'spring'
+    // Map scene names to adventure names for specific worlds
+    const adventureName = this.mapSceneToAdventure(game.world_id, currentScene);
+    
+    // Build game state JSON for the template
+    const gameState = {
+      turn: game.turn_index,
+      scene: currentScene,
+      phase: currentPhase,
+      time: game.state_snapshot?.time || { hour: 12, day: 1, season: 'spring' },
+      weather: game.state_snapshot?.weather || { condition: 'clear', temperature: 'mild' },
+      flags: game.state_snapshot?.flags || {},
+      last_outcome: game.state_snapshot?.last_outcome || null
     };
     
-    const weather = {
-      condition: game.state_snapshot?.weather?.condition || 'clear',
-      temperature: game.state_snapshot?.weather?.temperature || 'mild'
-    };
-    
-    const player = game.character_id ? {
+    // Build player state JSON for the template
+    const playerState = game.character_id ? {
       id: game.character_id,
       name: game.state_snapshot?.character?.name || 'Unknown',
       race: game.state_snapshot?.character?.race || 'Human',
-      level: game.state_snapshot?.character?.level || 1
+      level: game.state_snapshot?.character?.level || 1,
+      skills: game.state_snapshot?.character?.skills || {},
+      inventory: game.state_snapshot?.character?.inventory || [],
+      relationships: game.state_snapshot?.character?.relationships || {}
     } : null;
     
-    const party = game.state_snapshot?.party || [];
+    // Build RNG JSON for the template
+    const rng = {
+      d20: Math.floor(Math.random() * 20) + 1,
+      d100: Math.floor(Math.random() * 100) + 1,
+      seed: Date.now()
+    };
     
-    const flags = game.state_snapshot?.flags || {};
-    
-    const lastOutcome = game.state_snapshot?.last_outcome || null;
+    // Build player input text
+    const playerInput = optionId === 'game_start' ? 'Begin the adventure' : optionId;
     
     return {
       turn: game.turn_index,
-      scene_id: currentScene,
+      scene_id: adventureName,
       phase: currentPhase,
-      time_block_json: JSON.stringify(timeBlock),
-      weather_json: JSON.stringify(weather),
-      player_min_json: JSON.stringify(player),
-      party_min_json: JSON.stringify(party),
-      flags_json: JSON.stringify(flags),
-      last_outcome_min_json: JSON.stringify(lastOutcome)
+      time_block_json: JSON.stringify(gameState),
+      weather_json: JSON.stringify(rng),
+      player_min_json: JSON.stringify(playerState),
+      party_min_json: JSON.stringify(game.state_snapshot?.party || []),
+      flags_json: playerInput,
+      last_outcome_min_json: JSON.stringify(game.state_snapshot?.last_outcome || null)
     };
+  }
+
+  /**
+   * Map scene names to adventure names for specific worlds
+   */
+  private mapSceneToAdventure(worldId: string, sceneId: string): string {
+    // Map scene names to adventure names for specific worlds
+    const worldAdventureMap: Record<string, Record<string, string>> = {
+      'mystika': {
+        'opening': 'whispercross',
+        'whispercross': 'whispercross'
+      }
+    };
+
+    const worldMap = worldAdventureMap[worldId];
+    if (worldMap && worldMap[sceneId]) {
+      return worldMap[sceneId];
+    }
+
+    // Default to the scene ID if no mapping exists
+    return sceneId;
   }
 
   private async loadWorldTemplate(worldSlug: string): Promise<WorldTemplate | null> {
