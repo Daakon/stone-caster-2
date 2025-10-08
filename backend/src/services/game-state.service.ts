@@ -107,25 +107,44 @@ export class GameStateService {
 
   /**
    * Load game state by game ID
+   * Note: Game state is now stored in the games table's state_snapshot column
    */
   async loadGameState(gameId: string): Promise<GameState | null> {
     try {
       const { data, error } = await supabaseAdmin
-        .from('game_states')
-        .select('*')
-        .eq('game_id', gameId)
-        .order('turn_index', { ascending: false })
-        .limit(1)
+        .from('games')
+        .select('id, state_snapshot, turn_count, world_slug, character_id, adventure_id')
+        .eq('id', gameId)
         .single();
 
       if (error) {
         if (error.code === 'PGRST116') {
-          return null; // No game state found
+          return null; // No game found
         }
         throw error;
       }
 
-      return this.deserializeGameState(data);
+      if (!data.state_snapshot) {
+        return null; // No state snapshot found
+      }
+
+      // Convert games table data to GameState format
+      return {
+        id: data.id,
+        gameId: data.id,
+        turnIndex: data.turn_count || 0,
+        currentScene: data.state_snapshot.currentScene || 'opening',
+        character: data.state_snapshot.character || null,
+        world: data.state_snapshot.world || null,
+        adventure: data.state_snapshot.adventure || null,
+        flags: data.state_snapshot.flags || {},
+        ledgers: data.state_snapshot.ledgers || {},
+        presence: data.state_snapshot.presence || 'present',
+        lastActs: data.state_snapshot.lastActs || [],
+        styleHint: data.state_snapshot.styleHint || 'neutral',
+        createdAt: data.state_snapshot.createdAt || new Date().toISOString(),
+        updatedAt: data.state_snapshot.updatedAt || new Date().toISOString(),
+      };
     } catch (error) {
       console.error('Error loading game state:', error);
       return null;
@@ -323,13 +342,32 @@ export class GameStateService {
 
   /**
    * Save game state to database
+   * Note: Game state is now stored in the games table's state_snapshot column
    */
   private async saveGameState(state: GameState): Promise<void> {
-    const serialized = this.serializeGameState(state);
+    const stateSnapshot = {
+      turnIndex: state.turnIndex,
+      currentScene: state.currentScene,
+      character: state.character,
+      world: state.world,
+      adventure: state.adventure,
+      flags: state.flags,
+      ledgers: state.ledgers,
+      presence: state.presence,
+      lastActs: state.lastActs,
+      styleHint: state.styleHint,
+      createdAt: state.createdAt,
+      updatedAt: state.updatedAt,
+    };
     
     const { error } = await supabaseAdmin
-      .from('game_states')
-      .upsert(serialized);
+      .from('games')
+      .update({
+        state_snapshot: stateSnapshot,
+        turn_count: state.turnIndex,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', state.gameId);
 
     if (error) {
       throw error;
