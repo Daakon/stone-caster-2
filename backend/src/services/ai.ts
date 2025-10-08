@@ -13,12 +13,33 @@ interface StoryContext {
 }
 
 export class AIService {
-  private openaiService: OpenAIService;
+  private openaiService: OpenAIService | null = null;
   private promptWrapper: PromptWrapper;
 
   constructor() {
-    this.openaiService = new OpenAIService();
     this.promptWrapper = new PromptWrapper();
+    
+    // Initialize OpenAI service lazily when first needed
+    this.initializeOpenAIService();
+  }
+
+  private initializeOpenAIService(): void {
+    try {
+      this.openaiService = new OpenAIService();
+    } catch (error) {
+      console.warn('OpenAI service not available:', error instanceof Error ? error.message : String(error));
+      this.openaiService = null;
+    }
+  }
+
+  private getOpenAIService(): OpenAIService {
+    if (!this.openaiService) {
+      this.initializeOpenAIService();
+      if (!this.openaiService) {
+        throw new Error('OpenAI service not available. Check OPENAI_API_KEY environment variable.');
+      }
+    }
+    return this.openaiService;
   }
 
   // Legacy methods removed - using new prompt wrapper system instead
@@ -47,15 +68,13 @@ export class AIService {
         const choice3Id = uuidv4();
         
         const testResponse: any = {
-          scn: { id: 'test-scene', ph: 'active' },
-          txt: 'The world seems to pause for a moment as reality stabilizes... This is a test response while the prompt engine is being validated.',
+          narrative: 'The world seems to pause for a moment as reality stabilizes... This is a test response while the prompt engine is being validated.',
+          emotion: 'neutral',
           choices: [
             { id: choice1Id, label: 'Look around' },
             { id: choice2Id, label: 'Continue forward' },
             { id: choice3Id, label: 'Check inventory' }
-          ],
-          acts: [],
-          val: { ok: true, errors: [], repairs: [] }
+          ]
         };
         
         if (includeDebug) {
@@ -93,13 +112,14 @@ export class AIService {
       const startTime = Date.now();
       
       // Generate response with OpenAI service
-      const response = await this.openaiService.generateBufferedResponse(prompt);
+      const openaiService = this.getOpenAIService();
+      const response = await openaiService.generateBufferedResponse(prompt);
       
       const processingTime = Date.now() - startTime;
       
       // Parse and validate response
       try {
-        const parsed = this.openaiService.parseAIResponse(response.content);
+        const parsed = openaiService.parseAIResponse(response.content);
         
         if (includeDebug) {
           debugInfo.aiResponseRaw = response.content;
@@ -116,7 +136,7 @@ export class AIService {
         
         // Attempt JSON repair
         try {
-          const repaired = await this.openaiService.repairJSONResponse(response.content, prompt);
+          const repaired = await openaiService.repairJSONResponse(response.content, prompt);
           
           if (includeDebug) {
             debugInfo.aiResponseRaw = response.content;
@@ -143,17 +163,15 @@ export class AIService {
       const choice2Id = uuidv4();
       const choice3Id = uuidv4();
       
-      // Return a fallback JSON response with AWF format
+      // Return a fallback JSON response with TurnResponseSchema format
       const fallbackResponse: any = {
-        scn: { id: 'fallback-scene', ph: 'active' },
-        txt: 'The world seems to pause for a moment as reality stabilizes...',
+        narrative: 'The world seems to pause for a moment as reality stabilizes...',
+        emotion: 'neutral',
         choices: [
           { id: choice1Id, label: 'Look around' },
           { id: choice2Id, label: 'Continue forward' },
           { id: choice3Id, label: 'Check inventory' }
-        ],
-        acts: [],
-        val: { ok: true, errors: [], repairs: [] }
+        ]
       };
       
       if (includeDebug) {
