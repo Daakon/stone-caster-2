@@ -24,6 +24,41 @@ Layer P1 focuses on replacing frontend mock data with live API integration. This
 
 ### Backend Unit Tests
 
+#### Prompt Wrapper System Tests
+- **File:** `backend/src/prompts/wrapper.test.ts`
+- **Coverage:**
+  - Ultra-lean prompt wrapper with strict section delimiters
+  - SYSTEM preamble validation
+  - RNG policy and value generation
+  - Time data with band and ticks format
+  - Player input resolution (choice ID to label)
+  - Content fixes validation (RNG, time, band names, UUID detection)
+  - Prompt assembly with correct section order
+  - JSON minification and blank line collapse
+- **Test Scenarios:**
+  - RNG data generation with policy and values
+  - Time data generation with correct band cycling
+  - Player input resolution from choice ID to human-readable label
+  - Content fixes validation for all four requirements
+  - Prompt assembly with GAME_STATE section only on first turn
+  - Metadata generation with correct section tracking
+
+#### OpenAI Service Tests
+- **File:** `backend/src/services/openai.service.test.ts`
+- **Coverage:**
+  - OpenAI gpt-4o-mini integration with streaming and retries
+  - Exponential backoff retry logic
+  - JSON response parsing and validation
+  - JSON repair for malformed responses
+  - Token streaming with callback support
+  - Request configuration validation
+- **Test Scenarios:**
+  - Successful response generation with proper model configuration
+  - Retry logic with exponential backoff on failures
+  - JSON parsing and repair for malformed responses
+  - Streaming response with token callbacks
+  - Configuration validation and error handling
+
 #### Layer P1 Adventures API Tests
 - **File:** `backend/src/routes/layer-p1-adventures.test.ts`
 - **Coverage:**

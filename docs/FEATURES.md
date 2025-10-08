@@ -39,6 +39,14 @@ Stone Caster is a text-based adventure game platform that allows users to create
 - **Dynamic Narratives**: AI-generated story content based on player choices
 - **Multiple Endings**: Adventures can have different outcomes based on player decisions
 
+### AI System
+- **Ultra-Lean Prompt Wrapper**: Efficient prompt assembly with strict section delimiters
+- **OpenAI gpt-4o-mini Integration**: Modern AI model with streaming and retry capabilities
+- **AWF Response Format**: Structured Action-Word-Format responses with scene, text, choices, and actions
+- **Content Fixes**: Automated validation for RNG policy, player input, time format, and band naming
+- **JSON Repair**: Automatic repair of malformed AI responses
+- **Streaming Support**: Real-time token streaming for responsive gameplay
+
 ## Technical Features
 
 ### Authentication & Authorization

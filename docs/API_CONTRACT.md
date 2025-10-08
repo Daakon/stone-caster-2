@@ -41,6 +41,45 @@ interface ApiResponse<T> {
 }
 ```
 
+## AI Response Format (AWF)
+
+The AI system now uses the Action-Word-Format (AWF) for all turn responses. This format provides structured, consistent responses with the following components:
+
+### AWF Response Structure
+
+```typescript
+interface AWFResponse {
+  scn: {
+    id: string;        // Scene identifier
+    ph: string;        // Scene phase (e.g., "active", "transition")
+  };
+  txt: string;         // Narrative text describing what happens
+  choices?: Array<{    // Optional player choices
+    id: string;
+    label: string;
+  }>;
+  acts?: Array<{       // Optional game actions
+    eid: string;       // Action entity ID
+    t: string;         // Action type
+    payload: any;      // Action payload
+  }>;
+  val: {               // Validation and repair information
+    ok: boolean;       // Whether the response is valid
+    errors: string[];  // Any errors encountered
+    repairs: string[]; // Any repairs applied
+  };
+}
+```
+
+### Prompt Wrapper System
+
+The AI system uses an ultra-lean prompt wrapper that assembles all model-facing context into a single prompt string with strict section delimiters:
+
+- **SYSTEM Preamble**: Compact instructions for the runtime engine
+- **Section Delimiters**: Fixed order with exact delimiters (=== SECTION_BEGIN === / === SECTION_END ===)
+- **Content Fixes**: RNG policy, player input text vs UUID, tick-based time, band names
+- **Model Integration**: OpenAI gpt-4o-mini with streaming and retries
+
 ## Error Codes
 
 ```typescript
@@ -152,9 +191,25 @@ interface TurnDTO {
   game_id: string;
   option_id: string;
   ai_response: {
-    narrative: string;
-    emotion: string;
-    suggestedActions: string[];
+    scn: {
+      id: string;
+      ph: string;
+    };
+    txt: string;
+    choices?: Array<{
+      id: string;
+      label: string;
+    }>;
+    acts?: Array<{
+      eid: string;
+      t: string;
+      payload: any;
+    }>;
+    val: {
+      ok: boolean;
+      errors: string[];
+      repairs: string[];
+    };
   };
   created_at: string;
 }
