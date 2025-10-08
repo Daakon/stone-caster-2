@@ -497,6 +497,31 @@ export default function UnifiedGamePage() {
                     {character.worldData.faction_alignment}
                   </Badge>
                 )}
+                {/* Show skills for PlayerV3 characters */}
+                {character.worldData?.playerV3?.skills && (
+                  <div className="mt-2">
+                    <div className="text-xs text-muted-foreground mb-1">Skills</div>
+                    <div className="space-y-1">
+                      {Object.entries(character.worldData.playerV3.skills).slice(0, 3).map(([skill, value]) => {
+                        const skillValue = typeof value === 'number' ? value : 0;
+                        return (
+                          <div key={skill} className="flex items-center justify-between text-xs">
+                            <span className="capitalize">{skill.replace('_', ' ')}</span>
+                            <div className="flex items-center gap-1">
+                              <div className="w-12 bg-muted rounded-full h-1">
+                                <div 
+                                  className="bg-primary h-1 rounded-full"
+                                  style={{ width: `${skillValue}%` }}
+                                />
+                              </div>
+                              <span className="text-muted-foreground">{skillValue}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

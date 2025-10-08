@@ -432,3 +432,72 @@ export const CreateCharacterRequestSchema = z.object({
 });
 
 export type CreateCharacterRequest = z.infer<typeof CreateCharacterRequestSchema>;
+
+// PlayerV3 Schema - New character creation system
+export type SkillKey = 'combat' | 'stealth' | 'social' | 'lore' | 'survival' | 'medicine' | 'craft';
+
+export const PlayerV3Schema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(50),
+  role: z.string().min(1).max(50),
+  race: z.string().min(1).max(50),
+  essence: z.array(z.string()).min(1).max(4),
+  age: z.string().min(1).max(50),
+  build: z.string().min(1).max(50),
+  eyes: z.string().min(1).max(50),
+  traits: z.array(z.string()).min(2).max(4),
+  backstory: z.string().optional(),
+  motivation: z.string().optional(),
+  skills: z.record(z.enum(['combat', 'stealth', 'social', 'lore', 'survival', 'medicine', 'craft']), z.number().int().min(0).max(100)),
+  inventory: z.array(z.string()),
+  // Always empty at creation unless preset applied at adventure start
+  relationships: z.record(z.string(), z.record(z.string(), z.number())).default({}),
+  goals: z.object({
+    short_term: z.array(z.string()).default([]),
+    long_term: z.array(z.string()).default([])
+  }).default({ short_term: [], long_term: [] }),
+  flags: z.record(z.string(), z.boolean()).default({}),
+  reputation: z.record(z.string(), z.number()).default({})
+});
+
+export type PlayerV3 = z.infer<typeof PlayerV3Schema>;
+
+// Character Creation Configuration
+export const CharacterCreationConfigSchema = z.object({
+  skillBudget: z.number().int().min(0).default(0), // Net points to allocate
+  traitCount: z.object({
+    min: z.number().int().min(1).default(2),
+    max: z.number().int().min(2).default(4)
+  }),
+  kitThresholds: z.record(z.string(), z.number().int().min(0).max(100))
+});
+
+export type CharacterCreationConfig = z.infer<typeof CharacterCreationConfigSchema>;
+
+// World Configuration for Character Creation
+export const WorldCharacterConfigSchema = z.object({
+  availableRaces: z.array(z.string()),
+  essenceOptions: z.array(z.string()),
+  traitCatalog: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    category: z.string(),
+    description: z.string().optional()
+  })),
+  eligibleKits: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    items: z.array(z.string()),
+    requirements: z.record(z.string(), z.number().int().min(0).max(100))
+  }))
+});
+
+export type WorldCharacterConfig = z.infer<typeof WorldCharacterConfigSchema>;
+
+// Character Creation Request for PlayerV3
+export const CreatePlayerV3RequestSchema = z.object({
+  worldSlug: z.string().min(1).max(100),
+  player: PlayerV3Schema
+});
+
+export type CreatePlayerV3Request = z.infer<typeof CreatePlayerV3RequestSchema>;

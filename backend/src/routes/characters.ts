@@ -250,12 +250,36 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       const { worldSlug, name, archetypeKey, fromPremade, worldData, ...legacyFields } = validationResult.data as any;
 
       if (fromPremade && archetypeKey) {
-        // Create from premade
-        character = await CharactersService.createCharacterFromPremade(
-          { worldSlug, name, archetypeKey, fromPremade },
-          userId,
-          isGuest
-        );
+        // Create from premade using PlayerV3 format
+        const { PremadeCharactersService } = await import('../services/premade-characters.service.js');
+        const premadeCharacter = await PremadeCharactersService.getPremadeCharacter(worldSlug, archetypeKey);
+        
+        if (!premadeCharacter) {
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.NOT_FOUND,
+            `Premade character '${archetypeKey}' not found for world '${worldSlug}'`,
+            req
+          );
+        }
+        
+        // Convert premade character to PlayerV3 format
+        const playerV3 = PremadeCharactersService.convertToPlayerV3(premadeCharacter, name);
+        
+        // Create PlayerV3 character using the new route
+        const { createPlayerV3 } = await import('./players-v3.js');
+        const playerV3Result = await createPlayerV3(worldSlug, playerV3, userId, isGuest);
+        
+        if (!playerV3Result.ok) {
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.INTERNAL_ERROR,
+            `Failed to create character: ${playerV3Result.error.message}`,
+            req
+          );
+        }
+        
+        character = playerV3Result.data.character;
       } else if (worldData) {
         // Create custom character with new generic format
         const genericInput = {

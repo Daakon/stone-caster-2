@@ -23,7 +23,33 @@
       "wisdom": 60
     },
     "createdAt": "2024-01-01T00:00:00Z",
-    "isPremade": true
+    "isPremade": true,
+    "baseTraits": {
+      "race": "Crystalborn",
+      "class": "veil_touched_mage",
+      "skills": {
+        "magic": 65,
+        "intelligence": 70,
+        "charisma": 60,
+        "strength": 45,
+        "dexterity": 50,
+        "constitution": 55,
+        "wisdom": 60
+      },
+      "personality_traits": ["mystical", "intuitive", "otherworldly"],
+      "essence": ["Life", "Order"],
+      "age": "Young Adult",
+      "build": "Slender",
+      "eyes": "Crystalline Blue",
+      "traits": ["Mystical", "Intuitive", "Otherworldly", "Wise"],
+      "backstory": "A young Crystalborn who awakened during a devastating Veil-storm. Her crystalline powers allow her to see through the Veil and commune with otherworldly entities.",
+      "motivation": "To understand the true nature of the Veil and protect others from its dangers",
+      "inventory": ["Crystal Focus", "Veil-sight Goggles", "Ancient Tome", "Healing Potion"],
+      "goals": {
+        "short_term": ["Master basic Veil-sight", "Find a mentor"],
+        "long_term": ["Become a Veil Master", "Protect the realm from Veil-storms"]
+      }
+    }
   },
   {
     "id": "premade-mystika-2",
@@ -49,7 +75,33 @@
       "wisdom": 55
     },
     "createdAt": "2024-01-01T00:00:00Z",
-    "isPremade": true
+    "isPremade": true,
+    "baseTraits": {
+      "race": "Elf",
+      "class": "shifter_warden",
+      "skills": {
+        "magic": 60,
+        "intelligence": 65,
+        "charisma": 70,
+        "strength": 70,
+        "dexterity": 75,
+        "constitution": 60,
+        "wisdom": 55
+      },
+      "personality_traits": ["noble", "protective", "traditional"],
+      "essence": ["Order", "Life"],
+      "age": "Adult",
+      "build": "Athletic",
+      "eyes": "Forest Green",
+      "traits": ["Noble", "Protective", "Traditional", "Honorable"],
+      "backstory": "A proud member of the Elven Courts who has sworn to protect the ancient traditions from the chaos of Veil-storms and Crystalborn influence.",
+      "motivation": "To preserve the ancient ways and protect the realm from corruption",
+      "inventory": ["Elven Longsword", "Court Armor", "Ancient Scroll", "Healing Herbs"],
+      "goals": {
+        "short_term": ["Master court protocols", "Strengthen elven magic"],
+        "long_term": ["Become a Court Guardian", "Restore balance to the realm"]
+      }
+    }
   },
   {
     "id": "premade-aetherium-1",
@@ -74,7 +126,33 @@
       "wisdom": 60
     },
     "createdAt": "2024-01-01T00:00:00Z",
-    "isPremade": true
+    "isPremade": true,
+    "baseTraits": {
+      "race": "Human",
+      "class": "neural_hacker",
+      "skills": {
+        "intelligence": 80,
+        "dexterity": 70,
+        "charisma": 55,
+        "strength": 40,
+        "constitution": 50,
+        "magic": 45,
+        "wisdom": 60
+      },
+      "personality_traits": ["analytical", "rebellious", "tech-savvy"],
+      "essence": ["Data", "Network"],
+      "age": "Young Adult",
+      "build": "Lean",
+      "eyes": "Cyber Blue",
+      "traits": ["Analytical", "Rebellious", "Tech-Savvy", "Independent"],
+      "backstory": "A legendary underground hacker who has mastered the art of neural manipulation. Known for their ability to navigate the Aetherium network like no other.",
+      "motivation": "To expose corporate corruption and free the digital realm from corporate control",
+      "inventory": ["Neural Interface", "Data Core", "Hacking Tools", "Energy Drink"],
+      "goals": {
+        "short_term": ["Hack corporate systems", "Build underground network"],
+        "long_term": ["Overthrow corporate control", "Create free digital society"]
+      }
+    }
   },
   {
     "id": "premade-whispercross-1",
@@ -99,6 +177,32 @@
       "wisdom": 70
     },
     "createdAt": "2024-01-01T00:00:00Z",
-    "isPremade": true
+    "isPremade": true,
+    "baseTraits": {
+      "race": "Human",
+      "class": "nature_guardian",
+      "skills": {
+        "magic": 70,
+        "charisma": 65,
+        "intelligence": 60,
+        "strength": 50,
+        "dexterity": 55,
+        "constitution": 60,
+        "wisdom": 70
+      },
+      "personality_traits": ["gentle", "wise", "nature-connected"],
+      "essence": ["Nature", "Harmony"],
+      "age": "Adult",
+      "build": "Graceful",
+      "eyes": "Forest Green",
+      "traits": ["Gentle", "Wise", "Nature-Connected", "Peaceful"],
+      "backstory": "A gentle soul who has lived in Whispercross Glade for years, learning to listen to the ancient whispers of nature and protect the sacred groves.",
+      "motivation": "To protect the natural world and maintain the balance between civilization and nature",
+      "inventory": ["Nature Staff", "Healing Herbs", "Ancient Seeds", "Whisper Stone"],
+      "goals": {
+        "short_term": ["Learn deeper nature magic", "Protect local groves"],
+        "long_term": ["Become a Nature Guardian", "Restore balance to the world"]
+      }
+    }
   }
 ]

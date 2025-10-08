@@ -36,8 +36,9 @@ import {
   Zap,
   Play,
   Users,
-  Star
+  Star,
 } from 'lucide-react';
+import { CharacterSkills } from '../components/character/CharacterSkills';
 
 function CharacterSelectionPageContent() {
   const { adventureId, worldSlug, adventureSlug } = useParams<{ 
@@ -423,6 +424,15 @@ function CharacterSelectionPageContent() {
                                   <p className="text-sm text-muted-foreground">
                                     {character.class || 'Adventurer'}
                                   </p>
+                                  {/* Show skills for PlayerV3 characters */}
+                                  {(character as any).worldData?.playerV3?.skills && (
+                                    <div className="mt-2">
+                                      <CharacterSkills 
+                                        skills={(character as any).worldData.playerV3.skills} 
+                                        maxSkills={2}
+                                      />
+                                    </div>
+                                  )}
                                   <div className="flex items-center gap-2 mt-1">
                                     <Calendar className="h-3 w-3 text-muted-foreground" />
                                     <span className="text-xs text-muted-foreground">

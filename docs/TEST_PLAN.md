@@ -897,3 +897,125 @@ All acceptance criteria have been implemented and tested:
 - Proper transaction management
 - Extensive integration testing
 
+## PlayerV3 Character Creation Tests
+
+### Overview
+PlayerV3 is the new character creation system with 0-100 skill scales, world-scoped traits, and equipment kits based on skills.
+
+### Test Objectives
+- Verify 5-step character creation wizard works correctly
+- Test skill point allocation with budget validation
+- Validate world-scoped trait selection
+- Test equipment kit eligibility based on skills
+- Ensure proper API integration and data persistence
+- Test mobile-first design and accessibility
+
+### Backend Unit Tests
+
+#### PlayerV3 API Tests
+- **File:** `backend/src/routes/players-v3.test.ts`
+- **Coverage:**
+  - POST /api/players-v3 creates new PlayerV3 character
+  - GET /api/players-v3/:id retrieves character by ID
+  - PATCH /api/players-v3/:id updates character
+  - GET /api/players-v3/world/:worldSlug lists characters by world
+  - Validation of PlayerV3 schema
+  - Skill budget validation (0-100 range, balanced allocation)
+  - World-scoped trait validation
+  - RLS policies for user/cookie access
+- **Test Scenarios:**
+  - Create character with valid data
+  - Reject invalid skill values
+  - Reject traits not in world catalog
+  - Test duplicate name prevention
+  - Verify proper error responses
+
+#### PlayerV3 Service Tests
+- **File:** `backend/src/services/player-v3.service.test.ts`
+- **Coverage:**
+  - PlayerV3Service.getPlayerById()
+  - PlayerV3Service.getPlayersByUserAndWorld()
+  - PlayerV3Service.toPromptFormat()
+  - PlayerV3Service.applyAdventurePresets()
+  - Database mapping functions
+- **Test Scenarios:**
+  - Retrieve player by ID
+  - List players by user and world
+  - Convert to prompt format
+  - Apply adventure start effects
+  - Handle missing players gracefully
+
+### Frontend Unit Tests
+
+#### PlayerV3Wizard Component Tests
+- **File:** `frontend/src/components/character/PlayerV3Wizard.test.tsx`
+- **Coverage:**
+  - 5-step wizard navigation
+  - Form validation for each step
+  - Skill point allocation logic
+  - Trait selection (2-4 traits)
+  - Equipment kit eligibility
+  - API integration
+- **Test Scenarios:**
+  - Navigate through all steps
+  - Validate required fields
+  - Test skill budget enforcement
+  - Test trait selection limits
+  - Test kit eligibility based on skills
+  - Test form submission
+
+#### Wizard Step Component Tests
+- **Files:** 
+  - `frontend/src/components/character/wizard/IdentityStep.test.tsx`
+  - `frontend/src/components/character/wizard/TraitsStep.test.tsx`
+  - `frontend/src/components/character/wizard/SkillsStep.test.tsx`
+  - `frontend/src/components/character/wizard/InventoryStep.test.tsx`
+  - `frontend/src/components/character/wizard/SummaryStep.test.tsx`
+- **Coverage:**
+  - Individual step validation
+  - Form field interactions
+  - Error display
+  - Accessibility compliance
+- **Test Scenarios:**
+  - Identity step: name, role, race, essence selection
+  - Traits step: 2-4 trait selection from world catalog
+  - Skills step: point allocation with budget validation
+  - Inventory step: kit selection based on skills
+  - Summary step: data display and confirmation
+
+### E2E Tests
+
+#### Character Creation Flow
+- **File:** `frontend/e2e/character-creation-v3.spec.ts`
+- **Coverage:**
+  - Complete character creation flow
+  - Form validation and error handling
+  - Skill budget enforcement
+  - Equipment kit selection
+  - API integration
+  - Mobile responsiveness
+- **Test Scenarios:**
+  - Create character with all steps
+  - Test validation errors
+  - Test skill budget validation
+  - Test kit eligibility
+  - Test mobile layout
+  - Test keyboard navigation
+  - Test screen reader compatibility
+
+### Accessibility Tests
+
+#### PlayerV3 Accessibility
+- **Coverage:**
+  - Keyboard navigation through wizard
+  - Screen reader compatibility
+  - ARIA labels and descriptions
+  - Focus management
+  - Color contrast compliance
+- **Test Scenarios:**
+  - Navigate wizard with keyboard only
+  - Test with screen reader
+  - Verify ARIA labels
+  - Test focus indicators
+  - Verify color contrast ratios
+

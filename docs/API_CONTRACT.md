@@ -293,6 +293,110 @@ interface CreateCharacterRequest {
 }
 ```
 
+### PlayerV3 Characters
+
+#### POST /api/players-v3
+Create a new PlayerV3 character.
+
+**Authentication**: Authenticated or Guest
+
+**Request Body**:
+```typescript
+interface CreatePlayerV3Request {
+  worldSlug: string;
+  player: {
+    id: string;
+    name: string;
+    role: string;
+    race: string;
+    essence: string[];
+    age: string;
+    build: string;
+    eyes: string;
+    traits: string[];
+    backstory?: string;
+    motivation?: string;
+    skills: {
+      combat: number;
+      stealth: number;
+      social: number;
+      lore: number;
+      survival: number;
+      medicine: number;
+      craft: number;
+    };
+    inventory: string[];
+    relationships: Record<string, Record<string, number>>;
+    goals: {
+      short_term: string[];
+      long_term: string[];
+    };
+    flags: Record<string, boolean>;
+    reputation: Record<string, number>;
+  }
+}
+```
+
+**Response** (201):
+```typescript
+{
+  ok: true,
+  data: {
+    player: PlayerV3
+  }
+}
+```
+
+#### GET /api/players-v3/:id
+Get a PlayerV3 character by ID.
+
+**Authentication**: Authenticated or Guest
+
+**Response** (200):
+```typescript
+{
+  ok: true,
+  data: {
+    player: PlayerV3
+  }
+}
+```
+
+#### PATCH /api/players-v3/:id
+Update a PlayerV3 character.
+
+**Authentication**: Authenticated or Guest
+
+**Request Body**:
+```typescript
+Partial<PlayerV3>
+```
+
+**Response** (200):
+```typescript
+{
+  ok: true,
+  data: {
+    player: PlayerV3
+  }
+}
+```
+
+#### GET /api/players-v3/world/:worldSlug
+Get all PlayerV3 characters for a user in a specific world.
+
+**Authentication**: Authenticated or Guest
+
+**Response** (200):
+```typescript
+{
+  ok: true,
+  data: {
+    players: PlayerV3[]
+  }
+}
+```
+
 ### Stone Packs
 
 #### GET /api/stones/packs

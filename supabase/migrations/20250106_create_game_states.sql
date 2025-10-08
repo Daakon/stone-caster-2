@@ -84,3 +84,5 @@ COMMENT ON COLUMN game_states.ledgers IS 'Game ledgers and tracking data';
 COMMENT ON COLUMN game_states.presence IS 'Current presence state';
 COMMENT ON COLUMN game_states.last_acts IS 'Last actions taken by the player';
 COMMENT ON COLUMN game_states.style_hint IS 'Style hint for AI generation';
+
+

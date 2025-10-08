@@ -6,15 +6,30 @@
 export const PROMPT_VARIABLES = {
   // Character variables
   CHARACTER: {
+    // Basic identity
     NAME: 'character.name',
-    LEVEL: 'character.level',
+    ROLE: 'character.role',
     RACE: 'character.race',
-    CLASS: 'character.class',
+    CLASS: 'character.class', // Legacy field
+    LEVEL: 'character.level', // Legacy field - not used in skill-based system
+    
+    // PlayerV3 specific fields
+    ESSENCE: 'character.essence',
+    AGE: 'character.age',
+    BUILD: 'character.build',
+    EYES: 'character.eyes',
+    TRAITS: 'character.traits',
+    BACKSTORY: 'character.backstory',
+    MOTIVATION: 'character.motivation',
+    
+    // Skills and abilities
     SKILLS: 'character.skills',
-    STATS: 'character.stats',
+    STATS: 'character.stats', // Legacy field
     INVENTORY: 'character.inventory',
     RELATIONSHIPS: 'character.relationships',
+    GOALS: 'character.goals',
     FLAGS: 'character.flags',
+    REPUTATION: 'character.reputation',
   },
 
   // Game variables

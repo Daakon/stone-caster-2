@@ -6,6 +6,7 @@ import { IdempotencyService } from './idempotency.service.js';
 import { gameStateService } from './game-state.service.js';
 import { debugService } from './debug.service.js';
 import { aiService } from './ai.js';
+import { supabaseAdmin } from './supabase.js';
 import { TurnResponseSchema, type TurnResponse, type TurnDTO } from '@shared';
 import { ApiErrorCode } from '@shared';
 import { configService } from '../config/index.js';
@@ -330,7 +331,7 @@ export class TurnsService {
     const promptTokenCount = debugPrompt ? promptsService.calculateTokenCount(debugPrompt) : undefined;
 
     // Build separate debug fields
-    const debugFields = this.buildSeparateDebugFields(game, aiResponse);
+    const debugFields = await this.buildSeparateDebugFields(game, aiResponse);
 
     return {
       id: turnRecord.id,
@@ -353,21 +354,90 @@ export class TurnsService {
   /**
    * Build separate debug fields for character and state information
    */
-  private buildSeparateDebugFields(game: any, aiResponse: TurnResponse): any {
+  private async buildSeparateDebugFields(game: any, aiResponse: TurnResponse): Promise<any> {
+    // Load the actual character data from the database
+    let characterData = null;
+    if (game.character_id) {
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('characters')
+          .select('*')
+          .eq('id', game.character_id)
+          .single();
+        
+        if (!error && data) {
+          characterData = data;
+        }
+      } catch (error) {
+        console.error('Error loading character for debug:', error);
+      }
+    }
+
+    // Extract PlayerV3 data if available
+    const playerV3 = characterData?.world_data?.playerV3;
+    
+    // Determine if this is a PlayerV3 character or legacy character
+    const isPlayerV3 = !!playerV3;
+    
+    // Build skills object - handle both PlayerV3 and legacy formats
+    let skills = {};
+    if (isPlayerV3 && playerV3.skills) {
+      skills = playerV3.skills;
+    } else if (characterData?.skills) {
+      // Convert legacy skills array to object format
+      if (Array.isArray(characterData.skills)) {
+        skills = characterData.skills.reduce((acc: any, skill: any) => {
+          acc[skill] = 50; // Default skill value
+          return acc;
+        }, {});
+      } else if (typeof characterData.skills === 'object') {
+        skills = characterData.skills;
+      }
+    }
+    
+    // Build inventory array - handle both formats
+    let inventory = [];
+    if (isPlayerV3 && playerV3.inventory) {
+      inventory = playerV3.inventory;
+    } else if (characterData?.inventory) {
+      if (Array.isArray(characterData.inventory)) {
+        inventory = characterData.inventory.map((item: any) => 
+          typeof item === 'string' ? item : item.name || item
+        );
+      }
+    }
+    
     return {
       debugCharacter: {
         id: game.character_id,
-        name: game.state_snapshot?.character?.name || 'Unknown',
-        race: game.state_snapshot?.character?.race || 'Unknown',
-        level: game.state_snapshot?.character?.level || 1,
+        name: characterData?.name || 'Unknown',
+        race: characterData?.race || 'Unknown',
+        // PlayerV3 specific fields (with better fallbacks)
+        role: playerV3?.role || characterData?.class || 'Adventurer',
+        essence: playerV3?.essence || [],
+        age: playerV3?.age || 'Unknown',
+        build: playerV3?.build || 'Unknown',
+        eyes: playerV3?.eyes || 'Unknown',
+        traits: playerV3?.traits || [],
+        backstory: playerV3?.backstory || characterData?.backstory || 'No backstory available',
+        motivation: playerV3?.motivation || 'No motivation set',
+        // Skills and abilities
+        skills: skills,
+        inventory: inventory,
+        relationships: playerV3?.relationships || characterData?.relationships || {},
+        goals: playerV3?.goals || {},
+        flags: playerV3?.flags || characterData?.flags || {},
+        reputation: playerV3?.reputation || {},
+        // Legacy fields for compatibility
+        level: characterData?.level || 1,
         health: {
-          current: game.state_snapshot?.character?.currentHealth || 100,
-          max: game.state_snapshot?.character?.maxHealth || 100,
+          current: characterData?.current_health || 100,
+          max: characterData?.max_health || 100,
         },
-        attributes: game.state_snapshot?.character?.attributes || {},
-        skills: game.state_snapshot?.character?.skills || {},
-        inventory: game.state_snapshot?.character?.inventory || [],
-        relationships: game.state_snapshot?.character?.relationships || {},
+        attributes: characterData?.attributes || {},
+        // Debug info to help identify character type
+        characterType: isPlayerV3 ? 'PlayerV3' : 'Legacy',
+        hasPlayerV3Data: isPlayerV3,
       },
       debugGameState: {
         currentScene: game.state_snapshot?.current_scene || 'unknown',

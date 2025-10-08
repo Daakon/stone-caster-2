@@ -27,8 +27,12 @@ Stone Caster is a text-based adventure game platform that allows users to create
 
 ### Character System
 - **Character Creation**: Create custom characters or use premade templates
+- **PlayerV3 System**: New character creation system with 0-100 skill scales and world-scoped traits
 - **Character Persistence**: Characters are saved and can be reused across games
 - **Character Attributes**: Characters have stats, skills, and backstories
+- **Skill Point Allocation**: Point-buy system with 50 as baseline average
+- **World-Scoped Traits**: Curated trait lists specific to each world
+- **Equipment Kits**: Starting equipment based on character skills
 
 ### Adventure System
 - **Adventure Library**: Curated collection of text-based adventures

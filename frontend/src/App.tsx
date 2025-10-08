@@ -17,6 +17,7 @@ import AdventureDetailPage from './pages/AdventureDetailPage';
 import CharacterCreationPage from './pages/CharacterSelectionPage';
 import CharacterSelectionPage from './pages/CharacterSelectionPage';
 import CharacterCreatorPage from './pages/CharacterCreatorPage';
+import PlayerV3CreationPage from './pages/PlayerV3CreationPage';
 import WorldsPage from './pages/WorldsPage';
 import WorldDetailPage from './pages/WorldDetailPage';
 import WalletPage from './pages/WalletPage';
@@ -113,6 +114,7 @@ function App() {
                 <Route path="/adventures" element={<AdventuresPage />} />
                 <Route path="/my-adventures" element={<MyAdventuresPage />} />
                 <Route path="/adventures/:adventureId/characters" element={<CharacterSelectionPage />} />
+                <Route path="/adventures/:adventureId/create-character" element={<PlayerV3CreationPage />} />
                 <Route path="/adventures/:id" element={<AdventureDetailPage />} />
                 <Route path="/character-creation" element={<CharacterCreationPage />} />
                 <Route path="/character-creator" element={<CharacterCreatorPage />} />
