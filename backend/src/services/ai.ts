@@ -29,8 +29,9 @@ export class AIService {
   async generateTurnResponse(
     gameContext: any,
     optionId: string,
-    choices: Array<{id: string, label: string}> = []
-  ): Promise<string> {
+    choices: Array<{id: string, label: string}> = [],
+    includeDebug: boolean = false
+  ): Promise<{response: string, debug?: any}> {
     try {
       console.log('[AI_SERVICE] Starting turn response generation with new wrapper...');
       
@@ -45,7 +46,7 @@ export class AIService {
         const choice2Id = uuidv4();
         const choice3Id = uuidv4();
         
-        return JSON.stringify({
+        const testResponse: any = {
           scn: { id: 'test-scene', ph: 'active' },
           txt: 'The world seems to pause for a moment as reality stabilizes... This is a test response while the prompt engine is being validated.',
           choices: [
@@ -55,26 +56,79 @@ export class AIService {
           ],
           acts: [],
           val: { ok: true, errors: [], repairs: [] }
-        });
+        };
+        
+        if (includeDebug) {
+          testResponse.debug = {
+            promptState: { gameContext, optionId, choices },
+            promptText: 'Test mode - no AI call made',
+            aiResponseRaw: 'Test response',
+            processingTime: 0,
+            tokenCount: 0,
+            testMode: true
+          };
+        }
+        
+        return {
+          response: JSON.stringify(testResponse),
+          debug: includeDebug ? testResponse.debug : undefined
+        };
       }
 
       // Build prompt using the new wrapper system
       const prompt = await this.buildWrappedPrompt(gameContext, optionId, choices);
       
+      // Capture debug information if requested
+      const debugInfo: any = {};
+      if (includeDebug) {
+        debugInfo.promptState = {
+          gameContext,
+          optionId,
+          choices,
+          timestamp: new Date().toISOString(),
+        };
+        debugInfo.promptText = prompt;
+      }
+      
+      const startTime = Date.now();
+      
       // Generate response with OpenAI service
       const response = await this.openaiService.generateBufferedResponse(prompt);
+      
+      const processingTime = Date.now() - startTime;
       
       // Parse and validate response
       try {
         const parsed = this.openaiService.parseAIResponse(response.content);
-        return JSON.stringify(parsed);
+        
+        if (includeDebug) {
+          debugInfo.aiResponseRaw = response.content;
+          debugInfo.processingTime = processingTime;
+          debugInfo.tokenCount = response.usage?.total_tokens;
+        }
+        
+        return {
+          response: JSON.stringify(parsed),
+          debug: includeDebug ? debugInfo : undefined
+        };
       } catch (parseError) {
         console.error('[AI_SERVICE] Failed to parse AI response, attempting repair...');
         
         // Attempt JSON repair
         try {
           const repaired = await this.openaiService.repairJSONResponse(response.content, prompt);
-          return JSON.stringify(repaired);
+          
+          if (includeDebug) {
+            debugInfo.aiResponseRaw = response.content;
+            debugInfo.processingTime = processingTime;
+            debugInfo.tokenCount = response.usage?.total_tokens;
+            debugInfo.repairAttempted = true;
+          }
+          
+          return {
+            response: JSON.stringify(repaired),
+            debug: includeDebug ? debugInfo : undefined
+          };
         } catch (repairError) {
           console.error('[AI_SERVICE] JSON repair failed:', repairError);
           throw new Error('Failed to parse or repair AI response');
@@ -90,7 +144,7 @@ export class AIService {
       const choice3Id = uuidv4();
       
       // Return a fallback JSON response with AWF format
-      return JSON.stringify({
+      const fallbackResponse: any = {
         scn: { id: 'fallback-scene', ph: 'active' },
         txt: 'The world seems to pause for a moment as reality stabilizes...',
         choices: [
@@ -100,7 +154,24 @@ export class AIService {
         ],
         acts: [],
         val: { ok: true, errors: [], repairs: [] }
-      });
+      };
+      
+      if (includeDebug) {
+        fallbackResponse.debug = {
+          promptState: { gameContext, optionId, choices },
+          promptText: 'Fallback response - no AI call made',
+          aiResponseRaw: 'Fallback response',
+          processingTime: 0,
+          tokenCount: 0,
+          fallback: true,
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+      
+      return {
+        response: JSON.stringify(fallbackResponse),
+        debug: includeDebug ? fallbackResponse.debug : undefined
+      };
     }
   }
 

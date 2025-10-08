@@ -91,6 +91,7 @@ export class TurnsService {
 
       // Generate AI response using new wrapper system
       let aiResponseText: string;
+      let aiResult: any = null;
       const aiStartTime = Date.now();
       try {
         // Build game context for new AI service
@@ -100,20 +101,26 @@ export class TurnsService {
           character_id: game.character_id,
           state_snapshot: game.state_snapshot,
           turn_index: game.turn_count,
-          current_scene: game.current_scene,
-          character: game.character,
-          adventure: game.adventure,
+          current_scene: game.state_snapshot?.currentScene || 'unknown',
+          character: game.state_snapshot?.character || {},
+          adventure: game.state_snapshot?.adventure || {},
         };
 
         // Get available choices for input resolution
-        const choices = game.choices || [];
+        const choices = game.state_snapshot?.choices || [];
 
-        aiResponseText = await Promise.race([
-          aiService.generateTurnResponse(gameContext, optionId, choices),
+        // Check if debug mode is enabled (via environment variable or request header)
+        const includeDebug = process.env.NODE_ENV === 'development' || 
+                           process.env.ENABLE_AI_DEBUG === 'true';
+        
+        aiResult = await Promise.race([
+          aiService.generateTurnResponse(gameContext, optionId, choices, includeDebug),
           new Promise<never>((_, reject) => 
             setTimeout(() => reject(new Error('AI timeout')), 30000) // 30 second timeout
           )
         ]);
+        
+        aiResponseText = aiResult.response;
         
         // Log AI response to debug service
         debugService.logAiResponse(
@@ -147,6 +154,11 @@ export class TurnsService {
         
         const parsedResponse = JSON.parse(aiResponseText);
         console.log('[TURNS_SERVICE] Successfully parsed JSON, validating schema...');
+        
+        // Add debug information if available
+        if (aiResult && aiResult.debug) {
+          parsedResponse.debug = aiResult.debug;
+        }
         
         const validationResult = TurnResponseSchema.safeParse(parsedResponse);
         
@@ -222,7 +234,7 @@ export class TurnsService {
       }
 
       // Create Turn DTO
-      const turnDTO = await this.createTurnDTO(turnRecord, aiResponse, game, wallet.castingStones - turnCost, prompt);
+      const turnDTO = await this.createTurnDTO(turnRecord, aiResponse, game, wallet.castingStones - turnCost, aiResult.debug?.promptText);
 
       // Store idempotency record
       const requestHash = IdempotencyService.createRequestHash({ optionId });
