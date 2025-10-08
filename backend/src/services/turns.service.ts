@@ -89,33 +89,27 @@ export class TurnsService {
       // Ensure initial game state exists
       await this.ensureInitialGameState(game);
 
-      // Build prompt using the new assembly system
-      let prompt: string;
-      try {
-        prompt = await this.buildPrompt(game, optionId);
-      } catch (error) {
-        console.error('[TURNS_SERVICE] Error building prompt:', error);
-        if (error instanceof ServiceError) {
-          return {
-            success: false,
-            error: error.error.code,
-            message: error.error.message,
-          };
-        }
-        console.log('[TURNS_SERVICE] Returning generic error for prompt building');
-        return {
-          success: false,
-          error: ApiErrorCode.INTERNAL_ERROR,
-          message: 'Failed to build prompt',
-        };
-      }
-
-      // Generate AI response with timeout handling
+      // Generate AI response using new wrapper system
       let aiResponseText: string;
       const aiStartTime = Date.now();
       try {
+        // Build game context for new AI service
+        const gameContext = {
+          id: game.id,
+          world_id: game.world_slug,
+          character_id: game.character_id,
+          state_snapshot: game.state_snapshot,
+          turn_index: game.turn_count,
+          current_scene: game.current_scene,
+          character: game.character,
+          adventure: game.adventure,
+        };
+
+        // Get available choices for input resolution
+        const choices = game.choices || [];
+
         aiResponseText = await Promise.race([
-          aiService.generateTurnResponse(prompt),
+          aiService.generateTurnResponse(gameContext, optionId, choices),
           new Promise<never>((_, reject) => 
             setTimeout(() => reject(new Error('AI timeout')), 30000) // 30 second timeout
           )

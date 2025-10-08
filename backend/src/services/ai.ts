@@ -1,12 +1,10 @@
-import OpenAI from 'openai';
 import { configService } from '../config/index.js';
 import { promptsService } from './prompts.service.js';
+import { OpenAIService } from './openai.service.js';
+import { PromptWrapper, type GameStateData } from '../prompts/wrapper.js';
 import type { AIResponse, StoryAction, GameSave, Character } from '@shared';
 
 const env = configService.getEnv();
-const openai = new OpenAI({
-  apiKey: env.openaiApiKey,
-});
 
 interface StoryContext {
   gameSave: GameSave;
@@ -15,152 +13,26 @@ interface StoryContext {
 }
 
 export class AIService {
-  private async getActiveModel(): Promise<string> {
-    try {
-      await configService.whenReady();
-    } catch {
-      await configService.refreshNow();
-    }
+  private openaiService: OpenAIService;
+  private promptWrapper: PromptWrapper;
 
-    return configService.getAi().activeModel;
+  constructor() {
+    this.openaiService = new OpenAIService();
+    this.promptWrapper = new PromptWrapper();
   }
 
-  private async buildSystemPrompt(context: StoryContext): Promise<string> {
-    // Use the template system instead of hardcoded strings
-    const gameContext = {
-      id: context.gameSave.id,
-      world_id: context.gameSave.worldTemplateId, // Use worldTemplateId instead of worldSlug
-      character_id: context.character.id,
-      state_snapshot: context.gameSave.storyState,
-      turn_index: context.gameSave.storyState.history.length,
-    };
-
-    // Build prompt using the template system
-    // Use action type as optionId since StoryAction doesn't have an id
-    return await promptsService.buildPrompt(gameContext, context.action.type);
-  }
-
-  private buildConversationHistory(gameSave: GameSave): Array<{ role: 'user' | 'assistant'; content: string }> {
-    return gameSave.storyState.history.slice(-10).map(entry => ({
-      role: entry.role === 'player' ? 'user' as const : 'assistant' as const,
-      content: entry.content,
-    }));
-  }
-
-  async generateStoryResponse(context: StoryContext): Promise<AIResponse> {
-    try {
-      const model = await this.getActiveModel();
-      const systemPrompt = await this.buildSystemPrompt(context);
-      const conversationHistory = this.buildConversationHistory(context.gameSave);
-
-      const response = await openai.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...conversationHistory,
-          { role: 'user', content: context.action.content },
-        ],
-        temperature: 0.8,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' },
-      });
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('No response from AI');
-      }
-
-      const aiResponse = JSON.parse(content) as AIResponse;
-      return aiResponse;
-    } catch (error) {
-      console.error('AI Service error:', error);
-      return {
-        narrative: 'The world seems to pause for a moment as reality stabilizes...',
-        emotion: 'neutral',
-        suggestedActions: ['Look around', 'Continue forward', 'Check inventory'],
-      };
-    }
-  }
-
-  async generateCharacterSuggestions(race: string, characterClass: string): Promise<{
-    backstory: string;
-    personality: string;
-    goals: string[];
-  }> {
-    try {
-      const model = await this.getActiveModel();
-      const response = await openai.chat.completions.create({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a creative character designer for RPGs. Generate interesting character details.',
-          },
-          {
-            role: 'user',
-            content: `Create a backstory, personality description, and 3 goals for a ${race} ${characterClass} character. Respond in JSON format with fields: backstory, personality, goals (array).`,
-          },
-        ],
-        temperature: 0.9,
-        max_tokens: 500,
-        response_format: { type: 'json_object' },
-      });
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('No response from AI');
-      }
-
-      return JSON.parse(content);
-    } catch (error) {
-      console.error('Character suggestion error:', error);
-      return {
-        backstory: `A brave ${race} ${characterClass} with a mysterious past.`,
-        personality: 'Determined and resourceful',
-        goals: ['Seek adventure', 'Protect the innocent', 'Uncover the truth'],
-      };
-    }
-  }
-
-  async processSkillCheck(
-    skill: string,
-    difficulty: number,
-    rollResult: number,
-    context: StoryContext
-  ): Promise<string> {
-    const success = rollResult >= difficulty;
-
-    try {
-      const model = await this.getActiveModel();
-      const response = await openai.chat.completions.create({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are narrating the outcome of a skill check in an RPG.',
-          },
-          {
-            role: 'user',
-            content: `${context.character.name} attempted a ${skill} check (DC ${difficulty}) and rolled ${rollResult}. They ${success ? 'succeeded' : 'failed'}. Narrate the outcome in 2-3 sentences.`,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 150,
-      });
-
-      return response.choices[0]?.message?.content || `You ${success ? 'succeed' : 'fail'} at your ${skill} check.`;
-    } catch (error) {
-      console.error('Skill check narration error:', error);
-      return `You ${success ? 'succeed' : 'fail'} at your ${skill} check.`;
-    }
-  }
+  // Legacy methods removed - using new prompt wrapper system instead
 
   /**
-   * Generate a turn response from a prompt (for TurnsService integration)
+   * Generate a turn response using the new prompt wrapper and OpenAI service
    */
-  async generateTurnResponse(prompt: string): Promise<string> {
+  async generateTurnResponse(
+    gameContext: any,
+    optionId: string,
+    choices: Array<{id: string, label: string}> = []
+  ): Promise<string> {
     try {
-      console.log('[AI_SERVICE] Starting turn response generation...');
+      console.log('[AI_SERVICE] Starting turn response generation with new wrapper...');
       
       // Check if we're in test mode (no real AI API calls)
       const env = configService.getEnv();
@@ -174,39 +46,40 @@ export class AIService {
         const choice3Id = uuidv4();
         
         return JSON.stringify({
-          narrative: 'The world seems to pause for a moment as reality stabilizes... This is a test response while the prompt engine is being validated.',
-          emotion: 'neutral',
+          scn: { id: 'test-scene', ph: 'active' },
+          txt: 'The world seems to pause for a moment as reality stabilizes... This is a test response while the prompt engine is being validated.',
           choices: [
-            { id: choice1Id, label: 'Look around', description: 'Examine your surroundings carefully' },
-            { id: choice2Id, label: 'Continue forward', description: 'Press on with determination' },
-            { id: choice3Id, label: 'Check inventory', description: 'Review your belongings' }
+            { id: choice1Id, label: 'Look around' },
+            { id: choice2Id, label: 'Continue forward' },
+            { id: choice3Id, label: 'Check inventory' }
           ],
-          npcResponses: [],
-          worldStateChanges: {},
-          relationshipDeltas: {},
-          factionDeltas: {}
+          acts: [],
+          val: { ok: true, errors: [], repairs: [] }
         });
       }
-      
-      const model = await this.getActiveModel();
-      
-      
-      const response = await openai.chat.completions.create({
-        model,
-        messages: [
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.8,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' },
-      });
 
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('No response from AI');
+      // Build prompt using the new wrapper system
+      const prompt = await this.buildWrappedPrompt(gameContext, optionId, choices);
+      
+      // Generate response with OpenAI service
+      const response = await this.openaiService.generateBufferedResponse(prompt);
+      
+      // Parse and validate response
+      try {
+        const parsed = this.openaiService.parseAIResponse(response.content);
+        return JSON.stringify(parsed);
+      } catch (parseError) {
+        console.error('[AI_SERVICE] Failed to parse AI response, attempting repair...');
+        
+        // Attempt JSON repair
+        try {
+          const repaired = await this.openaiService.repairJSONResponse(response.content, prompt);
+          return JSON.stringify(repaired);
+        } catch (repairError) {
+          console.error('[AI_SERVICE] JSON repair failed:', repairError);
+          throw new Error('Failed to parse or repair AI response');
+        }
       }
-
-      return content;
     } catch (error) {
       console.error('[AI_SERVICE] Error generating turn response:', error);
       
@@ -216,21 +89,93 @@ export class AIService {
       const choice2Id = uuidv4();
       const choice3Id = uuidv4();
       
-      // Return a fallback JSON response with proper schema
+      // Return a fallback JSON response with AWF format
       return JSON.stringify({
-        narrative: 'The world seems to pause for a moment as reality stabilizes...',
-        emotion: 'neutral',
+        scn: { id: 'fallback-scene', ph: 'active' },
+        txt: 'The world seems to pause for a moment as reality stabilizes...',
         choices: [
-          { id: choice1Id, label: 'Look around', description: 'Examine your surroundings carefully' },
-          { id: choice2Id, label: 'Continue forward', description: 'Press on with determination' },
-          { id: choice3Id, label: 'Check inventory', description: 'Review your belongings' }
+          { id: choice1Id, label: 'Look around' },
+          { id: choice2Id, label: 'Continue forward' },
+          { id: choice3Id, label: 'Check inventory' }
         ],
-        npcResponses: [],
-        worldStateChanges: {},
-        relationshipDeltas: {},
-        factionDeltas: {}
+        acts: [],
+        val: { ok: true, errors: [], repairs: [] }
       });
     }
+  }
+
+  /**
+   * Build wrapped prompt using the new prompt wrapper system
+   */
+  private async buildWrappedPrompt(
+    gameContext: any,
+    optionId: string,
+    choices: Array<{id: string, label: string}>
+  ): Promise<string> {
+    // Resolve player input to text
+    const playerInput = this.promptWrapper.resolvePlayerInput(optionId, choices);
+    
+    // Generate game state data
+    const rngData = this.promptWrapper.generateRNGData();
+    const timeData = this.promptWrapper.generateTimeData(gameContext.turn_index || 0);
+    const isFirstTurn = gameContext.turn_index === 0;
+    
+    const gameState: GameStateData = {
+      time: timeData,
+      rng: rngData,
+      playerInput,
+      isFirstTurn,
+    };
+
+    // Build context for prompt assembly
+    const context = {
+      game: {
+        id: gameContext.id,
+        turn_index: gameContext.turn_index || 0,
+        summary: `Turn ${(gameContext.turn_index || 0) + 1} | World: ${gameContext.world_id} | Character: ${gameContext.character_id || 'Guest'}`,
+        current_scene: gameContext.current_scene || 'unknown',
+        state_snapshot: gameContext.state_snapshot,
+        option_id: optionId,
+      },
+      world: {
+        name: gameContext.world_id || 'unknown',
+        setting: 'A world of magic and adventure',
+        genre: 'fantasy',
+        themes: ['magic', 'adventure', 'mystery'],
+        rules: {},
+        mechanics: {},
+        lore: '',
+        logic: {},
+      },
+      character: gameContext.character || {},
+      adventure: gameContext.adventure || {},
+      runtime: {
+        ticks: gameContext.turn_index || 0,
+        presence: 'present',
+        ledgers: {},
+        flags: {},
+        last_acts: [],
+        style_hint: 'neutral',
+      },
+      system: {
+        schema_version: '1.0.0',
+        prompt_version: '2.0.0',
+        load_order: [],
+        hash: 'wrapper-v1',
+      },
+    };
+
+    // Assemble prompt using wrapper
+    const result = await this.promptWrapper.assemblePrompt(
+      context,
+      gameState,
+      { core: 'system' }, // Core data
+      { world: context.world }, // World data
+      { adventure: context.adventure }, // Adventure data
+      { player: context.character } // Player data
+    );
+
+    return result.prompt;
   }
 }
 
