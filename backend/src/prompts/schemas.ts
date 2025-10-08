@@ -23,15 +23,33 @@ export type PromptTemplateMeta = z.infer<typeof PromptTemplateMetaSchema>;
  */
 export const PromptContextSchema = z.object({
   character: z.object({
+    // Basic identity
     name: z.string().optional(),
-    level: z.number().optional(),
+    role: z.string().optional(),
     race: z.string().optional(),
-    class: z.string().optional(),
+    class: z.string().optional(), // Legacy field
+    level: z.number().optional(), // Legacy field - not used in skill-based system
+    
+    // PlayerV3 specific fields
+    essence: z.array(z.string()).optional(),
+    age: z.string().optional(),
+    build: z.string().optional(),
+    eyes: z.string().optional(),
+    traits: z.array(z.string()).optional(),
+    backstory: z.string().optional(),
+    motivation: z.string().optional(),
+    
+    // Skills and abilities
     skills: z.record(z.number()).optional(),
-    stats: z.record(z.number()).optional(),
+    stats: z.record(z.number()).optional(), // Legacy field
     inventory: z.array(z.string()).optional(),
     relationships: z.record(z.any()).optional(),
+    goals: z.object({
+      short_term: z.array(z.string()).optional(),
+      long_term: z.array(z.string()).optional()
+    }).optional(),
     flags: z.record(z.any()).optional(),
+    reputation: z.record(z.number()).optional(),
   }).optional(),
   
   game: z.object({
@@ -131,3 +149,5 @@ export const WorldPromptConfigSchema = z.object({
 });
 
 export type WorldPromptConfig = z.infer<typeof WorldPromptConfigSchema>;
+
+

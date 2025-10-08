@@ -126,16 +126,30 @@ export class PromptAssembler {
    */
   private buildContextObject(context: PromptContext): Record<string, any> {
     return {
-      // Character variables
+      // Character variables - Basic identity
       'character.name': context.character?.name,
-      'character.level': context.character?.level,
+      'character.role': context.character?.role,
       'character.race': context.character?.race,
-      'character.class': context.character?.class,
+      'character.class': context.character?.class, // Legacy field
+      'character.level': context.character?.level, // Legacy field - not used in skill-based system
+      
+      // PlayerV3 specific fields
+      'character.essence': context.character?.essence,
+      'character.age': context.character?.age,
+      'character.build': context.character?.build,
+      'character.eyes': context.character?.eyes,
+      'character.traits': context.character?.traits,
+      'character.backstory': context.character?.backstory,
+      'character.motivation': context.character?.motivation,
+      
+      // Skills and abilities
       'character.skills': context.character?.skills,
-      'character.stats': context.character?.stats,
+      'character.stats': context.character?.stats, // Legacy field
       'character.inventory': context.character?.inventory,
       'character.relationships': context.character?.relationships,
+      'character.goals': context.character?.goals,
       'character.flags': context.character?.flags,
+      'character.reputation': context.character?.reputation,
       
       // Game variables
       'game.id': context.game.id,

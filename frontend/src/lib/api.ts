@@ -217,6 +217,36 @@ export async function createCharacterFromPremade(
   });
 }
 
+// PlayerV3 API functions
+export async function createPlayerV3(
+  worldSlug: string,
+  player: any,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiPost('/api/players-v3', { worldSlug, player });
+}
+
+export async function getPlayerV3(
+  playerId: string,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/players-v3/${playerId}`);
+}
+
+export async function updatePlayerV3(
+  playerId: string,
+  updates: any,
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiFetch(`/api/players-v3/${playerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function getPlayersV3ByWorld(
+  worldSlug: string,
+): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet(`/api/players-v3/world/${worldSlug}`);
+}
+
 // Turn submission with idempotency key
 export async function submitTurn<T = unknown>(
   gameId: string,

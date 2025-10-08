@@ -6,6 +6,7 @@ import { debugService } from './debug.service.js';
 import { getTemplatesForWorld, PromptTemplateMissingError, getFileBasedTemplateForWorld } from '../prompting/templateRegistry.js';
 import { ServiceError } from '../utils/serviceError.js';
 import { ApiErrorCode } from '@shared';
+import { PlayerV3Service } from './player-v3.service.js';
 import type { Character, WorldTemplate, Prompt } from '@shared';
 import type { PromptContext, PromptAssemblyResult, PromptAuditEntry } from '../prompts/schemas.js';
 
@@ -32,7 +33,7 @@ export class PromptsService {
   async createInitialPrompt(game: GameContext): Promise<string> {
     try {
       // Use the new file-based template system
-      const context = this.buildFileBasedTemplateContext(game, 'game_start');
+      const context = await this.buildFileBasedTemplateContext(game, 'game_start');
       const result = await getFileBasedTemplateForWorld(game.world_id, context);
       
       // Log to debug service
@@ -145,7 +146,7 @@ export class PromptsService {
   async buildPrompt(game: GameContext, optionId: string): Promise<string> {
     try {
       // Use the new file-based template system
-      const context = this.buildFileBasedTemplateContext(game, optionId);
+      const context = await this.buildFileBasedTemplateContext(game, optionId);
       const result = await getFileBasedTemplateForWorld(game.world_id, context);
       
       // Log to debug service
@@ -336,13 +337,29 @@ export class PromptsService {
   ): PromptContext {
     return {
       character: character ? {
+        // Basic identity
         name: character.name,
+        role: (character.worldData as any)?.playerV3?.role || character.class,
         race: character.race,
-        skills: character.skills ? Object.fromEntries(character.skills.map(skill => [skill, 1])) : undefined,
+        class: character.class, // Legacy field
+        
+        // PlayerV3 specific fields
+        essence: (character.worldData as any)?.playerV3?.essence,
+        age: (character.worldData as any)?.playerV3?.age,
+        build: (character.worldData as any)?.playerV3?.build,
+        eyes: (character.worldData as any)?.playerV3?.eyes,
+        traits: (character.worldData as any)?.playerV3?.traits,
+        backstory: (character.worldData as any)?.playerV3?.backstory,
+        motivation: (character.worldData as any)?.playerV3?.motivation,
+        
+        // Skills and abilities
+        skills: (character.worldData as any)?.playerV3?.skills || (character.skills ? Object.fromEntries(character.skills.map(skill => [skill, 1])) : undefined),
         inventory: character.inventory?.map(item => item.name) || [],
-        relationships: character.worldData?.relationships || {},
-        stats: character.attributes || {},
-        flags: character.worldData?.flags || {},
+        relationships: (character.worldData as any)?.playerV3?.relationships || (character.worldData as any)?.relationships || {},
+        goals: (character.worldData as any)?.playerV3?.goals,
+        flags: (character.worldData as any)?.playerV3?.flags || (character.worldData as any)?.flags || {},
+        reputation: (character.worldData as any)?.playerV3?.reputation,
+        stats: character.attributes || {}, // Legacy field
       } : undefined,
       
       game: {
@@ -416,7 +433,7 @@ export class PromptsService {
   /**
    * Build context for the file-based template system
    */
-  private buildFileBasedTemplateContext(game: GameContext, optionId: string): {
+  private async buildFileBasedTemplateContext(game: GameContext, optionId: string): Promise<{
     turn: number;
     scene_id: string;
     phase: string;
@@ -426,7 +443,7 @@ export class PromptsService {
     party_min_json: string;
     flags_json: string;
     last_outcome_min_json: string;
-  } {
+  }> {
     // Extract current scene and phase from game state
     const currentScene = game.state_snapshot?.current_scene || 'opening';
     const currentPhase = game.state_snapshot?.current_phase || 'start';
@@ -446,15 +463,68 @@ export class PromptsService {
     };
     
     // Build player state JSON for the template
-    const playerState = game.character_id ? {
-      id: game.character_id,
-      name: game.state_snapshot?.character?.name || 'Unknown',
-      race: game.state_snapshot?.character?.race || 'Human',
-      level: game.state_snapshot?.character?.level || 1,
-      skills: game.state_snapshot?.character?.skills || {},
-      inventory: game.state_snapshot?.character?.inventory || [],
-      relationships: game.state_snapshot?.character?.relationships || {}
-    } : null;
+    let playerState = null;
+    
+    if (game.character_id) {
+      // Try to get PlayerV3 data first
+      const playerV3 = await PlayerV3Service.getPlayerById(game.character_id);
+      
+      if (playerV3) {
+        // Use PlayerV3 format with all character details
+        playerState = PlayerV3Service.toPromptFormat(playerV3);
+      } else {
+        // Fallback to legacy character format - load actual character data from database
+        try {
+          const { data: characterData, error } = await supabaseAdmin
+            .from('characters')
+            .select('*')
+            .eq('id', game.character_id)
+            .single();
+          
+          if (!error && characterData) {
+            // Build legacy character format from actual database data
+            playerState = {
+              id: characterData.id,
+              name: characterData.name || 'Unknown',
+              race: characterData.race || 'Human',
+              class: characterData.class || 'Adventurer',
+              level: characterData.level || 1,
+              skills: characterData.skills || {},
+              inventory: characterData.inventory || [],
+              relationships: characterData.relationships || {},
+              attributes: characterData.attributes || {},
+              current_health: characterData.current_health || 100,
+              max_health: characterData.max_health || 100
+            };
+          } else {
+            // Final fallback to state snapshot if database query fails
+            playerState = {
+              id: game.character_id,
+              name: game.state_snapshot?.character?.name || 'Unknown',
+              race: game.state_snapshot?.character?.race || 'Human',
+              class: game.state_snapshot?.character?.class || 'Adventurer',
+              level: game.state_snapshot?.character?.level || 1,
+              skills: game.state_snapshot?.character?.skills || {},
+              inventory: game.state_snapshot?.character?.inventory || [],
+              relationships: game.state_snapshot?.character?.relationships || {}
+            };
+          }
+        } catch (error) {
+          console.error('Error loading character for prompt:', error);
+          // Final fallback to state snapshot
+          playerState = {
+            id: game.character_id,
+            name: game.state_snapshot?.character?.name || 'Unknown',
+            race: game.state_snapshot?.character?.race || 'Human',
+            class: game.state_snapshot?.character?.class || 'Adventurer',
+            level: game.state_snapshot?.character?.level || 1,
+            skills: game.state_snapshot?.character?.skills || {},
+            inventory: game.state_snapshot?.character?.inventory || [],
+            relationships: game.state_snapshot?.character?.relationships || {}
+          };
+        }
+      }
+    }
     
     // Build RNG JSON for the template
     const rng = {

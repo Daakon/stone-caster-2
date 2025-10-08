@@ -3,6 +3,9 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { getWorldConfig } from '@shared/config/character-creation.config';
+import type { PlayerV3 } from '@shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -188,6 +191,86 @@ export class PremadeCharactersService {
   private static validateWorldSlugFromMock(worldSlug: string): boolean {
     const mockCharacters = this.loadMockPremadeCharacters();
     return mockCharacters.some(char => char.worldId === worldSlug);
+  }
+
+  /**
+   * Convert a premade character to PlayerV3 format
+   * @param premadeCharacter - Premade character DTO
+   * @param customName - Optional custom name for the character
+   * @returns PlayerV3 object
+   */
+  static convertToPlayerV3(premadeCharacter: PremadeCharacterDTO, customName?: string): PlayerV3 {
+    const worldConfig = getWorldConfig(premadeCharacter.worldSlug);
+    const baseTraits = premadeCharacter.baseTraits;
+    
+    // Extract character data from baseTraits - now using PlayerV3 format
+    const skills = baseTraits.skills as Record<string, number> || {};
+    const personalityTraits = baseTraits.personality_traits as string[] || [];
+    
+    // Map skills to PlayerV3 format - use direct mapping if available, otherwise fallback to legacy mapping
+    const playerV3Skills = {
+      combat: skills.combat || skills.strength || 50,
+      stealth: skills.stealth || skills.dexterity || 50,
+      social: skills.social || skills.charisma || 50,
+      lore: skills.lore || skills.intelligence || 50,
+      survival: skills.survival || skills.constitution || 50,
+      medicine: skills.medicine || skills.wisdom || 50,
+      craft: skills.craft || 50
+    };
+    
+    // Use PlayerV3 fields directly from baseTraits if available, with proper validation
+    const race = (baseTraits.race as string) || worldConfig.availableRaces[0];
+    const role = (baseTraits.class as string) || 'Adventurer';
+    
+    // Ensure essence is an array with 1-4 items
+    let essence = (baseTraits.essence as string[]) || worldConfig.essenceOptions.slice(0, 2);
+    if (!Array.isArray(essence) || essence.length === 0) {
+      essence = worldConfig.essenceOptions.slice(0, 2);
+    }
+    if (essence.length > 4) {
+      essence = essence.slice(0, 4);
+    }
+    
+    const age = (baseTraits.age as string) || 'Young Adult';
+    const build = (baseTraits.build as string) || 'Average';
+    const eyes = (baseTraits.eyes as string) || 'Brown';
+    
+    // Ensure traits is an array with 2-4 items
+    let traits = (baseTraits.traits as string[]) || personalityTraits.slice(0, 4);
+    if (!Array.isArray(traits) || traits.length < 2) {
+      traits = personalityTraits.slice(0, 4);
+      if (traits.length < 2) {
+        traits = ['Brave', 'Determined']; // Fallback traits
+      }
+    }
+    if (traits.length > 4) {
+      traits = traits.slice(0, 4);
+    }
+    
+    const backstory = (baseTraits.backstory as string) || premadeCharacter.summary;
+    const motivation = (baseTraits.motivation as string) || 'To fulfill their destiny';
+    const inventory = (baseTraits.inventory as string[]) || [];
+    const goals = (baseTraits.goals as { short_term: string[], long_term: string[] }) || { short_term: [], long_term: [] };
+    
+    return {
+      id: uuidv4(),
+      name: customName || premadeCharacter.displayName,
+      role,
+      race,
+      essence,
+      age,
+      build,
+      eyes,
+      traits,
+      backstory,
+      motivation,
+      skills: playerV3Skills,
+      inventory,
+      relationships: {},
+      goals,
+      flags: {},
+      reputation: {}
+    };
   }
 
   /**
