@@ -53,54 +53,6 @@ export class AIService {
     choices: Array<{id: string, label: string}> = [],
     includeDebug: boolean = false
   ): Promise<{response: string, debug?: any}> {
-    // TEMPORARILY DISABLED: AI calls disabled for prompt validation
-    console.log(`[AI_SERVICE] AI calls temporarily disabled for prompt validation`);
-    
-    // Build the prompt to return to frontend for verification
-    const prompt = await this.buildWrappedPrompt(gameContext, optionId, choices);
-    
-    // HARD STOP: Check if prompt contains incomplete adventure format
-    if (prompt.includes('=== INPUT_BEGIN ===\nBegin the adventure\n=== INPUT_END ===')) {
-      console.error(`[AI_SERVICE] HARD STOP - Prompt contains incomplete adventure format!`);
-      console.error(`[AI_SERVICE] Prompt INPUT_BEGIN section:`, prompt.match(/=== INPUT_BEGIN ===[\s\S]*?=== INPUT_END ===/)?.[0]);
-      throw new Error(`HARD STOP - Prompt contains incomplete adventure format. Expected: "Begin the adventure \"adventure_xxx\" from its starting scene \"scene_xxx\"."`);
-    }
-    
-    // Return a proper JSON response that the turns service can parse
-    const mockAIResponse = {
-      scn: "opening",
-      txt: `AI_DISABLED: Prompt validation mode. Please verify the prompt format before enabling AI calls.\n\nGenerated Prompt:\n${prompt}`,
-      choices: [
-        {
-          id: "validation_mode_choice_1",
-          label: "Continue forward (Validation Mode)"
-        },
-        {
-          id: "validation_mode_choice_2", 
-          label: "Look around (Validation Mode)"
-        },
-        {
-          id: "validation_mode_choice_3",
-          label: "Wait and observe (Validation Mode)"
-        }
-      ],
-      acts: [],
-      val: {}
-    };
-    
-    return {
-      response: JSON.stringify(mockAIResponse),
-      debug: {
-        prompt,
-        gameContext: {
-          turn_index: gameContext.turn_index,
-          world_id: gameContext.world_id,
-          current_scene: gameContext.current_scene,
-          adventure: gameContext.adventure
-        },
-        validationMode: true
-      }
-    };
     try {
       console.log('[AI_SERVICE] Starting turn response generation with new wrapper...');
       
