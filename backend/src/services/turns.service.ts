@@ -549,7 +549,7 @@ export class TurnsService {
         character_id: updatedGame.character_id,
         state_snapshot: updatedGame.state_snapshot,
         turn_index: 0,
-        current_scene: updatedGame.state_snapshot?.currentScene || 'opening',
+        current_scene: updatedGame.state_snapshot?.currentScene || 'forest_meet',
         character: updatedGame.state_snapshot?.character || {},
         adventure: updatedGame.state_snapshot?.adventure || {},
       };

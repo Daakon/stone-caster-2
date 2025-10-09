@@ -4,13 +4,13 @@ import { createHash } from 'crypto';
 import type { PromptTemplateMeta } from './schemas.js';
 
 /**
- * Generic prompt file loader that reads JSON/MD files from GPT Prompts directory
+ * Generic prompt file loader that reads JSON/MD files from AI API Prompts directory
  */
 export class PromptLoader {
   private readonly promptsPath: string;
   private readonly loadOrderMap: Map<string, number>;
 
-  constructor(promptsPath: string = 'GPT Prompts') {
+  constructor(promptsPath: string = 'AI API Prompts') {
     this.promptsPath = promptsPath;
     this.loadOrderMap = new Map([
       // Foundation Layer

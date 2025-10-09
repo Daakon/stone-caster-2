@@ -252,8 +252,8 @@ export class AIService {
       // Try to load from the file-based template system first
       const possiblePaths = [
         `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
-        `backend/GPT Prompts/Worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
-        `GPT Prompts/Worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
       ];
 
       for (const path of possiblePaths) {
@@ -287,7 +287,7 @@ export class AIService {
     // Map scene names to adventure names for specific worlds
     const worldAdventureMap: Record<string, Record<string, string>> = {
       'mystika': {
-        'opening': 'adventure_whispercross_hook',
+        'forest_meet': 'adventure_whispercross_hook',
         'whispercross': 'adventure_whispercross_hook',
         'outer_paths_meet_kiera_01': 'adventure_whispercross_hook'
       }
@@ -333,7 +333,7 @@ export class AIService {
         adventureStartData = await this.loadAdventureStartData(gameContext.world_id, adventureName);
         console.log(`[AI_SERVICE] Loaded adventure start data:`, {
           hasData: !!adventureStartData,
-          opening: adventureStartData?.opening,
+          start: adventureStartData?.start,
           title: adventureStartData?.title
         });
       } catch (error) {

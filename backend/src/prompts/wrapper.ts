@@ -185,10 +185,10 @@ export class PromptWrapper {
       // Build clean input that references the adventure data (no duplication)
       let result = `Begin the adventure "${formattedAdventureName}" from its starting scene "${startingScene}".`;
       
-      // Use the opening scene from adventure start data if available
-      if (adventureStartData && adventureStartData.opening) {
-        const openingScene = adventureStartData.opening.scene || startingScene;
-        result = `Begin the adventure "${formattedAdventureName}" from its starting scene "${openingScene}".`;
+      // Use the start scene from adventure start data if available
+      if (adventureStartData && adventureStartData.start) {
+        const startScene = adventureStartData.start.scene || startingScene;
+        result = `Begin the adventure "${formattedAdventureName}" from its starting scene "${startScene}".`;
       }
       
       // HARD STOP: Validate the result before returning

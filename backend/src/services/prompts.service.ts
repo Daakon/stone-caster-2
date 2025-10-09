@@ -301,7 +301,7 @@ export class PromptsService {
         id: game.id,
         turn_index: 0, // Initial prompt is always turn 0
         summary: this.generateInitialGameSummary(game),
-        current_scene: 'opening', // Default opening scene
+        current_scene: 'forest_meet', // Default starting scene
         state_snapshot: game.state_snapshot,
         option_id: 'game_start', // Special option ID for initial prompt
       },
@@ -331,13 +331,13 @@ export class PromptsService {
         presence: 'present',
         ledgers: {
           'game.turns': 0,
-          'game.scenes_visited': ['opening'],
+          'game.scenes_visited': ['forest_meet'],
           'game.actions_taken': [],
         },
         flags: {
           'game.initialized': true,
           'game.world': game.world_id,
-          'game.starting_scene': 'opening',
+          'game.starting_scene': 'forest_meet',
         },
         last_acts: [],
         style_hint: 'neutral',
@@ -501,7 +501,7 @@ export class PromptsService {
     }
     
     // Extract current scene and phase from game state
-    const currentScene = game.state_snapshot?.current_scene || 'opening';
+    const currentScene = game.state_snapshot?.current_scene || 'forest_meet';
     const currentPhase = game.state_snapshot?.current_phase || 'start';
     
     // Map scene names to adventure names for specific worlds
@@ -663,9 +663,9 @@ export class PromptsService {
         optionId,
         [], // No choices for initial turn
         game.turn_index === 0, // isFirstTurn
-        game.turn_index === 0 ? this.mapSceneToAdventure(game.world_id, game.current_scene || 'opening') : undefined,
-        game.current_scene || 'opening',
-        game.turn_index === 0 ? await this.loadAdventureStartData(game.world_id, this.mapSceneToAdventure(game.world_id, game.current_scene || 'opening')) : undefined
+        game.turn_index === 0 ? this.mapSceneToAdventure(game.world_id, game.current_scene || 'forest_meet') : undefined,
+        game.current_scene || 'forest_meet',
+        game.turn_index === 0 ? await this.loadAdventureStartData(game.world_id, this.mapSceneToAdventure(game.world_id, game.current_scene || 'forest_meet')) : undefined
       );
       
       // Build the prompt with adventure start data included
@@ -741,7 +741,7 @@ ${enhancedPlayerInput}
     // Map scene names to adventure names for specific worlds
     const worldAdventureMap: Record<string, Record<string, string>> = {
       'mystika': {
-        'opening': 'whispercross',
+        'forest_meet': 'whispercross',
         'whispercross': 'whispercross'
       }
     };
@@ -768,8 +768,8 @@ ${enhancedPlayerInput}
       // Try to load from the file-based template system first
       const possiblePaths = [
         `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
-        `backend/GPT Prompts/Worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
-        `GPT Prompts/Worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
       ];
 
       for (const path of possiblePaths) {

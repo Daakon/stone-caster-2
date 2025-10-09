@@ -18,7 +18,7 @@ async function testPromptCleaning() {
     console.log('1️⃣ Testing JSON Content Cleaning');
     console.log('─'.repeat(60));
     
-    const loader = new PromptLoader(join(process.cwd(), 'GPT Prompts'));
+    const loader = new PromptLoader(join(process.cwd(), 'AI API Prompts'));
     
     // Example messy JSON
     const messyJson = `{

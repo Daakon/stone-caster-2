@@ -11,7 +11,7 @@ import { join } from 'path';
 async function demonstratePromptCleaning() {
   console.log('🧹 Prompt Generation JSON Cleaning Demo\n');
   
-  const loader = new PromptLoader(join(process.cwd(), 'GPT Prompts'));
+  const loader = new PromptLoader(join(process.cwd(), 'AI API Prompts'));
   
   // Example JSON with comments and extra whitespace
   const messyJson = `{

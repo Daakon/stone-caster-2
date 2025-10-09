@@ -5,7 +5,7 @@ import { join } from 'path';
 
 describe('PromptLoader', () => {
   let loader: PromptLoader;
-  const testPromptsPath = join(process.cwd(), 'GPT Prompts');
+  const testPromptsPath = join(process.cwd(), 'AI API Prompts');
 
   beforeEach(() => {
     loader = new PromptLoader(testPromptsPath);
@@ -181,7 +181,7 @@ describe('PromptLoader', () => {
 
   describe('File Processing Integration', () => {
     it('should process JSON files with cleaned content', async () => {
-      // This test would require actual JSON files in the GPT Prompts directory
+      // This test would require actual JSON files in the AI API Prompts directory
       // For now, we'll test the method exists and can be called
       expect(typeof loader.loadPromptManifest).toBe('function');
     });

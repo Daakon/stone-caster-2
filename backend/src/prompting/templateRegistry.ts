@@ -58,8 +58,8 @@ class FSTemplateLoader {
   constructor() {
     // Resolve project root (backend directory)
     this.projectRoot = resolve(process.cwd());
-    this.coreDir = join(this.projectRoot, 'GPT Prompts', 'Core');
-    this.worldsDir = join(this.projectRoot, 'GPT Prompts', 'Worlds');
+    this.coreDir = join(this.projectRoot, 'AI API Prompts');
+    this.worldsDir = join(this.projectRoot, 'AI API Prompts', 'worlds');
     
   }
 

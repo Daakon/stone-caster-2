@@ -1,13 +1,13 @@
 # Prompt Assembly System
 
-This directory contains the Layer P2 prompt assembly pipeline that dynamically loads and assembles prompts from the `GPT Prompts/` directory structure.
+This directory contains the Layer P2 prompt assembly pipeline that dynamically loads and assembles prompts from the `AI API Prompts/` directory structure.
 
 ## Architecture
 
 The system follows a strict load order and authority hierarchy to ensure consistent AI behavior:
 
 ```
-Game Context → PromptAssembler → PromptLoader → GPT Prompts/
+Game Context → PromptAssembler → PromptLoader → AI API Prompts/
      ↓              ↓                ↓              ↓
 Character      Manifest         File System    JSON/MD Files
 World          Templates        Load Order     Dynamic Content
@@ -221,10 +221,10 @@ Turn: {{game.turn_index}}
 
 ## World Configuration
 
-The system automatically detects and configures worlds based on the `GPT Prompts/Worlds/` directory structure:
+The system automatically detects and configures worlds based on the `AI API Prompts/worlds/` directory structure:
 
 ```
-GPT Prompts/Worlds/
+AI API Prompts/worlds/
 ├── Mystika/
 │   ├── world-codex.mystika-lore.md
 │   ├── world-codex.mystika-logic.json
@@ -298,10 +298,10 @@ The system is designed to support future enhancements:
 
 ### Common Issues
 
-1. **No templates found for world**: Check that world-specific files exist in `GPT Prompts/Worlds/{world}/`
+1. **No templates found for world**: Check that world-specific files exist in `AI API Prompts/worlds/{world}/`
 2. **Invalid variables in template**: Ensure all variables are in the allowlist
 3. **Load order conflicts**: Verify template load order in the manifest
-4. **Missing required templates**: Check that core templates exist in `GPT Prompts/Core/`
+4. **Missing required templates**: Check that core templates exist in `AI API Prompts/`
 
 ### Debug Mode
 
