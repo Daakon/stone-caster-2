@@ -133,7 +133,7 @@ export class GameStateService {
         id: data.id,
         gameId: data.id,
         turnIndex: data.turn_count || 0,
-        currentScene: data.state_snapshot.currentScene || 'opening',
+        currentScene: data.state_snapshot.currentScene || 'forest_meet',
         character: data.state_snapshot.character || null,
         world: data.state_snapshot.world || null,
         adventure: data.state_snapshot.adventure || null,

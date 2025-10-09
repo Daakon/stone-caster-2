@@ -74,7 +74,7 @@ describe('PromptsService', () => {
       id: 'game-123',
       world_id: 'mystika',
       character_id: 'char-123',
-      state_snapshot: { current_scene: 'opening' },
+      state_snapshot: { current_scene: 'forest_meet' },
       turn_index: 1,
     };
 

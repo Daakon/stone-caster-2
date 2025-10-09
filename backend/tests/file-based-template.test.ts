@@ -105,12 +105,12 @@ describe('FileBasedTemplateLoader', () => {
     expect(result.variablesReplaced['{{player_input_text}}']).toBe('Attack the enemy');
   });
 
-  it('should handle opening scene correctly by using whispercross adventure', async () => {
-    // This test simulates the actual game context where scene_id is 'opening'
-    // The template loader should use 'opening' as the adventure name directly
+  it('should handle forest_meet scene correctly by using whispercross adventure', async () => {
+    // This test simulates the actual game context where scene_id is 'forest_meet'
+    // The template loader should use 'forest_meet' as the scene name
     const context = {
       turn: 1,
-      scene_id: 'opening', // This will be used as the adventure name
+      scene_id: 'forest_meet', // This will be used as the scene name
       phase: 'start',
       time_block_json: JSON.stringify({ hour: 12, day: 1, season: 'spring' }),
       weather_json: JSON.stringify({ d20: 15, d100: 75, seed: 12345 }),
@@ -125,10 +125,10 @@ describe('FileBasedTemplateLoader', () => {
     expect(result).toBeDefined();
     expect(result.prompt).toBeDefined();
     
-    // The adventure name should be 'opening' as passed in
-    expect(result.variablesReplaced['{{adventure_name}}']).toBe('opening');
+    // The adventure name should be 'forest_meet' as passed in
+    expect(result.variablesReplaced['{{adventure_name}}']).toBe('forest_meet');
     
-    // Should show file not found for opening adventure (since it doesn't exist)
-    expect(result.prompt).toContain('[FILE NOT FOUND: worlds/mystika/adventures/opening/adventure.prompt.json]');
+    // Should show file not found for forest_meet adventure (since it doesn't exist)
+    expect(result.prompt).toContain('[FILE NOT FOUND: worlds/mystika/adventures/forest_meet/adventure.prompt.json]');
   });
 });

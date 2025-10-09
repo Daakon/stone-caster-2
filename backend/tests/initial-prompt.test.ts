@@ -71,7 +71,7 @@ describe('Initial Prompt Functionality', () => {
       character_id: 'test-character-id',
       turn_count: 0,
       state_snapshot: {
-        currentScene: 'opening',
+        currentScene: 'forest_meet',
         character: { name: 'Test Character' },
         adventure: null,
       },
@@ -149,9 +149,10 @@ describe('Initial Prompt Functionality', () => {
     const mockAdventureStartData = {
       id: 'adv.whispercross.start.v3',
       title: 'Whispercross Opening',
-      opening: {
+      start: {
         scene: 'forest_meet',
-        summary: 'You cross into Whispercross at dusk.'
+        policy: 'ai_first',
+        hints: ['You cross into Whispercross at dusk.']
       }
     };
 
@@ -172,7 +173,7 @@ describe('Initial Prompt Functionality', () => {
     const context = await (promptsServiceInstance as any).buildFileBasedTemplateContext(gameContext, 'game_start');
     
     expect(context.turn).toBe(0);
-    expect(context.scene_id).toBe('whispercross'); // Should map opening to whispercross
+    expect(context.scene_id).toBe('forest_meet'); // Should use the actual starting scene
     expect(context.flags_json).toBe('Begin the adventure');
   });
 

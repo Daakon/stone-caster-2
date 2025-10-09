@@ -3,6 +3,8 @@ import { promptsService } from './prompts.service.js';
 import { OpenAIService } from './openai.service.js';
 import { PromptWrapper, type GameStateData } from '../prompts/wrapper.js';
 import type { AIResponse, StoryAction, GameSave, Character } from '@shared';
+import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS } from '../constants/game-constants.js';
+import { GameConfigService } from './game-config.service.js';
 
 const env = configService.getEnv();
 
@@ -15,9 +17,11 @@ interface StoryContext {
 export class AIService {
   private openaiService: OpenAIService | null = null;
   private promptWrapper: PromptWrapper;
+  private gameConfigService: GameConfigService;
 
   constructor() {
     this.promptWrapper = new PromptWrapper();
+    this.gameConfigService = GameConfigService.getInstance();
     
     // Initialize OpenAI service lazily when first needed
     this.initializeOpenAIService();
@@ -249,11 +253,18 @@ export class AIService {
     console.log(`[AI_SERVICE] Loading adventure start data for world: ${worldId}, adventure: ${adventureName}`);
     
     try {
+      // Handle different adventure ID formats - map to actual directory name
+      let adventurePath = adventureName;
+      if (adventureName === ADVENTURE_IDS.WHISPERCROSS) {
+        adventurePath = 'whispercross'; // Map to actual directory name
+      }
+      
       // Try to load from the file-based template system first
       const possiblePaths = [
-        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
-        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
-        `AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.start.prompt.json`,
+        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.prompt.json`,
+        `AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.start.prompt.json`,
+        `AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.prompt.json`,
       ];
 
       for (const path of possiblePaths) {
@@ -281,15 +292,25 @@ export class AIService {
   }
 
   /**
-   * Map scene names to adventure names for specific worlds
+   * Map scene names to adventure names using dynamic configuration
    */
-  private mapSceneToAdventure(worldId: string, sceneId: string): string {
-    // Map scene names to adventure names for specific worlds
+  private async mapSceneToAdventure(worldId: string, sceneId: string): Promise<string> {
+    try {
+      // Try to get adventure from actual configuration
+      const adventureId = await this.gameConfigService.getAdventureForScene(worldId as any, sceneId);
+      if (adventureId) {
+        return adventureId;
+      }
+    } catch (error) {
+      console.warn(`[AI_SERVICE] Could not load dynamic mapping for ${worldId}:${sceneId}:`, error);
+    }
+
+    // Fallback to hardcoded mapping for now
     const worldAdventureMap: Record<string, Record<string, string>> = {
-      'mystika': {
-        'forest_meet': 'adventure_whispercross_hook',
-        'whispercross': 'adventure_whispercross_hook',
-        'outer_paths_meet_kiera_01': 'adventure_whispercross_hook'
+      [WORLD_IDS.MYSTIKA]: {
+        [SCENE_IDS.DEFAULT_START]: ADVENTURE_IDS.WHISPERCROSS,
+        'whispercross': ADVENTURE_IDS.WHISPERCROSS,
+        'outer_paths_meet_kiera_01': ADVENTURE_IDS.WHISPERCROSS
       }
     };
 
@@ -315,7 +336,7 @@ export class AIService {
     const startingScene = gameContext.current_scene;
     
     // Map scene to adventure name using the same logic as prompts service
-    const adventureName = this.mapSceneToAdventure(gameContext.world_id, startingScene);
+    const adventureName = await this.mapSceneToAdventure(gameContext.world_id, startingScene);
     
     // Debug logging to see what we're getting
     console.log(`[AI_SERVICE] Building prompt for turn ${gameContext.turn_index}:`, {

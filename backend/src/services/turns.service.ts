@@ -473,7 +473,7 @@ export class TurnsService {
 
       // Create initial state snapshot
       const initialState = {
-        currentScene: 'opening',
+        currentScene: 'forest_meet', // Use default starting scene
         character: characterData,
         adventure: adventureData,
         flags: {
@@ -483,7 +483,7 @@ export class TurnsService {
         },
         ledgers: {
           'game.turns': 0,
-          'game.scenes_visited': ['opening'],
+          'game.scenes_visited': ['forest_meet'],
           'game.actions_taken': []
         },
         presence: 'present',

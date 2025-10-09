@@ -151,15 +151,16 @@ describe('PromptWrapper', () => {
       expect(resolved).toBe('Begin the adventure "adventure_whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".');
     });
 
-    it('should use opening scene from adventure start data when provided', () => {
+    it('should use start scene from adventure start data when provided', () => {
       const choices = [
         { id: 'choice-1', label: 'Look around' },
       ];
       
       const adventureStartData = {
-        opening: {
+        start: {
           scene: 'forest_meet',
-          summary: 'You cross into Whispercross at dusk. A wounded shifter (Kiera) shadows your path; captives remain at the small camp she fled.'
+          policy: 'ai_first',
+          hints: ['You cross into Whispercross at dusk. A wounded shifter (Kiera) shadows your path; captives remain at the small camp she fled.']
         }
       };
       
@@ -168,7 +169,7 @@ describe('PromptWrapper', () => {
         choices, 
         true, // isFirstTurn
         'adventure_whispercross_hook', // adventureName
-        'opening', // startingScene
+        'forest_meet', // startingScene
         adventureStartData
       );
       expect(resolved).toBe('Begin the adventure "adventure_whispercross_hook" from its starting scene "forest_meet".');
@@ -240,7 +241,7 @@ describe('PromptWrapper', () => {
       const validFormat = 'Begin the adventure "adventure_whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".';
       const invalidFormat = 'Begin the adventure "whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".';
       
-      const expectedPattern = /Begin the adventure "adventure_\w+" from its starting scene "\w+"/;
+      const expectedPattern = /Begin the adventure "adventure_[^"]+" from its starting scene "\w+"/;
       
       expect(expectedPattern.test(validFormat)).toBe(true);
       expect(expectedPattern.test(invalidFormat)).toBe(false);

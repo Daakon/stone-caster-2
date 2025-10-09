@@ -1,13 +1,14 @@
 import { createHash } from 'crypto';
 import { supabaseAdmin } from './supabase.js';
 import { configService } from '../config/index.js';
-import { PromptAssembler } from '../prompts/assembler.js';
 import { PromptWrapper } from '../prompts/wrapper.js';
 import { debugService } from './debug.service.js';
 import { getTemplatesForWorld, PromptTemplateMissingError, getFileBasedTemplateForWorld } from '../prompting/templateRegistry.js';
 import { ServiceError } from '../utils/serviceError.js';
 import { ApiErrorCode } from '@shared';
 import { PlayerV3Service } from './player-v3.service.js';
+import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS, DEFAULT_VALUES } from '../constants/game-constants.js';
+import { GameConfigService } from './game-config.service.js';
 import type { Character, WorldTemplate, Prompt } from '@shared';
 import type { PromptContext, PromptAssemblyResult, PromptAuditEntry } from '../prompts/schemas.js';
 
@@ -20,12 +21,12 @@ export interface GameContext {
 }
 
 export class PromptsService {
-  private assembler: PromptAssembler;
   private promptWrapper: PromptWrapper;
+  private gameConfigService: GameConfigService;
 
   constructor() {
-    this.assembler = new PromptAssembler();
     this.promptWrapper = new PromptWrapper();
+    this.gameConfigService = GameConfigService.getInstance();
   }
 
   /**
@@ -111,8 +112,22 @@ export class PromptsService {
       // Build prompt context for initial game state
       const promptContext = this.buildInitialPromptContext(game, worldTemplate, character, schemaVersion);
       
-      // Assemble prompt from bundle
-      const result = await this.assemblePromptFromBundle(bundle, promptContext);
+      // Use the new PromptWrapper system instead of legacy assembler
+      const gameState = {
+        time: { hour: 12, day: 1, season: 'spring' },
+        rng: { d20: 10, d100: 50, seed: Date.now() },
+        playerInput: 'Begin the adventure',
+        isFirstTurn: true,
+      };
+      
+      const result = await this.promptWrapper.assemblePrompt(
+        promptContext,
+        gameState,
+        { core: 'system' },
+        { world: promptContext.world },
+        { adventure: promptContext.adventure },
+        { player: promptContext.character }
+      );
       
       // Log to debug service
       const promptId = debugService.logPrompt(
@@ -210,72 +225,15 @@ export class PromptsService {
       return result.prompt;
     } catch (error) {
       console.error('Error building prompt with file-based template:', error);
-      // Fallback to old system
-      return this.buildPromptLegacy(game, optionId);
-    }
-  }
-
-  /**
-   * Legacy method for building prompts (fallback)
-   * @deprecated Use the new file-based template system instead
-   */
-  private async buildPromptLegacy(game: GameContext, optionId: string): Promise<string> {
-    try {
-      // Get prompt schema version from config
-      const aiConfig = configService.getAi();
-      const schemaVersion = aiConfig.promptSchemaVersion || '1.0.0';
-
-      // Load templates using the new registry
-      const bundle = await getTemplatesForWorld(game.world_id);
-      
-      // Load world template for context (still needed for metadata)
-      const worldTemplate = await this.loadWorldTemplate(game.world_id);
-      if (!worldTemplate) {
-        throw new Error(`World template not found: ${game.world_id}`);
-      }
-
-      // Load character if specified
-      let character: Character | null = null;
-      if (game.character_id) {
-        character = await this.loadCharacter(game.character_id);
-      }
-
-      // Build prompt context
-      const promptContext = this.buildPromptContext(game, worldTemplate, character, optionId, schemaVersion);
-      
-      // Assemble prompt from bundle
-      const result = await this.assemblePromptFromBundle(bundle, promptContext);
-      
-      // Log to debug service
-      const promptId = debugService.logPrompt(
-        game.id,
-        game.turn_index,
-        worldTemplate.name,
-        character?.name,
-        result
-      );
-      
-      
-      return result.prompt;
-    } catch (error) {
-      if (error instanceof PromptTemplateMissingError) {
-        throw new ServiceError(422, {
-          code: ApiErrorCode.PROMPT_TEMPLATE_MISSING,
-          message: `No templates available for world '${error.world}'.`,
-          details: { world: error.world }
-        });
-      }
-      if (error instanceof ServiceError) {
-        throw error; // Re-throw ServiceError as-is
-      }
-      console.error('Error building prompt:', error);
+      // No fallback - throw error instead of using legacy system
       throw new ServiceError(500, {
         code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to build prompt: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `Failed to build prompt with file-based template system: ${error instanceof Error ? error.message : 'Unknown error'}`,
         details: { originalError: error instanceof Error ? error.message : String(error) }
       });
     }
   }
+
 
   /**
    * Build initial prompt context for game initialization
@@ -301,7 +259,7 @@ export class PromptsService {
         id: game.id,
         turn_index: 0, // Initial prompt is always turn 0
         summary: this.generateInitialGameSummary(game),
-        current_scene: 'forest_meet', // Default starting scene
+        current_scene: SCENE_IDS.DEFAULT_START, // Default starting scene
         state_snapshot: game.state_snapshot,
         option_id: 'game_start', // Special option ID for initial prompt
       },
@@ -331,13 +289,13 @@ export class PromptsService {
         presence: 'present',
         ledgers: {
           'game.turns': 0,
-          'game.scenes_visited': ['forest_meet'],
+          'game.scenes_visited': [SCENE_IDS.DEFAULT_START],
           'game.actions_taken': [],
         },
         flags: {
           'game.initialized': true,
           'game.world': game.world_id,
-          'game.starting_scene': 'forest_meet',
+          'game.starting_scene': SCENE_IDS.DEFAULT_START,
         },
         last_acts: [],
         style_hint: 'neutral',
@@ -501,11 +459,11 @@ export class PromptsService {
     }
     
     // Extract current scene and phase from game state
-    const currentScene = game.state_snapshot?.current_scene || 'forest_meet';
+    const currentScene = game.state_snapshot?.current_scene || SCENE_IDS.DEFAULT_START;
     const currentPhase = game.state_snapshot?.current_phase || 'start';
     
     // Map scene names to adventure names for specific worlds
-    const adventureName = this.mapSceneToAdventure(game.world_id, currentScene);
+    const adventureName = await this.mapSceneToAdventure(game.world_id, currentScene);
     
     // Build game state JSON for the template
     const gameState = {
@@ -663,9 +621,9 @@ export class PromptsService {
         optionId,
         [], // No choices for initial turn
         game.turn_index === 0, // isFirstTurn
-        game.turn_index === 0 ? this.mapSceneToAdventure(game.world_id, game.current_scene || 'forest_meet') : undefined,
-        game.current_scene || 'forest_meet',
-        game.turn_index === 0 ? await this.loadAdventureStartData(game.world_id, this.mapSceneToAdventure(game.world_id, game.current_scene || 'forest_meet')) : undefined
+        game.turn_index === 0 ? await this.mapSceneToAdventure(game.world_id, game.current_scene || SCENE_IDS.DEFAULT_START) : undefined,
+        game.current_scene || SCENE_IDS.DEFAULT_START,
+        game.turn_index === 0 ? await this.loadAdventureStartData(game.world_id, await this.mapSceneToAdventure(game.world_id, game.current_scene || SCENE_IDS.DEFAULT_START)) : undefined
       );
       
       // Build the prompt with adventure start data included
@@ -735,14 +693,24 @@ ${enhancedPlayerInput}
   }
 
   /**
-   * Map scene names to adventure names for specific worlds
+   * Map scene names to adventure names using dynamic configuration
    */
-  private mapSceneToAdventure(worldId: string, sceneId: string): string {
-    // Map scene names to adventure names for specific worlds
+  private async mapSceneToAdventure(worldId: string, sceneId: string): Promise<string> {
+    try {
+      // Try to get adventure from actual configuration
+      const adventureId = await this.gameConfigService.getAdventureForScene(worldId as any, sceneId);
+      if (adventureId) {
+        return adventureId;
+      }
+    } catch (error) {
+      console.warn(`[PROMPTS] Could not load dynamic mapping for ${worldId}:${sceneId}:`, error);
+    }
+
+    // Fallback to hardcoded mapping for now
     const worldAdventureMap: Record<string, Record<string, string>> = {
-      'mystika': {
-        'forest_meet': 'whispercross',
-        'whispercross': 'whispercross'
+      [WORLD_IDS.MYSTIKA]: {
+        [SCENE_IDS.DEFAULT_START]: ADVENTURE_IDS.WHISPERCROSS,
+        'whispercross': ADVENTURE_IDS.WHISPERCROSS
       }
     };
 
@@ -765,11 +733,18 @@ ${enhancedPlayerInput}
     console.log(`[PROMPTS] Loading adventure start data for world: ${worldId}, adventure: ${adventureName}`);
     
     try {
+      // Handle different adventure ID formats - map to actual directory name
+      let adventurePath = adventureName;
+      if (adventureName === ADVENTURE_IDS.WHISPERCROSS) {
+        adventurePath = 'whispercross'; // Map to actual directory name
+      }
+      
       // Try to load from the file-based template system first
       const possiblePaths = [
-        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
-        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
-        `AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.start.prompt.json`,
+        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.prompt.json`,
+        `AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.start.prompt.json`,
+        `AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.prompt.json`,
       ];
 
       for (const path of possiblePaths) {
@@ -878,158 +853,7 @@ ${enhancedPlayerInput}
     }
   }
 
-  /**
-   * Assemble prompt from template bundle
-   */
-  private async assemblePromptFromBundle(
-    bundle: import('../prompting/templateRegistry.js').TemplateBundle,
-    context: PromptContext
-  ): Promise<PromptAssemblyResult> {
-    // Create a simple prompt assembly from the bundle
-    const segments: string[] = [];
-    const templateIds: string[] = [];
-    
-    // Add core templates
-    if (bundle.core.system) {
-      segments.push(bundle.core.system);
-      templateIds.push('core-system');
-    }
-    if (bundle.core.tools) {
-      segments.push(bundle.core.tools);
-      templateIds.push('core-tools');
-    }
-    if (bundle.core.formatting) {
-      segments.push(bundle.core.formatting);
-      templateIds.push('core-formatting');
-    }
-    if (bundle.core.safety) {
-      segments.push(bundle.core.safety);
-      templateIds.push('core-safety');
-    }
-    
-    // Add world templates
-    if (bundle.world.lore) {
-      segments.push(bundle.world.lore);
-      templateIds.push('world-lore');
-    }
-    if (bundle.world.logic) {
-      segments.push(bundle.world.logic);
-      templateIds.push('world-logic');
-    }
-    if (bundle.world.style) {
-      segments.push(bundle.world.style);
-      templateIds.push('world-style');
-    }
-    
-    // Add adventure templates if available
-    if (bundle.adventures) {
-      for (const [slug, content] of Object.entries(bundle.adventures)) {
-        segments.push(content);
-        templateIds.push(`adventure-${slug}`);
-      }
-    }
-    
-    // Create the final prompt
-    const prompt = this.createFinalPrompt(segments, context);
-    
-    // Create audit entry
-    const audit: PromptAuditEntry = {
-      templateIds,
-      version: '1.0.0',
-      hash: this.createHash(segments.join('|')),
-      contextSummary: {
-        world: context.world.name,
-        adventure: context.adventure?.name || 'None',
-        character: context.character?.name || 'Guest',
-        turnIndex: context.game.turn_index,
-      },
-      tokenCount: this.estimateTokenCount(prompt),
-      assembledAt: new Date().toISOString(),
-    };
 
-    return {
-      prompt,
-      audit,
-      metadata: {
-        totalSegments: segments.length,
-        totalVariables: this.countVariables(context),
-        loadOrder: templateIds,
-        warnings: undefined,
-      },
-    };
-  }
-
-  /**
-   * Create the final prompt from assembled segments
-   */
-  private createFinalPrompt(segments: string[], context: PromptContext): string {
-    const header = this.createPromptHeader(context);
-    const body = segments.join('\n\n');
-    const footer = this.createPromptFooter(context);
-    
-    return `${header}\n\n${body}\n\n${footer}`.trim();
-  }
-
-  /**
-   * Create prompt header with context summary
-   */
-  private createPromptHeader(context: PromptContext): string {
-    const characterInfo = context.character 
-      ? `${context.character.name} (Level ${context.character.level} ${context.character.race} ${context.character.class})`
-      : 'Guest Player';
-    
-    return `# RPG Storyteller AI System
-
-## Current Context
-- **World**: ${context.world.name}
-- **Player**: ${characterInfo}
-- **Adventure**: ${context.adventure?.name || 'None'}
-- **Scene**: ${context.game.current_scene || 'Unknown'}
-- **Turn**: ${context.game.turn_index + 1}
-- **Schema Version**: ${context.system.schema_version}
-
-## Instructions
-You are an AI Game Master operating within the RPG Storyteller system. Follow the rules and guidelines below to generate appropriate responses.`;
-  }
-
-  /**
-   * Create prompt footer with output requirements
-   */
-  private createPromptFooter(context: PromptContext): string {
-    return `## Output Requirements
-
-Return a single JSON object in AWF v1 format with the following structure:
-
-\`\`\`json
-{
-  "scn": {
-    "id": "scene_id",
-    "ph": "scene_phase"
-  },
-  "txt": "Narrative text describing what happens",
-  "choices": [
-    {
-      "id": "choice_id",
-      "label": "Choice text"
-    }
-  ],
-  "acts": [
-    {
-      "eid": "action_id",
-      "t": "ACTION_TYPE",
-      "payload": {}
-    }
-  ],
-  "val": {
-    "ok": true,
-    "errors": [],
-    "repairs": []
-  }
-}
-\`\`\`
-
-Remember: Keep responses immersive, consistent with the world's tone, and appropriate for the character's level and situation.`;
-  }
 
   /**
    * Create a hash from a string

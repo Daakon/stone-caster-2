@@ -36,7 +36,7 @@ vi.mock('../src/services/games.service.js', () => ({
       world_slug: 'mystika',
       character_id: null,
       turn_count: 0,
-      state_snapshot: { current_scene: 'opening' },
+      state_snapshot: { current_scene: 'forest_meet' },
     })),
   },
 }));
@@ -157,7 +157,7 @@ describe('Turn API Integration', () => {
         world_slug: 'verya',
         character_id: undefined,
         turn_count: 0,
-        state_snapshot: { current_scene: 'opening' },
+        state_snapshot: { current_scene: 'forest_meet' },
       });
 
       mockGetTemplatesForWorld.mockResolvedValue(mockTemplateBundle);

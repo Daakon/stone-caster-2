@@ -4,6 +4,8 @@
  */
 
 import type { PromptContext } from './schemas.js';
+import { GameConfigService } from '../services/game-config.service.js';
+import { SCENE_IDS, ADVENTURE_IDS } from '../constants/game-constants.js';
 
 export interface PromptWrapperResult {
   prompt: string;
@@ -38,6 +40,11 @@ export interface GameStateData {
  */
 export class PromptWrapper {
   private readonly SYSTEM_PREAMBLE = `You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks using rng BEFORE composing txt. Include exactly one TIME_ADVANCE (ticks ≥ 1) each turn. Use 0–100 scales (50 baseline) for skills/relationships. Essence alignment affects behavior (Life/Death/Order/Chaos). NPCs may act on their own; offer reaction choices only if impact is major or consent unclear. Limit 2 ambient + 1 NPC↔NPC beat per turn; respect cooldowns. Time uses 60-tick bands (Dawn→Mid-Day→Evening→Mid-Night→Dawn); avoid real-world units.`;
+  private gameConfigService: GameConfigService;
+
+  constructor() {
+    this.gameConfigService = GameConfigService.getInstance();
+  }
 
   /**
    * Assemble a complete prompt with strict section delimiters
@@ -192,7 +199,7 @@ export class PromptWrapper {
       }
       
       // HARD STOP: Validate the result before returning
-      const expectedPattern = /Begin the adventure "adventure_\w+" from its starting scene "\w+"/;
+      const expectedPattern = /Begin the adventure "adventure_[^"]+" from its starting scene "\w+"/;
       if (!expectedPattern.test(result)) {
         console.error(`[PROMPT_WRAPPER] HARD STOP - Generated invalid format:`, {
           result,

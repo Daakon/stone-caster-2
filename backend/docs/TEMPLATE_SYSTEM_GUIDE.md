@@ -48,7 +48,7 @@ import { getFileBasedTemplateForWorld } from '../prompting/templateRegistry.js';
 
 const context = {
   turn: 1,
-  scene_id: 'opening',
+  scene_id: 'forest_meet',
   phase: 'start',
   time_block_json: JSON.stringify({ hour: 12, day: 1, season: 'spring' }),
   weather_json: JSON.stringify({ condition: 'clear', temperature: 'mild' }),
