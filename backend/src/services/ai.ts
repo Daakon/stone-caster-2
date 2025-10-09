@@ -231,7 +231,7 @@ export class AIService {
     }
 
     // For first turn, must contain proper adventure format
-    const expectedPattern = /Begin the adventure "adventure_\w+" from its starting scene "\w+"/;
+    const expectedPattern = /Begin the adventure "adventure_[^"]+" from its starting scene "\w+"/;
     
     if (!expectedPattern.test(playerInput)) {
       return {

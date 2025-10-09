@@ -621,56 +621,82 @@ export class PromptsService {
         optionId,
         [], // No choices for initial turn
         game.turn_index === 0, // isFirstTurn
-        game.turn_index === 0 ? await this.mapSceneToAdventure(game.world_id, game.current_scene || SCENE_IDS.DEFAULT_START) : undefined,
-        game.current_scene || SCENE_IDS.DEFAULT_START,
-        game.turn_index === 0 ? await this.loadAdventureStartData(game.world_id, await this.mapSceneToAdventure(game.world_id, game.current_scene || SCENE_IDS.DEFAULT_START)) : undefined
+        game.turn_index === 0 ? await this.mapSceneToAdventure(game.world_id, game.state_snapshot?.currentScene || SCENE_IDS.DEFAULT_START) : undefined,
+        game.state_snapshot?.currentScene || SCENE_IDS.DEFAULT_START,
+        game.turn_index === 0 ? await this.loadAdventureStartData(game.world_id, await this.mapSceneToAdventure(game.world_id, game.state_snapshot?.currentScene || SCENE_IDS.DEFAULT_START)) : undefined
       );
       
-      // Build the prompt with adventure start data included
-      finalPrompt = `You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks using rng BEFORE composing txt. Include exactly one TIME_ADVANCE (ticks ≥ 1) each turn. Use 0–100 scales (50 baseline) for skills/relationships. Essence alignment affects behavior (Life/Death/Order/Chaos). NPCs may act on their own; offer reaction choices only if impact is major or consent unclear. Limit 2 ambient + 1 NPC↔NPC beat per turn; respect cooldowns. Time uses 60-tick bands (Dawn→Mid-Day→Evening→Mid-Night→Dawn); avoid real-world units.
+      // Use the PromptWrapper system instead of hardcoded prompt
+      const gameState = {
+        time: { band: "dawn_to_mid_day" as const, ticks: 0 },
+        rng: { ...rng, policy: "d20 for checks, d100 for chance rolls" },
+        playerInput: enhancedPlayerInput,
+        isFirstTurn: true,
+      };
 
-=== CORE_BEGIN ===
-{"core":"system"}
-=== CORE_END ===
+      const context = {
+        game: {
+          id: game.id,
+          turn_index: game.turn_index || 0,
+          summary: `Turn ${(game.turn_index || 0) + 1} | World: ${game.world_id} | Character: ${game.character_id || 'Guest'}`,
+          current_scene: game.state_snapshot?.currentScene || SCENE_IDS.DEFAULT_START,
+          state_snapshot: game.state_snapshot,
+          option_id: optionId,
+        },
+        world: {
+          name: game.world_id || 'unknown',
+          setting: 'A world of magic and adventure',
+          genre: 'fantasy',
+          themes: ['magic', 'adventure', 'mystery'],
+          rules: {},
+          mechanics: {},
+          lore: '',
+          logic: {},
+        },
+        character: {
+          id: game.character_id || 'guest',
+          name: game.character_id || 'Guest Player',
+          race: 'Unknown',
+          class: 'Unknown',
+          level: 1,
+          skills: {},
+          inventory: [],
+          relationships: {},
+          goals: { short_term: [], long_term: [] },
+          flags: {},
+          reputation: {}
+        },
+        adventure: await this.loadAdventureStartData(game.world_id, await this.mapSceneToAdventure(game.world_id, game.state_snapshot?.currentScene || SCENE_IDS.DEFAULT_START)) || {},
+        runtime: {
+          ticks: game.turn_index || 0,
+          presence: 'present',
+          ledgers: {},
+          flags: {},
+          last_acts: [],
+          style_hint: 'neutral',
+        },
+        system: {
+          schema_version: '1.0.0',
+          prompt_version: '2.0.0',
+          load_order: [],
+          hash: 'wrapper-v1',
+        },
+      };
 
-=== WORLD_BEGIN ===
-${JSON.stringify({
-  world: {
-    name: game.world_id,
-    setting: "A world of magic and adventure",
-    genre: "fantasy",
-    themes: ["magic","adventure","mystery"],
-    rules: {},
-    mechanics: {},
-    lore: "",
-    logic: {}
-  }
-}, null, 0)}
-=== WORLD_END ===
+      // Load actual CORE and WORLD data from files
+      const coreData = await this.loadCoreData();
+      const worldData = await this.loadWorldData(game.world_id);
 
-=== ADVENTURE_BEGIN ===
-${adventureStartJson}
-=== ADVENTURE_END ===
+      const result = await this.promptWrapper.assemblePrompt(
+        context,
+        gameState,
+        coreData, // Loaded from backend/AI API Prompts/core.prompt.json
+        worldData, // Loaded from backend/AI API Prompts/worlds/mystika/world.prompt.json
+        { adventure: context.adventure }, // Adventure data
+        { player: context.character } // Player data
+      );
 
-=== GAME_STATE_BEGIN ===
-${JSON.stringify({
-  time: { band: "dawn_to_mid_day", ticks: 0 },
-  rng: { policy: "d20 for checks, d100 for chance rolls", d20: rng.d20, d100: rng.d100 },
-  turn: 0
-}, null, 0)}
-=== GAME_STATE_END ===
-
-=== PLAYER_BEGIN ===
-${JSON.stringify(playerState, null, 0)}
-=== PLAYER_END ===
-
-=== RNG_BEGIN ===
-${JSON.stringify(rng, null, 0)}
-=== RNG_END ===
-
-=== INPUT_BEGIN ===
-${enhancedPlayerInput}
-=== INPUT_END ===`;
+      finalPrompt = result.prompt;
       
       console.log(`[PROMPTS] Built custom prompt with adventure start data for ${game.world_id}/${adventureName}`);
       console.log(`[PROMPTS] Custom prompt length: ${finalPrompt.length}`);
@@ -721,6 +747,79 @@ ${enhancedPlayerInput}
 
     // Default to the scene ID if no mapping exists
     return sceneId;
+  }
+
+  /**
+   * Load CORE data from backend/AI API Prompts/core.prompt.json
+   * @returns Core data or null if not found
+   */
+  private async loadCoreData(): Promise<any | null> {
+    console.log(`[PROMPTS] Loading core data from AI API Prompts`);
+    try {
+      const possiblePaths = [
+        `backend/AI API Prompts/core.prompt.json`,
+        `AI API Prompts/core.prompt.json`,
+      ];
+
+      for (const path of possiblePaths) {
+        try {
+          const { readFileSync } = await import('fs');
+          const { join } = await import('path');
+          const fullPath = join(process.cwd(), path);
+          console.log(`[PROMPTS] Attempting to load core from: ${fullPath}`);
+          const content = readFileSync(fullPath, 'utf-8');
+          const data = JSON.parse(content);
+          console.log(`[PROMPTS] Successfully loaded core data from ${path}`);
+          return data;
+        } catch (error) {
+          console.log(`[PROMPTS] Failed to load core from ${path}: ${error}`);
+          // Continue to next path
+        }
+      }
+
+      console.log(`[PROMPTS] No core data found`);
+      return null;
+    } catch (error) {
+      console.error(`[PROMPTS] Error loading core data: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Load WORLD data from backend/AI API Prompts/worlds/{worldId}/world.prompt.json
+   * @param worldId - World ID
+   * @returns World data or null if not found
+   */
+  private async loadWorldData(worldId: string): Promise<any | null> {
+    console.log(`[PROMPTS] Loading world data for ${worldId} from AI API Prompts`);
+    try {
+      const possiblePaths = [
+        `backend/AI API Prompts/worlds/${worldId}/world.prompt.json`,
+        `AI API Prompts/worlds/${worldId}/world.prompt.json`,
+      ];
+
+      for (const path of possiblePaths) {
+        try {
+          const { readFileSync } = await import('fs');
+          const { join } = await import('path');
+          const fullPath = join(process.cwd(), path);
+          console.log(`[PROMPTS] Attempting to load world from: ${fullPath}`);
+          const content = readFileSync(fullPath, 'utf-8');
+          const data = JSON.parse(content);
+          console.log(`[PROMPTS] Successfully loaded world data from ${path}`);
+          return data;
+        } catch (error) {
+          console.log(`[PROMPTS] Failed to load world from ${path}: ${error}`);
+          // Continue to next path
+        }
+      }
+
+      console.log(`[PROMPTS] No world data found for ${worldId}`);
+      return null;
+    } catch (error) {
+      console.error(`[PROMPTS] Error loading world data: ${error}`);
+      return null;
+    }
   }
 
   /**
