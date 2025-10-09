@@ -135,6 +135,116 @@ describe('PromptWrapper', () => {
       const resolved = wrapper.resolvePlayerInput('unknown-choice', choices);
       expect(resolved).toBe('unknown-choice');
     });
+
+    it('should include adventure and starting scene for first turn', () => {
+      const choices = [
+        { id: 'choice-1', label: 'Look around' },
+      ];
+      
+      const resolved = wrapper.resolvePlayerInput(
+        'choice-1', 
+        choices, 
+        true, // isFirstTurn
+        'adventure_whispercross_hook', // adventureName
+        'outer_paths_meet_kiera_01' // startingScene
+      );
+      expect(resolved).toBe('Begin the adventure "adventure_whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".');
+    });
+
+    it('should use opening scene from adventure start data when provided', () => {
+      const choices = [
+        { id: 'choice-1', label: 'Look around' },
+      ];
+      
+      const adventureStartData = {
+        opening: {
+          scene: 'forest_meet',
+          summary: 'You cross into Whispercross at dusk. A wounded shifter (Kiera) shadows your path; captives remain at the small camp she fled.'
+        }
+      };
+      
+      const resolved = wrapper.resolvePlayerInput(
+        'choice-1', 
+        choices, 
+        true, // isFirstTurn
+        'adventure_whispercross_hook', // adventureName
+        'opening', // startingScene
+        adventureStartData
+      );
+      expect(resolved).toBe('Begin the adventure "adventure_whispercross_hook" from its starting scene "forest_meet".');
+    });
+
+    it('should return normal choice for non-first turn even with adventure info', () => {
+      const choices = [
+        { id: 'choice-1', label: 'Look around' },
+      ];
+      
+      const resolved = wrapper.resolvePlayerInput(
+        'choice-1', 
+        choices, 
+        false, // isFirstTurn
+        'adventure_whispercross_hook', // adventureName
+        'outer_paths_meet_kiera_01' // startingScene
+      );
+      expect(resolved).toBe('Look around');
+    });
+
+    it('should throw error for missing adventure name on first turn', () => {
+      const choices = [
+        { id: 'choice-1', label: 'Look around' },
+      ];
+      
+      expect(() => {
+        wrapper.resolvePlayerInput(
+          'choice-1', 
+          choices, 
+          true, // isFirstTurn
+          undefined, // adventureName
+          'outer_paths_meet_kiera_01' // startingScene
+        );
+      }).toThrow('Missing required adventure data for first turn');
+    });
+
+    it('should throw error for missing starting scene on first turn', () => {
+      const choices = [
+        { id: 'choice-1', label: 'Look around' },
+      ];
+      
+      expect(() => {
+        wrapper.resolvePlayerInput(
+          'choice-1', 
+          choices, 
+          true, // isFirstTurn
+          'adventure_whispercross_hook', // adventureName
+          undefined // startingScene
+        );
+      }).toThrow('Missing required adventure data for first turn');
+    });
+
+    it('should format adventure name with adventure_ prefix if missing', () => {
+      const choices = [
+        { id: 'choice-1', label: 'Look around' },
+      ];
+      
+      const resolved = wrapper.resolvePlayerInput(
+        'choice-1', 
+        choices, 
+        true, // isFirstTurn
+        'whispercross_hook', // adventureName without prefix
+        'outer_paths_meet_kiera_01' // startingScene
+      );
+      expect(resolved).toBe('Begin the adventure "adventure_whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".');
+    });
+
+    it('should validate generated format with regex pattern', () => {
+      const validFormat = 'Begin the adventure "adventure_whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".';
+      const invalidFormat = 'Begin the adventure "whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".';
+      
+      const expectedPattern = /Begin the adventure "adventure_\w+" from its starting scene "\w+"/;
+      
+      expect(expectedPattern.test(validFormat)).toBe(true);
+      expect(expectedPattern.test(invalidFormat)).toBe(false);
+    });
   });
 
   describe('Content Fixes Validation', () => {

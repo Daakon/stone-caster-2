@@ -53,6 +53,54 @@ export class AIService {
     choices: Array<{id: string, label: string}> = [],
     includeDebug: boolean = false
   ): Promise<{response: string, debug?: any}> {
+    // TEMPORARILY DISABLED: AI calls disabled for prompt validation
+    console.log(`[AI_SERVICE] AI calls temporarily disabled for prompt validation`);
+    
+    // Build the prompt to return to frontend for verification
+    const prompt = await this.buildWrappedPrompt(gameContext, optionId, choices);
+    
+    // HARD STOP: Check if prompt contains incomplete adventure format
+    if (prompt.includes('=== INPUT_BEGIN ===\nBegin the adventure\n=== INPUT_END ===')) {
+      console.error(`[AI_SERVICE] HARD STOP - Prompt contains incomplete adventure format!`);
+      console.error(`[AI_SERVICE] Prompt INPUT_BEGIN section:`, prompt.match(/=== INPUT_BEGIN ===[\s\S]*?=== INPUT_END ===/)?.[0]);
+      throw new Error(`HARD STOP - Prompt contains incomplete adventure format. Expected: "Begin the adventure \"adventure_xxx\" from its starting scene \"scene_xxx\"."`);
+    }
+    
+    // Return a proper JSON response that the turns service can parse
+    const mockAIResponse = {
+      scn: "opening",
+      txt: `AI_DISABLED: Prompt validation mode. Please verify the prompt format before enabling AI calls.\n\nGenerated Prompt:\n${prompt}`,
+      choices: [
+        {
+          id: "validation_mode_choice_1",
+          label: "Continue forward (Validation Mode)"
+        },
+        {
+          id: "validation_mode_choice_2", 
+          label: "Look around (Validation Mode)"
+        },
+        {
+          id: "validation_mode_choice_3",
+          label: "Wait and observe (Validation Mode)"
+        }
+      ],
+      acts: [],
+      val: {}
+    };
+    
+    return {
+      response: JSON.stringify(mockAIResponse),
+      debug: {
+        prompt,
+        gameContext: {
+          turn_index: gameContext.turn_index,
+          world_id: gameContext.world_id,
+          current_scene: gameContext.current_scene,
+          adventure: gameContext.adventure
+        },
+        validationMode: true
+      }
+    };
     try {
       console.log('[AI_SERVICE] Starting turn response generation with new wrapper...');
       
@@ -219,6 +267,90 @@ export class AIService {
   }
 
   /**
+   * Validate that the input section contains proper adventure information for first turn
+   */
+  private validateInputSection(playerInput: string, isFirstTurn: boolean): { valid: boolean; error?: string } {
+    if (!isFirstTurn) {
+      return { valid: true };
+    }
+
+    // For first turn, must contain proper adventure format
+    const expectedPattern = /Begin the adventure "adventure_\w+" from its starting scene "\w+"/;
+    
+    if (!expectedPattern.test(playerInput)) {
+      return {
+        valid: false,
+        error: `Invalid first turn input format. Expected: "Begin the adventure \"adventure_xxx\" from its starting scene \"scene_xxx\"." Got: "${playerInput}"`
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Load adventure start JSON data for initial prompts
+   * @param worldId - World ID
+   * @param adventureName - Adventure name
+   * @returns Adventure start data or null if not found
+   */
+  private async loadAdventureStartData(worldId: string, adventureName: string): Promise<any | null> {
+    console.log(`[AI_SERVICE] Loading adventure start data for world: ${worldId}, adventure: ${adventureName}`);
+    
+    try {
+      // Try to load from the file-based template system first
+      const possiblePaths = [
+        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `backend/GPT Prompts/Worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `GPT Prompts/Worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+      ];
+
+      for (const path of possiblePaths) {
+        try {
+          const { readFileSync } = await import('fs');
+          const { join } = await import('path');
+          const fullPath = join(process.cwd(), path);
+          console.log(`[AI_SERVICE] Attempting to load from: ${fullPath}`);
+          const content = readFileSync(fullPath, 'utf-8');
+          const data = JSON.parse(content);
+          console.log(`[AI_SERVICE] Successfully loaded adventure start data from ${path}`);
+          return data;
+        } catch (error) {
+          console.log(`[AI_SERVICE] Failed to load from ${path}: ${error}`);
+          // Continue to next path
+        }
+      }
+
+      console.log(`[AI_SERVICE] No adventure start data found for ${worldId}/${adventureName}`);
+      return null;
+    } catch (error) {
+      console.error(`[AI_SERVICE] Error loading adventure start data: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * Map scene names to adventure names for specific worlds
+   */
+  private mapSceneToAdventure(worldId: string, sceneId: string): string {
+    // Map scene names to adventure names for specific worlds
+    const worldAdventureMap: Record<string, Record<string, string>> = {
+      'mystika': {
+        'opening': 'adventure_whispercross_hook',
+        'whispercross': 'adventure_whispercross_hook',
+        'outer_paths_meet_kiera_01': 'adventure_whispercross_hook'
+      }
+    };
+
+    const worldMap = worldAdventureMap[worldId];
+    if (worldMap && worldMap[sceneId]) {
+      return worldMap[sceneId];
+    }
+
+    // Default to the scene ID if no mapping exists
+    return sceneId;
+  }
+
+  /**
    * Build wrapped prompt using the new prompt wrapper system
    */
   private async buildWrappedPrompt(
@@ -227,12 +359,64 @@ export class AIService {
     choices: Array<{id: string, label: string}>
   ): Promise<string> {
     // Resolve player input to text
-    const playerInput = this.promptWrapper.resolvePlayerInput(optionId, choices);
+    const isFirstTurn = gameContext.turn_index === 0;
+    const startingScene = gameContext.current_scene;
+    
+    // Map scene to adventure name using the same logic as prompts service
+    const adventureName = this.mapSceneToAdventure(gameContext.world_id, startingScene);
+    
+    // Debug logging to see what we're getting
+    console.log(`[AI_SERVICE] Building prompt for turn ${gameContext.turn_index}:`, {
+      isFirstTurn,
+      adventureName,
+      startingScene,
+      worldId: gameContext.world_id,
+      adventureObject: gameContext.adventure
+    });
+    
+    // Load adventure start data for first turn
+    let adventureStartData = null;
+    if (isFirstTurn) {
+      try {
+        adventureStartData = await this.loadAdventureStartData(gameContext.world_id, adventureName);
+        console.log(`[AI_SERVICE] Loaded adventure start data:`, {
+          hasData: !!adventureStartData,
+          opening: adventureStartData?.opening,
+          title: adventureStartData?.title
+        });
+      } catch (error) {
+        console.warn(`[AI_SERVICE] Could not load adventure start data: ${error}`);
+      }
+    }
+    
+    const playerInput = this.promptWrapper.resolvePlayerInput(
+      optionId, 
+      choices, 
+      isFirstTurn, 
+      adventureName, 
+      startingScene,
+      adventureStartData
+    );
+    
+    // HARD STOP: Validate input section for first turn
+    const validation = this.validateInputSection(playerInput, isFirstTurn);
+    if (!validation.valid) {
+      console.error(`[AI_SERVICE] HARD STOP - Input validation failed: ${validation.error}`);
+      console.error(`[AI_SERVICE] Generated playerInput: "${playerInput}"`);
+      console.error(`[AI_SERVICE] Expected format: "Begin the adventure \"adventure_xxx\" from its starting scene \"scene_xxx\"."`);
+      throw new Error(`HARD STOP - Invalid prompt input: ${validation.error}`);
+    }
+    
+    console.log(`[AI_SERVICE] Input validation passed for turn ${gameContext.turn_index}:`, {
+      playerInput,
+      isFirstTurn,
+      adventureName,
+      startingScene
+    });
     
     // Generate game state data
     const rngData = this.promptWrapper.generateRNGData();
     const timeData = this.promptWrapper.generateTimeData(gameContext.turn_index || 0);
-    const isFirstTurn = gameContext.turn_index === 0;
     
     const gameState: GameStateData = {
       time: timeData,

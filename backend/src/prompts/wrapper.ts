@@ -154,9 +154,60 @@ export class PromptWrapper {
   /**
    * Resolve player choice ID to human-readable label
    */
-  resolvePlayerInput(optionId: string, choices: Array<{id: string, label: string}>): string {
+  resolvePlayerInput(
+    optionId: string, 
+    choices: Array<{id: string, label: string}>,
+    isFirstTurn: boolean = false,
+    adventureName?: string,
+    startingScene?: string,
+    adventureStartData?: any
+  ): string {
     const choice = choices.find(c => c.id === optionId);
-    return choice ? choice.label : optionId;
+    const baseInput = choice ? choice.label : optionId;
+    
+    // For first turn, include adventure and starting scene information
+    if (isFirstTurn) {
+      // Ensure we have both adventure name and starting scene
+      if (!adventureName || !startingScene) {
+        console.error(`[PROMPT_WRAPPER] Missing required data for first turn:`, {
+          adventureName,
+          startingScene,
+          optionId
+        });
+        throw new Error(`Missing required adventure data for first turn: adventureName=${adventureName}, startingScene=${startingScene}`);
+      }
+      
+      // Ensure adventure name has proper format
+      const formattedAdventureName = adventureName.startsWith('adventure_') 
+        ? adventureName 
+        : `adventure_${adventureName}`;
+      
+      // Build clean input that references the adventure data (no duplication)
+      let result = `Begin the adventure "${formattedAdventureName}" from its starting scene "${startingScene}".`;
+      
+      // Use the opening scene from adventure start data if available
+      if (adventureStartData && adventureStartData.opening) {
+        const openingScene = adventureStartData.opening.scene || startingScene;
+        result = `Begin the adventure "${formattedAdventureName}" from its starting scene "${openingScene}".`;
+      }
+      
+      // HARD STOP: Validate the result before returning
+      const expectedPattern = /Begin the adventure "adventure_\w+" from its starting scene "\w+"/;
+      if (!expectedPattern.test(result)) {
+        console.error(`[PROMPT_WRAPPER] HARD STOP - Generated invalid format:`, {
+          result,
+          formattedAdventureName,
+          startingScene,
+          expectedPattern: expectedPattern.toString()
+        });
+        throw new Error(`HARD STOP - Generated invalid adventure format: "${result}"`);
+      }
+      
+      console.log(`[PROMPT_WRAPPER] Generated valid adventure format:`, result);
+      return result;
+    }
+    
+    return baseInput;
   }
 
   /**

@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { supabaseAdmin } from './supabase.js';
 import { configService } from '../config/index.js';
 import { PromptAssembler } from '../prompts/assembler.js';
+import { PromptWrapper } from '../prompts/wrapper.js';
 import { debugService } from './debug.service.js';
 import { getTemplatesForWorld, PromptTemplateMissingError, getFileBasedTemplateForWorld } from '../prompting/templateRegistry.js';
 import { ServiceError } from '../utils/serviceError.js';
@@ -20,9 +21,11 @@ export interface GameContext {
 
 export class PromptsService {
   private assembler: PromptAssembler;
+  private promptWrapper: PromptWrapper;
 
   constructor() {
     this.assembler = new PromptAssembler();
+    this.promptWrapper = new PromptWrapper();
   }
 
   /**
@@ -655,6 +658,16 @@ export class PromptsService {
         throw new Error(`Empty adventure start data for custom prompt`);
       }
       
+      // Use the prompt wrapper for consistent INPUT_BEGIN generation
+      const enhancedPlayerInput = this.promptWrapper.resolvePlayerInput(
+        optionId,
+        [], // No choices for initial turn
+        game.turn_index === 0, // isFirstTurn
+        game.turn_index === 0 ? this.mapSceneToAdventure(game.world_id, game.current_scene || 'opening') : undefined,
+        game.current_scene || 'opening',
+        game.turn_index === 0 ? await this.loadAdventureStartData(game.world_id, this.mapSceneToAdventure(game.world_id, game.current_scene || 'opening')) : undefined
+      );
+      
       // Build the prompt with adventure start data included
       finalPrompt = `You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks using rng BEFORE composing txt. Include exactly one TIME_ADVANCE (ticks ≥ 1) each turn. Use 0–100 scales (50 baseline) for skills/relationships. Essence alignment affects behavior (Life/Death/Order/Chaos). NPCs may act on their own; offer reaction choices only if impact is major or consent unclear. Limit 2 ambient + 1 NPC↔NPC beat per turn; respect cooldowns. Time uses 60-tick bands (Dawn→Mid-Day→Evening→Mid-Night→Dawn); avoid real-world units.
 
@@ -698,7 +711,7 @@ ${JSON.stringify(rng, null, 0)}
 === RNG_END ===
 
 === INPUT_BEGIN ===
-${playerInput}
+${enhancedPlayerInput}
 === INPUT_END ===`;
       
       console.log(`[PROMPTS] Built custom prompt with adventure start data for ${game.world_id}/${adventureName}`);
