@@ -86,3 +86,5 @@ COMMENT ON COLUMN game_states.last_acts IS 'Last actions taken by the player';
 COMMENT ON COLUMN game_states.style_hint IS 'Style hint for AI generation';
 
 
+
+

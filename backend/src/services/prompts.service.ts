@@ -34,6 +34,11 @@ export class PromptsService {
     try {
       // Use the new file-based template system
       const context = await this.buildFileBasedTemplateContext(game, 'game_start');
+      if (typeof context === 'string') {
+        // Custom prompt was built
+        console.log(`[PROMPTS_SERVICE] Using custom prompt for initial turn`);
+        return context;
+      }
       const result = await getFileBasedTemplateForWorld(game.world_id, context);
       
       // Log to debug service
@@ -145,8 +150,27 @@ export class PromptsService {
    */
   async buildPrompt(game: GameContext, optionId: string): Promise<string> {
     try {
-      // Use the new file-based template system
+      console.log(`[PROMPTS_SERVICE] Building prompt for game ${game.id}, turn ${game.turn_index}, optionId: ${optionId}`);
+      
+      // For initial prompts, use custom prompt with adventure start data
+      if (game.turn_index === 0 && optionId === 'game_start') {
+        console.log(`[PROMPTS_SERVICE] Attempting to build custom prompt for initial turn`);
+        const context = await this.buildFileBasedTemplateContext(game, optionId);
+        if (typeof context === 'string') {
+          // Custom prompt was built
+          console.log(`[PROMPTS_SERVICE] Using custom prompt for initial turn (length: ${context.length})`);
+          return context;
+        } else {
+          console.log(`[PROMPTS_SERVICE] Custom prompt not built, falling back to template system`);
+        }
+      }
+      
+      // Use the new file-based template system for regular turns
       const context = await this.buildFileBasedTemplateContext(game, optionId);
+      if (typeof context === 'string') {
+        // This shouldn't happen for regular turns, but handle it
+        return context;
+      }
       const result = await getFileBasedTemplateForWorld(game.world_id, context);
       
       // Log to debug service
@@ -443,7 +467,36 @@ export class PromptsService {
     party_min_json: string;
     flags_json: string;
     last_outcome_min_json: string;
-  }> {
+    adventure_start_json?: string;
+  } | string> {
+    // Validate critical game data before proceeding
+    console.log(`[PROMPTS] Building template context for game ${game.id}, world: ${game.world_id}, character: ${game.character_id}`);
+    
+    if (!game.world_id) {
+      throw new Error('Missing world_id in game context');
+    }
+    
+    if (!game.character_id) {
+      console.warn(`[PROMPTS] No character_id provided for game ${game.id}`);
+    }
+    
+    // For initial prompts, validate that we have the required data before proceeding
+    if (game.turn_index === 0 && optionId === 'game_start') {
+      console.log(`[PROMPTS] Validating data for initial prompt...`);
+      
+      // Check if we have character data
+      if (!game.character_id) {
+        throw new Error('Missing character_id for initial prompt');
+      }
+      
+      // Check if we have world data
+      if (!game.world_id) {
+        throw new Error('Missing world_id for initial prompt');
+      }
+      
+      console.log(`[PROMPTS] Basic validation passed for initial prompt`);
+    }
+    
     // Extract current scene and phase from game state
     const currentScene = game.state_snapshot?.current_scene || 'opening';
     const currentPhase = game.state_snapshot?.current_phase || 'start';
@@ -461,6 +514,26 @@ export class PromptsService {
       flags: game.state_snapshot?.flags || {},
       last_outcome: game.state_snapshot?.last_outcome || null
     };
+
+    // For initial prompts (turn 0), include adventure start JSON
+    let adventureStartJson = '';
+    if (game.turn_index === 0 && optionId === 'game_start') {
+      try {
+        const adventureStartData = await this.loadAdventureStartData(game.world_id, adventureName);
+        if (adventureStartData) {
+          (gameState as any).adventure_start = adventureStartData;
+          adventureStartJson = JSON.stringify(adventureStartData);
+          console.log(`[PROMPTS] Including adventure start JSON for ${game.world_id}/${adventureName}`);
+          console.log(`[PROMPTS] Adventure start data:`, adventureStartData);
+        } else {
+          console.error(`[PROMPTS] CRITICAL: No adventure start data found for ${game.world_id}/${adventureName}`);
+          throw new Error(`Missing adventure start data for world ${game.world_id}, adventure ${adventureName}`);
+        }
+      } catch (error) {
+        console.error(`[PROMPTS] CRITICAL: Failed to load adventure start data: ${error}`);
+        throw new Error(`Failed to load adventure start data: ${error}`);
+      }
+    }
     
     // Build player state JSON for the template
     let playerState = null;
@@ -472,6 +545,7 @@ export class PromptsService {
       if (playerV3) {
         // Use PlayerV3 format with all character details
         playerState = PlayerV3Service.toPromptFormat(playerV3);
+        console.log(`[PROMPTS] Loaded PlayerV3 data for character ${game.character_id}`);
       } else {
         // Fallback to legacy character format - load actual character data from database
         try {
@@ -526,6 +600,22 @@ export class PromptsService {
       }
     }
     
+    // Validate that we have player data for initial prompts
+    if (game.turn_index === 0 && optionId === 'game_start') {
+      if (!playerState || !playerState.name || playerState.name === 'Unknown') {
+        console.error(`[PROMPTS] CRITICAL: No valid player data found for character ${game.character_id}`);
+        throw new Error(`Missing or invalid player data for character ${game.character_id}`);
+      }
+      console.log(`[PROMPTS] Validated player data for character ${game.character_id}: ${playerState.name}`);
+      
+      // Validate adventure start data
+      if (!adventureStartJson || adventureStartJson === '{}' || adventureStartJson === '') {
+        console.error(`[PROMPTS] CRITICAL: No adventure start data found for ${game.world_id}/${adventureName}`);
+        throw new Error(`Missing adventure start data for ${game.world_id}/${adventureName}`);
+      }
+      console.log(`[PROMPTS] Validated adventure start data for ${game.world_id}/${adventureName}: ${adventureStartJson.length} characters`);
+    }
+    
     // Build RNG JSON for the template
     const rng = {
       d20: Math.floor(Math.random() * 20) + 1,
@@ -536,16 +626,98 @@ export class PromptsService {
     // Build player input text
     const playerInput = optionId === 'game_start' ? 'Begin the adventure' : optionId;
     
+    // For initial prompts, include adventure start data in the prompt text
+    let finalPrompt = '';
+    console.log(`[PROMPTS] Checking conditions for custom prompt: turn_index=${game.turn_index}, optionId=${optionId}, adventureStartJson=${adventureStartJson ? 'present' : 'missing'}`);
+    console.log(`[PROMPTS] Adventure start JSON content:`, adventureStartJson);
+    
+    // Always use custom prompt for initial turns, even if adventure start data is missing
+    if (game.turn_index === 0 && optionId === 'game_start') {
+      console.log(`[PROMPTS] Building custom prompt for initial turn (adventureStartJson: ${adventureStartJson ? 'present' : 'missing'})`);
+      
+      // If adventure start data is missing, fail early
+      if (!adventureStartJson || adventureStartJson === '{}' || adventureStartJson === '') {
+        console.error(`[PROMPTS] CRITICAL: No adventure start data available for custom prompt`);
+        throw new Error(`Missing adventure start data for ${game.world_id}/${adventureName}`);
+      }
+      console.log(`[PROMPTS] Building custom prompt for initial turn with adventure start data`);
+      console.log(`[PROMPTS] Adventure start data length: ${adventureStartJson.length}`);
+      console.log(`[PROMPTS] Player state:`, playerState);
+      
+      // Validate that we have the required data
+      if (!playerState || !playerState.name || playerState.name === 'Unknown') {
+        console.error(`[PROMPTS] CRITICAL: Invalid player data for custom prompt:`, playerState);
+        throw new Error(`Invalid player data for custom prompt: ${JSON.stringify(playerState)}`);
+      }
+      
+      if (!adventureStartJson || adventureStartJson === '{}') {
+        console.error(`[PROMPTS] CRITICAL: Empty adventure start data for custom prompt`);
+        throw new Error(`Empty adventure start data for custom prompt`);
+      }
+      
+      // Build the prompt with adventure start data included
+      finalPrompt = `You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks using rng BEFORE composing txt. Include exactly one TIME_ADVANCE (ticks ≥ 1) each turn. Use 0–100 scales (50 baseline) for skills/relationships. Essence alignment affects behavior (Life/Death/Order/Chaos). NPCs may act on their own; offer reaction choices only if impact is major or consent unclear. Limit 2 ambient + 1 NPC↔NPC beat per turn; respect cooldowns. Time uses 60-tick bands (Dawn→Mid-Day→Evening→Mid-Night→Dawn); avoid real-world units.
+
+=== CORE_BEGIN ===
+{"core":"system"}
+=== CORE_END ===
+
+=== WORLD_BEGIN ===
+${JSON.stringify({
+  world: {
+    name: game.world_id,
+    setting: "A world of magic and adventure",
+    genre: "fantasy",
+    themes: ["magic","adventure","mystery"],
+    rules: {},
+    mechanics: {},
+    lore: "",
+    logic: {}
+  }
+}, null, 0)}
+=== WORLD_END ===
+
+=== ADVENTURE_BEGIN ===
+${adventureStartJson}
+=== ADVENTURE_END ===
+
+=== GAME_STATE_BEGIN ===
+${JSON.stringify({
+  time: { band: "dawn_to_mid_day", ticks: 0 },
+  rng: { policy: "d20 for checks, d100 for chance rolls", d20: rng.d20, d100: rng.d100 },
+  turn: 0
+}, null, 0)}
+=== GAME_STATE_END ===
+
+=== PLAYER_BEGIN ===
+${JSON.stringify(playerState, null, 0)}
+=== PLAYER_END ===
+
+=== RNG_BEGIN ===
+${JSON.stringify(rng, null, 0)}
+=== RNG_END ===
+
+=== INPUT_BEGIN ===
+${playerInput}
+=== INPUT_END ===`;
+      
+      console.log(`[PROMPTS] Built custom prompt with adventure start data for ${game.world_id}/${adventureName}`);
+      console.log(`[PROMPTS] Custom prompt length: ${finalPrompt.length}`);
+      console.log(`[PROMPTS] Custom prompt adventure section:`, finalPrompt.match(/=== ADVENTURE_BEGIN ===[\s\S]*?=== ADVENTURE_END ===/)?.[0]);
+      return finalPrompt;
+    }
+    
     return {
       turn: game.turn_index,
       scene_id: adventureName,
       phase: currentPhase,
-      time_block_json: JSON.stringify(gameState),
-      weather_json: JSON.stringify(rng),
-      player_min_json: JSON.stringify(playerState),
-      party_min_json: JSON.stringify(game.state_snapshot?.party || []),
+      time_block_json: JSON.stringify(gameState, null, 0),
+      weather_json: JSON.stringify(rng, null, 0),
+      player_min_json: JSON.stringify(playerState, null, 0),
+      party_min_json: JSON.stringify(game.state_snapshot?.party || [], null, 0),
       flags_json: playerInput,
-      last_outcome_min_json: JSON.stringify(game.state_snapshot?.last_outcome || null)
+      last_outcome_min_json: JSON.stringify(game.state_snapshot?.last_outcome || null, null, 0),
+      adventure_start_json: adventureStartJson
     };
   }
 
@@ -568,6 +740,66 @@ export class PromptsService {
 
     // Default to the scene ID if no mapping exists
     return sceneId;
+  }
+
+  /**
+   * Load adventure start JSON data for initial prompts
+   * @param worldId - World ID
+   * @param adventureName - Adventure name
+   * @returns Adventure start data or null if not found
+   */
+  private async loadAdventureStartData(worldId: string, adventureName: string): Promise<any | null> {
+    console.log(`[PROMPTS] Loading adventure start data for world: ${worldId}, adventure: ${adventureName}`);
+    
+    try {
+      // Try to load from the file-based template system first
+      const possiblePaths = [
+        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `backend/GPT Prompts/Worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+        `GPT Prompts/Worlds/${worldId}/adventures/${adventureName}/adventure.start.prompt.json`,
+      ];
+
+      for (const path of possiblePaths) {
+        try {
+          const { readFileSync } = await import('fs');
+          const { join } = await import('path');
+          const fullPath = join(process.cwd(), path);
+          console.log(`[PROMPTS] Attempting to load from: ${fullPath}`);
+          const content = readFileSync(fullPath, 'utf-8');
+          const data = JSON.parse(content);
+          console.log(`[PROMPTS] Successfully loaded adventure start data from ${path}`);
+          return data;
+        } catch (error) {
+          console.log(`[PROMPTS] Failed to load from ${path}: ${error}`);
+          // Continue to next path
+        }
+      }
+
+      // If no file found, try to load from the template registry
+      try {
+        console.log(`[PROMPTS] Attempting to load from template registry for world: ${worldId}`);
+        const { getTemplatesForWorld } = await import('../prompting/templateRegistry.js');
+        const bundle = await getTemplatesForWorld(worldId);
+        
+        console.log(`[PROMPTS] Template registry bundle keys: ${Object.keys(bundle)}`);
+        console.log(`[PROMPTS] Available adventures: ${bundle.adventures ? Object.keys(bundle.adventures) : 'none'}`);
+        
+        if (bundle.adventures && bundle.adventures[adventureName]) {
+          console.log(`[PROMPTS] Successfully loaded adventure start data from template registry for ${worldId}/${adventureName}`);
+          return bundle.adventures[adventureName];
+        } else {
+          console.warn(`[PROMPTS] Adventure ${adventureName} not found in template registry for world ${worldId}`);
+        }
+      } catch (error) {
+        console.error(`[PROMPTS] Could not load from template registry: ${error}`);
+      }
+
+      console.warn(`[PROMPTS] No adventure start data found for ${worldId}/${adventureName}`);
+      return null;
+    } catch (error) {
+      console.error(`[PROMPTS] Error loading adventure start data: ${error}`);
+      return null;
+    }
   }
 
   private async loadWorldTemplate(worldSlug: string): Promise<WorldTemplate | null> {

@@ -17,7 +17,9 @@ import {
   submitTurn, 
   getCharacter, 
   getContentWorlds,
-  getWallet 
+  getWallet,
+  getGameTurns,
+  autoInitializeGame
 } from '../lib/api';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
@@ -79,6 +81,46 @@ export default function UnifiedGamePage() {
   // Determine the actual gameId to use
   const actualGameId = gameId || characterForGame?.activeGameId;
 
+  // Game initialization state - use sessionStorage to prevent duplicate calls across page refreshes
+  const [hasInitializedGame, setHasInitializedGame] = useState(() => {
+    if (typeof window !== 'undefined' && actualGameId) {
+      return sessionStorage.getItem(`game-${actualGameId}-initialized`) === 'true';
+    }
+    return false;
+  });
+  const [isAutoInitializing, setIsAutoInitializing] = useState(false);
+  const [autoInitAttempted, setAutoInitAttempted] = useState(false);
+  const autoInitCalledRef = useRef(false);
+  
+  // Add a more robust check using sessionStorage for the actual call
+  const getAutoInitKey = (gameId: string) => `auto-init-${gameId}`;
+  const isAutoInitInProgress = (gameId: string) => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem(getAutoInitKey(gameId)) === 'true';
+  };
+  const setAutoInitInProgress = (gameId: string, inProgress: boolean) => {
+    if (typeof window === 'undefined') return;
+    if (inProgress) {
+      sessionStorage.setItem(getAutoInitKey(gameId), 'true');
+    } else {
+      sessionStorage.removeItem(getAutoInitKey(gameId));
+    }
+  };
+
+  // Clear sessionStorage flags on component mount to start fresh
+  useEffect(() => {
+    if (actualGameId && typeof window !== 'undefined') {
+      console.log('UnifiedGamePage: Clearing sessionStorage flags for fresh start');
+      sessionStorage.removeItem(`game-${actualGameId}-initialized`);
+      sessionStorage.removeItem(getAutoInitKey(actualGameId));
+      // Reset state flags too
+      setHasInitializedGame(false);
+      setIsAutoInitializing(false);
+      setAutoInitAttempted(false);
+      autoInitCalledRef.current = false;
+    }
+  }, [actualGameId]);
+
   // Load game data
   const { data: game, isLoading: isLoadingGame, error: gameError } = useQuery({
     queryKey: ['game', actualGameId],
@@ -92,6 +134,22 @@ export default function UnifiedGamePage() {
     },
     enabled: !!actualGameId,
     staleTime: 30 * 1000, // 30 seconds cache
+    retry: 1,
+  });
+
+  // Load game turns
+  const { data: gameTurns } = useQuery({
+    queryKey: ['game-turns', actualGameId],
+    queryFn: async () => {
+      if (!actualGameId) throw new Error('No game ID available');
+      const result = await getGameTurns(actualGameId);
+      if (!result.ok) {
+        throw new Error(result.error.message || 'Failed to load game turns');
+      }
+      return result.data;
+    },
+    enabled: !!actualGameId,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache for game turns
     retry: 1,
   });
 
@@ -166,6 +224,48 @@ export default function UnifiedGamePage() {
         currentTurn: game.turnCount
       }));
 
+      // Check if game needs initialization (turn count is 0, no existing turns, and not already initialized)
+      const hasExistingTurns = gameTurns && gameTurns.length > 0;
+      const shouldAutoInit = game.turnCount === 0 && 
+                            !hasExistingTurns &&
+                            !hasInitializedGame && 
+                            !isAutoInitializing && 
+                            !autoInitAttempted && 
+                            !autoInitCalledRef.current &&
+                            !isAutoInitInProgress(actualGameId);
+      
+      console.log('UnifiedGamePage: Auto-initialization check:', {
+        turnCount: game.turnCount,
+        hasExistingTurns,
+        gameTurnsLength: gameTurns?.length || 0,
+        hasInitializedGame,
+        isAutoInitializing,
+        autoInitAttempted,
+        autoInitCalledRef: autoInitCalledRef.current,
+        isAutoInitInProgress: isAutoInitInProgress(actualGameId),
+        shouldAutoInit,
+        gameId: actualGameId,
+        sessionStorage: {
+          initialized: typeof window !== 'undefined' ? sessionStorage.getItem(`game-${actualGameId}-initialized`) : 'N/A',
+          inProgress: typeof window !== 'undefined' ? sessionStorage.getItem(getAutoInitKey(actualGameId)) : 'N/A'
+        }
+      });
+      
+      if (shouldAutoInit) {
+        console.log('UnifiedGamePage: Game has turnCount: 0, triggering auto-initialization...');
+        console.log('UnifiedGamePage: Game data:', game);
+        console.log('UnifiedGamePage: Setting auto-init flags...');
+        
+        // Set all flags immediately to prevent duplicate calls
+        autoInitCalledRef.current = true;
+        setAutoInitInProgress(actualGameId, true);
+        setHasInitializedGame(true);
+        setIsAutoInitializing(true);
+        setAutoInitAttempted(true);
+        
+        handleAutoInitialize();
+      }
+
       // Initialize world rules if not set
       if (currentWorld && Object.keys(gameState.worldRules).length === 0) {
         const initialRules: Record<string, number> = {};
@@ -179,12 +279,69 @@ export default function UnifiedGamePage() {
         }));
       }
     }
-  }, [game, currentWorld, gameState.worldRules]);
+  }, [game, gameTurns, currentWorld, gameState.worldRules]);
 
   // Auto-scroll to bottom of history
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [gameState.history]);
+
+  // Auto-initialize game with 0 turns
+  const handleAutoInitialize = async () => {
+    if (!actualGameId) {
+      console.log('No gameId available for auto-initialization');
+      return;
+    }
+    
+    if (isAutoInitializing) {
+      console.log('Auto-initialization already in progress');
+      return;
+    }
+    
+    try {
+      console.log(`UnifiedGamePage: Auto-initializing game ${actualGameId} with 0 turns...`);
+      const result = await autoInitializeGame(actualGameId);
+      
+      if (result.ok) {
+        console.log('Game auto-initialized successfully:', result.data);
+        
+        // Log full prompt and AI response details if available
+        if (result.data.details) {
+          console.log('=== AUTO-INITIALIZATION DETAILS ===');
+          console.log('Full Prompt:', result.data.details.prompt);
+          console.log('AI Response:', result.data.details.aiResponse);
+          console.log('Transformed Response:', result.data.details.transformedResponse);
+          console.log('Timestamp:', result.data.details.timestamp);
+          console.log('Cached:', result.data.details.cached || false);
+          console.log('=====================================');
+        }
+        
+        // Mark as initialized in sessionStorage to prevent duplicate calls
+        if (typeof window !== 'undefined' && actualGameId) {
+          sessionStorage.setItem(`game-${actualGameId}-initialized`, 'true');
+        }
+        // Clear the in-progress flag
+        setAutoInitInProgress(actualGameId, false);
+        // Refresh game turns to get the initial prompt result
+        queryClient.invalidateQueries({ queryKey: ['game-turns', actualGameId] });
+        // Refresh game data to get updated turn count
+        queryClient.invalidateQueries({ queryKey: ['game', actualGameId] });
+      } else {
+        console.error('Failed to auto-initialize game:', result.error);
+        console.error('Error details:', result.error.details);
+        setTurnError('Failed to initialize game. Please try again.');
+        // Clear the in-progress flag on error too
+        setAutoInitInProgress(actualGameId, false);
+      }
+    } catch (error) {
+      console.error('Error auto-initializing game:', error);
+      setTurnError('Failed to initialize game. Please try again.');
+      // Clear the in-progress flag on error too
+      setAutoInitInProgress(actualGameId, false);
+    } finally {
+      setIsAutoInitializing(false);
+    }
+  };
 
   // Turn submission mutation
   const submitTurnMutation = useMutation({

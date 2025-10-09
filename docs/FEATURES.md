@@ -46,6 +46,7 @@ Stone Caster is a text-based adventure game platform that allows users to create
 - **Content Fixes**: Automated validation for RNG policy, player input, time format, and band naming
 - **JSON Repair**: Automatic repair of malformed AI responses
 - **Streaming Support**: Real-time token streaming for responsive gameplay
+- **Initial Prompt System**: Automatic creation of initial AI prompts for games with no turns, including adventure start JSON to trigger immediate adventure loading
 
 ## Technical Features
 

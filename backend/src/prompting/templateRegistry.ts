@@ -349,6 +349,12 @@ class FSTemplateLoader {
         .replace(/^\s*[\r\n]/gm, '') // Remove empty lines
         .trim();
       
+      // Clean control characters that can cause JSON parsing issues
+      cleaned = cleaned
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control characters except \n, \r, \t
+        .replace(/\r\n/g, '\n') // Normalize line endings
+        .replace(/\r/g, '\n'); // Convert remaining \r to \n
+      
       // Parse and re-stringify to ensure valid JSON and remove extra whitespace
       const parsed = JSON.parse(cleaned);
       return JSON.stringify(parsed, null, 0);
@@ -420,6 +426,7 @@ export class FileBasedTemplateLoader {
         '{{player_state_json}}': context.player_min_json,
         '{{rng_json}}': context.weather_json,
         '{{player_input_text}}': context.flags_json,
+        '{{adventure_start_json}}': (context as any).adventure_start_json || '',
       };
 
       for (const [placeholder, value] of Object.entries(variableReplacements)) {
@@ -561,6 +568,7 @@ export async function getFileBasedTemplateForWorld(
     party_min_json: string;
     flags_json: string;
     last_outcome_min_json: string;
+    adventure_start_json?: string;
   }
 ): Promise<FileBasedTemplateResult> {
   return fileBasedLoader.loadTemplateForWorld(worldSlug, context);

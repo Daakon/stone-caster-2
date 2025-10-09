@@ -218,15 +218,7 @@ export class PromptAssembler {
    * Create template information header showing which files are loaded
    */
   private createTemplateInfoHeader(segments: string[]): string {
-    const templateCount = segments.length;
-    return `## Template Information
-- **Total Templates Loaded**: ${templateCount}
-- **Template Sources**: Core system files, world-specific content, and adventure scenarios
-- **JSON Files**: Minimized and embedded in markdown code blocks for reference
-- **Character Data**: Name, race, skills, inventory, relationships, stats, and story flags
-- **Note**: Characters do not have levels or classes in this game system
-
----`;
+    return `---`;
   }
 
   /**
@@ -239,16 +231,15 @@ export class PromptAssembler {
     
     return `# RPG Storyteller AI System
 
-## Current Context
+## Context
 - **World**: ${context.world.name}
 - **Player**: ${characterInfo}
 - **Adventure**: ${context.adventure?.name || 'None'}
 - **Scene**: ${context.game.current_scene || 'Unknown'}
 - **Turn**: ${context.game.turn_index + 1}
-- **Schema Version**: ${context.system.schema_version}
 
 ## Instructions
-You are an AI Game Master operating within the RPG Storyteller system. Follow the rules and guidelines below to generate appropriate responses.`;
+You are an AI Game Master. Follow the rules and guidelines below to generate appropriate responses.`;
   }
 
   /**
@@ -257,37 +248,19 @@ You are an AI Game Master operating within the RPG Storyteller system. Follow th
   private createPromptFooter(context: PromptContext): string {
     return `## Output Requirements
 
-Return a single JSON object in AWF v1 format with the following structure:
+Return a single JSON object in AWF v1 format:
 
 \`\`\`json
 {
-  "scn": {
-    "id": "scene_id",
-    "ph": "scene_phase"
-  },
+  "scn": {"id": "scene_id", "ph": "scene_phase"},
   "txt": "Narrative text describing what happens",
-  "choices": [
-    {
-      "id": "choice_id",
-      "label": "Choice text"
-    }
-  ],
-  "acts": [
-    {
-      "eid": "action_id",
-      "t": "ACTION_TYPE",
-      "payload": {}
-    }
-  ],
-  "val": {
-    "ok": true,
-    "errors": [],
-    "repairs": []
-  }
+  "choices": [{"id": "choice_id", "label": "Choice text"}],
+  "acts": [{"eid": "action_id", "t": "ACTION_TYPE", "payload": {}}],
+  "val": {"ok": true, "errors": [], "repairs": []}
 }
 \`\`\`
 
-Remember: Keep responses immersive, consistent with the world's tone, and appropriate for the character's level and situation.`;
+Keep responses immersive and consistent with the world's tone.`;
   }
 
   /**

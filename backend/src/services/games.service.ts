@@ -280,6 +280,16 @@ export class GamesService {
   }
 
   /**
+   * Check if a string is a valid UUID
+   * @param str - String to check
+   * @returns True if valid UUID
+   */
+  private isValidUuid(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
+  /**
    * Apply a turn result to a game
    * @param gameId - Game ID
    * @param turnResult - Turn result from AI
@@ -294,12 +304,34 @@ export class GamesService {
         throw new Error('Game not found for turn application');
       }
 
+      // Check if a turn already exists for this game and turn number
+      const nextTurnNumber = currentGame.turn_count + 1;
+      const { data: existingTurn } = await supabaseAdmin
+        .from('turns')
+        .select('*')
+        .eq('game_id', gameId)
+        .eq('turn_number', nextTurnNumber)
+        .single();
+
+      if (existingTurn) {
+        console.log(`[GAMES_SERVICE] Turn ${nextTurnNumber} already exists for game ${gameId}, returning existing turn`);
+        return existingTurn;
+      }
+
       // Create turn record
+      // Generate a UUID for option_id if it's not already a valid UUID
+      let optionIdUuid = optionId;
+      if (optionId && !this.isValidUuid(optionId)) {
+        // For non-UUID optionIds like "game_start", generate a UUID
+        optionIdUuid = crypto.randomUUID();
+        console.log(`[GAMES_SERVICE] Generated UUID for optionId "${optionId}": ${optionIdUuid}`);
+      }
+      
       const turnRecord = {
         game_id: gameId,
-        option_id: optionId,
+        option_id: optionIdUuid,
         ai_response: turnResult,
-        turn_number: currentGame.turn_count + 1,
+        turn_number: nextTurnNumber,
         created_at: new Date().toISOString(),
       };
 
@@ -314,6 +346,7 @@ export class GamesService {
         throw new Error(`Failed to create turn record: ${turnError.message}`);
       }
 
+      // Only update game state if we created a new turn
       const newState = {
         ...currentGame.state_snapshot,
         ...turnResult.worldStateChanges,
@@ -339,6 +372,31 @@ export class GamesService {
       return createdTurn;
     } catch (error) {
       console.error('Unexpected error in applyTurn:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all turns for a game
+   * @param gameId - Game ID
+   * @returns Array of turn records
+   */
+  async getGameTurns(gameId: string): Promise<any[]> {
+    try {
+      const { data: turns, error } = await supabaseAdmin
+        .from('turns')
+        .select('*')
+        .eq('game_id', gameId)
+        .order('turn_number', { ascending: true });
+
+      if (error) {
+        console.error('Error loading game turns:', error);
+        throw new Error(`Failed to load game turns: ${error.message}`);
+      }
+
+      return turns || [];
+    } catch (error) {
+      console.error('Unexpected error in getGameTurns:', error);
       throw error;
     }
   }
@@ -473,12 +531,6 @@ export class GamesService {
       adventureDescription: dbRow.adventures?.description,
       characterId: dbRow.character_id,
       characterName: dbRow.characters?.name,
-      characterWorldData: dbRow.characters?.world_data,
-      characterLevel: dbRow.characters?.level,
-      characterCurrentHealth: dbRow.characters?.current_health,
-      characterMaxHealth: dbRow.characters?.max_health,
-      characterRace: dbRow.characters?.race,
-      characterClass: dbRow.characters?.class,
       worldSlug: dbRow.world_slug,
       worldName,
       turnCount: dbRow.turn_count,

@@ -335,6 +335,23 @@ export async function getStonesHistory(): Promise<{ ok: true; data: any[] } | { 
   return apiGet('/api/stones/history');
 }
 
+// Game Turns API
+export async function getGameTurns(
+  gameId: string
+): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet(`/api/games/${gameId}/turns`);
+}
+
+// Auto-initialize game API
+export async function autoInitializeGame(
+  gameId: string
+): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  console.log(`[API] Calling auto-initialize for game ${gameId}`);
+  const result = await apiPost(`/api/games/${gameId}/auto-initialize`, {});
+  console.log(`[API] Auto-initialize result:`, result);
+  return result;
+}
+
 // Initial Prompt API
 export async function createInitialPrompt(
   gameId: string

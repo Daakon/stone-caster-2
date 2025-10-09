@@ -148,6 +148,14 @@ export const TurnResponseSchema = z.object({
   worldStateChanges: z.record(z.string(), z.unknown()).optional(),
   relationshipDeltas: z.record(z.string(), z.number()).optional(),
   factionDeltas: z.record(z.string(), z.number()).optional(),
+  // Debug information
+  debug: z.object({
+    promptState: z.record(z.string(), z.unknown()).optional(),
+    promptText: z.string().optional(),
+    aiResponseRaw: z.string().optional(),
+    processingTime: z.number().optional(),
+    tokenCount: z.number().optional(),
+  }).optional(),
 });
 
 export const TurnResultSchema = z.object({

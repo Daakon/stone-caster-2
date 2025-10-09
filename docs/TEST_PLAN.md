@@ -220,6 +220,47 @@ Layer P0 focuses on enabling guest users to play the game without authentication
   - Guest game retrieval
   - Validation errors for guest requests
 
+#### Initial Prompt System Tests
+- **File:** `backend/tests/initial-prompt.test.ts`
+- **Coverage:**
+  - Detection of games with zero turns
+  - Automatic creation of initial AI prompts
+  - Inclusion of adventure start JSON data
+  - Proper prompt context building for initial turns
+  - Integration with existing turn processing
+- **Test Scenarios:**
+  - Games with turnCount: 0 trigger initial prompt creation
+  - Adventure start JSON is loaded and included in initial prompts
+  - Initial prompts are processed before player's first turn
+  - Games with existing turns do not trigger initial prompts
+  - Error handling for missing adventure start data
+
+#### Turn Persistence System Tests
+- **File:** `backend/tests/turn-persistence.test.ts`
+- **Coverage:**
+  - Loading game turns from database
+  - Database-driven history management
+  - Clean GameDTO response without unnecessary fields
+  - Initial prompt integration for new games
+- **Test Scenarios:**
+  - Game turns are loaded from database on game load
+  - History is populated from database instead of manual management
+  - Game API response excludes unnecessary character fields
+  - Initial prompts are created automatically for games with turnCount: 0
+
+#### Auto-Initialization System Tests
+- **File:** `backend/tests/auto-initialization.test.ts`
+- **Coverage:**
+  - Automatic initialization of games with 0 turns
+  - Adventure start JSON inclusion in initial prompts
+  - Frontend auto-initialization logic
+  - Error handling for already initialized games
+- **Test Scenarios:**
+  - Games with turnCount: 0 are automatically initialized on load
+  - Adventure start JSON is included in initial prompts
+  - Games with existing turns are not auto-initialized
+  - Frontend shows proper loading states during auto-initialization
+
 ### Accessibility Tests
 
 #### Axe Core Testing

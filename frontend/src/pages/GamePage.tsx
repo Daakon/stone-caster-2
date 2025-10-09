@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -11,12 +11,12 @@ import { TurnInput } from '../components/gameplay/TurnInput';
 import { HistoryFeed } from '../components/gameplay/HistoryFeed';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, Settings, Save } from 'lucide-react';
-import { submitTurn, getGame, getAdventureById, getCharacter, getWorldById, getWallet, createInitialPrompt, approvePrompt } from '../lib/api';
+import { submitTurn, getGame, getAdventureById, getCharacter, getWorldById, getWallet, getGameTurns, autoInitializeGame } from '../lib/api';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useDebugPanel } from '../hooks/useDebugPanel';
 import { DebugPanel } from '../components/debug/DebugPanel';
-import { PromptApprovalModal } from '../components/gameplay/PromptApprovalModal';
+// PromptApprovalModal removed - not needed with new backend system
 import type { TurnDTO, GameDTO } from '@shared';
 
 interface GameState {
@@ -34,6 +34,7 @@ interface GameState {
 export default function GamePage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [adventure, setAdventure] = useState<any | null>(null);
   const [world, setWorld] = useState<any | null>(null);
   const [character, setCharacter] = useState<any | null>(null);
@@ -54,13 +55,45 @@ export default function GamePage() {
   const debugPanel = useDebugPanel();
   const [gameErrorState, setGameErrorState] = useState<string | null>(null);
   
-  // Prompt approval state
-  const [showPromptApproval, setShowPromptApproval] = useState(false);
-  const [currentPrompt, setCurrentPrompt] = useState<string>('');
-  const [currentPromptId, setCurrentPromptId] = useState<string>('');
-  const [currentPromptMetadata, setCurrentPromptMetadata] = useState<any>(null);
-  const [isPromptLoading, setIsPromptLoading] = useState(false);
-  const [hasInitializedGame, setHasInitializedGame] = useState(false);
+  // Game initialization state - use sessionStorage to prevent duplicate calls across page refreshes
+  const [hasInitializedGame, setHasInitializedGame] = useState(() => {
+    if (typeof window !== 'undefined' && gameId) {
+      return sessionStorage.getItem(`game-${gameId}-initialized`) === 'true';
+    }
+    return false;
+  });
+  const [isAutoInitializing, setIsAutoInitializing] = useState(false);
+  const [autoInitAttempted, setAutoInitAttempted] = useState(false);
+  const autoInitCalledRef = useRef(false);
+  
+  // Add a more robust check using sessionStorage for the actual call
+  const getAutoInitKey = (gameId: string) => `auto-init-${gameId}`;
+  const isAutoInitInProgress = (gameId: string) => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem(getAutoInitKey(gameId)) === 'true';
+  };
+  const setAutoInitInProgress = (gameId: string, inProgress: boolean) => {
+    if (typeof window === 'undefined') return;
+    if (inProgress) {
+      sessionStorage.setItem(getAutoInitKey(gameId), 'true');
+    } else {
+      sessionStorage.removeItem(getAutoInitKey(gameId));
+    }
+  };
+
+  // Clear sessionStorage flags on component mount to start fresh
+  useEffect(() => {
+    if (gameId && typeof window !== 'undefined') {
+      console.log('GamePage: Clearing sessionStorage flags for fresh start');
+      sessionStorage.removeItem(`game-${gameId}-initialized`);
+      sessionStorage.removeItem(getAutoInitKey(gameId));
+      // Reset state flags too
+      setHasInitializedGame(false);
+      setIsAutoInitializing(false);
+      setAutoInitAttempted(false);
+      autoInitCalledRef.current = false;
+    }
+  }, [gameId]);
 
   // Use React Query to load game data (prevents duplicate calls in StrictMode)
   const { data: gameData, isLoading: isLoadingGame, error: gameError } = useQuery({
@@ -141,6 +174,22 @@ export default function GamePage() {
     retry: 1,
   });
 
+  // Load game turns
+  const { data: gameTurns } = useQuery({
+    queryKey: ['game-turns', gameId],
+    queryFn: async () => {
+      if (!gameId) throw new Error('No game ID provided');
+      const result = await getGameTurns(gameId);
+      if (!result.ok) {
+        throw new Error(result.error.message || 'Failed to load game turns');
+      }
+      return result.data;
+    },
+    enabled: !!gameId,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache for game turns
+    retry: 1,
+  });
+
   // Handle navigation and game start time
   useEffect(() => {
     if (!isInvited) {
@@ -159,13 +208,49 @@ export default function GamePage() {
         currentTurn: gameData.turnCount
       }));
       
-      // Check if game needs initialization (turn count is 0 and no history and not already initialized)
-      if (gameData.turnCount === 0 && gameState.history.length === 0 && !hasInitializedGame) {
+      // Check if game needs initialization (turn count is 0, no existing turns, and not already initialized)
+      const hasExistingTurns = gameTurns && gameTurns.length > 0;
+      const shouldAutoInit = gameData.turnCount === 0 && 
+                            !hasExistingTurns &&
+                            !hasInitializedGame && 
+                            !isAutoInitializing && 
+                            !autoInitAttempted && 
+                            !autoInitCalledRef.current &&
+                            gameId && !isAutoInitInProgress(gameId);
+      
+      console.log('GamePage: Auto-initialization check:', {
+        turnCount: gameData.turnCount,
+        hasExistingTurns,
+        gameTurnsLength: gameTurns?.length || 0,
+        hasInitializedGame,
+        isAutoInitializing,
+        autoInitAttempted,
+        autoInitCalledRef: autoInitCalledRef.current,
+        isAutoInitInProgress: gameId ? isAutoInitInProgress(gameId) : false,
+        shouldAutoInit,
+        gameId: gameId,
+        sessionStorage: {
+          initialized: typeof window !== 'undefined' && gameId ? sessionStorage.getItem(`game-${gameId}-initialized`) : 'N/A',
+          inProgress: typeof window !== 'undefined' && gameId ? sessionStorage.getItem(getAutoInitKey(gameId)) : 'N/A'
+        }
+      });
+      
+      if (shouldAutoInit && gameId) {
+        console.log('GamePage: Game has turnCount: 0, triggering auto-initialization...');
+        console.log('GamePage: Game data:', gameData);
+        console.log('GamePage: Setting auto-init flags...');
+        
+        // Set all flags immediately to prevent duplicate calls
+        autoInitCalledRef.current = true;
+        setAutoInitInProgress(gameId, true);
         setHasInitializedGame(true);
-        handleGameInitialization();
+        setIsAutoInitializing(true);
+        setAutoInitAttempted(true);
+        
+        handleAutoInitialize();
       }
     }
-  }, [gameData, gameState.history.length, hasInitializedGame]);
+  }, [gameData, gameTurns]);
 
   // Update adventure, character, world, and wallet state when data changes
   useEffect(() => {
@@ -203,6 +288,24 @@ export default function GamePage() {
       setWallet(walletData);
     }
   }, [walletData]);
+
+  // Load game turns into history
+  useEffect(() => {
+    if (gameTurns && gameTurns.length > 0) {
+      const history = gameTurns.map((turn: any) => ({
+        id: turn.id,
+        timestamp: turn.created_at,
+        type: 'system' as const,
+        content: turn.ai_response?.narrative || 'Turn completed',
+        character: turn.ai_response?.character || undefined,
+      }));
+      
+      setGameState(prev => ({
+        ...prev,
+        history: history
+      }));
+    }
+  }, [gameTurns]);
 
   // Handle game error
   useEffect(() => {
@@ -266,36 +369,12 @@ export default function GamePage() {
         setHasTrackedFirstTurn(true);
       }
 
-      // Add player action to history
-      const playerEntry = {
-        id: `player-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: 'player' as const,
-        content: action,
-        character: character.name
-      };
-
-      // Add AI narrative to history
-      const narrativeEntry = {
-        id: `narrative-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        type: 'npc' as const,
-        content: turnDTO.narrative
-      };
-
-      // Add NPC responses if any
-      const npcEntries = turnDTO.npcResponses?.map((npc, index) => ({
-        id: `npc-${Date.now()}-${index}`,
-        timestamp: new Date().toISOString(),
-        type: 'npc' as const,
-        content: npc.response
-      })) || [];
-
-      // Update game state with new history and turn count
-      const newHistory = [narrativeEntry, ...npcEntries, playerEntry, ...gameState.history];
+      // Refresh game turns from database instead of manually managing history
+      queryClient.invalidateQueries({ queryKey: ['game-turns', gameId] });
+      
+      // Update turn count
       setGameState(prev => ({
         ...prev,
-        history: newHistory,
         currentTurn: turnDTO.turnCount
       }));
 
@@ -317,12 +396,7 @@ export default function GamePage() {
         }));
       }
 
-      // Update local game state
-      setGameState((prev: GameState) => ({
-        ...prev,
-        history: newHistory,
-        currentTurn: turnDTO.turnCount
-      }));
+      // Game state is now managed by database-driven history loading
 
     } catch (error) {
       console.error('Turn submission error:', error);
@@ -337,71 +411,72 @@ export default function GamePage() {
     alert('Game saved!');
   };
 
-  const handleGameInitialization = async () => {
-    if (!gameId) return;
+  // Auto-initialize game with 0 turns
+  const handleAutoInitialize = async () => {
+    if (!gameId) {
+      console.log('No gameId available for auto-initialization');
+      return;
+    }
     
-    setIsPromptLoading(true);
+    if (isAutoInitializing) {
+      console.log('Auto-initialization already in progress');
+      return;
+    }
+    
     try {
-      const result = await createInitialPrompt(gameId);
+      console.log(`Auto-initializing game ${gameId} with 0 turns...`);
+      const result = await autoInitializeGame(gameId);
       
       if (result.ok) {
-        const { prompt, needsApproval, promptId, metadata } = result.data;
+        console.log('Game auto-initialized successfully:', result.data);
         
-        if (needsApproval) {
-          // Show approval modal
-          setCurrentPrompt(prompt);
-          setCurrentPromptId(promptId);
-          setCurrentPromptMetadata(metadata);
-          setShowPromptApproval(true);
-        } else {
-          // Auto-approve if no approval needed
-          await handlePromptApproval(true);
+        // Log full prompt and AI response details if available
+        if (result.data.details) {
+          console.log('=== AUTO-INITIALIZATION DETAILS ===');
+          console.log('Full Prompt:', result.data.details.prompt);
+          console.log('AI Response:', result.data.details.aiResponse);
+          console.log('Transformed Response:', result.data.details.transformedResponse);
+          console.log('Timestamp:', result.data.details.timestamp);
+          console.log('Cached:', result.data.details.cached || false);
+          console.log('=====================================');
         }
+        
+        // Mark as initialized in sessionStorage to prevent duplicate calls
+        if (typeof window !== 'undefined' && gameId) {
+          sessionStorage.setItem(`game-${gameId}-initialized`, 'true');
+        }
+        // Clear the in-progress flag
+        setAutoInitInProgress(gameId, false);
+        // Refresh game turns to get the initial prompt result
+        queryClient.invalidateQueries({ queryKey: ['game-turns', gameId] });
+        // Refresh game data to get updated turn count
+        queryClient.invalidateQueries({ queryKey: ['game', gameId] });
       } else {
-        console.error('Failed to create initial prompt:', result.error);
+        console.error('Failed to auto-initialize game:', result.error);
+        console.error('Error details:', result.error.details);
         setGameErrorState('Failed to initialize game. Please try again.');
+        // Clear the in-progress flag on error too
+        setAutoInitInProgress(gameId, false);
       }
     } catch (error) {
-      console.error('Error during game initialization:', error);
+      console.error('Error auto-initializing game:', error);
       setGameErrorState('Failed to initialize game. Please try again.');
+      // Clear the in-progress flag on error too
+      setAutoInitInProgress(gameId, false);
     } finally {
-      setIsPromptLoading(false);
+      setIsAutoInitializing(false);
     }
   };
 
-  const handlePromptApproval = async (approved: boolean) => {
-    if (!gameId || !currentPromptId) return;
-    
-    setIsPromptLoading(true);
-    try {
-      const result = await approvePrompt(gameId, currentPromptId, approved);
-      
-      if (result.ok) {
-        if (approved) {
-          // Game is now initialized, close modal and continue
-          setShowPromptApproval(false);
-          // The game will continue normally
-        } else {
-          // Prompt was rejected, show error
-          setGameErrorState('Game initialization was cancelled. Please refresh to try again.');
-        }
-      } else {
-        console.error('Failed to approve prompt:', result.error);
-        setGameErrorState('Failed to process prompt approval. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error approving prompt:', error);
-      setGameErrorState('Failed to process prompt approval. Please try again.');
-    } finally {
-      setIsPromptLoading(false);
-    }
-  };
+  // handleGameInitialization removed - initial prompts are now handled automatically by the backend
+
+  // handlePromptApproval removed - not needed with new backend system
 
   if (!isInvited) {
     return null; // Will redirect
   }
 
-  if (isLoadingGame) {
+  if (isLoadingGame || isAutoInitializing) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -704,16 +779,7 @@ export default function GamePage() {
         onToggle={debugPanel.toggle} 
       />
       
-      {/* Prompt Approval Modal */}
-      <PromptApprovalModal
-        isOpen={showPromptApproval}
-        onClose={() => setShowPromptApproval(false)}
-        onApprove={handlePromptApproval}
-        prompt={currentPrompt}
-        promptId={currentPromptId}
-        metadata={currentPromptMetadata}
-        isLoading={isPromptLoading}
-      />
+      {/* Prompt Approval Modal removed - not needed with new backend system */}
     </div>
   );
 }

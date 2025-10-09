@@ -26,6 +26,15 @@ export interface TurnResult {
   turnDTO?: TurnDTO;
   error?: ApiErrorCode;
   message?: string;
+  details?: {
+    prompt?: any;
+    aiResponse?: string | null;
+    transformedResponse?: any;
+    validationErrors?: any;
+    error?: string;
+    timestamp?: string;
+    cached?: boolean;
+  };
 }
 
 export class TurnsService {
@@ -36,6 +45,10 @@ export class TurnsService {
    */
   async runBufferedTurn(request: TurnRequest): Promise<TurnResult> {
     const { gameId, optionId, owner, idempotencyKey, isGuest } = request;
+    
+    // Declare variables at method level for error handling
+    let gameContext: any = null;
+    let aiResponseText: string | null = null;
 
     try {
       // Check idempotency first
@@ -59,6 +72,13 @@ export class TurnsService {
         return {
           success: true,
           turnDTO: idempotencyCheck.existingRecord.responseData,
+          details: {
+            prompt: null, // Not available for cached responses
+            aiResponse: null, // Not available for cached responses
+            transformedResponse: null, // Not available for cached responses
+            timestamp: idempotencyCheck.existingRecord.createdAt,
+            cached: true
+          }
         };
       }
 
@@ -89,22 +109,98 @@ export class TurnsService {
       // Ensure initial game state exists
       await this.ensureInitialGameState(game);
 
+      // Check if this is the first turn (turn_count = 0) and create initial prompt
+      if (game.turn_count === 0) {
+        console.log(`[TURNS] Game ${gameId} has no turns, creating initial AI prompt with adventure start JSON`);
+        
+        try {
+          console.log(`[TURNS] Creating initial AI prompt for game ${game.id}`);
+          const initialPromptResult = await this.createInitialAIPrompt(game);
+          
+          if (!initialPromptResult) {
+            console.error(`[TURNS] Initial prompt creation failed for game ${game.id}`);
+            return {
+              success: false,
+              error: ApiErrorCode.INTERNAL_ERROR,
+              message: 'Failed to create initial AI prompt',
+              details: {
+                prompt: gameContext,
+                aiResponse: null,
+                transformedResponse: null,
+                error: 'Initial prompt creation failed',
+                timestamp: new Date().toISOString()
+              }
+            };
+          }
+          
+          console.log(`[TURNS] Initial prompt created successfully for game ${game.id}`);
+          
+          // Convert the turn record to TurnDTO format
+          const turnDTO = {
+            id: initialPromptResult.turnRecord.id,
+            gameId: game.id,
+            turnCount: 1,
+            narrative: initialPromptResult.transformedResponse.narrative,
+            emotion: initialPromptResult.transformedResponse.emotion || 'neutral',
+            choices: initialPromptResult.transformedResponse.choices || [],
+            actions: initialPromptResult.transformedResponse.actions || [],
+            createdAt: initialPromptResult.turnRecord.created_at,
+            castingStonesBalance: 62, // Default balance for initial turn
+            debugPrompt: initialPromptResult.initialPrompt,
+            debugAiResponse: {
+              hasChoices: (initialPromptResult.transformedResponse.choices || []).length > 0,
+              choiceCount: (initialPromptResult.transformedResponse.choices || []).length,
+              hasNpcResponses: false,
+              npcResponseCount: 0,
+              hasRelationshipDeltas: false,
+              hasFactionDeltas: false
+            }
+          };
+          
+          return {
+            success: true,
+            turnDTO,
+            details: {
+              prompt: gameContext,
+              aiResponse: initialPromptResult.aiResponse,
+              transformedResponse: initialPromptResult.transformedResponse,
+              timestamp: new Date().toISOString()
+            }
+          };
+        } catch (error) {
+          console.error(`[TURNS] Error creating initial AI prompt:`, error);
+          return {
+            success: false,
+            error: ApiErrorCode.INTERNAL_ERROR,
+            message: 'Failed to create initial AI prompt',
+            details: {
+              prompt: gameContext,
+              aiResponse: null,
+              transformedResponse: null,
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: new Date().toISOString()
+            }
+          };
+        }
+      }
+
       // Generate AI response using new wrapper system
-      let aiResponseText: string;
       let aiResult: any = null;
       const aiStartTime = Date.now();
+      
+      // Build game context for new AI service
+      gameContext = {
+        id: game.id,
+        world_id: game.world_slug,
+        character_id: game.character_id,
+        state_snapshot: game.state_snapshot,
+        turn_index: game.turn_count,
+        current_scene: game.state_snapshot?.currentScene || 'unknown',
+        character: game.state_snapshot?.character || {},
+        adventure: game.state_snapshot?.adventure || {},
+      };
+      
       try {
-        // Build game context for new AI service
-        const gameContext = {
-          id: game.id,
-          world_id: game.world_slug,
-          character_id: game.character_id,
-          state_snapshot: game.state_snapshot,
-          turn_index: game.turn_count,
-          current_scene: game.state_snapshot?.currentScene || 'unknown',
-          character: game.state_snapshot?.character || {},
-          adventure: game.state_snapshot?.adventure || {},
-        };
 
         // Get available choices for input resolution
         const choices = game.state_snapshot?.choices || [];
@@ -137,38 +233,66 @@ export class TurnsService {
             success: false,
             error: ApiErrorCode.UPSTREAM_TIMEOUT,
             message: 'AI service timeout',
+            details: {
+              prompt: gameContext,
+              aiResponse: null,
+              error: error.message,
+              timestamp: new Date().toISOString()
+            }
           };
         }
         return {
           success: false,
           error: ApiErrorCode.INTERNAL_ERROR,
           message: 'AI service error',
+          details: {
+            prompt: gameContext,
+            aiResponse: null,
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          }
         };
       }
 
       // Parse and validate AI response
       let aiResponse: TurnResponse;
       try {
+        if (!aiResponseText) {
+          throw new Error('AI response text is null or undefined');
+        }
+        
         console.log(`[TURNS_SERVICE] Parsing AI response (${aiResponseText.length} characters)`);
         console.log(`[TURNS_SERVICE] AI response preview: ${aiResponseText.substring(0, 200)}...`);
         
         const parsedResponse = JSON.parse(aiResponseText);
-        console.log('[TURNS_SERVICE] Successfully parsed JSON, validating schema...');
+        console.log('[TURNS_SERVICE] Successfully parsed JSON, transforming AWF format...');
+        
+        // Transform AWF format to TurnResponseSchema format
+        const transformedResponse = await this.transformAWFToTurnResponse(parsedResponse);
+        console.log('[TURNS_SERVICE] Transformed response, validating schema...');
         
         // Add debug information if available
         if (aiResult && aiResult.debug) {
-          parsedResponse.debug = aiResult.debug;
+          transformedResponse.debug = aiResult.debug;
         }
         
-        const validationResult = TurnResponseSchema.safeParse(parsedResponse);
+        const validationResult = TurnResponseSchema.safeParse(transformedResponse);
         
         if (!validationResult.success) {
           console.error('[TURNS_SERVICE] AI response validation failed:', validationResult.error);
           console.error('[TURNS_SERVICE] Raw AI response:', aiResponseText);
+          console.error('[TURNS_SERVICE] Transformed response:', JSON.stringify(transformedResponse, null, 0));
           return {
             success: false,
             error: ApiErrorCode.VALIDATION_FAILED,
             message: 'AI response validation failed',
+            details: {
+              prompt: gameContext,
+              aiResponse: aiResponseText,
+              transformedResponse: transformedResponse,
+              validationErrors: validationResult.error.errors,
+              timestamp: new Date().toISOString()
+            }
           };
         }
         
@@ -181,6 +305,12 @@ export class TurnsService {
           success: false,
           error: ApiErrorCode.VALIDATION_FAILED,
           message: 'Invalid AI response format',
+          details: {
+            prompt: gameContext,
+            aiResponse: aiResponseText,
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          }
         };
       }
 
@@ -251,6 +381,12 @@ export class TurnsService {
       return {
         success: true,
         turnDTO,
+        details: {
+          prompt: gameContext,
+          aiResponse: aiResponseText,
+          transformedResponse: aiResponse,
+          timestamp: new Date().toISOString()
+        }
       };
     } catch (error) {
       console.error('Unexpected error in runBufferedTurn:', error);
@@ -258,6 +394,13 @@ export class TurnsService {
         success: false,
         error: ApiErrorCode.INTERNAL_ERROR,
         message: 'Internal server error',
+        details: {
+          prompt: gameContext || null,
+          aiResponse: aiResponseText || null,
+          transformedResponse: null,
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString()
+        }
       };
     }
   }
@@ -268,33 +411,190 @@ export class TurnsService {
    */
   private async ensureInitialGameState(game: any): Promise<void> {
     try {
-      // Check if game state already exists
-      const existingState = await gameStateService.loadGameState(game.id);
-      if (existingState) {
-        return; // Game state already exists
+      // Check if game state already has content
+      if (game.state_snapshot && Object.keys(game.state_snapshot).length > 0) {
+        console.log(`[TURNS] Game ${game.id} already has state snapshot, skipping initialization`);
+        return;
       }
 
-      // Create initial game state
-      await gameStateService.createInitialGameState({
-        gameId: game.id,
-        worldId: game.world_slug,
-        characterId: game.character_id,
-        adventureName: game.adventure_id ? 'default' : undefined, // TODO: Get actual adventure name
-        startingScene: 'opening', // TODO: Get actual starting scene from adventure
-        initialFlags: {},
-        initialLedgers: {},
-      });
+      console.log(`[TURNS] Initializing game state for game ${game.id}`);
+      
+      // Load character data if available
+      let characterData = {};
+      if (game.character_id) {
+        try {
+          const characterResult = await supabaseAdmin
+            .from('characters')
+            .select('*')
+            .eq('id', game.character_id)
+            .single();
+          
+          if (characterResult.data) {
+            characterData = {
+              id: characterResult.data.id,
+              name: characterResult.data.name,
+              traits: characterResult.data.traits || {},
+              skills: characterResult.data.skills || {},
+              inventory: characterResult.data.inventory || []
+            };
+            console.log(`[TURNS] Loaded character data for ${characterResult.data.name}`);
+          }
+        } catch (error) {
+          console.error('Error loading character data:', error);
+        }
+      }
+
+      // Load adventure data if available
+      let adventureData = {};
+      if (game.adventure_id) {
+        try {
+          const adventureResult = await supabaseAdmin
+            .from('adventures')
+            .select('*')
+            .eq('id', game.adventure_id)
+            .single();
+          
+          if (adventureResult.data) {
+            adventureData = {
+              id: adventureResult.data.id,
+              name: adventureResult.data.name,
+              description: adventureResult.data.description,
+              scenes: adventureResult.data.scenes || [],
+              objectives: adventureResult.data.objectives || [],
+              npcs: adventureResult.data.npcs || [],
+              places: adventureResult.data.places || []
+            };
+            console.log(`[TURNS] Loaded adventure data for ${adventureResult.data.name}`);
+          }
+        } catch (error) {
+          console.error('Error loading adventure data:', error);
+        }
+      }
+
+      // Create initial state snapshot
+      const initialState = {
+        currentScene: 'opening',
+        character: characterData,
+        adventure: adventureData,
+        flags: {
+          'game.initialized': true,
+          'game.world': game.world_slug,
+          'game.adventure': game.adventure_id || null
+        },
+        ledgers: {
+          'game.turns': 0,
+          'game.scenes_visited': ['opening'],
+          'game.actions_taken': []
+        },
+        presence: 'present',
+        lastActs: [],
+        styleHint: 'neutral'
+      };
+
+      // Update the game with the initial state
+      const { error: updateError } = await supabaseAdmin
+        .from('games')
+        .update({ 
+          state_snapshot: initialState,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', game.id);
+
+      if (updateError) {
+        console.error('Error updating game state snapshot:', updateError);
+        throw new Error(`Failed to update game state: ${updateError.message}`);
+      }
 
       console.log(`[TURNS] Created initial game state for game ${game.id}`);
     } catch (error) {
       console.error('Error ensuring initial game state:', error);
-      // If game_states table doesn't exist, continue without it
-      // This allows the system to work without the game_states table
-      if (error instanceof Error && error.message.includes('Could not find the table')) {
-        console.log(`[TURNS] Game states table not available, continuing without game state tracking`);
-        return;
+      // Don't fail the turn for this error, just log it
+    }
+  }
+
+  /**
+   * Create initial AI prompt for games with no turns, including adventure start JSON
+   * @param game - Game data
+   * @returns Turn data and AI response
+   */
+  private async createInitialAIPrompt(game: any): Promise<{
+    turnRecord: any;
+    aiResponse: string;
+    transformedResponse: any;
+    initialPrompt: string;
+  } | null> {
+    try {
+      console.log(`[TURNS] Creating initial AI prompt for game ${game.id} with adventure start JSON`);
+      
+      // Ensure initial game state exists before creating prompt
+      await this.ensureInitialGameState(game);
+      
+      // Reload game to get updated state_snapshot
+      const updatedGame = await gamesService.loadGame(game.id);
+      if (!updatedGame) {
+        throw new Error('Game not found after state initialization');
       }
-      // Don't fail the turn for other errors, just log them
+      
+      console.log(`[TURNS] Game state after initialization:`, {
+        hasStateSnapshot: !!updatedGame.state_snapshot,
+        stateSnapshotKeys: Object.keys(updatedGame.state_snapshot || {}),
+        hasAdventure: !!(updatedGame.state_snapshot?.adventure),
+        hasCharacter: !!(updatedGame.state_snapshot?.character)
+      });
+      
+      // Build game context for initial prompt
+      const gameContext = {
+        id: updatedGame.id,
+        world_id: updatedGame.world_slug,
+        character_id: updatedGame.character_id,
+        state_snapshot: updatedGame.state_snapshot,
+        turn_index: 0,
+        current_scene: updatedGame.state_snapshot?.currentScene || 'opening',
+        character: updatedGame.state_snapshot?.character || {},
+        adventure: updatedGame.state_snapshot?.adventure || {},
+      };
+
+      // Use the same prompt building system as regular turns
+      const initialPrompt = await promptsService.buildPrompt(gameContext, 'game_start');
+      
+      // Generate AI response for the initial prompt using the same system as regular turns
+      const aiResult = await aiService.generateTurnResponse(
+        gameContext, 
+        'game_start', 
+        [], // No choices for initial prompt
+        process.env.NODE_ENV === 'development' || process.env.ENABLE_AI_DEBUG === 'true'
+      );
+
+      // Parse and validate the AI response
+      const aiResponse = JSON.parse(aiResult.response);
+      const transformedResponse = await this.transformAWFToTurnResponse(aiResponse);
+
+      // Apply the initial turn to the game
+      const turnRecord = await gamesService.applyTurn(updatedGame.id, transformedResponse, 'game_start');
+      
+      console.log(`[TURNS] Initial AI prompt created and applied for game ${updatedGame.id}`);
+      
+      // Log the initial prompt creation
+      debugService.logAiResponse(
+        updatedGame.id,
+        0,
+        'initial-prompt',
+        aiResult.response,
+        0 // No timing for initial prompt
+      );
+      
+      // Return the turn data for the frontend
+      return {
+        turnRecord,
+        aiResponse: aiResult.response,
+        transformedResponse,
+        initialPrompt
+      };
+      
+    } catch (error) {
+      console.error('Error creating initial AI prompt:', error);
+      // Return null to indicate failure
+      return null;
     }
   }
 
@@ -487,6 +787,67 @@ export class TurnsService {
 
     // Use default cost
     return config.pricing?.turn_cost_default || 2;
+  }
+
+  /**
+   * Transform AWF (Adventure World Format) response to TurnResponseSchema format
+   * @param awfResponse - Raw AWF response from AI
+   * @returns Transformed response matching TurnResponseSchema
+   */
+  private async transformAWFToTurnResponse(awfResponse: any): Promise<any> {
+    const { v4: uuidv4 } = await import('uuid');
+    
+    // Extract narrative from txt field
+    const narrative = awfResponse.txt || '';
+    
+    // Default emotion to neutral if not provided
+    const emotion = 'neutral';
+    
+    // Transform choices from AWF format to TurnResponseSchema format
+    const choices = [];
+    if (awfResponse['optional choices'] && Array.isArray(awfResponse['optional choices'])) {
+      for (const choice of awfResponse['optional choices']) {
+        if (typeof choice === 'object' && choice.choice) {
+          choices.push({
+            id: uuidv4(),
+            label: choice.choice,
+            description: choice.outcome || undefined
+          });
+        }
+      }
+    }
+    
+    // If no choices provided, add default choices
+    if (choices.length === 0) {
+      choices.push(
+        { id: uuidv4(), label: 'Continue forward' },
+        { id: uuidv4(), label: 'Look around' },
+        { id: uuidv4(), label: 'Wait and observe' }
+      );
+    }
+    
+    // Extract world state changes from optional val
+    const worldStateChanges = awfResponse['optional val'] || {};
+    
+    // Build the transformed response
+    const transformedResponse = {
+      narrative,
+      emotion,
+      choices,
+      worldStateChanges: Object.keys(worldStateChanges).length > 0 ? worldStateChanges : undefined,
+      // Optional fields
+      npcResponses: undefined,
+      relationshipDeltas: undefined,
+      factionDeltas: undefined
+    };
+    
+    console.log('[TURNS_SERVICE] AWF transformation complete:', {
+      narrativeLength: narrative.length,
+      choiceCount: choices.length,
+      hasWorldStateChanges: !!worldStateChanges
+    });
+    
+    return transformedResponse;
   }
 }
 

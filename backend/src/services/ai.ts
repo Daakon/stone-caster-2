@@ -97,6 +97,31 @@ export class AIService {
       // Build prompt using the new wrapper system
       const prompt = await this.buildWrappedPrompt(gameContext, optionId, choices);
       
+      // Validate prompt before sending to AI
+      if (!prompt || prompt.length < 100) {
+        console.error(`[AI_SERVICE] CRITICAL: Prompt too short (${prompt.length} characters), aborting AI call`);
+        throw new Error(`Prompt too short: ${prompt.length} characters`);
+      }
+      
+      // Check for truly empty data sections in the prompt
+      if (prompt.includes('{"adventure":{}}') && prompt.includes('=== ADVENTURE_BEGIN ===')) {
+        console.error(`[AI_SERVICE] CRITICAL: Adventure section is empty, aborting AI call`);
+        console.error(`[AI_SERVICE] Adventure section content:`, prompt.match(/=== ADVENTURE_BEGIN ===[\s\S]*?=== ADVENTURE_END ===/)?.[0]);
+        throw new Error(`Adventure section is empty - aborting AI call to prevent waste`);
+      }
+      
+      if (prompt.includes('{"player":{}}') && prompt.includes('=== PLAYER_BEGIN ===')) {
+        console.error(`[AI_SERVICE] CRITICAL: Player section is empty, aborting AI call`);
+        console.error(`[AI_SERVICE] Player section content:`, prompt.match(/=== PLAYER_BEGIN ===[\s\S]*?=== PLAYER_END ===/)?.[0]);
+        throw new Error(`Player section is empty - aborting AI call to prevent waste`);
+      }
+      
+      // Log the full prompt for debugging
+      console.log(`[AI_SERVICE] Full prompt being sent to AI (${prompt.length} characters):`);
+      console.log('='.repeat(80));
+      console.log(prompt);
+      console.log('='.repeat(80));
+      
       // Capture debug information if requested
       const debugInfo: any = {};
       if (includeDebug) {

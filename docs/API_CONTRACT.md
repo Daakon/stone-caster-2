@@ -169,6 +169,55 @@ interface GameDetailDTO extends GameDTO {
 - `401`: Authentication required
 - `404`: Game not found
 
+#### GET /api/games/:id/turns
+Get all turns for a game.
+
+**Authentication**: Guest or Authenticated
+
+**Response** (200):
+```typescript
+interface GameTurn {
+  id: string;
+  game_id: string;
+  turn_number: number;
+  option_id: string;
+  ai_response: TurnResponse;
+  created_at: string;
+}
+```
+
+**Error Responses**:
+- `401`: Authentication required
+- `404`: Game not found
+
+#### POST /api/games/:id/auto-initialize
+Automatically create initial prompt for games with 0 turns.
+
+**Authentication**: Guest or Authenticated
+
+**Request Body**: None (empty body)
+
+**Response** (200):
+```typescript
+interface TurnDTO {
+  id: string;
+  gameId: string;
+  turnCount: number;
+  narrative: string;
+  choices: GameChoice[];
+  npcResponses: NPCResponse[];
+  relationshipDeltas: Record<string, number>;
+  factionDeltas: Record<string, number>;
+  castingStonesBalance: number;
+  createdAt: string;
+}
+```
+
+**Error Responses**:
+- `401`: Authentication required
+- `404`: Game not found
+- `422`: Game has already been initialized (turnCount > 0)
+
 #### POST /api/games/:id/turn
 Submit a turn for a game.
 
@@ -183,6 +232,12 @@ interface GameTurnRequest {
   optionId: string;
 }
 ```
+
+**Initial Prompt Behavior**:
+- For games with `turnCount: 0`, the system automatically creates an initial AI prompt
+- The initial prompt includes adventure start JSON data to trigger immediate adventure loading
+- This ensures games start with proper context and narrative setup
+- The initial prompt is processed before the player's first turn
 
 **Response** (200):
 ```typescript

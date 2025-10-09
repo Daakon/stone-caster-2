@@ -144,10 +144,11 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ gameId, isVisible, onTog
         </CardHeader>
         <CardContent className="p-0 h-[calc(100%-4rem)]">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="stats">Stats</TabsTrigger>
               <TabsTrigger value="prompts">Prompts</TabsTrigger>
               <TabsTrigger value="responses">AI</TabsTrigger>
+              <TabsTrigger value="wrapper">Wrapper</TabsTrigger>
               <TabsTrigger value="changes">State</TabsTrigger>
             </TabsList>
             
@@ -252,6 +253,21 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ gameId, isVisible, onTog
                         <div>Tokens: {response.tokenCount || 'N/A'}</div>
                         <div>Actions: {response.response.acts?.length || 0}</div>
                         <div>Choices: {response.response.choices?.length || 0}</div>
+                        {response.response.debug && (
+                          <div className="mt-2 p-2 bg-orange-50 rounded border border-orange-200">
+                            <div className="text-xs font-medium text-orange-800 mb-1">Debug Info</div>
+                            <div className="text-xs text-orange-700">
+                              <div>Prompt Size: {response.response.debug.promptText?.length || 0} chars</div>
+                              <div>Raw Response: {response.response.debug.aiResponseRaw?.length || 0} chars</div>
+                              {response.response.debug.repairAttempted && (
+                                <div className="text-orange-600">⚠️ JSON Repair Applied</div>
+                              )}
+                              {response.response.debug.fallback && (
+                                <div className="text-red-600">⚠️ Fallback Response</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <details className="mt-2">
                         <summary className="text-xs cursor-pointer">View Response</summary>
@@ -259,10 +275,115 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ gameId, isVisible, onTog
                           {JSON.stringify(response.response, null, 2).substring(0, 500)}...
                         </pre>
                       </details>
+                      {response.response.debug && (
+                        <details className="mt-2">
+                        <summary className="text-xs cursor-pointer">View Debug Data</summary>
+                        <div className="mt-2 space-y-2">
+                          {response.response.debug.promptText && (
+                            <div>
+                              <div className="text-xs font-medium mb-1">Prompt Text:</div>
+                              <pre className="text-xs p-2 bg-muted rounded overflow-auto max-h-32">
+                                {response.response.debug.promptText.substring(0, 1000)}...
+                              </pre>
+                            </div>
+                          )}
+                          {response.response.debug.aiResponseRaw && (
+                            <div>
+                              <div className="text-xs font-medium mb-1">Raw AI Response:</div>
+                              <pre className="text-xs p-2 bg-muted rounded overflow-auto max-h-32">
+                                {response.response.debug.aiResponseRaw.substring(0, 1000)}...
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                      )}
                     </Card>
                   ))}
                   {responses.length === 0 && (
                     <div className="text-center text-muted-foreground">No AI responses available</div>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+            
+            <TabsContent value="wrapper" className="h-[calc(100%-3rem)] p-4">
+              <ScrollArea className="h-full">
+                <div className="space-y-2">
+                  {responses
+                    .filter(response => response.response.debug)
+                    .map(response => (
+                    <Card key={response.id} className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="outline" className="text-xs">
+                          {response.processingTime}ms
+                        </Badge>
+                        <div className="text-xs text-muted-foreground">
+                          Turn {response.turnIndex}
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-2">
+                        {new Date(response.timestamp).toLocaleTimeString()}
+                      </div>
+                      
+                      {response.response.debug && (
+                        <div className="space-y-3">
+                          <div className="p-2 bg-blue-50 rounded border border-blue-200">
+                            <div className="text-xs font-medium text-blue-800 mb-1">Prompt State</div>
+                            <div className="text-xs text-blue-700">
+                              <div>Option ID: {response.response.debug.promptState?.optionId}</div>
+                              <div>Choices: {response.response.debug.promptState?.choices?.length || 0}</div>
+                              <div>Timestamp: {response.response.debug.promptState?.timestamp && 
+                                new Date(response.response.debug.promptState.timestamp).toLocaleTimeString()}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="p-2 bg-green-50 rounded border border-green-200">
+                            <div className="text-xs font-medium text-green-800 mb-1">Performance</div>
+                            <div className="text-xs text-green-700">
+                              <div>Processing Time: {response.response.debug.processingTime}ms</div>
+                              <div>Token Count: {response.response.debug.tokenCount || 'N/A'}</div>
+                              <div>Prompt Size: {response.response.debug.promptText?.length || 0} chars</div>
+                            </div>
+                          </div>
+                          
+                          {response.response.debug.repairAttempted && (
+                            <div className="p-2 bg-yellow-50 rounded border border-yellow-200">
+                              <div className="text-xs font-medium text-yellow-800">⚠️ JSON Repair Applied</div>
+                            </div>
+                          )}
+                          
+                          {response.response.debug.fallback && (
+                            <div className="p-2 bg-red-50 rounded border border-red-200">
+                              <div className="text-xs font-medium text-red-800">⚠️ Fallback Response</div>
+                              {response.response.debug.error && (
+                                <div className="text-xs text-red-700 mt-1">
+                                  Error: {response.response.debug.error}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          <details className="mt-2">
+                            <summary className="text-xs cursor-pointer">View Full Prompt</summary>
+                            <pre className="text-xs mt-2 p-2 bg-muted rounded overflow-auto max-h-32">
+                              {response.response.debug.promptText?.substring(0, 1000)}...
+                            </pre>
+                          </details>
+                          
+                          <details className="mt-2">
+                            <summary className="text-xs cursor-pointer">View Raw AI Response</summary>
+                            <pre className="text-xs mt-2 p-2 bg-muted rounded overflow-auto max-h-32">
+                              {response.response.debug.aiResponseRaw?.substring(0, 1000)}...
+                            </pre>
+                          </details>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                  {responses.filter(response => response.response.debug).length === 0 && (
+                    <div className="text-center text-muted-foreground">No wrapper debug data available</div>
                   )}
                 </div>
               </ScrollArea>
