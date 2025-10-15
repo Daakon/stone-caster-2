@@ -17,3 +17,5 @@ COMMENT ON COLUMN games.user_id IS 'Authenticated user owner';
 COMMENT ON COLUMN games.cookie_group_id IS 'Guest cookie group owner';
 
 
+
+

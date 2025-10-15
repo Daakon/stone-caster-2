@@ -40,7 +40,9 @@ Layer P1 focuses on replacing frontend mock data with live API integration. This
   - Time data generation with correct band cycling
   - Player input resolution from choice ID to human-readable label
   - Content fixes validation for all four requirements
-  - Prompt assembly with GAME_STATE section only on first turn
+  - Prompt assembly with GAME_STATE section only on first turn (excluding new adventure starts)
+  - Adventure start detection based on turn 0 (new game) vs turn 1+ (continuing game)
+  - Game state content validation (time and turn only, no RNG data)
   - Metadata generation with correct section tracking
 
 #### OpenAI Service Tests

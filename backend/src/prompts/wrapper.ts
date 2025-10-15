@@ -32,6 +32,7 @@ export interface GameStateData {
   rng: RNGData;
   playerInput: string;
   isFirstTurn: boolean;
+  isStartingNewAdventure?: boolean;
 }
 
 /**
@@ -59,6 +60,9 @@ export class PromptWrapper {
   ): Promise<PromptWrapperResult> {
     const sections: string[] = [];
     
+    // Detect if we're starting a new adventure (turn 0, no previous game state)
+    const isStartingNewAdventure = gameState.isFirstTurn && context.game.turn_index === 0;
+    
     // SYSTEM preamble (always first)
     sections.push(this.SYSTEM_PREAMBLE);
     
@@ -71,11 +75,10 @@ export class PromptWrapper {
     // Adventure section
     sections.push(this.createSection('ADVENTURE', this.minifyJson(adventureData)));
     
-    // Game state section (only on first turn)
-    if (gameState.isFirstTurn) {
+    // Game state section (only on first turn, but not when starting a new adventure)
+    if (gameState.isFirstTurn && !isStartingNewAdventure) {
       sections.push(this.createSection('GAME_STATE', this.minifyJson({
         time: gameState.time,
-        rng: gameState.rng,
         turn: context.game.turn_index
       })));
     }
@@ -98,7 +101,7 @@ export class PromptWrapper {
     return {
       prompt,
       metadata: {
-        sections: ['SYSTEM', 'CORE', 'WORLD', 'ADVENTURE', ...(gameState.isFirstTurn ? ['GAME_STATE'] : []), 'PLAYER', 'RNG', 'INPUT'],
+        sections: ['SYSTEM', 'CORE', 'WORLD', 'ADVENTURE', ...(gameState.isFirstTurn && !isStartingNewAdventure ? ['GAME_STATE'] : []), 'PLAYER', 'RNG', 'INPUT'],
         tokenCount: this.estimateTokenCount(prompt),
         assembledAt: new Date().toISOString(),
       },
@@ -158,6 +161,7 @@ export class PromptWrapper {
     };
   }
 
+
   /**
    * Resolve player choice ID to human-readable label
    */
@@ -184,10 +188,8 @@ export class PromptWrapper {
         throw new Error(`Missing required adventure data for first turn: adventureName=${adventureName}, startingScene=${startingScene}`);
       }
       
-      // Ensure adventure name has proper format
-      const formattedAdventureName = adventureName.startsWith('adventure_') 
-        ? adventureName 
-        : `adventure_${adventureName}`;
+      // Use adventure name directly from source data (no prefix modification)
+      const formattedAdventureName = adventureName;
       
       // Build clean input that references the adventure data (no duplication)
       let result = `Begin the adventure "${formattedAdventureName}" from its starting scene "${startingScene}".`;
@@ -199,7 +201,7 @@ export class PromptWrapper {
       }
       
       // HARD STOP: Validate the result before returning
-      const expectedPattern = /Begin the adventure "adventure_[^"]+" from its starting scene "\w+"/;
+      const expectedPattern = /Begin the adventure ".+" from its starting scene "\w+"/;
       if (!expectedPattern.test(result)) {
         console.error(`[PROMPT_WRAPPER] HARD STOP - Generated invalid format:`, {
           result,

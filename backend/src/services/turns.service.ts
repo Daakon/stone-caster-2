@@ -271,6 +271,39 @@ export class TurnsService {
         const transformedResponse = await this.transformAWFToTurnResponse(parsedResponse);
         console.log('[TURNS_SERVICE] Transformed response, validating schema...');
         
+        // Additional validation checks before schema validation
+        if (!transformedResponse.narrative || typeof transformedResponse.narrative !== 'string' || transformedResponse.narrative.trim().length === 0) {
+          console.error('[TURNS_SERVICE] AI response has empty or invalid narrative');
+          return {
+            success: false,
+            error: ApiErrorCode.VALIDATION_FAILED,
+            message: 'AI response has empty or invalid narrative',
+            details: {
+              prompt: gameContext,
+              aiResponse: aiResponseText,
+              transformedResponse: transformedResponse,
+              validationErrors: [{ message: 'Narrative is empty or invalid' }],
+              timestamp: new Date().toISOString()
+            }
+          };
+        }
+        
+        if (transformedResponse.narrative.trim().length < 10) {
+          console.error('[TURNS_SERVICE] AI response narrative is too short');
+          return {
+            success: false,
+            error: ApiErrorCode.VALIDATION_FAILED,
+            message: 'AI response narrative is too short',
+            details: {
+              prompt: gameContext,
+              aiResponse: aiResponseText,
+              transformedResponse: transformedResponse,
+              validationErrors: [{ message: 'Narrative is too short' }],
+              timestamp: new Date().toISOString()
+            }
+          };
+        }
+        
         // Add debug information if available
         if (aiResult && aiResult.debug) {
           transformedResponse.debug = aiResult.debug;

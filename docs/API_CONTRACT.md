@@ -79,6 +79,8 @@ The AI system uses an ultra-lean prompt wrapper that assembles all model-facing 
 - **Section Delimiters**: Fixed order with exact delimiters (=== SECTION_BEGIN === / === SECTION_END ===)
 - **Content Fixes**: RNG policy, player input text vs UUID, tick-based time, band names
 - **Model Integration**: OpenAI gpt-4o-mini with streaming and retries
+- **Game State Exclusion**: When starting a new adventure (detected by turn 0 - the very first turn of a new game), the GAME_STATE section is excluded from the prompt to focus on adventure start data only
+- **Game State Content**: The GAME_STATE section (when included) contains only time and turn information, not RNG/dice roll data
 
 ## Error Codes
 

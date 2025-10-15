@@ -30,8 +30,13 @@ export class AIService {
   private initializeOpenAIService(): void {
     try {
       this.openaiService = new OpenAIService();
+      console.log('[AI_SERVICE] OpenAI service initialized successfully');
     } catch (error) {
-      console.warn('OpenAI service not available:', error instanceof Error ? error.message : String(error));
+      console.error('[AI_SERVICE] OpenAI service initialization failed:', error instanceof Error ? error.message : String(error));
+      console.error('[AI_SERVICE] To fix this issue:');
+      console.error('[AI_SERVICE] 1. Set OPENAI_API_KEY environment variable');
+      console.error('[AI_SERVICE] 2. Create a .env file with: OPENAI_API_KEY=your_actual_api_key');
+      console.error('[AI_SERVICE] 3. Or set it in your deployment environment');
       this.openaiService = null;
     }
   }
@@ -150,6 +155,26 @@ export class AIService {
       try {
         const parsed = openaiService.parseAIResponse(response.content);
         
+        // Validate critical response fields
+        if (!parsed || typeof parsed !== 'object') {
+          throw new Error('AI response is not a valid JSON object');
+        }
+        
+        // Check for empty or invalid narrative
+        if (!parsed.txt || typeof parsed.txt !== 'string' || parsed.txt.trim().length === 0) {
+          throw new Error('AI response has empty or invalid narrative');
+        }
+        
+        // Check for minimum narrative length (prevent very short responses)
+        if (parsed.txt.trim().length < 10) {
+          throw new Error('AI response narrative is too short');
+        }
+        
+        // Check for required fields
+        if (!parsed.scn || typeof parsed.scn !== 'string') {
+          throw new Error('AI response missing required scene field');
+        }
+        
         if (includeDebug) {
           debugInfo.aiResponseRaw = response.content;
           debugInfo.processingTime = processingTime;
@@ -186,39 +211,15 @@ export class AIService {
     } catch (error) {
       console.error('[AI_SERVICE] Error generating turn response:', error);
       
-      // Generate proper UUIDs for fallback choices
-      const { v4: uuidv4 } = await import('uuid');
-      const choice1Id = uuidv4();
-      const choice2Id = uuidv4();
-      const choice3Id = uuidv4();
-      
-      // Return a fallback JSON response with TurnResponseSchema format
-      const fallbackResponse: any = {
-        narrative: 'The world seems to pause for a moment as reality stabilizes...',
-        emotion: 'neutral',
-        choices: [
-          { id: choice1Id, label: 'Look around' },
-          { id: choice2Id, label: 'Continue forward' },
-          { id: choice3Id, label: 'Check inventory' }
-        ]
-      };
-      
-      if (includeDebug) {
-        fallbackResponse.debug = {
-          promptState: { gameContext, optionId, choices },
-          promptText: 'Fallback response - no AI call made',
-          aiResponseRaw: 'Fallback response',
-          processingTime: 0,
-          tokenCount: 0,
-          fallback: true,
-          error: error instanceof Error ? error.message : String(error)
-        };
+      // Check if this is an OpenAI API key issue
+      if (error instanceof Error && error.message.includes('OPENAI_API_KEY')) {
+        console.error('[AI_SERVICE] CRITICAL: OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.');
+        throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.');
       }
       
-      return {
-        response: JSON.stringify(fallbackResponse),
-        debug: includeDebug ? fallbackResponse.debug : undefined
-      };
+      // For any other error, throw it to prevent charging the user for failed AI responses
+      console.error('[AI_SERVICE] CRITICAL: AI service failed - not charging user for failed response');
+      throw new Error(`AI service failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -231,12 +232,12 @@ export class AIService {
     }
 
     // For first turn, must contain proper adventure format
-    const expectedPattern = /Begin the adventure "adventure_[^"]+" from its starting scene "\w+"/;
+    const expectedPattern = /Begin the adventure ".+" from its starting scene "\w+"/;
     
     if (!expectedPattern.test(playerInput)) {
       return {
         valid: false,
-        error: `Invalid first turn input format. Expected: "Begin the adventure \"adventure_xxx\" from its starting scene \"scene_xxx\"." Got: "${playerInput}"`
+        error: `Invalid first turn input format. Expected: "Begin the adventure \"[adventure_name]\" from its starting scene \"[scene_name]\"." Got: "${playerInput}"`
       };
     }
 
@@ -376,7 +377,7 @@ export class AIService {
     if (!validation.valid) {
       console.error(`[AI_SERVICE] HARD STOP - Input validation failed: ${validation.error}`);
       console.error(`[AI_SERVICE] Generated playerInput: "${playerInput}"`);
-      console.error(`[AI_SERVICE] Expected format: "Begin the adventure \"adventure_xxx\" from its starting scene \"scene_xxx\"."`);
+      console.error(`[AI_SERVICE] Expected format: "Begin the adventure \"[adventure_name]\" from its starting scene \"[scene_name]\"."`);
       throw new Error(`HARD STOP - Invalid prompt input: ${validation.error}`);
     }
     

@@ -145,10 +145,10 @@ describe('PromptWrapper', () => {
         'choice-1', 
         choices, 
         true, // isFirstTurn
-        'adventure_whispercross_hook', // adventureName
-        'outer_paths_meet_kiera_01' // startingScene
+        'adv.whispercross.start.v3', // adventureName (from source data)
+        'forest_meet' // startingScene
       );
-      expect(resolved).toBe('Begin the adventure "adventure_whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".');
+      expect(resolved).toBe('Begin the adventure "adv.whispercross.start.v3" from its starting scene "forest_meet".');
     });
 
     it('should use start scene from adventure start data when provided', () => {
@@ -168,11 +168,11 @@ describe('PromptWrapper', () => {
         'choice-1', 
         choices, 
         true, // isFirstTurn
-        'adventure_whispercross_hook', // adventureName
+        'adv.whispercross.start.v3', // adventureName (from source data)
         'forest_meet', // startingScene
         adventureStartData
       );
-      expect(resolved).toBe('Begin the adventure "adventure_whispercross_hook" from its starting scene "forest_meet".');
+      expect(resolved).toBe('Begin the adventure "adv.whispercross.start.v3" from its starting scene "forest_meet".');
     });
 
     it('should return normal choice for non-first turn even with adventure info', () => {
@@ -184,8 +184,8 @@ describe('PromptWrapper', () => {
         'choice-1', 
         choices, 
         false, // isFirstTurn
-        'adventure_whispercross_hook', // adventureName
-        'outer_paths_meet_kiera_01' // startingScene
+        'adv.whispercross.start.v3', // adventureName
+        'forest_meet' // startingScene
       );
       expect(resolved).toBe('Look around');
     });
@@ -216,13 +216,13 @@ describe('PromptWrapper', () => {
           'choice-1', 
           choices, 
           true, // isFirstTurn
-          'adventure_whispercross_hook', // adventureName
+          'adv.whispercross.start.v3', // adventureName
           undefined // startingScene
         );
       }).toThrow('Missing required adventure data for first turn');
     });
 
-    it('should format adventure name with adventure_ prefix if missing', () => {
+    it('should use adventure name directly from source data without modification', () => {
       const choices = [
         { id: 'choice-1', label: 'Look around' },
       ];
@@ -231,20 +231,20 @@ describe('PromptWrapper', () => {
         'choice-1', 
         choices, 
         true, // isFirstTurn
-        'whispercross_hook', // adventureName without prefix
-        'outer_paths_meet_kiera_01' // startingScene
+        'adv.whispercross.start.v3', // adventureName from source data
+        'forest_meet' // startingScene
       );
-      expect(resolved).toBe('Begin the adventure "adventure_whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".');
+      expect(resolved).toBe('Begin the adventure "adv.whispercross.start.v3" from its starting scene "forest_meet".');
     });
 
     it('should validate generated format with regex pattern', () => {
-      const validFormat = 'Begin the adventure "adventure_whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".';
-      const invalidFormat = 'Begin the adventure "whispercross_hook" from its starting scene "outer_paths_meet_kiera_01".';
+      const validFormat = 'Begin the adventure "adv.whispercross.start.v3" from its starting scene "forest_meet".';
+      const invalidFormat = 'Begin the adventure "whispercross_hook" from its starting scene "forest_meet".';
       
-      const expectedPattern = /Begin the adventure "adventure_[^"]+" from its starting scene "\w+"/;
+      const expectedPattern = /Begin the adventure ".+" from its starting scene "\w+"/;
       
       expect(expectedPattern.test(validFormat)).toBe(true);
-      expect(expectedPattern.test(invalidFormat)).toBe(false);
+      expect(expectedPattern.test(invalidFormat)).toBe(true); // Both should be valid now
     });
   });
 
@@ -289,7 +289,7 @@ describe('PromptWrapper', () => {
 
     it('should detect invalid time format', () => {
       const gameState: GameStateData = {
-        time: { band: '', ticks: NaN },
+        time: { band: 'dawn_to_mid_day', ticks: 'invalid' as any },
         rng: { policy: 'd20 for checks, d100 for chance rolls', d20: 15, d100: 75 },
         playerInput: 'Look around',
         isFirstTurn: false,
@@ -380,6 +380,47 @@ describe('PromptWrapper', () => {
       expect(result.prompt).not.toContain('=== GAME_STATE_BEGIN ===');
     });
 
+    it('should not include GAME_STATE section when starting a new adventure (turn 0)', async () => {
+      const newGameState = { 
+        ...mockGameState, 
+        isFirstTurn: true
+      };
+      
+      const newGameContext = { ...mockContext, game: { ...mockContext.game, turn_index: 0 } };
+      
+      const result = await wrapper.assemblePrompt(
+        newGameContext,
+        newGameState,
+        { core: 'test-core' },
+        { world: 'test-world' },
+        { adventure: 'test-adventure' },
+        { player: 'test-player' }
+      );
+
+      expect(result.prompt).not.toContain('=== GAME_STATE_BEGIN ===');
+    });
+
+    it('should include GAME_STATE section on first turn when continuing existing game (turn 1)', async () => {
+      const firstTurnContinuingState = { 
+        ...mockGameState, 
+        isFirstTurn: true
+      };
+      
+      const continuingGameContext = { ...mockContext, game: { ...mockContext.game, turn_index: 1 } };
+      
+      const result = await wrapper.assemblePrompt(
+        continuingGameContext,
+        firstTurnContinuingState,
+        { core: 'test-core' },
+        { world: 'test-world' },
+        { adventure: 'test-adventure' },
+        { player: 'test-player' }
+      );
+
+      expect(result.prompt).toContain('=== GAME_STATE_BEGIN ===');
+    });
+
+
     it('should minify JSON in sections', async () => {
       const result = await wrapper.assemblePrompt(
         mockContext,
@@ -441,6 +482,33 @@ describe('PromptWrapper', () => {
       );
 
       expect(result.metadata.sections).toContain('GAME_STATE');
+    });
+
+    it('should only include time and turn in GAME_STATE section, not RNG data', async () => {
+      const firstTurnState = { ...mockGameState, isFirstTurn: true };
+      
+      const result = await wrapper.assemblePrompt(
+        mockContext,
+        firstTurnState,
+        { core: 'test-core' },
+        { world: 'test-world' },
+        { adventure: 'test-adventure' },
+        { player: 'test-player' }
+      );
+
+      // Extract the GAME_STATE section content
+      const gameStateMatch = result.prompt.match(/=== GAME_STATE_BEGIN ===\n(.*?)\n=== GAME_STATE_END ===/s);
+      expect(gameStateMatch).toBeTruthy();
+      
+      const gameStateContent = JSON.parse(gameStateMatch![1]);
+      
+      // Should only contain time and turn, not RNG data
+      expect(gameStateContent).toHaveProperty('time');
+      expect(gameStateContent).toHaveProperty('turn');
+      expect(gameStateContent).not.toHaveProperty('rng');
+      expect(gameStateContent).not.toHaveProperty('d20');
+      expect(gameStateContent).not.toHaveProperty('d100');
+      expect(gameStateContent).not.toHaveProperty('policy');
     });
   });
 });

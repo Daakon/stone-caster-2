@@ -4,7 +4,6 @@
   "use_once": true,
   "start": {
     "scene": "forest_meet",
-    "policy": "ai_first",
     "hints": ["It's dusk and you've set camp up in the forest", "A wounded shifter (Kiera) shadows your path seeking help and being cautious", "Captives remain at the small camp she fled"]
   },
 
