@@ -99,7 +99,17 @@ export class AIService {
         
         return {
           response: JSON.stringify(testResponse),
-          debug: includeDebug ? testResponse.debug : undefined
+          debug: includeDebug ? testResponse.debug : undefined,
+          promptData: null,
+          promptMetadata: {
+            sections: ['SYSTEM', 'CORE', 'WORLD', 'ADVENTURE', 'PLAYER', 'RNG', 'INPUT'],
+            tokenCount: 0,
+            assembledAt: new Date().toISOString(),
+            testMode: true
+          },
+          model: 'test-mode',
+          tokenCount: 0,
+          promptId: 'test-prompt-' + Date.now()
         };
       }
 
@@ -183,7 +193,17 @@ export class AIService {
         
         return {
           response: JSON.stringify(parsed),
-          debug: includeDebug ? debugInfo : undefined
+          debug: includeDebug ? debugInfo : undefined,
+          promptData: prompt,
+          promptMetadata: {
+            sections: ['SYSTEM', 'CORE', 'WORLD', 'ADVENTURE', 'PLAYER', 'RNG', 'INPUT'],
+            tokenCount: response.usage?.prompt_tokens || 0,
+            assembledAt: new Date().toISOString(),
+            length: prompt.length
+          },
+          model: response.model || 'unknown',
+          tokenCount: response.usage?.total_tokens || 0,
+          promptId: 'prompt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
         };
       } catch (parseError) {
         console.error('[AI_SERVICE] Failed to parse AI response, attempting repair...');
@@ -201,7 +221,18 @@ export class AIService {
           
           return {
             response: JSON.stringify(repaired),
-            debug: includeDebug ? debugInfo : undefined
+            debug: includeDebug ? debugInfo : undefined,
+            promptData: prompt,
+            promptMetadata: {
+              sections: ['SYSTEM', 'CORE', 'WORLD', 'ADVENTURE', 'PLAYER', 'RNG', 'INPUT'],
+              tokenCount: response.usage?.prompt_tokens || 0,
+              assembledAt: new Date().toISOString(),
+              length: prompt.length,
+              repairAttempted: true
+            },
+            model: response.model || 'unknown',
+            tokenCount: response.usage?.total_tokens || 0,
+            promptId: 'prompt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
           };
         } catch (repairError) {
           console.error('[AI_SERVICE] JSON repair failed:', repairError);

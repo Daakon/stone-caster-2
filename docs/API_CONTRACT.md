@@ -232,6 +232,8 @@ Submit a turn for a game.
 ```typescript
 interface GameTurnRequest {
   optionId: string;
+  userInput?: string;        // Raw user input text or action taken
+  userInputType?: 'choice' | 'text' | 'action';  // Type of user input
 }
 ```
 
@@ -271,6 +273,16 @@ interface TurnDTO {
   created_at: string;
 }
 ```
+
+**Enhanced Turn Recording**:
+The system now captures comprehensive turn data for analytics and debugging:
+- **User Input**: Raw text or action taken by the player
+- **User Input Type**: Classification of input (choice, text, action)
+- **Prompt Data**: Complete prompt sent to AI including all sections
+- **Prompt Metadata**: Token count, sections used, assembly timestamp
+- **AI Response Metadata**: Model used, response time, validation status
+- **Processing Time**: Total time for turn processing
+- **Turn Number**: Sequential turn number within the game
 
 **Error Responses**:
 - `400`: Insufficient stones, invalid option, or validation failed

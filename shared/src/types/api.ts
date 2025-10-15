@@ -107,6 +107,8 @@ export const CreateGameRequestSchema = z.object({
 
 export const GameTurnRequestSchema = z.object({
   optionId: z.string().uuid(),
+  userInput: z.string().optional(),
+  userInputType: z.enum(['choice', 'text', 'action']).optional(),
 });
 
 // Stones request schemas

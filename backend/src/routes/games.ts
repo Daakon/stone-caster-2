@@ -214,7 +214,7 @@ router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Reques
     }
 
     const { id: gameId } = paramValidation.data;
-    const { optionId } = bodyValidation.data;
+    const { optionId, userInput, userInputType } = bodyValidation.data;
     const idempotencyKey = req.headers['idempotency-key'] as string;
 
     // Execute the turn
@@ -224,6 +224,8 @@ router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Reques
       owner: userId,
       idempotencyKey,
       isGuest: isGuest || false,
+      userInput,
+      userInputType,
     });
 
     if (!turnResult.success) {

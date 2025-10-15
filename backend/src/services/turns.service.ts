@@ -19,6 +19,8 @@ export interface TurnRequest {
   owner: string;
   idempotencyKey: string;
   isGuest: boolean;
+  userInput?: string;
+  userInputType?: 'choice' | 'text' | 'action';
 }
 
 export interface TurnResult {
@@ -44,11 +46,15 @@ export class TurnsService {
    * @returns Turn result with success status and data
    */
   async runBufferedTurn(request: TurnRequest): Promise<TurnResult> {
-    const { gameId, optionId, owner, idempotencyKey, isGuest } = request;
+    const { gameId, optionId, owner, idempotencyKey, isGuest, userInput, userInputType } = request;
     
     // Declare variables at method level for error handling
     let gameContext: any = null;
     let aiResponseText: string | null = null;
+    const turnStartTime = Date.now();
+    let promptData: any = null;
+    let promptMetadata: any = null;
+    let aiResponseMetadata: any = null;
 
     try {
       // Check idempotency first
@@ -218,6 +224,18 @@ export class TurnsService {
         
         aiResponseText = aiResult.response;
         
+        // Capture prompt data and metadata for comprehensive turn recording
+        promptData = aiResult.promptData || null;
+        promptMetadata = aiResult.promptMetadata || null;
+        aiResponseMetadata = {
+          model: aiResult.model || 'unknown',
+          responseTime: Date.now() - aiStartTime,
+          tokenCount: aiResult.tokenCount || null,
+          promptId: aiResult.promptId || null,
+          validationPassed: true,
+          timestamp: new Date().toISOString()
+        };
+        
         // Log AI response to debug service
         debugService.logAiResponse(
           gameId,
@@ -347,8 +365,15 @@ export class TurnsService {
         };
       }
 
-      // Apply turn to game state
-      const turnRecord = await gamesService.applyTurn(gameId, aiResponse, optionId);
+      // Apply turn to game state with comprehensive turn data
+      const turnRecord = await gamesService.applyTurn(gameId, aiResponse, optionId, {
+        userInput: userInput || optionId,
+        userInputType: userInputType || 'choice',
+        promptData: promptData,
+        promptMetadata: promptMetadata,
+        aiResponseMetadata: aiResponseMetadata,
+        processingTimeMs: Date.now() - turnStartTime
+      });
       
       // Log state changes to debug service
       const hasStateChanges = aiResponse.worldStateChanges || aiResponse.relationshipDeltas || aiResponse.factionDeltas;
@@ -587,10 +612,8 @@ export class TurnsService {
         adventure: updatedGame.state_snapshot?.adventure || {},
       };
 
-      // Use the same prompt building system as regular turns
-      const initialPrompt = await promptsService.buildPrompt(gameContext, 'game_start');
-      
       // Generate AI response for the initial prompt using the same system as regular turns
+      // The AI service will handle prompt building internally and return the prompt data
       const aiResult = await aiService.generateTurnResponse(
         gameContext, 
         'game_start', 
@@ -598,12 +621,30 @@ export class TurnsService {
         process.env.NODE_ENV === 'development' || process.env.ENABLE_AI_DEBUG === 'true'
       );
 
+      // Use the prompt data returned by the AI service
+      const promptData = aiResult.promptData;
+      const promptMetadata = aiResult.promptMetadata;
+
       // Parse and validate the AI response
       const aiResponse = JSON.parse(aiResult.response);
       const transformedResponse = await this.transformAWFToTurnResponse(aiResponse);
 
-      // Apply the initial turn to the game
-      const turnRecord = await gamesService.applyTurn(updatedGame.id, transformedResponse, 'game_start');
+      // Apply the initial turn to the game with comprehensive turn data
+      const turnRecord = await gamesService.applyTurn(updatedGame.id, transformedResponse, 'game_start', {
+        userInput: 'game_start',
+        userInputType: 'action',
+        promptData: promptData,
+        promptMetadata: promptMetadata,
+        aiResponseMetadata: {
+          model: aiResult.model || 'unknown',
+          responseTime: 0, // Initial prompt has no timing
+          tokenCount: aiResult.tokenCount || null,
+          promptId: aiResult.promptId || 'initial-prompt',
+          validationPassed: true,
+          timestamp: new Date().toISOString()
+        },
+        processingTimeMs: 0
+      });
       
       console.log(`[TURNS] Initial AI prompt created and applied for game ${updatedGame.id}`);
       
@@ -621,7 +662,7 @@ export class TurnsService {
         turnRecord,
         aiResponse: aiResult.response,
         transformedResponse,
-        initialPrompt
+        initialPrompt: promptData // Use the prompt data from AI service
       };
       
     } catch (error) {

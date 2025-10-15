@@ -252,10 +252,16 @@ export async function submitTurn<T = unknown>(
   gameId: string,
   optionId: string,
   idempotencyKey: string,
+  userInput?: string,
+  userInputType?: 'choice' | 'text' | 'action',
 ): Promise<{ ok: true; data: T } | { ok: false; error: AppError }> {
   return apiFetch<T>(`/api/games/${gameId}/turn`, {
     method: 'POST',
-    body: JSON.stringify({ optionId }),
+    body: JSON.stringify({ 
+      optionId,
+      userInput,
+      userInputType,
+    }),
     headers: {
       'Idempotency-Key': idempotencyKey,
     },

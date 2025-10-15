@@ -345,10 +345,10 @@ export default function UnifiedGamePage() {
 
   // Turn submission mutation
   const submitTurnMutation = useMutation({
-    mutationFn: async (optionId: string): Promise<TurnDTO> => {
+    mutationFn: async (data: { optionId: string; userInput?: string; userInputType?: 'choice' | 'text' | 'action' }): Promise<TurnDTO> => {
       if (!gameId) throw new Error('No game ID');
       const idempotencyKey = generateIdempotencyKey();
-      const result = await submitTurn(gameId, optionId, idempotencyKey);
+      const result = await submitTurn(gameId, data.optionId, idempotencyKey, data.userInput, data.userInputType);
       if (!result.ok) {
         const error = new Error(result.error.message || 'Failed to submit turn');
         (error as any).code = result.error.code;
@@ -454,8 +454,12 @@ export default function UnifiedGamePage() {
       ]
     }));
 
-    // Submit turn
-    submitTurnMutation.mutate(optionId);
+    // Submit turn with user input data
+    submitTurnMutation.mutate({
+      optionId,
+      userInput: action,
+      userInputType: 'text'
+    });
   };
 
   const handleRetryTurn = () => {

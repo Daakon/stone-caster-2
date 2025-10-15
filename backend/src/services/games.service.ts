@@ -294,9 +294,22 @@ export class GamesService {
    * @param gameId - Game ID
    * @param turnResult - Turn result from AI
    * @param optionId - Selected option ID
+   * @param turnData - Comprehensive turn data for recording
    * @returns Turn record with ID and metadata
    */
-  async applyTurn(gameId: string, turnResult: TurnResponse, optionId: string): Promise<any> {
+  async applyTurn(
+    gameId: string, 
+    turnResult: TurnResponse, 
+    optionId: string, 
+    turnData?: {
+      userInput?: string;
+      userInputType?: 'choice' | 'text' | 'action';
+      promptData?: any;
+      promptMetadata?: any;
+      aiResponseMetadata?: any;
+      processingTimeMs?: number;
+    }
+  ): Promise<any> {
     try {
       // Load current game state
       const currentGame = await this.loadGame(gameId);
@@ -333,6 +346,16 @@ export class GamesService {
         ai_response: turnResult,
         turn_number: nextTurnNumber,
         created_at: new Date().toISOString(),
+        // Enhanced turn recording fields
+        user_input: turnData?.userInput || null,
+        user_input_type: turnData?.userInputType || 'choice',
+        prompt_data: turnData?.promptData || null,
+        prompt_metadata: turnData?.promptMetadata || null,
+        ai_response_metadata: turnData?.aiResponseMetadata || null,
+        processing_time_ms: turnData?.processingTimeMs || null,
+        token_count: turnData?.aiResponseMetadata?.tokenCount || null,
+        model_used: turnData?.aiResponseMetadata?.model || null,
+        prompt_id: turnData?.aiResponseMetadata?.promptId || null,
       };
 
       const { data: createdTurn, error: turnError } = await supabaseAdmin
