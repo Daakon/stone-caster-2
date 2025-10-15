@@ -19,6 +19,8 @@
     "create:env-template": "node scripts/create-env-template.js",
     "setup:env": "npm run create:env-template",
     "test:env-setup": "npm run build && node scripts/test-env-setup.js",
+    "ingest:prompts": "tsx scripts/ingest-prompts.ts",
+    "test:db-prompts": "tsx scripts/migrate-to-db-prompts.ts",
     "deploy": "cd .. && flyctl deploy --yes --detach"
   },
   "keywords": [

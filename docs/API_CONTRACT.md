@@ -43,7 +43,17 @@ interface ApiResponse<T> {
 
 ## AI Response Format (AWF)
 
-The AI system now uses the Action-Word-Format (AWF) for all turn responses. This format provides structured, consistent responses with the following components:
+The AI system uses the Action-Word-Format (AWF) for all turn responses, powered by a database-backed prompt system. This format provides structured, consistent responses with the following components:
+
+### Database-Backed Prompt System
+
+The prompt system has been migrated from filesystem-based loading to a Supabase database-backed architecture:
+
+- **Schema**: `prompting.prompts` table with layered prompt segments
+- **RPC Function**: `prompting.prompt_segments_for_context()` for efficient segment retrieval
+- **Caching**: In-memory caching of prompt segments for performance
+- **Access Control**: Role-based access with service role and prompt_admin permissions
+- **Versioning**: Hash-based change detection and version management
 
 ### AWF Response Structure
 

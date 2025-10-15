@@ -40,7 +40,9 @@ Stone Caster is a text-based adventure game platform that allows users to create
 - **Multiple Endings**: Adventures can have different outcomes based on player decisions
 
 ### AI System
-- **Ultra-Lean Prompt Wrapper**: Efficient prompt assembly with strict section delimiters and smart game state exclusion for new games (turn 0)
+- **Database-Backed Prompt System**: Efficient prompt assembly using Supabase database storage with RPC-based segment retrieval
+- **Layered Prompt Architecture**: Structured prompt loading with foundation, core, engine, AI behavior, data management, performance, content, and enhancement layers
+- **Prompt Caching**: In-memory caching of prompt segments for improved performance
 - **OpenAI gpt-4o-mini Integration**: Modern AI model with streaming and retry capabilities
 - **AWF Response Format**: Structured Action-Word-Format responses with scene, text, choices, and actions
 - **Content Fixes**: Automated validation for RNG policy, player input, time format, and band naming
@@ -48,6 +50,8 @@ Stone Caster is a text-based adventure game platform that allows users to create
 - **Streaming Support**: Real-time token streaming for responsive gameplay
 - **Initial Prompt System**: Automatic creation of initial AI prompts for games with no turns, including adventure start JSON to trigger immediate adventure loading
 - **Enhanced Turn Recording**: Comprehensive turn data persistence with realtime and analytics storage
+- **Prompt Versioning**: Hash-based change detection and version management for prompt segments
+- **Role-Based Access**: Service role and prompt_admin can modify prompts, authenticated users get read-only access
 - **Offline Narrative Loading**: Initialize narrative and turn history cached for offline play without re-hitting AI
 - **Session Turn Management**: Efficient storage and retrieval of turn sequences with user prompts and narrative summaries
 

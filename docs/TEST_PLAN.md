@@ -24,26 +24,41 @@ Layer P1 focuses on replacing frontend mock data with live API integration. This
 
 ### Backend Unit Tests
 
-#### Prompt Wrapper System Tests
-- **File:** `backend/src/prompts/wrapper.test.ts`
+#### Database-Backed Prompt System Tests
+- **File:** `backend/tests/prompts/db-assembler.test.ts`
 - **Coverage:**
-  - Ultra-lean prompt wrapper with strict section delimiters
-  - SYSTEM preamble validation
-  - RNG policy and value generation
-  - Time data with band and ticks format
-  - Player input resolution (choice ID to label)
-  - Content fixes validation (RNG, time, band names, UUID detection)
-  - Prompt assembly with correct section order
-  - JSON minification and blank line collapse
+  - Database prompt segment retrieval via RPC
+  - Layered prompt assembly (foundation, core, engine, AI behavior, data management, performance, content, enhancement)
+  - Prompt caching and performance optimization
+  - Variable replacement and template processing
+  - File inclusion processing for backward compatibility
+  - Context validation and error handling
+  - Prompt versioning and hash-based change detection
 - **Test Scenarios:**
-  - RNG data generation with policy and values
-  - Time data generation with correct band cycling
-  - Player input resolution from choice ID to human-readable label
-  - Content fixes validation for all four requirements
-  - Prompt assembly with GAME_STATE section only on first turn (excluding new adventure starts)
-  - Adventure start detection based on turn 0 (new game) vs turn 1+ (continuing game)
-  - Game state content validation (time and turn only, no RNG data)
-  - Metadata generation with correct section tracking
+  - RPC function calls with correct parameters for different contexts
+  - Prompt segment ordering by layer and sort_order
+  - Variable replacement with character, game, world, adventure, and runtime data
+  - File inclusion processing for legacy prompt files
+  - Context validation for required fields
+  - Error handling for missing segments or database failures
+  - Cache hit/miss scenarios and TTL validation
+  - Prompt assembly with proper header, body, and footer structure
+
+#### Prompt Repository Tests
+- **File:** `backend/tests/repositories/prompt.repository.test.ts`
+- **Coverage:**
+  - Database connection and RPC function calls
+  - Parameter validation and error handling
+  - Caching mechanism with TTL
+  - Statistics and dependency validation
+  - Role-based access control
+- **Test Scenarios:**
+  - Successful segment retrieval for different contexts
+  - Database error handling and retry logic
+  - Parameter validation for world_slug, adventure_slug, scene_id
+  - Cache behavior with different TTL scenarios
+  - Statistics retrieval and formatting
+  - Dependency validation and missing dependency detection
 
 #### Turn Recording Service Tests
 - **File:** `backend/tests/turn-recording.service.test.ts`
