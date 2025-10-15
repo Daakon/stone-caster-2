@@ -584,6 +584,25 @@ export class TurnsService {
     try {
       console.log(`[TURNS] Creating initial AI prompt for game ${game.id} with adventure start JSON`);
       
+      // Check if initialize narrative already exists
+      const existingNarrative = await gamesService.getInitializeNarrative(game.id);
+      if (existingNarrative) {
+        console.log(`[TURNS] Initialize narrative already exists for game ${game.id}, skipping AI generation`);
+        
+        // Return existing turn data
+        const existingTurns = await gamesService.getSessionTurns(game.id);
+        const initTurn = existingTurns.find(turn => turn.is_initialization);
+        
+        if (initTurn) {
+          return {
+            turnRecord: initTurn,
+            aiResponse: JSON.stringify({ narrative: existingNarrative }),
+            transformedResponse: { narrative: existingNarrative },
+            initialPrompt: 'cached'
+          };
+        }
+      }
+      
       // Ensure initial game state exists before creating prompt
       await this.ensureInitialGameState(game);
       
@@ -622,8 +641,8 @@ export class TurnsService {
       );
 
       // Use the prompt data returned by the AI service
-      const promptData = aiResult.promptData;
-      const promptMetadata = aiResult.promptMetadata;
+      const promptData = (aiResult as any).promptData;
+      const promptMetadata = (aiResult as any).promptMetadata;
 
       // Parse and validate the AI response
       const aiResponse = JSON.parse(aiResult.response);
@@ -636,10 +655,10 @@ export class TurnsService {
         promptData: promptData,
         promptMetadata: promptMetadata,
         aiResponseMetadata: {
-          model: aiResult.model || 'unknown',
+          model: (aiResult as any).model || 'unknown',
           responseTime: 0, // Initial prompt has no timing
-          tokenCount: aiResult.tokenCount || null,
-          promptId: aiResult.promptId || 'initial-prompt',
+          tokenCount: (aiResult as any).tokenCount || null,
+          promptId: (aiResult as any).promptId || 'initial-prompt',
           validationPassed: true,
           timestamp: new Date().toISOString()
         },

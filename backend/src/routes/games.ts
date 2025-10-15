@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { requireIdempotencyKey } from '../middleware/validation.js';
-import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema } from '@shared';
+import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema, SessionTurnsResponseSchema } from '@shared';
 import { GamesService } from '../services/games.service.js';
 import { turnsService } from '../services/turns.service.js';
 import { promptsService } from '../services/prompts.service.js';
@@ -297,6 +297,83 @@ router.get('/:id/turns', optionalAuth, async (req: Request, res: Response) => {
     sendSuccess(res, turns, req);
   } catch (error) {
     console.error('Error loading game turns:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Internal server error',
+      req
+    );
+  }
+});
+
+// GET /api/games/:id/session-turns - get session turns with narrative data for offline play
+router.get('/:id/session-turns', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest;
+
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User context required',
+        req
+      );
+    }
+
+    // Validate game ID parameter
+    const paramValidation = IdParamSchema.safeParse(req.params);
+    if (!paramValidation.success) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'Invalid game ID',
+        req,
+        paramValidation.error.errors
+      );
+    }
+
+    const { id: gameId } = paramValidation.data;
+
+    // Get the game to validate ownership
+    const gamesService = new GamesService();
+    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+
+    if (!game) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Game not found',
+        req
+      );
+    }
+
+    // Load session turns and initialize narrative
+    const [turns, initializeNarrative] = await Promise.all([
+      gamesService.getSessionTurns(gameId),
+      gamesService.getInitializeNarrative(gameId)
+    ]);
+
+    const response = {
+      turns,
+      initialize_narrative: initializeNarrative
+    };
+
+    // Validate response structure
+    const validationResult = SessionTurnsResponseSchema.safeParse(response);
+    if (!validationResult.success) {
+      console.error('Session turns response validation failed:', validationResult.error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Invalid response structure',
+        req
+      );
+    }
+
+    sendSuccess(res, validationResult.data, req);
+  } catch (error) {
+    console.error('Error loading session turns:', error);
     sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,

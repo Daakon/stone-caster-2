@@ -9,13 +9,15 @@ interface TurnInputProps {
   stoneCost: number;
   disabled?: boolean;
   placeholder?: string;
+  hasChoices?: boolean;
 }
 
 export const TurnInput: React.FC<TurnInputProps> = ({
   onSubmit,
   stoneCost,
   disabled = false,
-  placeholder = "Describe your action..."
+  placeholder = "Describe your action...",
+  hasChoices = false
 }) => {
   const [action, setAction] = useState('');
 
@@ -37,7 +39,7 @@ export const TurnInput: React.FC<TurnInputProps> = ({
           id="action"
           value={action}
           onChange={(e) => setAction(e.target.value)}
-          placeholder={placeholder}
+          placeholder={hasChoices ? "Or describe your own action..." : placeholder}
           disabled={disabled}
           className="min-h-[100px] resize-none"
         />

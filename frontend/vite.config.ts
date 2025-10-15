@@ -17,5 +17,9 @@ export default defineConfig({
       // Watch shared directory for changes
       ignored: ['!**/shared/**']
     }
+  },
+  // Disable telemetry during development
+  define: {
+    'process.env.DISABLE_TELEMETRY': JSON.stringify('true')
   }
 })

@@ -192,6 +192,34 @@ interface GameTurn {
 - `401`: Authentication required
 - `404`: Game not found
 
+#### GET /api/games/:id/session-turns
+Get session turns with narrative data for offline play.
+
+**Authentication**: Guest or Authenticated
+
+**Response** (200):
+```typescript
+interface SessionTurnsResponse {
+  turns: SessionTurn[];
+  initialize_narrative: string | null;
+}
+
+interface SessionTurn {
+  id: string;
+  session_id: string;
+  sequence: number;
+  user_prompt: string | null;
+  narrative_summary: string;
+  is_initialization: boolean;
+  created_at: string;
+  turn_number: number;
+}
+```
+
+**Error Responses**:
+- `401`: Authentication required
+- `404`: Game not found
+
 #### POST /api/games/:id/auto-initialize
 Automatically create initial prompt for games with 0 turns.
 

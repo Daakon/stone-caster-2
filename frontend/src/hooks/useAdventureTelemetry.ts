@@ -13,6 +13,12 @@ interface AdventureTelemetryEvent {
 
 export function useAdventureTelemetry() {
   const trackEvent = useCallback(async (event: AdventureTelemetryEvent) => {
+    // Disable telemetry during testing
+    if (process.env.NODE_ENV === 'development' || process.env.DISABLE_TELEMETRY === 'true') {
+      console.log('Telemetry disabled:', event.event);
+      return;
+    }
+
     try {
       // Don't block the UI if telemetry fails
       await apiPost('/api/telemetry/event', {

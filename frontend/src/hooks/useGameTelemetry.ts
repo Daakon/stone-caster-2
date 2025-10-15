@@ -16,6 +16,12 @@ export function useGameTelemetry() {
   const sentEvents = useRef<Set<string>>(new Set());
 
   const trackEvent = useCallback(async (event: GameTelemetryEvent) => {
+    // Disable telemetry during testing
+    if (process.env.NODE_ENV === 'development' || process.env.DISABLE_TELEMETRY === 'true') {
+      console.log('Telemetry disabled:', event.event);
+      return;
+    }
+
     try {
       // Create a unique key for this event to prevent duplicates
       const eventKey = `${event.event}-${event.gameId}-${Date.now()}`;

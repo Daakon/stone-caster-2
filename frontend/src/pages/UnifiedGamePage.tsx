@@ -10,6 +10,7 @@ import { WorldRuleMeters } from '../components/gameplay/WorldRuleMeters';
 import { TurnInput } from '../components/gameplay/TurnInput';
 import { HistoryFeed } from '../components/gameplay/HistoryFeed';
 import { TurnErrorHandler } from '../components/gameplay/TurnErrorHandler';
+import { ChoiceButtons } from '../components/gameplay/ChoiceButtons';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, RefreshCw, AlertCircle } from 'lucide-react';
 import { 
@@ -38,6 +39,11 @@ interface GameState {
     character?: string;
   }>;
   currentTurn: number;
+  currentChoices: Array<{
+    id: string;
+    label: string;
+    description?: string;
+  }>;
 }
 
 export default function UnifiedGamePage() {
@@ -49,7 +55,8 @@ export default function UnifiedGamePage() {
   const [gameState, setGameState] = useState<GameState>({
     worldRules: {},
     history: [],
-    currentTurn: 0
+    currentTurn: 0,
+    currentChoices: []
   });
   const [isSubmittingTurn, setIsSubmittingTurn] = useState(false);
   const [turnError, setTurnError] = useState<string | null>(null);
@@ -286,6 +293,31 @@ export default function UnifiedGamePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [gameState.history]);
 
+  // Load game turns into history and choices
+  useEffect(() => {
+    if (gameTurns && gameTurns.length > 0) {
+      // Process all turns into history entries
+      const history = gameTurns.map((turn: any) => ({
+        id: turn.id,
+        timestamp: turn.created_at,
+        type: 'npc' as const,
+        content: turn.ai_response?.narrative || turn.narrative_summary || 'Turn completed',
+        character: turn.character_name || undefined,
+      }));
+      
+      // Get choices from the latest turn's ai_response field
+      const latestTurn = gameTurns[gameTurns.length - 1];
+      const aiResponse = latestTurn.ai_response;
+      const currentChoices = aiResponse?.choices || [];
+      
+      setGameState(prev => ({
+        ...prev,
+        history: history,
+        currentChoices: currentChoices
+      }));
+    }
+  }, [gameTurns]);
+
   // Auto-initialize game with 0 turns
   const handleAutoInitialize = async () => {
     if (!actualGameId) {
@@ -393,7 +425,8 @@ export default function UnifiedGamePage() {
             type: 'npc',
             content: turnData.narrative,
           }
-        ]
+        ],
+        currentChoices: turnData.choices || []
       }));
 
       // Invalidate and refetch game data
@@ -459,6 +492,45 @@ export default function UnifiedGamePage() {
       optionId,
       userInput: action,
       userInputType: 'text'
+    });
+  };
+
+  const handleChoiceSelect = (choice: { id: string; label: string; description?: string }) => {
+    if (isSubmittingTurn) return;
+    
+    setIsSubmittingTurn(true);
+    setTurnError(null);
+    setTurnErrorCode(null);
+    setTurnStartTime(Date.now());
+
+    // Track turn started
+    gameTelemetry.trackTurnStarted(
+      gameId!,
+      character?.id || '',
+      game?.adventureSlug || '',
+      choice.label
+    );
+
+    // Add player choice to history immediately
+    setGameState(prev => ({
+      ...prev,
+      history: [
+        ...prev.history,
+        {
+          id: `player-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          type: 'player',
+          content: choice.label,
+          character: character?.name || 'You'
+        }
+      ]
+    }));
+
+    // Submit turn with choice data
+    submitTurnMutation.mutate({
+      optionId: choice.id,
+      userInput: choice.label,
+      userInputType: 'choice'
     });
   };
 
@@ -624,6 +696,15 @@ export default function UnifiedGamePage() {
             </CardContent>
           </Card>
 
+          {/* AI-Generated Choices */}
+          {gameState.currentChoices.length > 0 && (
+            <ChoiceButtons
+              choices={gameState.currentChoices}
+              onChoiceSelect={handleChoiceSelect}
+              disabled={isSubmittingTurn}
+            />
+          )}
+
           {/* Turn Input */}
           <Card>
             <CardHeader>
@@ -635,6 +716,7 @@ export default function UnifiedGamePage() {
                 disabled={isSubmittingTurn}
                 placeholder="What do you do?"
                 stoneCost={1}
+                hasChoices={gameState.currentChoices.length > 0}
               />
             </CardContent>
           </Card>

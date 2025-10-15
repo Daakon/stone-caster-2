@@ -340,13 +340,25 @@ export class GamesService {
         console.log(`[GAMES_SERVICE] Generated UUID for optionId "${optionId}": ${optionIdUuid}`);
       }
       
+      // Determine if this is an initialization turn
+      const isInitialization = nextTurnNumber === 1;
+      
+      // Extract narrative summary from turn result
+      const narrativeSummary = turnResult.narrative || 'Narrative not available';
+      
       const turnRecord = {
         game_id: gameId,
         option_id: optionIdUuid,
         ai_response: turnResult,
         turn_number: nextTurnNumber,
         created_at: new Date().toISOString(),
-        // Enhanced turn recording fields
+        // Enhanced turn recording fields for realtime data
+        session_id: gameId, // Same as game_id for compatibility
+        sequence: nextTurnNumber,
+        user_prompt: turnData?.userInput || null,
+        narrative_summary: narrativeSummary,
+        is_initialization: isInitialization,
+        // Legacy fields for backward compatibility
         user_input: turnData?.userInput || null,
         user_input_type: turnData?.userInputType || 'choice',
         prompt_data: turnData?.promptData || null,
@@ -421,6 +433,66 @@ export class GamesService {
     } catch (error) {
       console.error('Unexpected error in getGameTurns:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Fetch turns for a game session including initialize narrative
+   * @param gameId - Game ID
+   * @returns Array of turns with narrative data
+   */
+  async getSessionTurns(gameId: string): Promise<any[]> {
+    try {
+      const { data: turns, error } = await supabaseAdmin
+        .from('turns')
+        .select(`
+          id,
+          session_id,
+          sequence,
+          user_prompt,
+          narrative_summary,
+          is_initialization,
+          created_at,
+          turn_number
+        `)
+        .eq('session_id', gameId)
+        .order('sequence', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching session turns:', error);
+        throw new Error(`Failed to fetch session turns: ${error.message}`);
+      }
+
+      return turns || [];
+    } catch (error) {
+      console.error('Unexpected error in getSessionTurns:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get initialize narrative for a game session
+   * @param gameId - Game ID
+   * @returns Initialize narrative or null
+   */
+  async getInitializeNarrative(gameId: string): Promise<string | null> {
+    try {
+      const { data: turn, error } = await supabaseAdmin
+        .from('turns')
+        .select('narrative_summary')
+        .eq('session_id', gameId)
+        .eq('is_initialization', true)
+        .single();
+
+      if (error) {
+        console.error('Error fetching initialize narrative:', error);
+        return null;
+      }
+
+      return turn?.narrative_summary || null;
+    } catch (error) {
+      console.error('Unexpected error in getInitializeNarrative:', error);
+      return null;
     }
   }
 

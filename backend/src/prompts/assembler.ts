@@ -21,7 +21,7 @@ export class PromptAssembler {
    * Initialize the assembler with the prompt manifest
    */
   async initialize(worldSlug?: string): Promise<void> {
-    this.manifest = await getPromptManifest(worldSlug);
+    this.manifest = await getPromptManifest(undefined, worldSlug);
   }
 
   /**
@@ -114,11 +114,47 @@ export class PromptAssembler {
       }
       
       // Replace variables with context values
-      const processedSegment = replaceTemplateVariables(segment, context);
+      let processedSegment = replaceTemplateVariables(segment, context);
+      
+      // Process file inclusions
+      processedSegment = await this.processFileInclusions(processedSegment, context);
+      
       processedSegments.push(processedSegment);
     }
     
     return processedSegments;
+  }
+
+  /**
+   * Process file inclusions in segments (replace <<<FILE ... >>> with actual content)
+   */
+  private async processFileInclusions(segment: string, context: Record<string, any>): Promise<string> {
+    // Match <<<FILE path >>> patterns
+    const filePattern = /<<<FILE\s+([^>]+)\s*>>>/g;
+    
+    let processedSegment = segment;
+    let match;
+    
+    while ((match = filePattern.exec(segment)) !== null) {
+      const filePath = match[1].trim();
+      const fullPath = `AI API Prompts/${filePath}`;
+      
+      try {
+        // Read the file content
+        const { readFileSync } = await import('fs');
+        const content = readFileSync(fullPath, 'utf-8');
+        
+        // Replace the placeholder with the actual content
+        processedSegment = processedSegment.replace(match[0], content);
+        
+        console.log(`[PROMPT_ASSEMBLER] Included file: ${filePath} (${content.length} chars)`);
+      } catch (error) {
+        console.warn(`[PROMPT_ASSEMBLER] Could not include file ${filePath}:`, error);
+        // Keep the original placeholder if file can't be loaded
+      }
+    }
+    
+    return processedSegment;
   }
 
   /**
@@ -171,6 +207,31 @@ export class PromptAssembler {
       
       // Adventure variables
       'adventure.name': context.adventure?.name,
+      
+      // Template variables for baseline.md
+      'world_name': context.world.name,
+      'adventure_name': context.adventure?.name || 'None',
+      'game_state_json': JSON.stringify({
+        time: context.runtime.ticks,
+        turn: context.game.turn_index,
+        scene: context.game.current_scene,
+        state: context.game.state_snapshot
+      }),
+      'player_state_json': JSON.stringify({
+        name: context.character?.name,
+        skills: context.character?.skills,
+        inventory: context.character?.inventory,
+        relationships: context.character?.relationships,
+        goals: context.character?.goals,
+        flags: context.character?.flags,
+        reputation: context.character?.reputation
+      }),
+      'rng_json': JSON.stringify({
+        d20: Math.floor(Math.random() * 20) + 1,
+        d100: Math.floor(Math.random() * 100) + 1,
+        seed: Date.now()
+      }),
+      'player_input_text': 'Test input for prompt assembly',
       'adventure.scenes': context.adventure?.scenes,
       'adventure.objectives': context.adventure?.objectives,
       'adventure.npcs': context.adventure?.npcs,

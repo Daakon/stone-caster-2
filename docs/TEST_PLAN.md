@@ -45,6 +45,25 @@ Layer P1 focuses on replacing frontend mock data with live API integration. This
   - Game state content validation (time and turn only, no RNG data)
   - Metadata generation with correct section tracking
 
+#### Turn Recording Service Tests
+- **File:** `backend/tests/turn-recording.service.test.ts`
+- **Coverage:**
+  - Session turns fetching with narrative data
+  - Initialize narrative retrieval and caching
+  - Enhanced turn recording with realtime and analytics data
+  - Offline narrative loading without AI calls
+  - Turn sequence management and ordering
+  - Database error handling and graceful fallbacks
+- **Test Scenarios:**
+  - Fetch session turns successfully with proper ordering
+  - Handle database errors gracefully
+  - Return empty array when no turns exist
+  - Get initialize narrative for offline play
+  - Handle missing initialize narrative gracefully
+  - Create turn records with enhanced metadata
+  - Validate turn creation error handling
+  - Test analytics table population via triggers
+
 #### OpenAI Service Tests
 - **File:** `backend/src/services/openai.service.test.ts`
 - **Coverage:**
@@ -735,6 +754,21 @@ This section covers Layer M6 - Profiles & Account Safety, focusing on secure pro
 - Turn count increments
 - World rule updates
 - Error state recovery
+
+#### Offline Narrative Loading
+- Initialize narrative loading without AI calls
+- Session turns retrieval for offline play
+- Multiple turns display in sequence
+- Missing narrative graceful handling
+- Mobile-first design for narrative display
+- Accessibility compliance for narrative content
+- **Test Scenarios:**
+  - Load initialize narrative without AI generation
+  - Display multiple turns in correct sequence
+  - Handle missing initialize narrative gracefully
+  - Test mobile viewport (375×812) for narrative display
+  - Verify accessibility with axe-core for narrative content
+  - Validate no AI calls made when using cached narrative
 
 #### Error Handling Scenarios
 - Insufficient stones with wallet navigation

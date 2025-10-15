@@ -2,6 +2,7 @@ import { configService } from '../config/index.js';
 import { promptsService } from './prompts.service.js';
 import { OpenAIService } from './openai.service.js';
 import { PromptWrapper, type GameStateData } from '../prompts/wrapper.js';
+import { PromptAssembler } from '../prompts/assembler.js';
 import type { AIResponse, StoryAction, GameSave, Character } from '@shared';
 import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS } from '../constants/game-constants.js';
 import { GameConfigService } from './game-config.service.js';
@@ -17,10 +18,12 @@ interface StoryContext {
 export class AIService {
   private openaiService: OpenAIService | null = null;
   private promptWrapper: PromptWrapper;
+  private promptAssembler: PromptAssembler;
   private gameConfigService: GameConfigService;
 
   constructor() {
     this.promptWrapper = new PromptWrapper();
+    this.promptAssembler = new PromptAssembler();
     this.gameConfigService = GameConfigService.getInstance();
     
     // Initialize OpenAI service lazily when first needed
@@ -61,7 +64,7 @@ export class AIService {
     optionId: string,
     choices: Array<{id: string, label: string}> = [],
     includeDebug: boolean = false
-  ): Promise<{response: string, debug?: any}> {
+  ): Promise<{response: string, debug?: any, promptData?: any, promptMetadata?: any, model?: string, tokenCount?: number, promptId?: string}> {
     try {
       console.log('[AI_SERVICE] Starting turn response generation with new wrapper...');
       
@@ -116,23 +119,12 @@ export class AIService {
       // Build prompt using the new wrapper system
       const prompt = await this.buildWrappedPrompt(gameContext, optionId, choices);
       
-      // Validate prompt before sending to AI
-      if (!prompt || prompt.length < 100) {
-        console.error(`[AI_SERVICE] CRITICAL: Prompt too short (${prompt.length} characters), aborting AI call`);
-        throw new Error(`Prompt too short: ${prompt.length} characters`);
-      }
-      
-      // Check for truly empty data sections in the prompt
-      if (prompt.includes('{"adventure":{}}') && prompt.includes('=== ADVENTURE_BEGIN ===')) {
-        console.error(`[AI_SERVICE] CRITICAL: Adventure section is empty, aborting AI call`);
-        console.error(`[AI_SERVICE] Adventure section content:`, prompt.match(/=== ADVENTURE_BEGIN ===[\s\S]*?=== ADVENTURE_END ===/)?.[0]);
-        throw new Error(`Adventure section is empty - aborting AI call to prevent waste`);
-      }
-      
-      if (prompt.includes('{"player":{}}') && prompt.includes('=== PLAYER_BEGIN ===')) {
-        console.error(`[AI_SERVICE] CRITICAL: Player section is empty, aborting AI call`);
-        console.error(`[AI_SERVICE] Player section content:`, prompt.match(/=== PLAYER_BEGIN ===[\s\S]*?=== PLAYER_END ===/)?.[0]);
-        throw new Error(`Player section is empty - aborting AI call to prevent waste`);
+      // Comprehensive prompt validation before sending to AI
+      const validationResult = this.validatePromptCompleteness(prompt, gameContext);
+      if (!validationResult.valid) {
+        console.error(`[AI_SERVICE] CRITICAL: Prompt validation failed - ${validationResult.error}`);
+        console.error(`[AI_SERVICE] Validation details:`, validationResult.details);
+        throw new Error(`Prompt validation failed: ${validationResult.error}`);
       }
       
       // Log the full prompt for debugging
@@ -201,7 +193,7 @@ export class AIService {
             assembledAt: new Date().toISOString(),
             length: prompt.length
           },
-          model: response.model || 'unknown',
+          model: 'gpt-4o-mini',
           tokenCount: response.usage?.total_tokens || 0,
           promptId: 'prompt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
         };
@@ -230,7 +222,7 @@ export class AIService {
               length: prompt.length,
               repairAttempted: true
             },
-            model: response.model || 'unknown',
+            model: 'gpt-4o-mini',
             tokenCount: response.usage?.total_tokens || 0,
             promptId: 'prompt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
           };
@@ -356,13 +348,126 @@ export class AIService {
   }
 
   /**
-   * Build wrapped prompt using the new prompt wrapper system
+   * Comprehensive prompt validation to ensure all required sections are present and valid
+   */
+  private validatePromptCompleteness(prompt: string, gameContext: any): { valid: boolean; error?: string; details?: any } {
+    const validationDetails: any = {
+      promptLength: prompt.length,
+      sections: {},
+      issues: []
+    };
+
+    // Check basic prompt requirements
+    if (!prompt || prompt.length < 100) {
+      validationDetails.issues.push(`Prompt too short: ${prompt.length} characters`);
+      return { valid: false, error: 'Prompt too short', details: validationDetails };
+    }
+
+    // Define required sections and their validation rules
+    const requiredSections = [
+      { name: 'CORE', pattern: /=== CORE_BEGIN ===([\s\S]*?)=== CORE_END ===/ },
+      { name: 'WORLD', pattern: /=== WORLD_BEGIN ===([\s\S]*?)=== WORLD_END ===/ },
+      { name: 'ADVENTURE', pattern: /=== ADVENTURE_BEGIN ===([\s\S]*?)=== ADVENTURE_END ===/ },
+      { name: 'PLAYER', pattern: /=== PLAYER_BEGIN ===([\s\S]*?)=== PLAYER_END ===/ },
+      { name: 'RNG', pattern: /=== RNG_BEGIN ===([\s\S]*?)=== RNG_END ===/ },
+      { name: 'INPUT', pattern: /=== INPUT_BEGIN ===([\s\S]*?)=== INPUT_END ===/ }
+    ];
+
+    // Validate each required section
+    for (const section of requiredSections) {
+      const match = prompt.match(section.pattern);
+      if (!match) {
+        validationDetails.issues.push(`Missing required section: ${section.name}`);
+        validationDetails.sections[section.name] = { present: false, content: null };
+        continue;
+      }
+
+      const content = match[1].trim();
+      validationDetails.sections[section.name] = { present: true, content, length: content.length };
+
+      // Section-specific validation
+      if (section.name === 'CORE') {
+        if (!content || content === '{}') {
+          validationDetails.issues.push(`CORE section is empty`);
+        }
+      } else if (section.name === 'WORLD') {
+        if (!content || content === '{}' || content.includes('"world":{}')) {
+          validationDetails.issues.push(`WORLD section is empty`);
+        }
+      } else if (section.name === 'ADVENTURE') {
+        if (!content || content === '{}' || content.includes('"adventure":{}')) {
+          validationDetails.issues.push(`ADVENTURE section is empty`);
+        }
+      } else if (section.name === 'PLAYER') {
+        if (!content || content === '{}' || content.includes('"player":{}')) {
+          validationDetails.issues.push(`PLAYER section is empty`);
+        }
+      } else if (section.name === 'RNG') {
+        if (!content || content === '{}') {
+          validationDetails.issues.push(`RNG section is empty`);
+        }
+      } else if (section.name === 'INPUT') {
+        if (!content || content.trim() === '') {
+          validationDetails.issues.push(`INPUT section is empty`);
+        }
+      }
+    }
+
+    // Check for AI prompt file content (should not be just basic JSON)
+    const hasAIPromptContent = this.checkForAIPromptContent(prompt);
+    if (!hasAIPromptContent) {
+      validationDetails.issues.push(`No AI prompt file content detected - prompt appears to be missing template data`);
+    }
+
+    // Check for minimum content requirements
+    const minContentLength = 500; // Minimum expected content length
+    if (prompt.length < minContentLength) {
+      validationDetails.issues.push(`Prompt content too minimal (${prompt.length} chars, expected ${minContentLength}+)`);
+    }
+
+    const isValid = validationDetails.issues.length === 0;
+    return {
+      valid: isValid,
+      error: isValid ? undefined : validationDetails.issues.join('; '),
+      details: validationDetails
+    };
+  }
+
+  /**
+   * Check if prompt contains AI prompt file content (not just basic JSON)
+   */
+  private checkForAIPromptContent(prompt: string): boolean {
+    // Look for signs of AI prompt file content - be more specific to avoid false positives
+    const aiContentIndicators = [
+      'You are the runtime engine',
+      'Return ONE JSON object (AWF)',
+      'TIME_ADVANCE (ticks ≥ 1)',
+      'essence alignment affects behavior',
+      'NPCs may act on their own',
+      'Limit 2 ambient + 1 NPC↔NPC beat per turn',
+      '60-tick bands (Dawn→Mid-Day→Evening→Mid-Night→Dawn)',
+      'avoid real-world units'
+    ];
+
+    const foundIndicators = aiContentIndicators.filter(indicator => 
+      prompt.toLowerCase().includes(indicator.toLowerCase())
+    );
+
+    // If we find at least 4 AI content indicators, we likely have proper prompt content
+    return foundIndicators.length >= 4;
+  }
+
+  /**
+   * Build prompt using the proper prompt assembly system with AI prompt files
    */
   private async buildWrappedPrompt(
     gameContext: any,
     optionId: string,
     choices: Array<{id: string, label: string}>
   ): Promise<string> {
+    // Initialize the prompt assembler for the world
+    await this.promptAssembler.initialize(gameContext.world_id);
+    
     // Resolve player input to text
     const isFirstTurn = gameContext.turn_index === 0;
     const startingScene = gameContext.current_scene;
@@ -418,19 +523,8 @@ export class AIService {
       adventureName,
       startingScene
     });
-    
-    // Generate game state data
-    const rngData = this.promptWrapper.generateRNGData();
-    const timeData = this.promptWrapper.generateTimeData(gameContext.turn_index || 0);
-    
-    const gameState: GameStateData = {
-      time: timeData,
-      rng: rngData,
-      playerInput,
-      isFirstTurn,
-    };
 
-    // Build context for prompt assembly
+    // Build context for prompt assembly using the proper assembler
     const context = {
       game: {
         id: gameContext.id,
@@ -464,19 +558,18 @@ export class AIService {
         schema_version: '1.0.0',
         prompt_version: '2.0.0',
         load_order: [],
-        hash: 'wrapper-v1',
+        hash: 'assembler-v1',
       },
     };
 
-    // Assemble prompt using wrapper
-    const result = await this.promptWrapper.assemblePrompt(
-      context,
-      gameState,
-      { core: 'system' }, // Core data
-      { world: context.world }, // World data
-      { adventure: context.adventure }, // Adventure data
-      { player: context.character } // Player data
-    );
+    // Use the proper prompt assembler to load AI prompt files
+    const result = await this.promptAssembler.assemblePrompt(context);
+    
+    // Validate that we got proper AI prompt content
+    if (!result.prompt || result.prompt.length < 500) {
+      console.error(`[AI_SERVICE] CRITICAL: Prompt assembler returned insufficient content (${result.prompt?.length || 0} chars)`);
+      throw new Error(`Prompt assembler failed to load AI prompt files - content too minimal`);
+    }
 
     return result.prompt;
   }

@@ -52,8 +52,8 @@ export class PromptLoader {
   async loadPromptManifest(worldSlug?: string): Promise<PromptTemplateMeta[]> {
     const manifest: PromptTemplateMeta[] = [];
     
-    // Load core files
-    const coreFiles = await this.loadDirectory('Core');
+    // Load core files from the root of AI API Prompts
+    const coreFiles = await this.loadDirectory('');
     manifest.push(...coreFiles);
     
     // Load world-specific files if world is specified
@@ -70,7 +70,7 @@ export class PromptLoader {
    */
   private async loadWorldFiles(worldSlug: string): Promise<PromptTemplateMeta[]> {
     const worldFiles: PromptTemplateMeta[] = [];
-    const worldDir = join(this.promptsPath, 'Worlds', this.capitalizeFirst(worldSlug));
+    const worldDir = join(this.promptsPath, 'worlds', worldSlug);
     
     console.log(`[PROMPT_LOADER] Loading world files from: ${worldDir}`);
     
@@ -82,7 +82,7 @@ export class PromptLoader {
         if (this.isPromptFile(entry.name)) {
           const filePath = join(worldDir, entry.name);
           console.log(`[PROMPT_LOADER] Loading file: ${entry.name}`);
-          const promptMeta = await this.loadPromptFile(filePath, `Worlds/${this.capitalizeFirst(worldSlug)}`);
+          const promptMeta = await this.loadPromptFile(filePath, `worlds/${worldSlug}`);
           if (promptMeta) {
             console.log(`[PROMPT_LOADER] Successfully loaded template: ${promptMeta.id}`);
             worldFiles.push(promptMeta);
@@ -268,13 +268,24 @@ export class PromptLoader {
    * Extract segments from JSON content
    */
   private extractSegmentsFromJson(parsed: any, filename: string): string[] {
-    // For JSON files, we'll create segments based on the structure
+    // Extract segments from the JSON structure
     const segments: string[] = [];
     
     if (typeof parsed === 'object' && parsed !== null) {
-      // Create a formatted segment from the JSON
-      const formatted = this.formatJsonAsPrompt(parsed, filename);
-      segments.push(formatted);
+      // If the JSON has a segments array, extract those
+      if (parsed.segments && Array.isArray(parsed.segments)) {
+        for (const segment of parsed.segments) {
+          if (typeof segment === 'object' && segment.content) {
+            segments.push(segment.content);
+          } else if (typeof segment === 'string') {
+            segments.push(segment);
+          }
+        }
+      } else {
+        // Fallback: create a formatted segment from the JSON
+        const formatted = this.formatJsonAsPrompt(parsed, filename);
+        segments.push(formatted);
+      }
     }
     
     return segments;

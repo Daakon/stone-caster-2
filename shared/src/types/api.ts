@@ -168,6 +168,37 @@ export const TurnResultSchema = z.object({
   created_at: z.string().datetime(),
 });
 
+// Enhanced turn recording schemas
+export const SessionTurnSchema = z.object({
+  id: z.string().uuid(),
+  session_id: z.string().uuid(),
+  sequence: z.number().int().min(1),
+  user_prompt: z.string().nullable(),
+  narrative_summary: z.string(),
+  is_initialization: z.boolean(),
+  created_at: z.string().datetime(),
+  turn_number: z.number().int().min(1),
+});
+
+export const TurnAnalyticsSchema = z.object({
+  id: z.string().uuid(),
+  turn_id: z.string().uuid(),
+  raw_ai_response: z.record(z.string(), z.unknown()),
+  raw_user_prompt: z.string().nullable(),
+  raw_system_prompt: z.string().nullable(),
+  model_identifier: z.string().nullable(),
+  token_count: z.number().int().nullable(),
+  processing_time_ms: z.number().int().nullable(),
+  prompt_metadata: z.record(z.string(), z.unknown()).nullable(),
+  response_metadata: z.record(z.string(), z.unknown()).nullable(),
+  created_at: z.string().datetime(),
+});
+
+export const SessionTurnsResponseSchema = z.object({
+  turns: z.array(SessionTurnSchema),
+  initialize_narrative: z.string().nullable(),
+});
+
 // Admin request schemas
 export const UpdateConfigRequestSchema = z.object({
   value: z.unknown(),
@@ -228,3 +259,6 @@ export type RevokeSessionsRequest = z.infer<typeof RevokeSessionsRequestSchema>;
 // TelemetryEvent type moved to types/index.ts for Layer 0.9
 export type TurnResponse = z.infer<typeof TurnResponseSchema>;
 export type TurnResult = z.infer<typeof TurnResultSchema>;
+export type SessionTurn = z.infer<typeof SessionTurnSchema>;
+export type TurnAnalytics = z.infer<typeof TurnAnalyticsSchema>;
+export type SessionTurnsResponse = z.infer<typeof SessionTurnsResponseSchema>;
