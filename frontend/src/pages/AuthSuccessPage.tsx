@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, Loader2 } from 'lucide-react';
-import { supabase } from '../services/supabase';
+import { supabase } from '../lib/supabase';
 import { GuestCookieService } from '../services/guestCookie';
 
 export default function AuthSuccessPage() {

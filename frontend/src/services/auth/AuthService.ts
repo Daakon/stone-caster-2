@@ -1,5 +1,5 @@
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../supabase';
+import { supabase } from '@/lib/supabase';
 import { GuestCookieService } from '../guestCookie';
 import { RoutePreservationService } from '../routePreservation';
 import { ProfileService } from '../profile';

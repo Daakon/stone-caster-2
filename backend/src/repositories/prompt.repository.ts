@@ -10,7 +10,7 @@ const PromptSegmentSchema = z.object({
   scene_id: z.string().nullable(),
   turn_stage: z.string(),
   sort_order: z.number(),
-  version: z.number(),
+  version: z.string(),
   content: z.string(),
   metadata: z.record(z.any()),
 });
@@ -47,12 +47,13 @@ export class PromptRepository {
       const validatedParams = PromptContextParamsSchema.parse(params);
 
       const { data, error } = await this.supabase
-        .from('prompts')
-        .select('*')
-        .eq('active', true)
-        .eq('locked', false)
-        .order('layer', { ascending: true })
-        .order('sort_order', { ascending: true });
+        .rpc('prompt_segments_for_context', {
+          p_world_slug: validatedParams.world_slug || null,
+          p_adventure_slug: validatedParams.adventure_slug || null,
+          p_include_start: validatedParams.include_start,
+          p_scene_id: validatedParams.scene_id || null,
+          p_include_enhancements: validatedParams.include_enhancements,
+        });
 
       if (error) {
         throw new Error(`Failed to fetch prompt segments: ${error.message}`);
@@ -120,41 +121,8 @@ export class PromptRepository {
     worlds_count: number;
   }> {
     try {
-      // Get basic stats using direct queries
-      const { count: total, error: totalError } = await this.supabase
-        .from('prompts')
-        .select('*', { count: 'exact', head: true });
-      
-      if (totalError) {
-        throw new Error(`Failed to fetch total count: ${totalError.message}`);
-      }
-      
-      const { count: active, error: activeError } = await this.supabase
-        .from('prompts')
-        .select('*', { count: 'exact', head: true })
-        .eq('active', true);
-      
-      if (activeError) {
-        throw new Error(`Failed to fetch active count: ${activeError.message}`);
-      }
-      
-      const { count: locked, error: lockedError } = await this.supabase
-        .from('prompts')
-        .select('*', { count: 'exact', head: true })
-        .eq('locked', true);
-      
-      if (lockedError) {
-        throw new Error(`Failed to fetch locked count: ${lockedError.message}`);
-      }
-      
-      const data = [{
-        total_prompts: total || 0,
-        active_prompts: active || 0,
-        locked_prompts: locked || 0,
-        layers_count: {},
-        worlds_count: 0,
-      }];
-      const error = null;
+      const { data, error } = await this.supabase
+        .rpc('get_prompt_stats');
 
       if (error) {
         throw new Error(`Failed to fetch prompt stats: ${error.message}`);
@@ -181,17 +149,14 @@ export class PromptRepository {
     missing_dependencies: string[];
   }>> {
     try {
-      // Simple validation - check if we have any prompts
       const { data, error } = await this.supabase
-        .from('prompts')
-        .select('id')
-        .limit(1);
+        .rpc('validate_prompt_dependencies');
 
       if (error) {
         throw new Error(`Failed to validate dependencies: ${error.message}`);
       }
 
-      return [];
+      return data || [];
     } catch (error) {
       console.error('[PROMPT_REPOSITORY] Error validating dependencies:', error);
       throw error;

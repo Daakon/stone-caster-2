@@ -4,6 +4,20 @@ import { PromptRepository, type PromptSegment } from '../../src/repositories/pro
 // Mock Supabase client
 const mockSupabase = {
   rpc: vi.fn(),
+  from: vi.fn(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          order: vi.fn(() => ({
+            order: vi.fn(() => ({
+              data: [],
+              error: null
+            }))
+          }))
+        }))
+      }))
+    }))
+  }))
 };
 
 vi.mock('@supabase/supabase-js', () => ({
@@ -22,7 +36,7 @@ describe('PromptRepository', () => {
     it('should fetch prompt segments with correct parameters', async () => {
       const mockSegments: PromptSegment[] = [
         {
-          id: 'test-id-1',
+          id: '550e8400-e29b-41d4-a716-446655440000',
           layer: 'core',
           world_slug: null,
           adventure_slug: null,
@@ -34,7 +48,7 @@ describe('PromptRepository', () => {
           metadata: { variables: ['test'] },
         },
         {
-          id: 'test-id-2',
+          id: '550e8400-e29b-41d4-a716-446655440001',
           layer: 'engine',
           world_slug: 'mystika',
           adventure_slug: null,
@@ -79,6 +93,8 @@ describe('PromptRepository', () => {
       await expect(
         repository.getPromptSegments({
           world_slug: 'mystika',
+          include_start: true,
+          include_enhancements: true,
         })
       ).rejects.toThrow('Failed to fetch prompt segments: Database connection failed');
     });
@@ -87,6 +103,8 @@ describe('PromptRepository', () => {
       await expect(
         repository.getPromptSegments({
           world_slug: 123 as any, // Invalid type
+          include_start: true,
+          include_enhancements: true,
         })
       ).rejects.toThrow();
     });
@@ -96,7 +114,7 @@ describe('PromptRepository', () => {
     it('should fetch core prompts without world/adventure filters', async () => {
       const mockSegments: PromptSegment[] = [
         {
-          id: 'core-1',
+          id: '550e8400-e29b-41d4-a716-446655440003',
           layer: 'core',
           world_slug: null,
           adventure_slug: null,
@@ -132,7 +150,7 @@ describe('PromptRepository', () => {
     it('should fetch world-specific prompts', async () => {
       const mockSegments: PromptSegment[] = [
         {
-          id: 'world-1',
+          id: '550e8400-e29b-41d4-a716-446655440004',
           layer: 'foundation',
           world_slug: 'mystika',
           adventure_slug: null,
@@ -168,7 +186,7 @@ describe('PromptRepository', () => {
     it('should fetch adventure-specific prompts', async () => {
       const mockSegments: PromptSegment[] = [
         {
-          id: 'adventure-1',
+          id: '550e8400-e29b-41d4-a716-446655440005',
           layer: 'content',
           world_slug: 'mystika',
           adventure_slug: 'whispercross',
@@ -258,13 +276,34 @@ describe('PromptRepository', () => {
       expect(mockSupabase.rpc).toHaveBeenCalledWith('validate_prompt_dependencies');
       expect(result).toEqual(mockDependencies);
     });
+
+    it('should handle validation errors', async () => {
+      mockSupabase.rpc.mockResolvedValue({
+        data: null,
+        error: { message: 'Validation failed' }
+      });
+
+      await expect(repository.validateDependencies()).rejects.toThrow('Failed to validate dependencies: Validation failed');
+    });
+
+    it('should return empty array when no dependencies are missing', async () => {
+      mockSupabase.rpc.mockResolvedValue({
+        data: [],
+        error: null
+      });
+
+      const result = await repository.validateDependencies();
+
+      expect(result).toEqual([]);
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('validate_prompt_dependencies');
+    });
   });
 
   describe('caching', () => {
     it('should cache prompt segments', async () => {
       const mockSegments: PromptSegment[] = [
         {
-          id: 'cached-1',
+          id: '550e8400-e29b-41d4-a716-446655440002',
           layer: 'core',
           world_slug: null,
           adventure_slug: null,
@@ -285,11 +324,15 @@ describe('PromptRepository', () => {
       // First call
       const result1 = await repository.getCachedPromptSegments({
         world_slug: 'mystika',
+        include_start: true,
+        include_enhancements: true,
       });
 
       // Second call should use cache
       const result2 = await repository.getCachedPromptSegments({
         world_slug: 'mystika',
+        include_start: true,
+        include_enhancements: true,
       });
 
       expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);

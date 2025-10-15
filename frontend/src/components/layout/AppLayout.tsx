@@ -5,7 +5,7 @@ import { ExploreShell } from './ExploreShell';
 import { PlayShell } from './PlayShell';
 import { AccountLegalShell } from './AccountLegalShell';
 
-export type LayoutVariant = 'marketing' | 'explore' | 'play' | 'account-legal';
+export type LayoutVariant = 'marketing' | 'explore' | 'play' | 'account-legal' | 'admin';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -30,6 +30,11 @@ const getLayoutVariant = (pathname: string): LayoutVariant => {
     pathname.startsWith('/play/')
   ) {
     return 'play';
+  }
+
+  // Admin Shell - Admin routes
+  if (pathname.startsWith('/admin')) {
+    return 'admin';
   }
 
   // Account/Legal Shell - Wallet, Payments, Profile, ToS, Privacy, AI Disclaimer
@@ -59,6 +64,8 @@ const getLayoutVariant = (pathname: string): LayoutVariant => {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const variant = getLayoutVariant(location.pathname);
+  
+  console.log('AppLayout: pathname =', location.pathname, 'variant =', variant);
 
   switch (variant) {
     case 'marketing':
@@ -69,6 +76,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       return <PlayShell>{children}</PlayShell>;
     case 'account-legal':
       return <AccountLegalShell>{children}</AccountLegalShell>;
+    case 'admin':
+      // Admin routes use their own layout (AdminLayout) - just render children
+      return <>{children}</>;
     default:
       return <MarketingShell>{children}</MarketingShell>;
   }

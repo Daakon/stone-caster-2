@@ -14,6 +14,11 @@ declare global {
   namespace Express {
     interface Request {
       auth?: AuthUser;
+      user?: {
+        id: string;
+        email?: string;
+        role?: string;
+      };
       ctx?: {
         userId?: string;
         isGuest?: boolean;
@@ -298,4 +303,51 @@ export async function verifyJWT(req: Request, res: Response, next: NextFunction)
   }
 
   next();
+}
+
+// Token authentication middleware for admin routes
+export async function authenticateToken(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'Authentication required',
+        req
+      );
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
+    // Verify JWT with Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'Invalid or expired token',
+        req
+      );
+    }
+
+    // Set user context with role information
+    req.user = {
+      id: user.id,
+      email: user.email,
+      role: user.user_metadata?.role
+    };
+
+    next();
+  } catch (error) {
+    console.error('Token auth middleware error:', error);
+    return sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Authentication failed',
+      req
+    );
+  }
 }

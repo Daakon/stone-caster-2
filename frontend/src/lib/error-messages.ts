@@ -20,6 +20,7 @@ export const ERROR_MESSAGES: Record<ApiErrorCode, string> = {
   [ApiErrorCode.CONFIG_NOT_FOUND]: "Something's not set up right. We're working on it!",
   [ApiErrorCode.FLAG_NOT_FOUND]: "This feature isn't available yet.",
   [ApiErrorCode.PROMPT_NOT_FOUND]: "The story content isn't ready yet. Please try again later.",
+  [ApiErrorCode.PROMPT_TEMPLATE_MISSING]: "The story template is missing. Please contact support.",
   [ApiErrorCode.PROMPT_VERSION_CONFLICT]: "The story has been updated. Please refresh and try again.",
   [ApiErrorCode.CSRF_TOKEN_INVALID]: "Your session expired. Please refresh the page and try again.",
   [ApiErrorCode.REQUIRES_AUTH]: "Please sign in to access this feature.",

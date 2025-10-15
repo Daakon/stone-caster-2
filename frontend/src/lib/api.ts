@@ -1,5 +1,5 @@
 ﻿import { type AppError, toAppError } from './errors';
-import { supabase } from '../services/supabase';
+import { supabase } from './supabase';
 import { GuestCookieService } from '../services/guestCookie';
 import type { GameListDTO } from '@shared';
 
