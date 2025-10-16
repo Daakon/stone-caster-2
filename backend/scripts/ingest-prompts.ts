@@ -83,21 +83,21 @@ const LOAD_ORDER_MAP = new Map([
 
 // Layer mapping
 const LAYER_MAP = new Map([
-  ['world-codex', 'foundation'],
+  ['world-codex', 'world'],
   ['systems.unified', 'core'],
   ['style.ui-global', 'core'],
-  ['core.rpg-storyteller', 'engine'],
-  ['engine.system', 'engine'],
-  ['awf.scheme', 'engine'],
-  ['agency.presence-and-guardrails', 'ai_behavior'],
-  ['save.instructions', 'data_management'],
-  ['validation.save', 'data_management'],
-  ['validation.assets', 'data_management'],
-  ['validation.world-specific', 'data_management'],
-  ['performance.benchmarks', 'performance'],
-  ['adventure', 'content'],
-  ['essence-integration-enhancement', 'enhancement'],
-  ['adventure-expanded', 'enhancement'],
+  ['core.rpg-storyteller', 'core'],
+  ['engine.system', 'core'],
+  ['awf.scheme', 'core'],
+  ['agency.presence-and-guardrails', 'core'],
+  ['save.instructions', 'adventure'],
+  ['validation.save', 'optional'],
+  ['validation.assets', 'optional'],
+  ['validation.world-specific', 'world'],
+  ['performance.benchmarks', 'optional'],
+  ['adventure', 'adventure'],
+  ['essence-integration-enhancement', 'optional'],
+  ['adventure-expanded', 'adventure'],
 ]);
 
 interface PromptRecord {
@@ -324,8 +324,8 @@ class PromptIngester {
     // Default based on scope
     const layerMap: Record<string, string> = {
       'core': 'core',
-      'world': 'foundation',
-      'adventure': 'content',
+      'world': 'world',
+      'adventure': 'adventure',
     };
     
     return {

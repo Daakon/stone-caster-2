@@ -151,7 +151,7 @@ describe('PromptRepository', () => {
       const mockSegments: PromptSegment[] = [
         {
           id: '550e8400-e29b-41d4-a716-446655440004',
-          layer: 'foundation',
+          layer: 'world',
           world_slug: 'mystika',
           adventure_slug: null,
           scene_id: null,
@@ -187,7 +187,7 @@ describe('PromptRepository', () => {
       const mockSegments: PromptSegment[] = [
         {
           id: '550e8400-e29b-41d4-a716-446655440005',
-          layer: 'content',
+          layer: 'adventure_start',
           world_slug: 'mystika',
           adventure_slug: 'whispercross',
           scene_id: null,

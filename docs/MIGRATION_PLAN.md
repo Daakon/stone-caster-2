@@ -4,9 +4,24 @@
 
 This migration enhances the turn recording system to persist initialize narrative and every turn's data for offline play. It separates realtime client data from analytics-grade storage to optimize performance and enable offline narrative loading.
 
+## Completed Migrations
+
+### Database-Backed Prompt System Migration (Completed)
+The prompt system has been successfully migrated from filesystem-based loading to a Supabase database-backed architecture:
+- **Schema**: `prompting.prompts` table with layered prompt segments
+- **RPC Function**: `prompting.prompt_segments_for_context()` for efficient segment retrieval
+- **Services Updated**: `PromptsService` and `AIService` now use `DatabasePromptService`
+- **Testing**: All tests updated to use mocked database services
+- **Backward Compatibility**: Filesystem-based prompts remain as fallback for legacy support
+
 ## Migration Details
 
 ### Schema Changes
+
+#### Public Wrapper Functions for Prompting RPC (New)
+- Added `public.get_prompt_stats()` and `public.validate_prompt_dependencies()` as security definer wrappers around the existing `prompting` schema functions.
+- Purpose: expose prompt analytics RPCs through PostgREST so the admin API can access them without schema-qualified calls.
+- Permissions: granted `EXECUTE` to both `authenticated` and `service_role` roles to mirror the underlying prompting functions.
 
 #### New Columns in `turns` Table
 - `user_prompt` (TEXT): User input text shown to AI for this turn

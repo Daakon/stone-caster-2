@@ -10,3 +10,5 @@ WHERE id = 'b5c9906f-63ed-4234-afd8-7a8e5cf12085';
 SELECT id, email, raw_user_meta_data 
 FROM auth.users 
 WHERE id = 'b5c9906f-63ed-4234-afd8-7a8e5cf12085';
+
+

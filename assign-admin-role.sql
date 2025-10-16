@@ -7,3 +7,5 @@ WHERE id = 'your-user-id-here';
 
 -- To find your user ID, you can run this query first:
 -- SELECT id, email, raw_user_meta_data FROM auth.users WHERE email = 'your-email@example.com';
+
+

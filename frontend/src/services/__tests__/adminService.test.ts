@@ -40,8 +40,16 @@ describe('AdminService', () => {
             id: '1',
             layer: 'core',
             content: 'Test prompt',
-            active: true
-          }
+            turn_stage: 'any',
+            sort_order: 0,
+            version: '1.0.0',
+            metadata: {},
+            active: true,
+            locked: false,
+            created_at: '2024-01-01T00:00:00Z',
+            updated_at: '2024-01-01T00:00:00Z',
+            tokenCount: 25
+          } as any
         ]
       };
 
@@ -101,6 +109,9 @@ describe('AdminService', () => {
         ok: true,
         data: {
           id: '1',
+          tokenCount: 12,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
           ...promptData
         }
       };
@@ -134,6 +145,16 @@ describe('AdminService', () => {
         ok: true,
         data: {
           id: '1',
+          tokenCount: 30,
+          layer: 'core',
+          turn_stage: 'any',
+          sort_order: 0,
+          version: '1.0.0',
+          metadata: {},
+          active: false,
+          locked: false,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:05:00Z',
           ...updateData
         }
       };
@@ -186,7 +207,17 @@ describe('AdminService', () => {
         ok: true,
         data: {
           id: '1',
-          active: false
+          active: false,
+          locked: false,
+          layer: 'core',
+          turn_stage: 'any',
+          sort_order: 0,
+          version: '1.0.0',
+          content: 'Updated prompt',
+          metadata: {},
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:10:00Z',
+          tokenCount: 28
         }
       };
 
@@ -213,7 +244,17 @@ describe('AdminService', () => {
         ok: true,
         data: {
           id: '1',
-          locked: true
+          active: true,
+          locked: true,
+          layer: 'core',
+          turn_stage: 'any',
+          sort_order: 0,
+          version: '1.0.0',
+          content: 'Locked prompt',
+          metadata: {},
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:15:00Z',
+          tokenCount: 32
         }
       };
 
@@ -242,7 +283,7 @@ describe('AdminService', () => {
           total_prompts: 10,
           active_prompts: 8,
           locked_prompts: 2,
-          layers_count: { core: 5, foundation: 3 },
+          layers_count: { core: 5, world: 3 },
           worlds_count: 2
         }
       };
@@ -353,3 +394,5 @@ describe('AdminService', () => {
     });
   });
 });
+
+

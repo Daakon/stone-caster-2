@@ -183,11 +183,15 @@ export class GamesService {
         `)
         .eq('id', gameId);
 
-      // Filter by owner
+      // For linked users, check both user_id and cookie_group_id
+      // This allows authenticated users to access games created by their linked guest account
+      // and vice versa, except for real money transactions
       if (isGuest) {
         query = query.eq('cookie_group_id', ownerId);
       } else {
-        query = query.eq('user_id', ownerId);
+        // For authenticated users, check both user_id and cookie_group_id
+        // This handles the case where a game was created as guest but accessed as authenticated user
+        query = query.or(`user_id.eq.${ownerId},cookie_group_id.eq.${ownerId}`);
       }
 
       const { data, error } = await query.single();
@@ -230,11 +234,13 @@ export class GamesService {
         .order('last_played_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
-      // Filter by owner
+      // Filter by owner - for linked users, check both user_id and cookie_group_id
       if (isGuest) {
         query = query.eq('cookie_group_id', ownerId);
       } else {
-        query = query.eq('user_id', ownerId);
+        // For authenticated users, check both user_id and cookie_group_id
+        // This handles the case where games were created as guest but accessed as authenticated user
+        query = query.or(`user_id.eq.${ownerId},cookie_group_id.eq.${ownerId}`);
       }
 
       const { data, error } = await query;

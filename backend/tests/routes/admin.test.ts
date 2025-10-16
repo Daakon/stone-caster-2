@@ -1,9 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 
-// Import the schema from the admin route
+const LayerSchema = z.string()
+  .trim()
+  .min(1)
+  .regex(/^[a-z0-9_-]+$/i, 'Layer must use letters, numbers, underscores, or hyphens')
+  .transform((value) => value.toLowerCase());
+
 const PromptSchema = z.object({
-  layer: z.enum(['foundation', 'core', 'engine', 'ai_behavior', 'data_management', 'performance', 'content', 'enhancement']),
+  layer: LayerSchema,
   world_slug: z.string().nullable().optional(),
   adventure_slug: z.string().nullable().optional(),
   scene_id: z.string().nullable().optional(),
@@ -17,6 +22,22 @@ const PromptSchema = z.object({
 });
 
 describe('Admin API Schema Validation', () => {
+  describe('layer field normalization', () => {
+    it('should normalise layer values to lowercase', () => {
+      const input = {
+        layer: ' Core ',
+        content: 'Test content'
+      };
+
+      const result = PromptSchema.parse(input);
+      expect(result.layer).toBe('core');
+    });
+
+    it('should reject invalid layer characters', () => {
+      expect(() => PromptSchema.parse({ layer: 'core rules', content: 'Test content' })).toThrow();
+    });
+  });
+
   describe('version field coercion', () => {
     it('should coerce numeric version to string', () => {
       const input = {
@@ -26,7 +47,6 @@ describe('Admin API Schema Validation', () => {
       };
 
       const result = PromptSchema.parse(input);
-      
       expect(result.version).toBe('123');
       expect(typeof result.version).toBe('string');
     });
@@ -39,7 +59,6 @@ describe('Admin API Schema Validation', () => {
       };
 
       const result = PromptSchema.parse(input);
-      
       expect(result.version).toBe('1.5');
       expect(typeof result.version).toBe('string');
     });
@@ -52,7 +71,6 @@ describe('Admin API Schema Validation', () => {
       };
 
       const result = PromptSchema.parse(input);
-      
       expect(result.version).toBe('2.0.0');
       expect(typeof result.version).toBe('string');
     });
@@ -64,7 +82,6 @@ describe('Admin API Schema Validation', () => {
       };
 
       const result = PromptSchema.parse(input);
-      
       expect(result.version).toBe('1.0.0');
       expect(typeof result.version).toBe('string');
     });
@@ -77,7 +94,6 @@ describe('Admin API Schema Validation', () => {
       };
 
       const result = PromptSchema.parse(input);
-      
       expect(result.version).toBe('1.0.0');
       expect(typeof result.version).toBe('string');
     });
@@ -90,16 +106,16 @@ describe('Admin API Schema Validation', () => {
         content: 'Test content',
         metadata: {
           dependencies: [
-            '550e8400-e29b-41d4-a716-446655440000', // Valid UUID
-            'stats', // Human-readable slug
-            'validate-dependencies', // Human-readable slug
-            'another-uuid-here' // Invalid UUID format
+            '550e8400-e29b-41d4-a716-446655440000',
+            'stats',
+            'validate-dependencies',
+            'another-uuid-here'
           ]
         }
       };
 
       const result = PromptSchema.parse(input);
-      
+
       expect(result.metadata.dependencies).toEqual([
         '550e8400-e29b-41d4-a716-446655440000',
         'stats',

@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
 import { config } from './config/index.js';
 import { swaggerSpec } from './config/swagger.js';
+import type { RequestHandler } from 'express';
 import charactersRouter from './routes/characters.js';
 import gamesRouter from './routes/games.js';
 import worldsRouter from './routes/worlds.js';
@@ -60,7 +61,14 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+const JSON_BODY_LIMIT = process.env.API_JSON_BODY_LIMIT ?? '1mb';
+app.use(express.json({
+  limit: JSON_BODY_LIMIT,
+}) as RequestHandler);
+app.use(express.urlencoded({
+  extended: true,
+  limit: JSON_BODY_LIMIT,
+}) as RequestHandler);
 app.use(cookieParser());
 app.use(observabilityMiddleware);
 

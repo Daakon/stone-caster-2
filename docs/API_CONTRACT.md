@@ -407,6 +407,55 @@ interface AdventureDetailDTO extends AdventureDTO {
 }
 ```
 
+### Admin Prompt Management
+
+These endpoints require a Supabase session with `prompt_admin` role metadata or a service-role token.
+
+#### GET /api/admin/prompts
+List prompts with pagination and filters. Returns prompt records with normalized metadata and token estimates.
+
+**Response** (200):
+```typescript
+interface AdminPromptSummary {
+  id: string;
+  layer: string;
+  world_slug: string | null;
+  adventure_slug: string | null;
+  scene_id: string | null;
+  turn_stage: string;
+  sort_order: number;
+  version: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  tokenCount: number;
+  active: boolean;
+  locked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+```
+`metadata` includes helper keys such as `category`, `subcategory`, `dependencies`, and `format` (when a validation helper is selected).
+
+#### GET /api/admin/prompts/:id
+Fetch a single prompt. Response structure matches `AdminPromptSummary`.
+
+#### POST /api/admin/prompts
+Create a prompt. The response returns the persisted prompt along with `tokenCount` and normalized `metadata`.
+
+#### PATCH /api/admin/prompts/:id/toggle-active
+Toggle `active` status. Response mirrors `AdminPromptSummary`.
+
+#### PATCH /api/admin/prompts/:id/toggle-locked
+Toggle `locked` status. Response mirrors `AdminPromptSummary`.
+
+#### GET /api/admin/prompts/stats
+Provides aggregate metrics from `public.get_prompt_stats()`:
+- `total_prompts`
+- `active_prompts`
+- `locked_prompts`
+- `layers_count` (per-layer counts)
+- `worlds_count`
+
 #### GET /api/adventures/slug/:slug
 Get adventure details by slug.
 
@@ -771,8 +820,6 @@ Critical operations support idempotency keys:
 - **Structured Logging**: JSON-formatted logs with correlation IDs
 - **Metrics**: Request counts, response times, error rates
 - **Health Checks**: `/health` endpoint for system status
-
-
 
 
 

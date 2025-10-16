@@ -9,6 +9,7 @@ import { ApiErrorCode } from '@shared';
 import { PlayerV3Service } from './player-v3.service.js';
 import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS, DEFAULT_VALUES } from '../constants/game-constants.js';
 import { GameConfigService } from './game-config.service.js';
+import { DatabasePromptService } from './db-prompt.service.js';
 import type { Character, WorldTemplate, Prompt } from '@shared';
 import type { PromptContext, PromptAssemblyResult, PromptAuditEntry } from '../prompts/schemas.js';
 
@@ -23,10 +24,41 @@ export interface GameContext {
 export class PromptsService {
   private promptWrapper: PromptWrapper;
   private gameConfigService: GameConfigService;
+  private databasePromptService: DatabasePromptService | null = null;
 
-  constructor() {
+  constructor(databasePromptService?: DatabasePromptService) {
     this.promptWrapper = new PromptWrapper();
     this.gameConfigService = GameConfigService.getInstance();
+    this.databasePromptService = databasePromptService || null;
+  }
+
+  /**
+   * Build PromptContext for database assembly
+   * @param game - Game context with state and metadata
+   * @param optionId - The option/action the player chose
+   * @returns PromptContext for database assembly
+   */
+  private async buildDatabasePromptContext(game: GameContext, optionId: string): Promise<PromptContext> {
+    // Load world template for context
+    const worldTemplate = await this.loadWorldTemplate(game.world_id);
+    if (!worldTemplate) {
+      throw new Error(`World template not found: ${game.world_id}`);
+    }
+
+    // Load character if specified
+    let character: Character | null = null;
+    if (game.character_id) {
+      character = await this.loadCharacter(game.character_id);
+    }
+
+    // Get prompt schema version from config
+    const aiConfig = configService.getAi();
+    const schemaVersion = aiConfig.promptSchemaVersion || '1.0.0';
+
+    // Build prompt context for database assembly
+    const promptContext = this.buildPromptContext(game, worldTemplate, character, optionId, schemaVersion);
+    
+    return promptContext;
   }
 
   /**
@@ -36,7 +68,31 @@ export class PromptsService {
    */
   async createInitialPrompt(game: GameContext): Promise<string> {
     try {
-      // Use the new file-based template system
+      // Try database assembly first if available
+      if (this.databasePromptService) {
+        console.log(`[PROMPTS_SERVICE] Using database assembly for initial prompt`);
+        const context = await this.buildDatabasePromptContext(game, 'game_start');
+        const result = await this.databasePromptService.assemblePrompt(context);
+        
+        // Log to debug service
+        const promptId = debugService.logPrompt(
+          game.id,
+          0, // Initial prompt is turn 0
+          game.world_id,
+          game.character_id || 'Guest',
+          {
+            prompt: result.prompt,
+            audit: result.audit,
+            metadata: result.metadata,
+          }
+        );
+        
+        console.log(`[PROMPTS_SERVICE] Created initial prompt using database assembly with ${result.metadata.totalSegments} segments`);
+        return result.prompt;
+      }
+
+      // Fallback to file-based template system
+      console.log(`[PROMPTS_SERVICE] Using file-based template system for initial prompt`);
       const context = await this.buildFileBasedTemplateContext(game, 'game_start');
       if (typeof context === 'string') {
         // Custom prompt was built
@@ -78,7 +134,7 @@ export class PromptsService {
       
       return result.prompt;
     } catch (error) {
-      console.error('Error creating initial prompt with file-based template:', error);
+      console.error('Error creating initial prompt:', error);
       // Fallback to old system
       return this.createInitialPromptLegacy(game);
     }
@@ -114,8 +170,8 @@ export class PromptsService {
       
       // Use the new PromptWrapper system instead of legacy assembler
       const gameState = {
-        time: { hour: 12, day: 1, season: 'spring' },
-        rng: { d20: 10, d100: 50, seed: Date.now() },
+        time: { band: 'dawn_to_mid_day' as const, ticks: 0 },
+        rng: { policy: 'fair', d20: 10, d100: 50 },
         playerInput: 'Begin the adventure',
         isFirstTurn: true,
       };
@@ -135,7 +191,27 @@ export class PromptsService {
         0, // Initial prompt is turn 0
         worldTemplate.name,
         character?.name,
-        result
+        {
+          prompt: result.prompt,
+          audit: {
+            templateIds: ['legacy-wrapper'],
+            version: '1.0.0',
+            hash: 'legacy-wrapper',
+            contextSummary: {
+              world: worldTemplate.name,
+              turnIndex: 0,
+              character: character?.name || 'Guest',
+            },
+            assembledAt: result.metadata.assembledAt,
+            tokenCount: result.metadata.tokenCount,
+          },
+          metadata: {
+            totalSegments: result.metadata.sections.length,
+            totalVariables: 0,
+            loadOrder: result.metadata.sections,
+            warnings: undefined,
+          },
+        }
       );
       
       
@@ -161,7 +237,7 @@ export class PromptsService {
   }
 
   /**
-   * Build a prompt for AI generation using the new file-based template system
+   * Build a prompt for AI generation using database assembly or file-based template system
    * @param game - Game context with state and metadata
    * @param optionId - The option/action the player chose
    * @returns Formatted prompt string (server-only, never sent to client)
@@ -169,6 +245,32 @@ export class PromptsService {
   async buildPrompt(game: GameContext, optionId: string): Promise<string> {
     try {
       console.log(`[PROMPTS_SERVICE] Building prompt for game ${game.id}, turn ${game.turn_index}, optionId: ${optionId}`);
+      
+      // Try database assembly first if available
+      if (this.databasePromptService) {
+        console.log(`[PROMPTS_SERVICE] Using database assembly for prompt`);
+        const context = await this.buildDatabasePromptContext(game, optionId);
+        const result = await this.databasePromptService.assemblePrompt(context);
+        
+        // Log to debug service
+        const promptId = debugService.logPrompt(
+          game.id,
+          game.turn_index,
+          game.world_id,
+          game.character_id || 'Guest',
+          {
+            prompt: result.prompt,
+            audit: result.audit,
+            metadata: result.metadata,
+          }
+        );
+        
+        console.log(`[PROMPTS_SERVICE] Created prompt using database assembly with ${result.metadata.totalSegments} segments`);
+        return result.prompt;
+      }
+
+      // Fallback to file-based template system
+      console.log(`[PROMPTS_SERVICE] Using file-based template system for prompt`);
       
       // For initial prompts, use custom prompt with adventure start data
       if (game.turn_index === 0 && optionId === 'game_start') {
@@ -224,11 +326,11 @@ export class PromptsService {
       
       return result.prompt;
     } catch (error) {
-      console.error('Error building prompt with file-based template:', error);
+      console.error('Error building prompt:', error);
       // No fallback - throw error instead of using legacy system
       throw new ServiceError(500, {
         code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to build prompt with file-based template system: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `Failed to build prompt: ${error instanceof Error ? error.message : 'Unknown error'}`,
         details: { originalError: error instanceof Error ? error.message : String(error) }
       });
     }
@@ -1309,4 +1411,7 @@ export class PromptsService {
   }
 }
 
-export const promptsService = new PromptsService();
+// Create database prompt service instance
+const databasePromptService = new DatabasePromptService();
+
+export const promptsService = new PromptsService(databasePromptService);

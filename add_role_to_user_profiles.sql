@@ -69,3 +69,5 @@ BEGIN
   RETURN COALESCE(user_role, 'user');
 END;
 $$ LANGUAGE plpgsql;
+
+

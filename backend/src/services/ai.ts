@@ -3,6 +3,7 @@ import { promptsService } from './prompts.service.js';
 import { OpenAIService } from './openai.service.js';
 import { PromptWrapper, type GameStateData } from '../prompts/wrapper.js';
 import { PromptAssembler } from '../prompts/assembler.js';
+import { DatabasePromptService } from './db-prompt.service.js';
 import type { AIResponse, StoryAction, GameSave, Character } from '@shared';
 import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS } from '../constants/game-constants.js';
 import { GameConfigService } from './game-config.service.js';
@@ -19,11 +20,13 @@ export class AIService {
   private openaiService: OpenAIService | null = null;
   private promptWrapper: PromptWrapper;
   private promptAssembler: PromptAssembler;
+  private databasePromptService: DatabasePromptService | null = null;
   private gameConfigService: GameConfigService;
 
-  constructor() {
+  constructor(databasePromptService?: DatabasePromptService) {
     this.promptWrapper = new PromptWrapper();
     this.promptAssembler = new PromptAssembler();
+    this.databasePromptService = databasePromptService || null;
     this.gameConfigService = GameConfigService.getInstance();
     
     // Initialize OpenAI service lazily when first needed
@@ -458,9 +461,52 @@ export class AIService {
   }
 
   /**
-   * Build prompt using the proper prompt assembly system with AI prompt files
+   * Build prompt using database assembly or filesystem-based prompt assembly
    */
   private async buildWrappedPrompt(
+    gameContext: any,
+    optionId: string,
+    choices: Array<{id: string, label: string}>
+  ): Promise<string> {
+    // Try database assembly first if available
+    if (this.databasePromptService) {
+      console.log(`[AI_SERVICE] Using database assembly for prompt`);
+      return await this.buildDatabasePrompt(gameContext, optionId, choices);
+    }
+
+    // Fallback to filesystem-based assembly
+    console.log(`[AI_SERVICE] Using filesystem-based assembly for prompt`);
+    return await this.buildFilesystemPrompt(gameContext, optionId, choices);
+  }
+
+  /**
+   * Build prompt using database assembly
+   */
+  private async buildDatabasePrompt(
+    gameContext: any,
+    optionId: string,
+    choices: Array<{id: string, label: string}>
+  ): Promise<string> {
+    // Build context for database assembly
+    const context = await this.buildDatabasePromptContext(gameContext, optionId, choices);
+    
+    // Use database prompt service
+    const result = await this.databasePromptService!.assemblePrompt(context);
+    
+    // Validate that we got proper AI prompt content
+    if (!result.prompt || result.prompt.length < 500) {
+      console.error(`[AI_SERVICE] CRITICAL: Database prompt assembler returned insufficient content (${result.prompt?.length || 0} chars)`);
+      throw new Error(`Database prompt assembler failed - content too minimal`);
+    }
+
+    console.log(`[AI_SERVICE] Database assembly completed with ${result.metadata.totalSegments} segments`);
+    return result.prompt;
+  }
+
+  /**
+   * Build prompt using filesystem-based assembly (legacy)
+   */
+  private async buildFilesystemPrompt(
     gameContext: any,
     optionId: string,
     choices: Array<{id: string, label: string}>
@@ -573,6 +619,89 @@ export class AIService {
 
     return result.prompt;
   }
+
+  /**
+   * Build database prompt context
+   */
+  private async buildDatabasePromptContext(
+    gameContext: any,
+    optionId: string,
+    choices: Array<{id: string, label: string}>
+  ): Promise<any> {
+    // Resolve player input to text
+    const isFirstTurn = gameContext.turn_index === 0;
+    const startingScene = gameContext.current_scene;
+    
+    // Map scene to adventure name using the same logic as prompts service
+    const adventureName = await this.mapSceneToAdventure(gameContext.world_id, startingScene);
+    
+    // Load adventure start data for first turn
+    let adventureStartData = null;
+    if (isFirstTurn) {
+      try {
+        adventureStartData = await this.loadAdventureStartData(gameContext.world_id, adventureName);
+      } catch (error) {
+        console.warn(`[AI_SERVICE] Could not load adventure start data: ${error}`);
+      }
+    }
+    
+    const playerInput = this.promptWrapper.resolvePlayerInput(
+      optionId, 
+      choices, 
+      isFirstTurn, 
+      adventureName, 
+      startingScene,
+      adventureStartData
+    );
+    
+    // Validate input section for first turn
+    const validation = this.validateInputSection(playerInput, isFirstTurn);
+    if (!validation.valid) {
+      console.error(`[AI_SERVICE] HARD STOP - Input validation failed: ${validation.error}`);
+      throw new Error(`HARD STOP - Invalid prompt input: ${validation.error}`);
+    }
+
+    // Build context for database assembly
+    return {
+      game: {
+        id: gameContext.id,
+        turn_index: gameContext.turn_index || 0,
+        summary: `Turn ${(gameContext.turn_index || 0) + 1} | World: ${gameContext.world_id} | Character: ${gameContext.character_id || 'Guest'}`,
+        current_scene: gameContext.current_scene || 'unknown',
+        state_snapshot: gameContext.state_snapshot,
+        option_id: optionId,
+      },
+      world: {
+        name: gameContext.world_id || 'unknown',
+        setting: 'A world of magic and adventure',
+        genre: 'fantasy',
+        themes: ['magic', 'adventure', 'mystery'],
+        rules: {},
+        mechanics: {},
+        lore: '',
+        logic: {},
+      },
+      character: gameContext.character || {},
+      adventure: gameContext.adventure || {},
+      runtime: {
+        ticks: gameContext.turn_index || 0,
+        presence: 'present',
+        ledgers: {},
+        flags: {},
+        last_acts: [],
+        style_hint: 'neutral',
+      },
+      system: {
+        schema_version: '1.0.0',
+        prompt_version: '2.0.0',
+        load_order: [],
+        hash: 'database-v1',
+      },
+    };
+  }
 }
 
-export const aiService = new AIService();
+// Create database prompt service instance
+const databasePromptService = new DatabasePromptService();
+
+export const aiService = new AIService(databasePromptService);

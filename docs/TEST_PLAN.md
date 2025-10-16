@@ -28,7 +28,7 @@ Layer P1 focuses on replacing frontend mock data with live API integration. This
 - **File:** `backend/tests/prompts/db-assembler.test.ts`
 - **Coverage:**
   - Database prompt segment retrieval via RPC
-  - Layered prompt assembly (foundation, core, engine, AI behavior, data management, performance, content, enhancement)
+  - Layered prompt assembly (core, world, adventure, adventure_start, optional layers with category metadata)
   - Prompt caching and performance optimization
   - Variable replacement and template processing
   - File inclusion processing for backward compatibility
@@ -672,6 +672,13 @@ This section covers Layer M6 - Profiles & Account Safety, focusing on secure pro
 5. **Check Sampling**: Verify sampling rate behavior
 6. **Capture**: Screenshot of telemetry configuration
 
+#### Prompt Administration Testing
+1. **Large Prompt Upload**: Create or update a prompt with a ~450 KB body to confirm the expanded JSON payload limit permits saving.
+2. **Token Display**: From the admin prompt list and detail views, verify each prompt includes a `tokenCount` that updates after edits.
+3. **Metadata Parsing**: Ensure metadata renders as an object (no JSON string artifacts) after create and update flows.
+4. **Stats Endpoint**: Call `/api/admin/prompts/stats` and confirm a successful response from `public.get_prompt_stats()`.
+5. **Dependency Validation**: Trigger the dependency validation action and confirm `/api/admin/prompts/validate-dependencies` returns results without schema errors.
+
 #### Error Reporting Workflow
 1. **Trigger Error**: Cause a deliberate error (e.g., invalid request)
 2. **Check Error Banner**: Verify error message and traceId display
@@ -1145,4 +1152,3 @@ PlayerV3 is the new character creation system with 0-100 skill scales, world-sco
   - Verify ARIA labels
   - Test focus indicators
   - Verify color contrast ratios
-

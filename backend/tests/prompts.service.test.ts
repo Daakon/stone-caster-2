@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PromptsService } from '../src/services/prompts.service.js';
+import { DatabasePromptService } from '../src/services/db-prompt.service.js';
 import { configService } from '../src/services/config.service.js';
 import { debugService } from '../src/services/debug.service.js';
 
@@ -10,6 +11,18 @@ vi.mock('../src/services/config.service.js', () => ({
       promptSchemaVersion: '1.0.0',
       requirePromptApproval: true,
     })),
+    getEnv: vi.fn(() => ({
+      port: 3000,
+      nodeEnv: 'test',
+      supabaseUrl: 'https://test.supabase.co',
+      supabaseAnonKey: 'test-anon-key',
+      supabaseServiceKey: 'test-service-key',
+      openaiApiKey: 'test-openai-key',
+      primaryAiModel: 'gpt-4o-mini',
+      corsOrigin: 'http://localhost:3000',
+      frontendUrl: 'http://localhost:3000',
+      apiUrl: 'http://localhost:3001',
+    })),
   },
 }));
 
@@ -17,6 +30,99 @@ vi.mock('../src/services/debug.service.js', () => ({
   debugService: {
     logPrompt: vi.fn(() => 'test-prompt-id'),
   },
+}));
+
+vi.mock('../src/services/content.service.js', () => ({
+  ContentService: {
+    getWorldBySlug: vi.fn((slug: string) => {
+      if (slug === 'test-world-id') {
+        return Promise.resolve({
+          slug: 'test-world-id',
+          name: 'Test World',
+          title: 'Test World',
+          description: 'A test world for unit testing',
+          genre: 'fantasy',
+          setting: 'medieval',
+          tone: 'adventure',
+          themes: ['magic', 'adventure'],
+          tags: ['fantasy', 'medieval'],
+          active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+      return Promise.resolve(null);
+    }),
+  },
+}));
+
+vi.mock('../src/services/db-prompt.service.js', () => ({
+  DatabasePromptService: vi.fn().mockImplementation(() => ({
+    assemblePrompt: vi.fn(() => Promise.resolve({
+      prompt: `You are the runtime engine for a text-based RPG game. You must return ONE JSON object (AWF) that contains the game state and narrative.
+
+=== CORE_BEGIN ===
+{"core": "system"}
+=== CORE_END ===
+
+=== WORLD_BEGIN ===
+{"world": "Test World", "setting": "Fantasy", "genre": "fantasy"}
+=== WORLD_END ===
+
+=== ADVENTURE_BEGIN ===
+{"adventure": "Test Adventure", "scenes": []}
+=== ADVENTURE_END ===
+
+=== PLAYER_BEGIN ===
+{"player": {"name": "Test Character", "level": 1}}
+=== PLAYER_END ===
+
+=== RNG_BEGIN ===
+{"rng": {"d20": 10, "d100": 50}}
+=== RNG_END ===
+
+=== INPUT_BEGIN ===
+Begin the adventure "Test Adventure" from its starting scene "forest_meet".
+=== INPUT_END ===
+
+You are the runtime engine for a text-based RPG game. You must return ONE JSON object (AWF) that contains the game state and narrative.
+
+Return ONE JSON object (AWF) with the following structure:
+{
+  "txt": "narrative text",
+  "scn": "scene_name",
+  "emotion": "neutral",
+  "choices": [{"id": "choice1", "label": "Option 1"}],
+  "flags": {},
+  "ledgers": {},
+  "presence": "present",
+  "last_acts": [],
+  "style_hint": "neutral"
+}
+
+TIME_ADVANCE (ticks ≥ 1) - Advance the game time by the specified number of ticks.
+essence alignment affects behavior - Character essence influences their actions and decisions.
+NPCs may act on their own - Non-player characters can take independent actions.
+The world responds to player choices - The environment changes based on player decisions.
+Game state persists between turns - All changes are saved and carried forward.`,
+      audit: {
+        templateIds: ['test-db-template'],
+        version: '1.0.0',
+        hash: 'test-db-hash',
+        contextSummary: {
+          world: 'Test World',
+          adventure: 'None',
+          character: 'Test Character',
+          turnIndex: 0,
+        },
+        tokenCount: 100,
+        assembledAt: new Date().toISOString(),
+      },
+      metadata: {
+        totalSegments: 1,
+      },
+    })),
+  })),
 }));
 
 vi.mock('../src/services/supabase.js', () => ({
@@ -73,10 +179,12 @@ vi.mock('../src/prompts/assembler.js', () => ({
 
 describe('PromptsService', () => {
   let promptsService: PromptsService;
+  let mockDatabasePromptService: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    promptsService = new PromptsService();
+    mockDatabasePromptService = new DatabasePromptService();
+    promptsService = new PromptsService(mockDatabasePromptService);
   });
 
   describe('createInitialPromptWithApproval', () => {
@@ -92,14 +200,14 @@ describe('PromptsService', () => {
       );
 
       expect(result).toEqual({
-        prompt: 'Test prompt content',
+        prompt: expect.stringContaining('You are the runtime engine for a text-based RPG game'),
         needsApproval: true,
         promptId: expect.stringMatching(/^initial_test-game-id_\d+$/),
         metadata: {
           worldId: 'test-world-id',
           characterId: 'test-character-id',
           turnIndex: 0,
-          tokenCount: 25, // Math.ceil('Test prompt content'.length / 4)
+          tokenCount: expect.any(Number),
         },
       });
     });

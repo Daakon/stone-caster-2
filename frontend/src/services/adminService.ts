@@ -17,6 +17,7 @@ export interface Prompt {
   updated_at: string;
   created_by?: string;
   updated_by?: string;
+  tokenCount: number;
 }
 
 export interface PromptStats {

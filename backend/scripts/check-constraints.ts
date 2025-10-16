@@ -19,7 +19,7 @@ async function checkConstraints() {
   
   try {
     // Try to insert a test record with different scope values
-    const testScopes = ['core', 'world', 'adventure', 'system', 'foundation', 'engine', 'ai_behavior', 'data_management', 'performance', 'content', 'enhancement'];
+    const testScopes = ['core', 'world', 'adventure', 'adventure_start', 'optional'];
     
     for (const scope of testScopes) {
       try {

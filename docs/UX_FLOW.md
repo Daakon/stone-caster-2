@@ -1,4 +1,4 @@
-﻿# Stone Caster UX Flow - Layer M6
+# Stone Caster UX Flow - Layer M6
 
 ## Overview
 
@@ -15,7 +15,7 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 4. **Action Options**: 
    - "Sign In" button redirects to authentication
    - "Back to Home" returns to main page
-5. **Mobile Experience**: Responsive design works seamlessly at 375Ã—812px
+5. **Mobile Experience**: Responsive design works seamlessly at 375×812px
 
 #### Authenticated User Profile Management
 1. **Profile Access**: Authenticated user navigates to `/profile`
@@ -78,13 +78,13 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 
 ### 3. Game Play Flow (Mobile-First)
 
-#### Mobile Experience (375Ã—812px)
+#### Mobile Experience (375×812px)
 - **Header**: Compact header with logo, stone balance, and hamburger menu
 - **Navigation**: Slide-out drawer with navigation items and stone balance
 - **Main Content**: Story history, turn input, and game state in stacked layout
 - **Sidebar**: Character info, world rules, and stone balance in collapsible sections
 
-#### Desktop Experience (â‰¥1024px)
+#### Desktop Experience (≥1024px)
 - **Header**: Full header with navigation items and stone balance
 - **Layout**: Three-column grid with main content (2/3) and sidebar (1/3)
 - **Sidebar**: Persistent sidebar with character, world rules, and stone balance
@@ -126,6 +126,15 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 2. **Response**: Turn DTO with narrative, choices, and state updates
 3. **Cache Invalidation**: React Query refetches game and wallet data
 4. **State Update**: Local state updated with new turn data
+
+## Admin Prompt Management Flow
+1. **Access**: Prompt admins navigate to `/admin/prompts` after authentication.
+2. **List View**: Table lists prompts with a new `Token Count` column derived from server-side estimates (�1 token per 4 characters).
+3. **Create/Edit**: Admins can create or update prompt bodies up to ~1 MB in size thanks to the increased JSON payload limit (`API_JSON_BODY_LIMIT`).
+4. **Layer Grouping**: Category and subcategory pickers capture logical groupings inside each layer (e.g. `core` -> `logic`, `world` -> `world_npcs`).
+5. **Detail View**: Prompt detail surfaces parsed metadata (no raw JSON strings) alongside token counts for quick context sizing.
+6. **Stats Insight**: Dashboard widgets call `/api/admin/prompts/stats`, now routed through `public.get_prompt_stats()`, to show total/active/locked counts by layer.
+7. **Dependency Checks**: Dependency validation action invokes `public.validate_prompt_dependencies()` without schema cache errors.
 
 ### 4. Mobile Navigation Flow
 
@@ -253,13 +262,13 @@ This document describes the user experience flow for Stone Caster's Layer M6 imp
 
 ## Testing Scenarios
 
-### Mobile Testing (375Ã—812)
+### Mobile Testing (375×812)
 - **Navigation**: Hamburger menu and drawer functionality
 - **Turn Loop**: Complete turn submission and response
 - **Error Handling**: All error states with recovery actions
 - **Accessibility**: Touch targets and screen reader support
 
-### Desktop Testing (â‰¥1024px)
+### Desktop Testing (≥1024px)
 - **Layout**: Three-column grid with proper proportions
 - **Sidebar**: Persistent navigation and state display
 - **Keyboard**: Full keyboard navigation support

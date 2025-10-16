@@ -20,7 +20,7 @@ This document outlines the migration from filesystem-based prompt loading to a d
 ```sql
 CREATE TABLE prompting.prompts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    layer VARCHAR(50) NOT NULL, -- foundation, core, engine, ai_behavior, data_management, performance, content, enhancement
+    layer VARCHAR(50) NOT NULL, -- core, world, adventure, adventure_start, optional
     world_slug VARCHAR(100), -- NULL for core/system prompts
     adventure_slug VARCHAR(100), -- NULL for non-adventure prompts
     scene_id VARCHAR(100), -- NULL for non-scene prompts
@@ -97,15 +97,13 @@ CREATE OR REPLACE FUNCTION prompting.prompt_segments_for_context(
 The migration maps existing prompt files to database layers:
 
 | Layer | Load Order | Description | Example Files |
-|-------|-------------|-------------|---------------|
-| foundation | 1-2 | World lore and logic | `world-codex.mystika-lore.md`, `world-codex.mystika-logic.json` |
-| core | 3-4 | Universal mechanics | `systems.unified.json`, `style.ui-global.json` |
-| engine | 5-7 | Core narrative protocols | `core.rpg-storyteller.json`, `engine.system.json`, `awf.scheme.json` |
-| ai_behavior | 8 | AI behavior controls | `agency.presence-and-guardrails.json` |
-| data_management | 9-12 | Save/load protocols | `save.instructions.json`, `validation.*.json` |
-| performance | 13 | Performance guidelines | `performance.benchmarks.json` |
-| content | 14 | Adventure context | `adventure.*.json` |
-| enhancement | 15-16 | Enhancement prompts | `essence-integration-enhancement.json` |
+|-------|------------|-------------|---------------|
+| core | 10-19 | System guardrails and shared logic | `systems.unified.json`, `style.ui-global.json`, `core.rpg-storyteller.json` |
+| world | 20-39 | World-specific lore and mechanics | `world-codex.mystika-lore.md`, `validation.world-specific.json` |
+| adventure | 40-69 | Adventure story beats, encounters, NPC rules | `adventure.whispercross.json`, `save.instructions.json` |
+| adventure_start | 5-9 | Opening state payloads for new games | `adventure.whispercross.start.json` |
+| optional | 90-99 | Legacy or experimental prompts | `essence-integration-enhancement.json`, `validation.assets.json` |
+
 
 ## Access Control
 

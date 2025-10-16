@@ -11,6 +11,62 @@ import { z } from 'zod';
 
 const router = Router();
 
+type OwnershipContext = {
+  ownerId?: string;
+  isGuestOwner: boolean;
+  guestCookieId?: string;
+};
+
+const extractGuestCookieId = (req: Request, fallback?: string): string | undefined => {
+  const headerValue = req.headers['x-guest-cookie-id'];
+  const headerCandidate = Array.isArray(headerValue)
+    ? headerValue.find((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : typeof headerValue === 'string'
+      ? headerValue.trim()
+      : undefined;
+
+  const cookieJar = req.cookies as Record<string, string | undefined> | undefined;
+  const cookieCandidate = cookieJar?.guestId ?? cookieJar?.guest_id;
+  const normalizedCookie = typeof cookieCandidate === 'string' ? cookieCandidate.trim() : undefined;
+  const normalizedFallback = typeof fallback === 'string' ? fallback.trim() : undefined;
+
+  if (headerCandidate) {
+    return headerCandidate;
+  }
+
+  if (normalizedCookie) {
+    return normalizedCookie;
+  }
+
+  if (normalizedFallback) {
+    return normalizedFallback;
+  }
+
+  return undefined;
+};
+
+const resolveOwnershipContext = (req: Request, userId?: string, isGuest?: boolean): OwnershipContext => {
+  const guestCookieId = extractGuestCookieId(req, isGuest ? userId : undefined);
+
+  if (isGuest && userId) {
+    return { ownerId: userId, isGuestOwner: true, guestCookieId: guestCookieId ?? userId };
+  }
+
+  if (guestCookieId && guestCookieId !== userId) {
+    return { ownerId: guestCookieId, isGuestOwner: true, guestCookieId };
+  }
+
+  if (userId) {
+    return { ownerId: userId, isGuestOwner: false, guestCookieId };
+  }
+
+  if (guestCookieId) {
+    return { ownerId: guestCookieId, isGuestOwner: true, guestCookieId };
+  }
+
+  return { ownerId: undefined, isGuestOwner: false, guestCookieId: undefined };
+};
+
 // POST /api/games - spawn a new game
 router.post('/', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -109,7 +165,9 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
 
     // Get the game
     const gamesService = new GamesService();
-    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
+    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
 
     if (!game) {
       return sendErrorWithStatus(
@@ -153,7 +211,9 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 
     // Get games list
     const gamesService = new GamesService();
-    const games = await gamesService.getGames(userId, isGuest || false, limit, offset);
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
+    const games = await gamesService.getGames(ownerId, ownership.isGuestOwner, limit, offset);
 
     sendSuccess(res, games, req);
   } catch (error) {
@@ -216,14 +276,25 @@ router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Reques
     const { id: gameId } = paramValidation.data;
     const { optionId, userInput, userInputType } = bodyValidation.data;
     const idempotencyKey = req.headers['idempotency-key'] as string;
+    const ownership = resolveOwnershipContext(req, userId, isGuest);
+    const ownerId = ownership.ownerId ?? userId;
+
+    if (!ownerId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User context required',
+        req
+      );
+    }
 
     // Execute the turn
     const turnResult = await turnsService.runBufferedTurn({
       gameId,
       optionId,
-      owner: userId,
+      owner: ownerId,
       idempotencyKey,
-      isGuest: isGuest || false,
+      isGuest: ownership.isGuestOwner,
       userInput,
       userInputType,
     });
@@ -280,7 +351,9 @@ router.get('/:id/turns', optionalAuth, async (req: Request, res: Response) => {
 
     // Get the game to validate ownership
     const gamesService = new GamesService();
-    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
+    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
 
     if (!game) {
       return sendErrorWithStatus(
@@ -337,7 +410,9 @@ router.get('/:id/session-turns', optionalAuth, async (req: Request, res: Respons
 
     // Get the game to validate ownership
     const gamesService = new GamesService();
-    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
+    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
 
     if (!game) {
       return sendErrorWithStatus(
@@ -414,7 +489,9 @@ router.post('/:id/auto-initialize', optionalAuth, async (req: Request, res: Resp
 
     // Get the game to validate ownership and get world info
     const gamesService = new GamesService();
-    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
+    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
 
     if (!game) {
       return sendErrorWithStatus(
@@ -500,9 +577,9 @@ router.post('/:id/auto-initialize', optionalAuth, async (req: Request, res: Resp
     const turnResult = await turnsService.runBufferedTurn({
       gameId,
       optionId: 'game_start', // Special option ID for initial prompts
-      owner: userId,
+      owner: ownerId,
       idempotencyKey,
-      isGuest: isGuest || false,
+      isGuest: ownership.isGuestOwner,
     });
     
     console.log(`[AUTO-INIT] Turn result:`, turnResult);
@@ -560,7 +637,9 @@ router.post('/:id/initial-prompt', optionalAuth, async (req: Request, res: Respo
 
     // Get the game to validate ownership and get world info
     const gamesService = new GamesService();
-    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
+    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
 
     if (!game) {
       return sendErrorWithStatus(
@@ -648,7 +727,9 @@ router.post('/:id/approve-prompt', optionalAuth, async (req: Request, res: Respo
 
     // Validate game ownership
     const gamesService = new GamesService();
-    const game = await gamesService.getGameById(gameId, userId, isGuest || false);
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
+    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
 
     if (!game) {
       return sendErrorWithStatus(

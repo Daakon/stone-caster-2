@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,16 +27,20 @@ import { useAdminService } from '@/hooks/useAdminService';
 import { type Prompt, type PromptStats, type UpdatePromptData } from '@/services/adminService';
 import { testAdminApi } from '@/utils/testAdminApi';
 
-const LAYERS = [
-  'foundation',
-  'core', 
-  'engine',
-  'ai_behavior',
-  'data_management',
-  'performance',
-  'content',
-  'enhancement'
+const BASE_LAYER_OPTIONS = [
+  'core',
+  'world',
+  'adventure',
+  'adventure_start',
+  'optional'
 ];
+
+const CATEGORY_SUGGESTIONS: Record<string, string[]> = {
+  core: ['logic', 'output_rules', 'npc_agency', 'failsafes'],
+  world: ['world_rules', 'world_npcs', 'world_events'],
+  adventure: ['story_beats', 'encounters', 'adventure_npcs'],
+  adventure_start: ['opening_state', 'intro', 'npc_snapshot'],
+};
 
 const TURN_STAGES = ['any', 'start', 'ongoing', 'end'];
 
@@ -64,6 +68,8 @@ export default function PromptAdmin() {
   const [filterActive, setFilterActive] = useState<string>('all');
   const [showMetadata, setShowMetadata] = useState(false);
   const [dependencies, setDependencies] = useState<string[]>([]);
+  const [category, setCategory] = useState<string>('');
+  const [subcategory, setSubcategory] = useState<string>('');
   const [newDependency, setNewDependency] = useState('');
   const [dependencyValidation, setDependencyValidation] = useState<Array<{
     prompt_id: string;
@@ -71,6 +77,63 @@ export default function PromptAdmin() {
   }>>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationSuccess, setValidationSuccess] = useState<boolean>(false);
+
+  function normaliseTag(value: string): string {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) {
+      return '';
+    }
+    const slug = trimmed.replace(/[^a-z0-9_]+/g, '_');
+    return slug.replace(/^_+|_+$/g, '').replace(/_{2,}/g, '_');
+  }
+
+  const metadataPreview = useMemo(() => {
+    if (!editingPrompt) {
+      return {};
+    }
+
+    const base: Record<string, any> = {
+      ...(editingPrompt.metadata || {})
+    };
+
+    base.dependencies = [...dependencies];
+
+    const normalisedCategory = normaliseTag(category);
+    if (normalisedCategory) {
+      base.category = normalisedCategory;
+    } else {
+      delete base.category;
+    }
+
+    const normalisedSubcategory = normaliseTag(subcategory);
+    if (normalisedSubcategory) {
+      base.subcategory = normalisedSubcategory;
+    } else {
+      delete base.subcategory;
+    }
+
+    return base;
+  }, [editingPrompt, dependencies, category, subcategory]);
+
+  const layerCategorySuggestions = useMemo(() => {
+    if (!editingPrompt) {
+      return [] as string[];
+    }
+    return CATEGORY_SUGGESTIONS[editingPrompt.layer] ?? [];
+  }, [editingPrompt]);
+
+  const layerOptions = useMemo(() => {
+    const options = new Set<string>(BASE_LAYER_OPTIONS);
+    prompts.forEach(prompt => {
+      if (prompt.layer) {
+        options.add(prompt.layer);
+      }
+    });
+    if (editingPrompt?.layer) {
+      options.add(editingPrompt.layer);
+    }
+    return Array.from(options);
+  }, [prompts, editingPrompt]);
 
   // Load prompts and stats
   useEffect(() => {
@@ -143,6 +206,10 @@ export default function PromptAdmin() {
     setEditingPrompt({ ...prompt });
     setIsEditing(true);
     setDependencies(prompt.metadata?.dependencies || []);
+    setCategory(normaliseTag(prompt.metadata?.category ?? ''));
+    setSubcategory(normaliseTag(prompt.metadata?.subcategory ?? ''));
+    setValidationError(null);
+    setValidationSuccess(false);
   };
 
   const cancelEdit = () => {
@@ -150,17 +217,37 @@ export default function PromptAdmin() {
     setIsEditing(false);
     setDependencies([]);
     setNewDependency('');
+    setCategory('');
+    setSubcategory('');
+    setShowMetadata(false);
+    setValidationError(null);
+    setValidationSuccess(false);
   };
 
   const savePrompt = async () => {
     if (!editingPrompt) return;
 
     try {
-      // Update metadata with dependencies
-      const updatedMetadata = {
-        ...editingPrompt.metadata,
-        dependencies: dependencies
+      // Update metadata with dependencies and categorisation
+      const updatedMetadata: Record<string, any> = {
+        ...(editingPrompt.metadata || {}),
+        dependencies: [...dependencies],
       };
+
+      const trimmedCategory = normaliseTag(category);
+      const trimmedSubcategory = normaliseTag(subcategory);
+
+      if (trimmedCategory) {
+        updatedMetadata.category = trimmedCategory;
+      } else {
+        delete updatedMetadata.category;
+      }
+
+      if (trimmedSubcategory) {
+        updatedMetadata.subcategory = trimmedSubcategory;
+      } else {
+        delete updatedMetadata.subcategory;
+      }
 
       const updateData: UpdatePromptData = {
         layer: editingPrompt.layer,
@@ -193,6 +280,17 @@ export default function PromptAdmin() {
     }
   };
 
+  const estimateTokens = (content: string): number => {
+    if (!content) {
+      return 0;
+    }
+    const trimmed = content.trim();
+    if (trimmed.length === 0) {
+      return 0;
+    }
+    return Math.max(1, Math.ceil(trimmed.length / 4));
+  };
+
   const createNewPrompt = () => {
     const newPrompt: Prompt = {
       id: '',
@@ -205,7 +303,8 @@ export default function PromptAdmin() {
       active: true,
       locked: false,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      tokenCount: 0
     };
     startEdit(newPrompt);
   };
@@ -279,7 +378,7 @@ export default function PromptAdmin() {
   };
 
   const formatJson = (obj: any) => {
-    return formatJsonForDisplay(obj);
+    return formatJsonForDisplay(obj ?? {});
   };
 
   // Content validation and formatting functions
@@ -332,7 +431,11 @@ export default function PromptAdmin() {
         case 'json':
           const parsed = JSON.parse(content);
           const minified = JSON.stringify(parsed);
-          setEditingPrompt({...editingPrompt, content: minified});
+          setEditingPrompt({
+            ...editingPrompt,
+            content: minified,
+            tokenCount: estimateTokens(minified)
+          });
           break;
         case 'markdown':
           // Basic markdown minification - remove extra whitespace
@@ -340,11 +443,20 @@ export default function PromptAdmin() {
             .replace(/\n\s*\n\s*\n/g, '\n\n') // Remove multiple empty lines
             .replace(/[ \t]+$/gm, '') // Remove trailing whitespace
             .trim();
-          setEditingPrompt({...editingPrompt, content: minifiedMarkdown});
+          setEditingPrompt({
+            ...editingPrompt,
+            content: minifiedMarkdown,
+            tokenCount: estimateTokens(minifiedMarkdown)
+          });
           break;
         case 'string':
           // String minification - just trim whitespace
-          setEditingPrompt({...editingPrompt, content: content.trim()});
+          const trimmedString = content.trim();
+          setEditingPrompt({
+            ...editingPrompt,
+            content: trimmedString,
+            tokenCount: estimateTokens(trimmedString)
+          });
           break;
         default:
           setValidationError('Please select a content format first');
@@ -367,7 +479,11 @@ export default function PromptAdmin() {
         case 'json':
           const parsed = JSON.parse(content);
           const formatted = JSON.stringify(parsed, null, 2);
-          setEditingPrompt({...editingPrompt, content: formatted});
+          setEditingPrompt({
+            ...editingPrompt,
+            content: formatted,
+            tokenCount: estimateTokens(formatted)
+          });
           break;
         case 'markdown':
           // Basic markdown formatting - ensure proper line breaks
@@ -375,14 +491,22 @@ export default function PromptAdmin() {
             .replace(/\n{3,}/g, '\n\n') // Limit to double line breaks
             .replace(/^\s+|\s+$/gm, '') // Trim each line
             .trim();
-          setEditingPrompt({...editingPrompt, content: formattedMarkdown});
+          setEditingPrompt({
+            ...editingPrompt,
+            content: formattedMarkdown,
+            tokenCount: estimateTokens(formattedMarkdown)
+          });
           break;
         case 'string':
           // String formatting - just ensure proper line breaks
           const formattedString = content
             .replace(/\n{3,}/g, '\n\n') // Limit to double line breaks
             .trim();
-          setEditingPrompt({...editingPrompt, content: formattedString});
+          setEditingPrompt({
+            ...editingPrompt,
+            content: formattedString,
+            tokenCount: estimateTokens(formattedString)
+          });
           break;
         default:
           setValidationError('Please select a content format first');
@@ -526,7 +650,7 @@ export default function PromptAdmin() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Layers</SelectItem>
-                  {LAYERS.map(layer => (
+                  {layerOptions.map(layer => (
                     <SelectItem key={layer} value={layer}>{layer}</SelectItem>
                   ))}
                 </SelectContent>
@@ -610,12 +734,29 @@ export default function PromptAdmin() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">
-                  Sort Order: {prompt.sort_order} | Version: {prompt.version} | Turn Stage: {prompt.turn_stage}
+                <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                  <span>Sort Order: {prompt.sort_order}</span>
+                  <span>| Version: {prompt.version}</span>
+                  <span>| Turn Stage: {prompt.turn_stage}</span>
+                  <span>| Tokens: ~{prompt.tokenCount ?? estimateTokens(prompt.content)}</span>
                 </div>
                 <div className="max-h-32 overflow-hidden">
                   <pre className="text-sm whitespace-pre-wrap">{prompt.content}</pre>
                 </div>
+                {(prompt.metadata?.category || prompt.metadata?.subcategory) && (
+                  <div className="flex flex-wrap gap-1">
+                    {prompt.metadata?.category && (
+                      <Badge variant="outline" className="text-xs">
+                        Category: {prompt.metadata.category}
+                      </Badge>
+                    )}
+                    {prompt.metadata?.subcategory && (
+                      <Badge variant="outline" className="text-xs">
+                        Subcategory: {prompt.metadata.subcategory}
+                      </Badge>
+                    )}
+                  </div>
+                )}
                 {prompt.metadata?.dependencies && prompt.metadata.dependencies.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {prompt.metadata.dependencies.map((dep: string, index: number) => (
@@ -664,7 +805,7 @@ export default function PromptAdmin() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {LAYERS.map(layer => (
+                          {layerOptions.map(layer => (
                             <SelectItem key={layer} value={layer}>{layer}</SelectItem>
                           ))}
                         </SelectContent>
@@ -714,6 +855,39 @@ export default function PromptAdmin() {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="category">Category (optional)</Label>
+                      <Input
+                        id="category"
+                        value={category}
+                        onChange={(e) => setCategory(normaliseTag(e.target.value))}
+                        placeholder="e.g. logic, output_rules"
+                      />
+                      {layerCategorySuggestions.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {layerCategorySuggestions.map((suggestion) => (
+                            <Button
+                              key={suggestion}
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              onClick={() => setCategory(normaliseTag(suggestion))}
+                            >
+                              {suggestion}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="subcategory">Subcategory (optional)</Label>
+                      <Input
+                        id="subcategory"
+                        value={subcategory}
+                        onChange={(e) => setSubcategory(normaliseTag(e.target.value))}
+                        placeholder="e.g. world_rules.towns"
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="sort_order">Sort Order</Label>
                       <Input
                         id="sort_order"
@@ -754,14 +928,18 @@ export default function PromptAdmin() {
                 </TabsContent>
 
                 <TabsContent value="content" className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1">
-                        <Label htmlFor="content">Prompt Content</Label>
-                        <Textarea
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <Label htmlFor="content">Prompt Content</Label>
+                          <Textarea
                           id="content"
                           value={editingPrompt.content}
-                          onChange={(e) => setEditingPrompt({...editingPrompt, content: e.target.value})}
+                          onChange={(e) => setEditingPrompt({
+                            ...editingPrompt,
+                            content: e.target.value,
+                            tokenCount: estimateTokens(e.target.value)
+                          })}
                           className="min-h-[300px] font-mono text-sm"
                           placeholder="Enter prompt content..."
                         />
@@ -812,6 +990,11 @@ export default function PromptAdmin() {
                           String
                         </Button>
                       </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between text-sm text-muted-foreground">
+                      <span>Estimated tokens: ~{editingPrompt.tokenCount ?? estimateTokens(editingPrompt.content)}</span>
+                      <span>Characters: {editingPrompt.content.length.toLocaleString()}</span>
                     </div>
 
                     {/* Format Validation and Actions */}
@@ -893,7 +1076,7 @@ export default function PromptAdmin() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => copyToClipboard(formatJson(editingPrompt.metadata))}
+                        onClick={() => copyToClipboard(formatJson(metadataPreview))}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
@@ -907,7 +1090,7 @@ export default function PromptAdmin() {
                     </div>
                     {showMetadata && (
                       <pre className="bg-muted p-4 rounded-md text-sm overflow-auto max-h-64">
-                        {formatJson(editingPrompt.metadata)}
+                        {formatJson(metadataPreview)}
                       </pre>
                     )}
                   </div>

@@ -3,6 +3,7 @@
 ## Overview
 
 The Admin Panel provides a user-friendly interface for managing production prompts in the Stone Caster system. It's designed for non-technical users to easily edit prompts, manage dependencies, and ensure system integrity.
+For a quick checklist, see `PROMPT_ENTRY_GUIDE.md`.
 
 ## Access Control
 
@@ -41,7 +42,9 @@ The Admin Panel provides a user-friendly interface for managing production promp
   - Metadata (JSON view with pretty formatting)
 
 #### Prompt Properties
-- **Layer**: Foundation, Core, Engine, AI Behavior, Data Management, Performance, Content, Enhancement
+- **Layer**: `core`, `world`, `adventure`, `adventure_start`, or `optional` (legacy layers remain selectable for cleanup)
+- **Category** *(optional)*: Sub-group within a layer (e.g. `logic`, `output_rules`, `world_npcs`)
+- **Subcategory** *(optional)*: Second-level grouping for fine-grained control (e.g. `villages`, `boss_encounters`)
 - **World Slug**: Optional world-specific prompts
 - **Adventure Slug**: Optional adventure-specific prompts
 - **Scene ID**: Optional scene-specific prompts
@@ -50,6 +53,17 @@ The Admin Panel provides a user-friendly interface for managing production promp
 - **Version**: Semantic versioning
 - **Active**: Whether prompt is active
 - **Locked**: Whether prompt can be modified
+
+#### Suggested Categories by Layer
+| Layer | Primary Purpose | Common Categories |
+|-------|-----------------|-------------------|
+| `core` | System-wide rules and guardrails | `logic`, `output_rules`, `npc_agency`, `failsafes` |
+| `world` | Setting-specific lore and mechanics | `world_rules`, `world_npcs`, `world_events` |
+| `adventure` | Dynamic narrative beats per adventure | `story_beats`, `encounters`, `adventure_npcs` |
+| `adventure_start` | Opening state for new games | `opening_state`, `intro`, `npc_snapshot` |
+| `optional` | Experimental or add-on content | `playtest`, `legacy`, `debug` |
+
+Use the quick-pick buttons in the editor to apply the recommended categories, or type your own values if you need a bespoke grouping.
 
 ### 2. Dependency Management
 

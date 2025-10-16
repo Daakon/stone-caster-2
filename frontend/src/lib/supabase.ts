@@ -9,3 +9,5 @@ if (!supabaseUrl || !supabaseKey) {
 
 // Create a single Supabase client instance
 export const supabase = createClient(supabaseUrl, supabaseKey);
+
+

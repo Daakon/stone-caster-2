@@ -2,8 +2,50 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateToken } from '../middleware/auth.js';
+import { validateRequest } from '../middleware/validation.js';
+import { IdParamSchema } from '@shared';
 
 const router = Router();
+
+type PromptRecord = {
+  content?: string | null;
+  metadata?: unknown;
+  [key: string]: unknown;
+};
+
+const estimateTokenCount = (content: string): number => {
+  if (!content) {
+    return 0;
+  }
+  const normalizedContent = content.trim();
+  if (normalizedContent.length === 0) {
+    return 0;
+  }
+  return Math.max(1, Math.ceil(normalizedContent.length / 4));
+};
+
+const normalizePromptRecord = <T extends PromptRecord>(record: T): T & { tokenCount: number; metadata: Record<string, unknown> } => {
+  const content = typeof record.content === 'string' ? record.content : record.content ?? '';
+  const tokenCount = estimateTokenCount(content);
+
+  let parsedMetadata: Record<string, unknown> = {};
+  if (typeof record.metadata === 'string') {
+    try {
+      parsedMetadata = record.metadata.length > 0 ? JSON.parse(record.metadata) : {};
+    } catch (error) {
+      console.warn('[ADMIN] Failed to parse prompt metadata string, returning empty object', { error });
+      parsedMetadata = {};
+    }
+  } else if (record.metadata && typeof record.metadata === 'object') {
+    parsedMetadata = record.metadata as Record<string, unknown>;
+  }
+
+  return {
+    ...record,
+    metadata: parsedMetadata,
+    tokenCount,
+  };
+};
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -36,9 +78,15 @@ const requireAdminRole = async (req: any, res: any, next: any) => {
   }
 };
 
+const LayerSchema = z.string()
+  .trim()
+  .min(1, 'Layer is required')
+  .regex(/^[a-z0-9_-]+$/i, 'Layer must use letters, numbers, underscores, or hyphens')
+  .transform((value) => value.toLowerCase());
+
 // Schema for prompt creation/update
 const PromptSchema = z.object({
-  layer: z.enum(['foundation', 'core', 'engine', 'ai_behavior', 'data_management', 'performance', 'content', 'enhancement']),
+  layer: LayerSchema,
   world_slug: z.string().nullable().optional(),
   adventure_slug: z.string().nullable().optional(),
   scene_id: z.string().nullable().optional(),
@@ -74,7 +122,18 @@ router.get('/prompts', authenticateToken, requireAdminRole, async (req, res) => 
       .order('sort_order', { ascending: true });
 
     // Apply filters
-    if (layer) query = query.eq('layer', layer);
+    if (layer) {
+      const layerValue = Array.isArray(layer) ? layer[0] : layer;
+      const parsedLayer = LayerSchema.safeParse(layerValue);
+      if (!parsedLayer.success) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Invalid layer filter',
+          details: parsedLayer.error.format()
+        });
+      }
+      query = query.eq('layer', parsedLayer.data);
+    }
     if (world_slug) query = query.eq('world_slug', world_slug);
     if (adventure_slug) query = query.eq('adventure_slug', adventure_slug);
     if (active !== undefined) query = query.eq('active', active === 'true');
@@ -97,7 +156,7 @@ router.get('/prompts', authenticateToken, requireAdminRole, async (req, res) => 
 
     res.json({
       ok: true,
-      data: data || [],
+      data: (data || []).map(normalizePromptRecord),
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -116,39 +175,45 @@ router.get('/prompts', authenticateToken, requireAdminRole, async (req, res) => 
 });
 
 // Get prompt by ID
-router.get('/prompts/:id', authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { id } = req.params;
+router.get(
+  '/prompts/:id([0-9a-fA-F-]{36})',
+  authenticateToken,
+  requireAdminRole,
+  validateRequest(IdParamSchema, 'params'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    const { data, error } = await supabase
-      .from('prompts')
-      .select('*')
-      .eq('id', id)
-      .single();
+      const { data, error } = await supabase
+        .from('prompts')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return res.status(404).json({
-          ok: false,
-          error: 'Prompt not found'
-        });
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return res.status(404).json({
+            ok: false,
+            error: 'Prompt not found'
+          });
+        }
+        throw error;
       }
-      throw error;
-    }
 
-    res.json({
-      ok: true,
-      data
-    });
-  } catch (error) {
-    console.error('Error fetching prompt:', error);
-    res.status(500).json({
-      ok: false,
-      error: 'Failed to fetch prompt',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+      res.json({
+        ok: true,
+        data: normalizePromptRecord(data)
+      });
+    } catch (error) {
+      console.error('Error fetching prompt:', error);
+      res.status(500).json({
+        ok: false,
+        error: 'Failed to fetch prompt',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
-});
+);
 
 // Create new prompt
 router.post('/prompts', authenticateToken, requireAdminRole, async (req, res) => {
@@ -179,7 +244,7 @@ router.post('/prompts', authenticateToken, requireAdminRole, async (req, res) =>
 
     res.status(201).json({
       ok: true,
-      data
+      data: normalizePromptRecord(data)
     });
   } catch (error) {
     console.error('Error creating prompt:', error);
@@ -201,86 +266,93 @@ router.post('/prompts', authenticateToken, requireAdminRole, async (req, res) =>
 });
 
 // Update prompt
-router.put('/prompts/:id', authenticateToken, requireAdminRole, async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('Update prompt request body:', JSON.stringify(req.body, null, 2));
-    const validatedData = UpdatePromptSchema.parse(req.body);
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'User not found' });
-    }
+router.put(
+  '/prompts/:id([0-9a-fA-F-]{36})',
+  authenticateToken,
+  requireAdminRole,
+  validateRequest(IdParamSchema, 'params'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log('Update prompt request body:', JSON.stringify(req.body, null, 2));
 
-    // Check if prompt exists and is not locked
-    const { data: existingPrompt, error: fetchError } = await supabase
-      .from('prompts')
-      .select('locked')
-      .eq('id', id)
-      .single();
+      const validatedData = UpdatePromptSchema.parse(req.body);
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not found' });
+      }
 
-    if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return res.status(404).json({
+      // Check if prompt exists and is not locked
+      const { data: existingPrompt, error: fetchError } = await supabase
+        .from('prompts')
+        .select('locked')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          return res.status(404).json({
+            ok: false,
+            error: 'Prompt not found'
+          });
+        }
+        throw fetchError;
+      }
+
+      if (existingPrompt.locked) {
+        return res.status(403).json({
           ok: false,
-          error: 'Prompt not found'
+          error: 'Cannot update locked prompt'
         });
       }
-      throw fetchError;
-    }
 
-    if (existingPrompt.locked) {
-      return res.status(403).json({
+      // Minify JSON in metadata for storage if provided
+      const updateData: Record<string, unknown> = { ...validatedData };
+      if (validatedData.metadata) {
+        updateData.metadata = JSON.stringify(validatedData.metadata);
+      }
+
+      const { data, error } = await supabase
+        .from('prompts')
+        .update({
+          ...updateData,
+          updated_by: userId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      res.json({
+        ok: true,
+        data
+      });
+    } catch (error) {
+      console.error('Error updating prompt:', error);
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Validation error',
+          details: error.errors
+        });
+      }
+
+      res.status(500).json({
         ok: false,
-        error: 'Cannot update locked prompt'
+        error: 'Failed to update prompt',
+        details: error instanceof Error ? error.message : 'Unknown error'
       });
     }
-
-    // Minify JSON in metadata for storage if provided
-    const updateData: any = { ...validatedData };
-    if (validatedData.metadata) {
-      updateData.metadata = JSON.stringify(validatedData.metadata);
-    }
-
-    const { data, error } = await supabase
-      .from('prompts')
-      .update({
-        ...updateData,
-        updated_by: userId,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    res.json({
-      ok: true,
-      data
-    });
-  } catch (error) {
-    console.error('Error updating prompt:', error);
-    
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Validation error',
-        details: error.errors
-      });
-    }
-
-    res.status(500).json({
-      ok: false,
-      error: 'Failed to update prompt',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
   }
-});
+);
 
 // Delete prompt
-router.delete('/prompts/:id', authenticateToken, requireAdminRole, async (req, res) => {
+router.delete('/prompts/:id([0-9a-fA-F-]{36})', authenticateToken, requireAdminRole, validateRequest(IdParamSchema, 'params'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -332,7 +404,7 @@ router.delete('/prompts/:id', authenticateToken, requireAdminRole, async (req, r
 });
 
 // Toggle prompt active status
-router.patch('/prompts/:id/toggle-active', authenticateToken, requireAdminRole, async (req, res) => {
+router.patch('/prompts/:id([0-9a-fA-F-]{36})/toggle-active', authenticateToken, requireAdminRole, validateRequest(IdParamSchema, 'params'), async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -381,7 +453,7 @@ router.patch('/prompts/:id/toggle-active', authenticateToken, requireAdminRole, 
 
     res.json({
       ok: true,
-      data
+      data: normalizePromptRecord(data)
     });
   } catch (error) {
     console.error('Error toggling prompt active status:', error);
@@ -394,7 +466,7 @@ router.patch('/prompts/:id/toggle-active', authenticateToken, requireAdminRole, 
 });
 
 // Toggle prompt locked status
-router.patch('/prompts/:id/toggle-locked', authenticateToken, requireAdminRole, async (req, res) => {
+router.patch('/prompts/:id([0-9a-fA-F-]{36})/toggle-locked', authenticateToken, requireAdminRole, validateRequest(IdParamSchema, 'params'), async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -436,7 +508,7 @@ router.patch('/prompts/:id/toggle-locked', authenticateToken, requireAdminRole, 
 
     res.json({
       ok: true,
-      data
+      data: normalizePromptRecord(data)
     });
   } catch (error) {
     console.error('Error toggling prompt locked status:', error);
@@ -544,7 +616,7 @@ router.post('/prompts/bulk', authenticateToken, requireAdminRole, async (req, re
 
     res.json({
       ok: true,
-      data,
+      data: (data || []).map(normalizePromptRecord),
       message: `Bulk ${action} completed successfully`
     });
   } catch (error) {
