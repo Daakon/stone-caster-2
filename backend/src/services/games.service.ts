@@ -1,11 +1,15 @@
 import { supabaseAdmin } from './supabase.js';
-import { ApiErrorCode, GameDTO, GameListDTO, AdventureDTO } from '@shared';
+import { ApiErrorCode, GameDTO, GameListDTO } from '@shared';
 import type { TurnResponse } from '@shared';
 import { ContentService } from './content.service.js';
 import { CharactersService } from './characters.service.js';
 import { WalletService } from './wallet.service.js';
 import { LedgerService } from './ledger.service.js';
 import { configService } from './config.service.js';
+import {
+  resolveAdventureByIdentifier,
+  computeAdventureId,
+} from '../utils/adventure-identity.js';
 
 export interface Game {
   id: string;
@@ -47,21 +51,18 @@ export class GamesService {
     const { adventureSlug, characterId, ownerId, isGuest } = request;
 
     try {
-      // Load adventure and validate it exists
-      const { data: adventure, error: adventureError } = await supabaseAdmin
-        .from('adventures')
-        .select('id, slug, title, description, world_slug')
-        .eq('slug', adventureSlug)
-        .eq('is_active', true)
-        .single();
+      // Resolve adventure metadata from deterministic content mapping
+      const adventure = await resolveAdventureByIdentifier(adventureSlug);
 
-      if (adventureError || !adventure) {
+      if (!adventure) {
         return {
           success: false,
           error: ApiErrorCode.NOT_FOUND,
           message: 'Adventure not found',
         };
       }
+
+      const adventureWorldSlug = adventure.worldSlug;
 
       // If character is specified, validate it exists and is available
       if (characterId) {
@@ -85,7 +86,7 @@ export class GamesService {
         }
 
         // Check character and adventure are from the same world
-        if (character.worldSlug !== adventure.world_slug) {
+        if (character.worldSlug !== adventureWorldSlug) {
           return {
             success: false,
             error: ApiErrorCode.VALIDATION_FAILED,
@@ -106,8 +107,14 @@ export class GamesService {
       const newGame = {
         adventure_id: adventure.id,
         character_id: characterId || null,
-        world_slug: adventure.world_slug,
-        state_snapshot: {},
+        world_slug: adventureWorldSlug,
+        state_snapshot: {
+          metadata: {
+            adventureSlug: adventure.slug,
+            adventureTitle: adventure.title,
+            adventureId: adventure.id,
+          },
+        },
         turn_count: 0,
         status: 'active' as const,
         created_at: new Date().toISOString(),
@@ -172,14 +179,18 @@ export class GamesService {
    * @param isGuest - Whether the owner is a guest
    * @returns Game DTO or null if not found
    */
-  async getGameById(gameId: string, ownerId: string, isGuest: boolean): Promise<GameDTO | null> {
+  async getGameById(
+    gameId: string,
+    ownerId: string,
+    isGuest: boolean,
+    guestCookieId?: string
+  ): Promise<GameDTO | null> {
     try {
       let query = supabaseAdmin
         .from('games')
         .select(`
           *,
-          adventures!inner(id, slug, title, description, world_slug),
-          characters!games_character_id_fkey(id, name, world_data, level, current_health, max_health, race, class)
+          characters:characters!games_character_id_fkey(id, name, world_data, level, current_health, max_health, race, class)
         `)
         .eq('id', gameId);
 
@@ -188,9 +199,9 @@ export class GamesService {
       // and vice versa, except for real money transactions
       if (isGuest) {
         query = query.eq('cookie_group_id', ownerId);
+      } else if (guestCookieId && guestCookieId !== ownerId) {
+        query = query.or(`user_id.eq.${ownerId},cookie_group_id.eq.${guestCookieId}`);
       } else {
-        // For authenticated users, check both user_id and cookie_group_id
-        // This handles the case where a game was created as guest but accessed as authenticated user
         query = query.or(`user_id.eq.${ownerId},cookie_group_id.eq.${ownerId}`);
       }
 
@@ -219,7 +230,13 @@ export class GamesService {
    * @param offset - Number of games to skip
    * @returns Array of GameListDTO
    */
-  async getGames(ownerId: string, isGuest: boolean, limit: number = 20, offset: number = 0): Promise<GameListDTO[]> {
+  async getGames(
+    ownerId: string,
+    isGuest: boolean,
+    limit: number = 20,
+    offset: number = 0,
+    guestCookieId?: string
+  ): Promise<GameListDTO[]> {
     try {
       let query = supabaseAdmin
         .from('games')
@@ -228,8 +245,9 @@ export class GamesService {
           turn_count,
           status,
           last_played_at,
-          adventures!inner(title, world_slug),
-          characters!games_character_id_fkey(name)
+          world_slug,
+          state_snapshot,
+          characters:characters!games_character_id_fkey(name)
         `)
         .order('last_played_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -237,9 +255,9 @@ export class GamesService {
       // Filter by owner - for linked users, check both user_id and cookie_group_id
       if (isGuest) {
         query = query.eq('cookie_group_id', ownerId);
+      } else if (guestCookieId && guestCookieId !== ownerId) {
+        query = query.or(`user_id.eq.${ownerId},cookie_group_id.eq.${guestCookieId}`);
       } else {
-        // For authenticated users, check both user_id and cookie_group_id
-        // This handles the case where games were created as guest but accessed as authenticated user
         query = query.or(`user_id.eq.${ownerId},cookie_group_id.eq.${ownerId}`);
       }
 
@@ -250,7 +268,11 @@ export class GamesService {
         return [];
       }
 
-      return (data || []).map(this.mapGameToListDTO);
+      const rows = data ?? [];
+      const mapped = await Promise.all(
+        rows.map((row: any) => this.mapGameToListDTO(row))
+      );
+      return mapped;
     } catch (error) {
       console.error('Unexpected error in getGames:', error);
       return [];
@@ -616,23 +638,79 @@ export class GamesService {
   }
 
   /**
+   * Extract the most reliable adventure identifier from a database row.
+   */
+  private extractAdventureReference(dbRow: any): string | undefined {
+    const rawSnapshot = dbRow.state_snapshot;
+    let snapshot: any = rawSnapshot;
+
+    if (typeof rawSnapshot === 'string') {
+      try {
+        snapshot = JSON.parse(rawSnapshot);
+      } catch {
+        snapshot = undefined;
+      }
+    }
+
+    const metadataSlug = snapshot?.metadata?.adventureSlug;
+    if (typeof metadataSlug === 'string' && metadataSlug.trim().length > 0) {
+      return metadataSlug;
+    }
+
+    const metadataId = snapshot?.metadata?.adventureId;
+    if (typeof metadataId === 'string' && metadataId.trim().length > 0) {
+      return metadataId;
+    }
+
+    const embeddedSlug = snapshot?.adventure?.slug ?? snapshot?.adventureSlug;
+    if (typeof embeddedSlug === 'string' && embeddedSlug.trim().length > 0) {
+      return embeddedSlug;
+    }
+
+    if (typeof dbRow.adventure_id === 'string' && dbRow.adventure_id.trim().length > 0) {
+      return dbRow.adventure_id;
+    }
+
+    return undefined;
+  }
+
+  /**
    * Map database game row to GameDTO
    * @param dbRow - Database row with joined data
    * @returns GameDTO
    */
   private async mapGameToDTO(dbRow: any): Promise<GameDTO> {
-    // Get world name from content service
-    const world = await ContentService.getWorldBySlug(dbRow.world_slug);
-    const worldName = world?.name || dbRow.world_slug;
+    const adventureReference = this.extractAdventureReference(dbRow);
+    const resolvedAdventure = adventureReference
+      ? await resolveAdventureByIdentifier(adventureReference)
+      : null;
+
+    const adventureId =
+      resolvedAdventure?.id ??
+      (typeof dbRow.adventure_id === 'string' && dbRow.adventure_id.length > 0
+        ? dbRow.adventure_id
+        : adventureReference
+          ? computeAdventureId(adventureReference)
+          : computeAdventureId('unknown'));
+
+    const worldSlug =
+      resolvedAdventure?.worldSlug ??
+      (typeof dbRow.world_slug === 'string' ? dbRow.world_slug : undefined);
+
+    const world = worldSlug ? await ContentService.getWorldBySlug(worldSlug) : null;
+    const worldName = world?.name ?? world?.title ?? worldSlug ?? 'Unknown World';
 
     return {
       id: dbRow.id,
-      adventureId: dbRow.adventure_id,
-      adventureTitle: dbRow.adventures?.title || 'Unknown Adventure',
-      adventureDescription: dbRow.adventures?.description,
-      characterId: dbRow.character_id,
-      characterName: dbRow.characters?.name,
-      worldSlug: dbRow.world_slug,
+      adventureId,
+      adventureTitle:
+        resolvedAdventure?.title ??
+        dbRow.state_snapshot?.metadata?.adventureTitle ??
+        'Unknown Adventure',
+      adventureDescription: resolvedAdventure?.description,
+      characterId: dbRow.character_id ?? undefined,
+      characterName: dbRow.characters?.name ?? undefined,
+      worldSlug: worldSlug ?? 'unknown',
       worldName,
       turnCount: dbRow.turn_count,
       status: dbRow.status,
@@ -647,12 +725,26 @@ export class GamesService {
    * @param dbRow - Database row with joined data
    * @returns GameListDTO
    */
-  private mapGameToListDTO(dbRow: any): GameListDTO {
+  private async mapGameToListDTO(dbRow: any): Promise<GameListDTO> {
+    const adventureReference = this.extractAdventureReference(dbRow);
+    const resolvedAdventure = adventureReference
+      ? await resolveAdventureByIdentifier(adventureReference)
+      : null;
+
+    const worldSlug =
+      resolvedAdventure?.worldSlug ??
+      (typeof dbRow.world_slug === 'string' ? dbRow.world_slug : undefined);
+    const world = worldSlug ? await ContentService.getWorldBySlug(worldSlug) : null;
+    const worldName = world?.name ?? world?.title ?? worldSlug ?? 'Unknown World';
+
     return {
       id: dbRow.id,
-      adventureTitle: dbRow.adventures?.title || 'Unknown Adventure',
-      characterName: dbRow.characters?.name,
-      worldName: dbRow.adventures?.world_slug || 'Unknown World', // Will be enhanced with proper world names
+      adventureTitle:
+        resolvedAdventure?.title ??
+        dbRow.state_snapshot?.metadata?.adventureTitle ??
+        'Unknown Adventure',
+      characterName: dbRow.characters?.name ?? undefined,
+      worldName,
       turnCount: dbRow.turn_count,
       status: dbRow.status,
       lastPlayedAt: dbRow.last_played_at,
