@@ -24,6 +24,9 @@ export const config = {
   api: {
     url: env.apiUrl,
   },
+  features: {
+    awfBundleOn: env.awfBundleOn,
+  },
 };
 
 export { configService, configServiceReady };

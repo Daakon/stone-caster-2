@@ -1,0 +1,39 @@
+{
+  "name": "combat-encounter",
+  "description": "Combat scenario with skill checks and time advancement",
+  "sessionSeed": 123456,
+  "turns": [
+    {
+      "input": "I draw my sword and attack the goblin.",
+      "expect": {
+        "mustInclude": ["sword", "attack", "goblin"],
+        "choicesAtMost": 5,
+        "acts": {
+          "requireOne": ["CHECK"],
+          "forbid": ["TIME_ADVANCE"]
+        },
+        "firstTurn": true
+      }
+    },
+    {
+      "input": "I strike with precision.",
+      "expect": {
+        "acts": {
+          "requireOne": ["TIME_ADVANCE"]
+        },
+        "mustInclude": ["strike", "precision"]
+      }
+    },
+    {
+      "input": "I search the body for loot.",
+      "expect": {
+        "acts": {
+          "requireOne": ["TIME_ADVANCE"]
+        },
+        "mustInclude": ["search", "body", "loot"]
+      }
+    }
+  ]
+}
+
+

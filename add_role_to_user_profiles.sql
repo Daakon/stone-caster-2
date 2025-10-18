@@ -8,8 +8,11 @@ ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin
 -- Create index for role-based queries
 CREATE INDEX IF NOT EXISTS idx_user_profiles_role ON user_profiles(role);
 
--- Update the get_user_profile_by_auth_id function to include role
-CREATE OR REPLACE FUNCTION get_user_profile_by_auth_id(p_auth_user_id UUID)
+-- Drop the existing function first to allow return type change
+DROP FUNCTION IF EXISTS get_user_profile_by_auth_id(UUID);
+
+-- Recreate the get_user_profile_by_auth_id function with the new return type
+CREATE FUNCTION get_user_profile_by_auth_id(p_auth_user_id UUID)
 RETURNS TABLE (
   id UUID,
   auth_user_id UUID,
@@ -69,5 +72,7 @@ BEGIN
   RETURN COALESCE(user_role, 'user');
 END;
 $$ LANGUAGE plpgsql;
+
+
 
 

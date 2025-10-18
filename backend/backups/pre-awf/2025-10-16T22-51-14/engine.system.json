@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "id": "awf-contract",
+      "content": "AWF Contract Definition:\n- scn: String - Current scene identifier\n- txt: String - Narrative text (required, min 50 words)\n- optional choices: Array of {choice: string, outcome: string}\n- optional acts: Array of action objects\n- optional val: Object - World state changes\n- TIME_ADVANCE: Number - Time progression in ticks (≥1)\n- All responses must be valid JSON\n- No markdown formatting\n- No code fences"
+    },
+    {
+      "id": "time-system",
+      "content": "Time System:\n- 60-tick bands: Dawn (0-15), Mid-Day (16-30), Evening (31-45), Mid-Night (46-59)\n- Each turn advances TIME_ADVANCE ticks (minimum 1)\n- Avoid real-world time units\n- Use in-game time progression only"
+    },
+    {
+      "id": "skill-system",
+      "content": "Skill System:\n- 0-100 scale (50 baseline)\n- Skills: combat, stealth, social, lore, survival, medicine, craft\n- Relationships: 0-100 scale (50 neutral)\n- Essence alignment affects behavior\n- Life/Death/Order/Chaos influences"
+    }
+  ],
+  "variables": ["time", "skills", "relationships", "essence"],
+  "version": "1.0.0"
+}

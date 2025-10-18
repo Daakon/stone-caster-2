@@ -135,106 +135,15 @@ export class PromptsService {
       return result.prompt;
     } catch (error) {
       console.error('Error creating initial prompt:', error);
-      // Fallback to old system
-      return this.createInitialPromptLegacy(game);
-    }
-  }
-
-  /**
-   * Legacy method for creating initial prompts (fallback)
-   * @deprecated Use the new file-based template system instead
-   */
-  private async createInitialPromptLegacy(game: GameContext): Promise<string> {
-    try {
-      // Get prompt schema version from config
-      const aiConfig = configService.getAi();
-      const schemaVersion = aiConfig.promptSchemaVersion || '1.0.0';
-
-      // Load templates using the new registry
-      const bundle = await getTemplatesForWorld(game.world_id);
-      
-      // Load world template for context (still needed for metadata)
-      const worldTemplate = await this.loadWorldTemplate(game.world_id);
-      if (!worldTemplate) {
-        throw new Error(`World template not found: ${game.world_id}`);
-      }
-
-      // Load character if specified
-      let character: Character | null = null;
-      if (game.character_id) {
-        character = await this.loadCharacter(game.character_id);
-      }
-
-      // Build prompt context for initial game state
-      const promptContext = this.buildInitialPromptContext(game, worldTemplate, character, schemaVersion);
-      
-      // Use the new PromptWrapper system instead of legacy assembler
-      const gameState = {
-        time: { band: 'dawn_to_mid_day' as const, ticks: 0 },
-        rng: { policy: 'fair', d20: 10, d100: 50 },
-        playerInput: 'Begin the adventure',
-        isFirstTurn: true,
-      };
-      
-      const result = await this.promptWrapper.assemblePrompt(
-        promptContext,
-        gameState,
-        { core: 'system' },
-        { world: promptContext.world },
-        { adventure: promptContext.adventure },
-        { player: promptContext.character }
-      );
-      
-      // Log to debug service
-      const promptId = debugService.logPrompt(
-        game.id,
-        0, // Initial prompt is turn 0
-        worldTemplate.name,
-        character?.name,
-        {
-          prompt: result.prompt,
-          audit: {
-            templateIds: ['legacy-wrapper'],
-            version: '1.0.0',
-            hash: 'legacy-wrapper',
-            contextSummary: {
-              world: worldTemplate.name,
-              turnIndex: 0,
-              character: character?.name || 'Guest',
-            },
-            assembledAt: result.metadata.assembledAt,
-            tokenCount: result.metadata.tokenCount,
-          },
-          metadata: {
-            totalSegments: result.metadata.sections.length,
-            totalVariables: 0,
-            loadOrder: result.metadata.sections,
-            warnings: undefined,
-          },
-        }
-      );
-      
-      
-      return result.prompt;
-    } catch (error) {
-      if (error instanceof PromptTemplateMissingError) {
-        throw new ServiceError(422, {
-          code: ApiErrorCode.PROMPT_TEMPLATE_MISSING,
-          message: `No templates available for world '${error.world}'.`,
-          details: { world: error.world }
-        });
-      }
-      if (error instanceof ServiceError) {
-        throw error; // Re-throw ServiceError as-is
-      }
-      console.error('Error creating initial prompt:', error);
+      // No fallback - use AWF system only
       throw new ServiceError(500, {
         code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to create initial prompt: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: 'Failed to create initial prompt with AWF system',
         details: { originalError: error instanceof Error ? error.message : String(error) }
       });
     }
   }
+
 
   /**
    * Build a prompt for AI generation using database assembly or file-based template system
@@ -1160,7 +1069,7 @@ export class PromptsService {
     active?: boolean;
   }): Promise<Prompt[]> {
     try {
-      let query = supabaseAdmin.from('prompts').select('*').order('created_at', { ascending: false });
+      let query = supabaseAdmin.from('prompting.prompts').select('*').order('created_at', { ascending: false });
 
       if (filters?.scope) {
         query = query.eq('scope', filters.scope);
@@ -1195,7 +1104,7 @@ export class PromptsService {
   }): Promise<Prompt> {
     try {
       const { data, error } = await supabaseAdmin
-        .from('prompts')
+        .from('prompting.prompts')
         .insert({
           slug: input.slug,
           scope: input.scope,
@@ -1228,7 +1137,7 @@ export class PromptsService {
   ): Promise<Prompt> {
     try {
       const { data, error } = await supabaseAdmin
-        .from('prompts')
+        .from('prompting.prompts')
         .update(updates)
         .eq('id', id)
         .select()
@@ -1252,7 +1161,7 @@ export class PromptsService {
   static async deletePrompt(id: string): Promise<Prompt> {
     try {
       const { data, error } = await supabaseAdmin
-        .from('prompts')
+        .from('prompting.prompts')
         .update({ active: false })
         .eq('id', id)
         .select()
@@ -1279,7 +1188,7 @@ export class PromptsService {
   ): Promise<Prompt | null> {
     try {
       const { data, error } = await supabaseAdmin
-        .from('prompts')
+        .from('prompting.prompts')
         .select('*')
         .eq('slug', slug)
         .eq('scope', scope)
@@ -1307,7 +1216,7 @@ export class PromptsService {
   ): Promise<Prompt[]> {
     try {
       const { data, error } = await supabaseAdmin
-        .from('prompts')
+        .from('prompting.prompts')
         .select('*')
         .eq('slug', slug)
         .eq('scope', scope)

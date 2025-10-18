@@ -1,0 +1,10 @@
+{
+  "timestamp": "2025-10-16T22-51-14",
+  "created": "2025-10-16T22:51:14.711Z",
+  "sourceDirs": [
+    "AI API Prompts",
+    "src/prompts"
+  ],
+  "backupDir": "C:\\Dev\\Stone Caster\\stone-caster-2\\backend\\backups\\pre-awf\\2025-10-16T22-51-14",
+  "description": "Pre-AWF bundle migration snapshot of prompt and layer files"
+}

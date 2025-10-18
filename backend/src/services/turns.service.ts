@@ -215,7 +215,59 @@ export class TurnsService {
         const includeDebug = process.env.NODE_ENV === 'development' || 
                            process.env.ENABLE_AI_DEBUG === 'true';
         
-        aiResult = await Promise.race([
+        // Check AWF mode configuration
+        const { isAwfEnabled } = await import('../config/awf-mode.js');
+        const awfEnabled = isAwfEnabled({ sessionId: gameId });
+        
+        if (awfEnabled) {
+          console.log(`[TURNS] AWF bundle path enabled for game ${gameId}`);
+          
+          try {
+            // Use AWF turn orchestrator
+            const { runAwfTurn } = await import('../orchestrators/awf-turn-orchestrator.js');
+            const awfResult = await runAwfTurn({
+              sessionId: gameId,
+              inputText: userInput || ''
+            });
+            
+            // Convert AWF result to legacy format
+            aiResponseText = awfResult.txt;
+            
+            // Create legacy-compatible response structure
+            const legacyResponse = {
+              response: awfResult.txt,
+              choices: awfResult.choices.map(choice => ({
+                id: choice.id,
+                text: choice.label
+              })),
+              scene: awfResult.meta.scn
+            };
+            
+            // Set AI result to legacy format for compatibility
+            aiResult = {
+              response: legacyResponse.response,
+              choices: legacyResponse.choices,
+              scene: legacyResponse.scene,
+              model: 'awf-orchestrator',
+              tokenCount: null,
+              promptId: null,
+              promptData: null,
+              promptMetadata: null
+            };
+            
+            console.log(`[TURNS] AWF turn completed for game ${gameId}`);
+            
+          } catch (awfError) {
+            console.error(`[TURNS] AWF turn failed for game ${gameId}, falling back to legacy:`, awfError);
+            // Fall through to legacy path
+          }
+        }
+        
+        if (!awfEnabled) {
+          console.log(`[TURNS] Legacy markdown path in use for game ${gameId}`);
+
+          try {
+            aiResult = await Promise.race([
           aiService.generateTurnResponse(gameContext, optionId, choices, includeDebug),
           new Promise<never>((_, reject) => 
             setTimeout(() => reject(new Error('AI timeout')), 30000) // 30 second timeout
@@ -244,25 +296,41 @@ export class TurnsService {
           aiResponseText,
           Date.now() - aiStartTime
         );
-      } catch (error) {
-        console.error('AI service error:', error);
-        if (error instanceof Error && error.message === 'AI timeout') {
-          return {
-            success: false,
-            error: ApiErrorCode.UPSTREAM_TIMEOUT,
-            message: 'AI service timeout',
-            details: {
-              prompt: gameContext,
-              aiResponse: null,
-              error: error.message,
-              timestamp: new Date().toISOString()
+          } catch (legacyError) {
+            console.error('AI service error:', legacyError);
+            if (legacyError instanceof Error && legacyError.message === 'AI timeout') {
+              return {
+                success: false,
+                error: ApiErrorCode.UPSTREAM_TIMEOUT,
+                message: 'AI service timeout',
+                details: {
+                  prompt: gameContext,
+                  aiResponse: null,
+                  error: legacyError.message,
+                  timestamp: new Date().toISOString()
+                }
+              };
             }
-          };
+            return {
+              success: false,
+              error: ApiErrorCode.INTERNAL_ERROR,
+              message: 'AI service error',
+              details: {
+                prompt: gameContext,
+                aiResponse: null,
+                error: legacyError instanceof Error ? legacyError.message : String(legacyError),
+                timestamp: new Date().toISOString()
+              }
+            };
+          }
         }
+
+      } catch (error) {
+        console.error('Error in turn processing:', error);
         return {
           success: false,
           error: ApiErrorCode.INTERNAL_ERROR,
-          message: 'AI service error',
+          message: 'Turn processing error',
           details: {
             prompt: gameContext,
             aiResponse: null,
@@ -374,6 +442,7 @@ export class TurnsService {
         aiResponseMetadata: aiResponseMetadata,
         processingTimeMs: Date.now() - turnStartTime
       });
+        
       
       // Log state changes to debug service
       const hasStateChanges = aiResponse.worldStateChanges || aiResponse.relationshipDeltas || aiResponse.factionDeltas;
@@ -381,6 +450,7 @@ export class TurnsService {
         const currentState = await gameStateService.loadGameState(gameId);
         const beforeState = game.state_snapshot;
         const afterState = currentState || {};
+          
         
         // Extract changes from the response
         const changes = [];
@@ -393,6 +463,7 @@ export class TurnsService {
         if (aiResponse.factionDeltas) {
           changes.push({ type: 'factions', changes: aiResponse.factionDeltas });
         }
+          
         
         debugService.logStateChanges(
           gameId,
@@ -405,6 +476,7 @@ export class TurnsService {
         );
       }
 
+
       // Spend casting stones (only after successful turn)
       const spendResult = await WalletService.spendCastingStones(
         owner,
@@ -415,14 +487,17 @@ export class TurnsService {
         isGuest
       );
 
+
       if (!spendResult.success) {
         // This should not happen since we checked balance earlier
         console.error('Unexpected spend failure after successful turn:', spendResult);
         // Continue anyway since turn was successful
       }
 
+
       // Create Turn DTO
       const turnDTO = await this.createTurnDTO(turnRecord, aiResponse, game, wallet.castingStones - turnCost, aiResult.debug?.promptText);
+
 
       // Store idempotency record
       const requestHash = IdempotencyService.createRequestHash({ optionId });
@@ -435,6 +510,7 @@ export class TurnsService {
         turnDTO,
         'completed'
       );
+
 
       return {
         success: true,
@@ -630,6 +706,18 @@ export class TurnsService {
         character: updatedGame.state_snapshot?.character || {},
         adventure: updatedGame.state_snapshot?.adventure || {},
       };
+
+      // Check AWF bundle feature flag for initial prompt
+      const { isAwfBundleEnabled } = await import('../utils/feature-flags.js');
+      const awfBundleEnabled = isAwfBundleEnabled({ sessionId: game.id });
+      
+      if (awfBundleEnabled) {
+        console.log(`[TURNS] AWF bundle path would be used for initial prompt in game ${game.id} (Phase 0 stub)`);
+        // TODO Phase 3+: call assembleBundle()
+        // For now, fall through to legacy path
+      } else {
+        console.log(`[TURNS] Legacy markdown path in use for initial prompt in game ${game.id}`);
+      }
 
       // Generate AI response for the initial prompt using the same system as regular turns
       // The AI service will handle prompt building internally and return the prompt data

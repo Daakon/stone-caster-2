@@ -30,6 +30,9 @@ PORT=3000
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:5173
 
+# Feature Flags
+AWF_BUNDLE_ON=false
+
 # Development Notes:
 # - For local development, you can use the dev:server:local script which provides safe defaults
 # - Never commit the actual .env file to version control

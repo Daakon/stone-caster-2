@@ -1,0 +1,14 @@
+{
+  "segments": [
+    {
+      "id": "world-rules",
+      "content": "Mystika World Rules:\n- Essence alignment affects all behavior and decisions\n- Life essence promotes growth, healing, and creation\n- Death essence involves endings, transformation, and cycles\n- Order essence brings structure, law, and organization\n- Chaos essence encourages change, freedom, and unpredictability\n- Magic flows through the land and can be harnessed\n- Ancient artifacts hold great power but require wisdom\n- Balance between essences maintains world stability"
+    },
+    {
+      "id": "mechanics",
+      "content": "World Mechanics:\n- Skills use 0-100 scale (50 baseline)\n- Relationships affected by essence alignment\n- Time progresses in 60-tick bands\n- NPCs respond to essence alignment\n- World state changes through player actions\n- Cooldowns prevent rapid repeated actions"
+    }
+  ],
+  "variables": ["essence", "magic", "balance", "world_state"],
+  "version": "1.0.0"
+}

@@ -1,0 +1,17 @@
+{
+  "AWF": {
+    "scn": "test_scene",
+    "txt": "You look around and see something else",
+    "choices": [
+      {
+        "id": "choice1",
+        "label": "Continue"
+      },
+      {
+        "id": "choice2",
+        "label": "Another choice"
+      }
+    ],
+    "acts": []
+  }
+}

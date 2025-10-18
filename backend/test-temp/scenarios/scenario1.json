@@ -1,0 +1,15 @@
+{
+  "name": "test-scenario-1",
+  "sessionSeed": 12345,
+  "turns": [
+    {
+      "input": "I look around the test area",
+      "expect": {
+        "mustInclude": [
+          "test"
+        ],
+        "choicesAtMost": 3
+      }
+    }
+  ]
+}

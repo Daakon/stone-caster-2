@@ -1,0 +1,46 @@
+{
+  "id": "adventure.whispercross-opening",
+  "name": "Whispercross Opening",
+  "version": "1.0.0",
+  "description": "A mystical forest adventure where many journeys begin",
+  "scenes": [
+    {
+      "id": "forest_meet",
+      "name": "Forest Meeting",
+      "description": "A quiet clearing in the Whispercross forest where paths converge",
+      "atmosphere": "Mystical and peaceful, with ancient trees and soft light filtering through the canopy"
+    }
+  ],
+  "objectives": [
+    {
+      "id": "explore_forest",
+      "description": "Explore the mystical forest and discover its secrets",
+      "type": "exploration"
+    }
+  ],
+  "npcs": [
+    {
+      "id": "forest_guardian",
+      "name": "Ancient Tree Spirit",
+      "role": "guide",
+      "description": "A wise tree spirit that watches over the forest paths",
+      "personality": "Patient and wise, speaks in riddles and nature metaphors"
+    }
+  ],
+  "places": [
+    {
+      "id": "whispercross_clearing",
+      "name": "Whispercross Clearing",
+      "type": "forest_clearing",
+      "description": "A peaceful clearing where ancient paths meet",
+      "features": ["ancient trees", "soft moss", "dappled sunlight", "quiet streams"]
+    }
+  ],
+  "triggers": [
+    {
+      "id": "first_encounter",
+      "condition": "player_enters_clearing",
+      "action": "introduce_forest_guardian"
+    }
+  ]
+}

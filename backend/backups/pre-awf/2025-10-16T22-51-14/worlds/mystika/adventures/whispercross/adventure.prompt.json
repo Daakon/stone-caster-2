@@ -1,0 +1,96 @@
+{
+  "id": "adv.whispercross.prompt.v3",
+  "title": "Whispercross Glade",
+  "world_ref": "mystika",
+  "summary": "Rescue-and-rebuild arc in the Whispercross forest. Player may fight, scout, or build while NPCs pursue their goals.",
+  "tags": ["forest","rescue","stealth","slavers","rebuild"],
+
+  "regions": [
+    { "id": "rillford", "type": "village", "desc": "Neutral human town with market, healer, and tavern." },
+    { "id": "whisper_glade", "type": "refuge", "desc": "Hidden clearing with old ward-stones; hub for allies." },
+    { "id": "forest_strand", "type": "wilds", "desc": "Outer paths, torch-lines, watch posts." }
+  ],
+
+  "places": [
+    { "id": "rillford_square",   "region":"rillford",      "type":"market",       "desc":"Stalls, gossip, and a wary constable." },
+    { "id": "the_marrow_tavern", "region":"rillford",      "type":"tavern",       "desc":"Warm stew, cheap rooms, fast rumors." },
+    { "id": "healer_shed",       "region":"rillford",      "type":"clinic",       "desc":"Poultices, splints, quiet advice." },
+
+    { "id": "whispercross_glade","region":"whisper_glade", "type":"refuge",       "desc":"Sanctuary under trees; watchful eyes." },
+
+    { "id": "whispercross_outer_paths","region":"forest_strand","type":"trail","desc":"Wooded boundary trails favored by scouts." },
+    { "id": "slaver_camp_edge",  "region":"forest_strand", "type":"enemy_perimeter","desc":"Torch rhythm: three, then a gap." },
+    { "id": "slaver_camp_east",  "region":"forest_strand", "type":"enemy_base",   "desc":"Fortified holding site (Tier 2)." },
+    { "id": "prison_cages",      "region":"forest_strand", "type":"holding_area", "desc":"Wooden pens laced with warding sigils." },
+    { "id": "watch_post",        "region":"forest_strand", "type":"blind",        "desc":"Crate-stacked crow's nest." },
+    { "id": "torchline",         "region":"forest_strand", "type":"perimeter",    "desc":"Sputtering pitch torches every twenty paces." }
+  ],
+
+  "npc_directory": [
+    { "id": "kiera",  "name":"Kiera",  "species":"Panther Shifter",        "essence_alignment":["Life"],        "traits":["tactically sharp","emotionally guarded","loyal once trust is earned"], "personality":["calm on the surface","observant"] },
+    { "id": "cael",   "name":"Cael",   "species":"Dire Wolf Shifter",      "essence_alignment":["Life","Chaos"],"traits":["noble","fiercely loyal","burdened by loss"], "personality":["guarded","observant"] },
+    { "id": "mira",   "name":"Mira",   "species":"Wild Elf (guest among Shifters)", "essence_alignment":["Life"], "traits":["empathic","serene","resilient"], "personality":["gentle","protective"] },
+    { "id": "rennik", "name":"Rennik", "species":"Fox Shifter",            "essence_alignment":["Chaos"],       "traits":["charming","unpredictable","loyal"], "personality":["wry","masks pain"] },
+    { "id": "thorne", "name":"Thorne", "species":"Half-Elf (Human/Elven)", "essence_alignment":["Order"],       "traits":["brash","loyal","haunted"], "personality":["volatile","protective"] },
+    { "id": "eryn",   "name":"Eryn",   "species":"Elf",                    "essence_alignment":["Order","Arcane"], "traits":["scholarly","methodical"], "personality":["stoic","precise"] },
+    { "id": "sahran", "name":"Sahran", "species":"Wolf Shifter",           "essence_alignment":["Life"],        "traits":["protective","measured"], "personality":["calm","grounded"] },
+    { "id": "wolf_shifter_herbalist", "name":"Unnamed Wolf Herbalist", "species":"Wolf Shifter", "essence_alignment":["Life"], "traits":["quiet","knowledgeable"], "personality":["patient"] },
+    { "id": "cat_shifter_scout", "name":"Silent Cat Scout", "species":"Cat Shifter", "essence_alignment":["Chaos"], "traits":["watchful","reserved"], "personality":["distrusts outsiders"] },
+    { "id": "bear_shifter_guard", "name":"Cautious Bear Guard", "species":"Bear Shifter", "essence_alignment":["Order"], "traits":["stoic","stubborn"], "personality":["few words"] }
+  ],
+
+  "factions_local": [
+    { "id": "whispercross_glade_alliance", "kind":"player_aligned", "links":["whispercross_glade"], "notes":"Protective, community-driven resistance." },
+    { "id": "slavers", "display_name":"Skimmer Cartel", "kind":"raider_network", "links":["slaver_camp_edge","slaver_camp_east","prison_cages"] },
+    { "id": "unaligned_settlers", "kind":"neutral", "links":["rillford_square","the_marrow_tavern"], "notes":"Individuals may aid either side." }
+  ],
+
+  "objectives": [
+    {
+      "id": "rescue_captives_now",
+      "type": "primary",
+      "description": "Rescue the people Kiera escaped from at the small camp.",
+      "progress": { "steps": ["scout","disable_alarm","free_captives","withdraw"] },
+      "branch_if_declined": "Kiera recommends returning to the Glade to gather allies first.",
+      "effects": { "faction_pressure:slavers": "-1", "unlock": ["meet_npcs_at_glade"] }
+    },
+    {
+      "id": "tier2_routes_secure",
+      "type": "milestone",
+      "description": "Make the approach routes safer for refugees and supply.",
+      "progress": { "steps": ["clear_snare_lines","ambush_patrol","mark_safe_path"] },
+      "effects": { "faction_pressure:slavers": "-1", "glade_development": "+1" }
+    },
+    {
+      "id": "tier3_main_camp",
+      "type": "milestone",
+      "description": "Destabilize or dismantle the main camp across the ravine.",
+      "progress": { "steps": ["undermine_supply","sow_distrust","strike_core"] },
+      "effects": { "faction_pressure:slavers": "-2", "end_arc": "rescue_wave" }
+    }
+  ],
+
+  "scenes": [
+    {
+      "id": "glade_hub",
+      "goal": "Coordinate with allies; choose scouting, rescue, or support tasks.",
+      "tags": ["hub","rebuild","plan"],
+      "npcs_present": ["kiera","sahran"],
+      "places": ["whispercross_glade"],
+      "transitions": { "scout": "camp_edge", "support": "glade_build", "rest": "glade_rest" }
+    },
+    {
+      "id": "camp_edge",
+      "goal": "Scout the small outpost without raising alarm.",
+      "tags": ["scout","approach_safely","rescue_captives_now"],
+      "npcs_present": ["kiera"],
+      "places": ["slaver_camp_edge","torchline","watch_post"]
+    }
+  ],
+
+  "lore_hooks": ["races_shifters","region_whispercross","markets_distant"],
+
+  "environment": { "terrain": "dense_forest", "hazards": ["mud_slick","roots","warding_sigils"] },
+
+  "tone": { "mood": ["tense","hopeful","shadowed"] }
+}

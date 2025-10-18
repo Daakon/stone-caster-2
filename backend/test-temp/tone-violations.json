@@ -1,0 +1,13 @@
+{
+  "contract": {
+    "txt": {
+      "policy": "This is a single sentence."
+    },
+    "choices": [
+      {
+        "id": "choice1",
+        "label": "This is a very long choice label that exceeds the 48 character limit and should trigger a violation"
+      }
+    ]
+  }
+}

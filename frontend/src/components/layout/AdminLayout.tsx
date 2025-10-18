@@ -138,6 +138,18 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <Button variant="ghost" size="sm" asChild>
               <a href="/admin/prompts">Prompts</a>
             </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/awf/core-contracts">Core Contracts</a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/awf/worlds">Worlds</a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/awf/adventures">Adventures</a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/awf/adventure-starts">Adventure Starts</a>
+            </Button>
             <Button variant="ghost" size="sm" disabled>
               Analytics
             </Button>

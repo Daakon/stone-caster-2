@@ -1,0 +1,39 @@
+{
+  "name": "social-interaction",
+  "description": "Social encounter with relationship changes",
+  "sessionSeed": 789012,
+  "turns": [
+    {
+      "input": "I approach the merchant and ask about prices.",
+      "expect": {
+        "mustInclude": ["merchant", "prices"],
+        "choicesAtMost": 5,
+        "acts": {
+          "requireOne": ["SCENE_SET"],
+          "forbid": ["TIME_ADVANCE"]
+        },
+        "firstTurn": true
+      }
+    },
+    {
+      "input": "I negotiate for a better deal.",
+      "expect": {
+        "acts": {
+          "requireOne": ["TIME_ADVANCE", "RELATION_CHANGE"]
+        },
+        "mustInclude": ["negotiate", "deal"]
+      }
+    },
+    {
+      "input": "I thank the merchant and leave.",
+      "expect": {
+        "acts": {
+          "requireOne": ["TIME_ADVANCE"]
+        },
+        "mustInclude": ["thank", "leave"]
+      }
+    }
+  ]
+}
+
+

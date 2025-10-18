@@ -1,0 +1,32 @@
+{
+  "id": "adventure.start.whispercross-opening",
+  "name": "Whispercross Opening - Start",
+  "version": "1.0.0",
+  "opening_scene": {
+    "id": "forest_meet",
+    "description": "You find yourself in a quiet clearing in the Whispercross forest. Ancient trees tower above you, their branches creating a natural canopy that filters the sunlight into soft, dappled patterns on the forest floor. The air is filled with the gentle sounds of nature - rustling leaves, distant bird calls, and the soft murmur of a nearby stream.",
+    "atmosphere": "Peaceful and mystical, with an underlying sense of ancient magic",
+    "mood": "Contemplative and open to possibility"
+  },
+  "introduction": {
+    "text": "Welcome to Whispercross, a realm where the boundaries between the natural and supernatural blur. Here, ancient magic flows through the very air, and every path leads to new discoveries.",
+    "tone": "Mystical and inviting"
+  },
+  "initial_choices": [
+    {
+      "id": "explore_clearing",
+      "label": "Explore the clearing carefully",
+      "description": "Take time to observe your surroundings and understand where you are"
+    },
+    {
+      "id": "follow_path",
+      "label": "Follow one of the forest paths",
+      "description": "Choose a path and see where it leads"
+    },
+    {
+      "id": "rest_here",
+      "label": "Rest and meditate",
+      "description": "Take a moment to center yourself and connect with the forest's energy"
+    }
+  ]
+}
