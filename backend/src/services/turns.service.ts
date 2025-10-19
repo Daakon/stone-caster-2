@@ -184,6 +184,8 @@ export class TurnsService {
               aiResponse: null,
               transformedResponse: null,
               error: error instanceof Error ? error.message : String(error),
+              errorName: error instanceof Error ? error.name : 'UnknownError',
+              errorStack: error instanceof Error ? error.stack : undefined,
               timestamp: new Date().toISOString()
             }
           };
@@ -657,6 +659,11 @@ export class TurnsService {
     transformedResponse: any;
     initialPrompt: string;
   } | null> {
+    let updatedGame: any = null;
+    let adventureName: string | null = null;
+    let awfBundleEnabled = false;
+    let promptAttemptContext: Record<string, unknown> | null = null;
+
     try {
       console.log(`[TURNS] Creating initial AI prompt for game ${game.id} with adventure start JSON`);
       
@@ -706,10 +713,11 @@ export class TurnsService {
         character: updatedGame.state_snapshot?.character || {},
         adventure: updatedGame.state_snapshot?.adventure || {},
       };
+      adventureName = gameContext.adventure?.slug || gameContext.adventure?.name || gameContext.current_scene || null;
 
       // Check AWF bundle feature flag for initial prompt
       const { isAwfBundleEnabled } = await import('../utils/feature-flags.js');
-      const awfBundleEnabled = isAwfBundleEnabled({ sessionId: game.id });
+      awfBundleEnabled = isAwfBundleEnabled({ sessionId: game.id });
       
       if (awfBundleEnabled) {
         console.log(`[TURNS] AWF bundle path would be used for initial prompt in game ${game.id} (Phase 0 stub)`);
@@ -721,6 +729,19 @@ export class TurnsService {
 
       // Generate AI response for the initial prompt using the same system as regular turns
       // The AI service will handle prompt building internally and return the prompt data
+      promptAttemptContext = {
+        gameId: updatedGame.id,
+        worldSlug: updatedGame.world_slug,
+        characterId: updatedGame.character_id,
+        optionId: 'game_start',
+        turnCount: updatedGame.turn_count,
+        hasStateSnapshot: Boolean(updatedGame.state_snapshot),
+        stateSnapshotKeys: Object.keys(updatedGame.state_snapshot || {}),
+        hasAdventure: Boolean(updatedGame.state_snapshot?.adventure),
+        hasCharacter: Boolean(updatedGame.state_snapshot?.character),
+        currentScene: updatedGame.state_snapshot?.current_scene || updatedGame.state_snapshot?.currentScene,
+        awfBundleEnabled,
+      };
       const aiResult = await aiService.generateTurnResponse(
         gameContext, 
         'game_start', 
@@ -774,6 +795,25 @@ export class TurnsService {
       
     } catch (error) {
       console.error('Error creating initial AI prompt:', error);
+      console.error('[TURNS] Initial prompt failure diagnostics:', {
+        gameId: game?.id,
+        worldSlug: game?.world_slug,
+        awfBundleEnabled,
+        adventureName,
+        updatedGameState: updatedGame ? {
+          id: updatedGame.id,
+          worldSlug: updatedGame.world_slug,
+          hasStateSnapshot: Boolean(updatedGame.state_snapshot),
+          stateSnapshotKeys: Object.keys(updatedGame.state_snapshot || {}),
+          hasAdventure: Boolean(updatedGame.state_snapshot?.adventure),
+          hasCharacter: Boolean(updatedGame.state_snapshot?.character),
+          currentScene: updatedGame.state_snapshot?.current_scene || updatedGame.state_snapshot?.currentScene,
+        } : null,
+        promptAttemptContext,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
       // Return null to indicate failure
       return null;
     }

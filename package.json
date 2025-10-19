@@ -28,6 +28,7 @@
     "test:ci": "npm run test:ci --workspace=frontend && npm run test:ci --workspace=backend",
     "test:e2e": "npm run test:e2e --workspace=frontend",
     "test:e2e:ci": "npm run test:e2e:ci --workspace=frontend",
+    "seed:core": "tsx backend/scripts/seed-awf-core-contract.ts",
     "lint": "npm run lint --workspaces",
     "lint:client": "npm run lint --workspace=frontend",
     "lint:server": "npm run lint --workspace=backend",
@@ -40,7 +41,8 @@
     "setup:config": "npm run setup:config --workspace=backend",
     "verify:config": "npm run verify:config --workspace=backend",
     "test:env-setup": "npm run test:env-setup --workspace=backend",
-    "deploy": "npm run deploy --workspace=backend"
+    "deploy": "npm run deploy --workspace=backend",
+    "audit:awf": "tsx scripts/diagnostics/awf-prompt-audit.ts"
   },
   "keywords": [
     "rpg",

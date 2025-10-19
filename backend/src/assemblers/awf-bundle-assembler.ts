@@ -171,7 +171,7 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
     };
     
     // Apply injection map build pointers
-    await applyInjectionMap(bundle, injectionMap.doc.build);
+    await applyInjectionMap(bundle, injectionMap.doc.build, coreContract);
     
     // Validate the bundle
     const validationErrors = validateBundleStructure(bundle as unknown as Record<string, unknown>);
@@ -332,16 +332,24 @@ async function loadNpcData(
  * Apply injection map build pointers to the bundle
  * @param bundle - Bundle to modify
  * @param buildPointers - Build pointers from injection map
+ * @param coreContract - Core contract data for injection
  */
 async function applyInjectionMap(
   bundle: AwfBundle,
-  buildPointers: Record<string, string>
+  buildPointers: Record<string, string>,
+  coreContract: any
 ): Promise<void> {
   for (const [key, pointer] of Object.entries(buildPointers)) {
     try {
-      // For now, we'll use the pointer as a direct path
-      // In a full implementation, this would resolve the pointer to actual data
-      setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, pointer);
+      // Handle core contract specific injections
+      if (pointer === 'core_contracts.active.doc.contract') {
+        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.contract);
+      } else if (pointer === 'core_contracts.active.doc.rules') {
+        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.rules);
+      } else {
+        // For other pointers, use the pointer as a direct path
+        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, pointer);
+      }
     } catch (error) {
       console.warn(`[AWF] Failed to apply injection map pointer ${key}: ${pointer}`, error);
     }

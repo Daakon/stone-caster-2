@@ -5,11 +5,11 @@ import { authenticateToken } from '../middleware/auth.js';
 import { validateRequest } from '../middleware/validation.js';
 import { IdParamSchema } from '@shared';
 import { 
-  CoreContractDocSchema, 
   WorldDocSchema, 
   AdventureDocSchema, 
   AdventureStartDocSchema 
 } from '../validators/awf-validators.js';
+import { validateCoreContract } from '../validators/awf-core-contract.schema.js';
 import { computeDocumentHash } from '../utils/awf-hashing.js';
 
 const router = Router();
@@ -638,7 +638,7 @@ router.post('/prompts/bulk', authenticateToken, requireAdminRole, async (req, re
 
 // AWF Document Routes
 // Core Contracts
-router.get('/awf/core-contracts', requireAdminRole, async (req, res) => {
+router.get('/awf/core-contracts', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('core_contracts')
@@ -663,7 +663,7 @@ router.get('/awf/core-contracts', requireAdminRole, async (req, res) => {
   }
 });
 
-router.post('/awf/core-contracts', requireAdminRole, async (req, res) => {
+router.post('/awf/core-contracts', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { id, version, doc, active } = req.body;
 
@@ -675,10 +675,9 @@ router.post('/awf/core-contracts', requireAdminRole, async (req, res) => {
       });
     }
 
-    // Validate document using Phase 1 validator
-    let validatedDoc;
+    // Validate document using new AWF core contract schema
     try {
-      validatedDoc = CoreContractDocSchema.parse(doc);
+      validateCoreContract(doc);
     } catch (validationError) {
       return res.status(400).json({
         ok: false,
@@ -688,14 +687,14 @@ router.post('/awf/core-contracts', requireAdminRole, async (req, res) => {
     }
 
     // Compute hash using Phase 1 hashing utility
-    const hash = computeDocumentHash(validatedDoc);
+    const hash = computeDocumentHash(doc);
 
     const { data, error } = await supabase
       .from('core_contracts')
       .upsert({
         id,
         version,
-        doc: validatedDoc,
+        doc: doc,
         hash,
         active: active || false
       }, { onConflict: 'id,version' })
@@ -720,7 +719,7 @@ router.post('/awf/core-contracts', requireAdminRole, async (req, res) => {
   }
 });
 
-router.patch('/awf/core-contracts/:id/:version/activate', requireAdminRole, async (req, res) => {
+router.patch('/awf/core-contracts/:id/:version/activate', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { id, version } = req.params;
 
@@ -758,7 +757,7 @@ router.patch('/awf/core-contracts/:id/:version/activate', requireAdminRole, asyn
 });
 
 // Worlds
-router.get('/awf/worlds', requireAdminRole, async (req, res) => {
+router.get('/awf/worlds', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('worlds')
@@ -783,7 +782,7 @@ router.get('/awf/worlds', requireAdminRole, async (req, res) => {
   }
 });
 
-router.post('/awf/worlds', requireAdminRole, async (req, res) => {
+router.post('/awf/worlds', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { id, version, doc } = req.body;
 
@@ -840,7 +839,7 @@ router.post('/awf/worlds', requireAdminRole, async (req, res) => {
 });
 
 // Adventures
-router.get('/awf/adventures', requireAdminRole, async (req, res) => {
+router.get('/awf/adventures', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('adventures')
@@ -865,7 +864,7 @@ router.get('/awf/adventures', requireAdminRole, async (req, res) => {
   }
 });
 
-router.post('/awf/adventures', requireAdminRole, async (req, res) => {
+router.post('/awf/adventures', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { id, world_ref, version, doc } = req.body;
 
@@ -923,7 +922,7 @@ router.post('/awf/adventures', requireAdminRole, async (req, res) => {
 });
 
 // Adventure Starts
-router.get('/awf/adventure-starts', requireAdminRole, async (req, res) => {
+router.get('/awf/adventure-starts', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('adventure_starts')
@@ -948,7 +947,7 @@ router.get('/awf/adventure-starts', requireAdminRole, async (req, res) => {
   }
 });
 
-router.post('/awf/adventure-starts', requireAdminRole, async (req, res) => {
+router.post('/awf/adventure-starts', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { adventure_ref, doc, use_once } = req.body;
 

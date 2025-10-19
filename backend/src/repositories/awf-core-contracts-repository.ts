@@ -4,8 +4,8 @@
  */
 
 import { AWFBaseRepository, RepositoryOptions, ActiveRepository } from './awf-base-repository.js';
-import { CoreContractRecord } from '../types/awf-docs.js';
-import { CoreContractDocSchema } from '../validators/awf-validators.js';
+import { CoreContractRecord } from '../types/awf-core-contract.js';
+import { CoreContractSchema, validateCoreContract } from '../validators/awf-core-contract.schema.js';
 import { computeDocumentHash } from '../utils/awf-hashing.js';
 
 export class CoreContractsRepository extends AWFBaseRepository<CoreContractRecord> implements ActiveRepository<CoreContractRecord> {
@@ -57,7 +57,7 @@ export class CoreContractsRepository extends AWFBaseRepository<CoreContractRecor
 
     // Compute hash if not provided
     if (!record.hash) {
-      record.hash = this.computeHash(record.doc);
+      (record as any).hash = this.computeHash(record.doc);
     }
 
     const { data, error } = await this.supabase
@@ -75,7 +75,7 @@ export class CoreContractsRepository extends AWFBaseRepository<CoreContractRecor
 
   validate(doc: unknown): boolean {
     try {
-      CoreContractDocSchema.parse(doc);
+      validateCoreContract(doc);
       return true;
     } catch {
       return false;

@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { useAdminStore } from '@/stores/adminStore';
 
 // AWF Document Types
 export interface AwfCoreContract {
@@ -58,18 +59,14 @@ export class AwfAdminService {
       throw new Error('No authentication token available');
     }
 
-    // Verify admin role from application database
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('auth_user_id', session.user.id)
-      .single();
+    // Get cached role from admin store
+    const { getCachedUserRole } = useAdminStore.getState();
+    const role = getCachedUserRole();
     
-    if (error || !data) {
-      throw new Error('Failed to fetch user role');
+    if (!role) {
+      throw new Error('User role not found. Please refresh the page.');
     }
 
-    const role = data.role || 'user';
     if (role !== 'prompt_admin') {
       throw new Error('Insufficient permissions: prompt_admin role required');
     }

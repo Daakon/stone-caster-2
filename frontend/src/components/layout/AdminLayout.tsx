@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
+import { useAdminStore } from '@/stores/adminStore';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,6 @@ import {
   LogOut,
   AlertTriangle
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -20,9 +20,9 @@ interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const navigate = useNavigate();
   const { user, isAuthenticated, signOut } = useAuthStore();
+  const { fetchUserRole, getCachedUserRole } = useAdminStore();
   const [isVerifying, setIsVerifying] = useState(true);
   const [hasAdminRole, setHasAdminRole] = useState(false);
-  const [, setUserRole] = useState<string | null>(null);
 
   // Verify admin role on mount
   useEffect(() => {
@@ -33,27 +33,24 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       }
 
       try {
-        // Get user role from application database (user_profiles table)
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('auth_user_id', user.id)
-          .single();
-        
-        if (error) {
-          console.error('Error fetching user role:', error);
-          toast.error('Failed to fetch user role');
-          navigate('/dashboard');
+        // Check if we already have a cached role
+        const cachedRole = getCachedUserRole();
+        if (cachedRole) {
+          console.log('Using cached role:', cachedRole);
+          if (cachedRole !== 'prompt_admin') {
+            console.log('Access denied: Role is', cachedRole, 'but expected prompt_admin');
+            toast.error('Access denied: Admin role required');
+            navigate('/dashboard');
+            return;
+          }
+          setHasAdminRole(true);
+          setIsVerifying(false);
           return;
         }
 
-        const role = data?.role || 'user';
-        console.log('Admin role check:', { 
-          role, 
-          userId: user.id,
-          profileData: data
-        });
-        setUserRole(role);
+        // Fetch role if not cached
+        await fetchUserRole(user.id);
+        const role = getCachedUserRole();
         
         if (role !== 'prompt_admin') {
           console.log('Access denied: Role is', role, 'but expected prompt_admin');
@@ -73,7 +70,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     };
 
     verifyAdminRole();
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, fetchUserRole, getCachedUserRole]);
 
   const handleSignOut = async () => {
     await signOut();

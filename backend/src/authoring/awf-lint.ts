@@ -211,40 +211,71 @@ export class AwfLinter {
       }
     });
 
-    // Acts budget rule
+    // Acts catalog validation rule
     this.rules.push({
-      name: 'acts_budget',
+      name: 'acts_catalog_validation',
       severity: 'warning',
       check: (doc: any, path: string) => {
         const issues: LintIssue[] = [];
         
-        if (doc.contract?.acts) {
-          const allowedActs = doc.contract.acts.allowed || [];
-          const exemplars = doc.contract.acts.exemplars || {};
-          
-          // Check if acts listed in contract.acts.allowed
-          if (allowedActs.length === 0) {
+        // Check acts_catalog structure
+        if (doc.acts_catalog) {
+          if (!Array.isArray(doc.acts_catalog)) {
             issues.push({
-              rule: 'acts_budget',
-              severity: 'warning',
-              message: 'No acts listed in contract.acts.allowed',
+              rule: 'acts_catalog_validation',
+              severity: 'error',
+              message: 'acts_catalog must be an array',
               path,
-              suggestion: 'Add allowed acts to contract.acts.allowed'
+              suggestion: 'Convert acts_catalog to an array format'
+            });
+          } else if (doc.acts_catalog.length === 0) {
+            issues.push({
+              rule: 'acts_catalog_validation',
+              severity: 'warning',
+              message: 'acts_catalog is empty',
+              path,
+              suggestion: 'Add act definitions to acts_catalog'
+            });
+          } else {
+            // Validate each act in the catalog
+            doc.acts_catalog.forEach((act: any, index: number) => {
+              if (!act.type || typeof act.type !== 'string') {
+                issues.push({
+                  rule: 'acts_catalog_validation',
+                  severity: 'error',
+                  message: `acts_catalog[${index}] missing or invalid type`,
+                  path: `${path}.acts_catalog[${index}]`,
+                  suggestion: 'Add valid type string to act definition'
+                });
+              }
+              if (!act.mode || typeof act.mode !== 'string') {
+                issues.push({
+                  rule: 'acts_catalog_validation',
+                  severity: 'error',
+                  message: `acts_catalog[${index}] missing or invalid mode`,
+                  path: `${path}.acts_catalog[${index}]`,
+                  suggestion: 'Add valid mode string to act definition'
+                });
+              }
+              if (!act.target || typeof act.target !== 'string') {
+                issues.push({
+                  rule: 'acts_catalog_validation',
+                  severity: 'error',
+                  message: `acts_catalog[${index}] missing or invalid target`,
+                  path: `${path}.acts_catalog[${index}]`,
+                  suggestion: 'Add valid target string to act definition'
+                });
+              }
             });
           }
-
-          // Warn on unused exemplars
-          const usedExemplars = Object.keys(exemplars);
-          const unusedExemplars = usedExemplars.filter(act => !allowedActs.includes(act));
-          if (unusedExemplars.length > 0) {
-            issues.push({
-              rule: 'acts_budget',
-              severity: 'warning',
-              message: `Unused exemplars found: ${unusedExemplars.join(', ')}`,
-              path,
-              suggestion: 'Remove unused exemplars or add them to allowed acts'
-            });
-          }
+        } else {
+          issues.push({
+            rule: 'acts_catalog_validation',
+            severity: 'error',
+            message: 'Missing required acts_catalog',
+            path,
+            suggestion: 'Add acts_catalog array with act definitions'
+          });
         }
 
         return issues;
