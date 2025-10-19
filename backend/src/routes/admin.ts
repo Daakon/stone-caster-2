@@ -9,7 +9,8 @@ import {
   AdventureDocSchema, 
   AdventureStartDocSchema 
 } from '../validators/awf-validators.js';
-import { validateCoreContract } from '../validators/awf-core-contract.schema.js';
+import { CoreContractV2Schema } from '../validators/awf-core-contract.schema.js';
+import { CoreRulesetV1Schema } from '../validators/awf-ruleset.schema.js';
 import { computeDocumentHash } from '../utils/awf-hashing.js';
 
 const router = Router();
@@ -675,9 +676,9 @@ router.post('/awf/core-contracts', authenticateToken, requireAdminRole, async (r
       });
     }
 
-    // Validate document using new AWF core contract schema
+    // Validate document using CoreContractV2Schema
     try {
-      validateCoreContract(doc);
+      CoreContractV2Schema.parse(doc);
     } catch (validationError) {
       let details: string | any[] = 'Invalid document structure';
       if (validationError instanceof Error) {
@@ -766,6 +767,140 @@ router.patch('/awf/core-contracts/:id/:version/activate', authenticateToken, req
     res.status(500).json({
       ok: false,
       error: 'Failed to activate core contract',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Core Rulesets
+router.get('/awf/core-rulesets', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('core_rulesets')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching core rulesets:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch core rulesets',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/core-rulesets', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version, doc, active } = req.body;
+
+    // Validate required fields
+    if (!id || !version || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, version, doc'
+      });
+    }
+
+    // Validate document using CoreRulesetV1Schema
+    try {
+      CoreRulesetV1Schema.parse(doc);
+    } catch (validationError) {
+      let details: string | any[] = 'Invalid document structure';
+      if (validationError instanceof Error) {
+        try {
+          // Try to parse Zod error details
+          const zodError = JSON.parse(validationError.message);
+          if (Array.isArray(zodError)) {
+            details = zodError;
+          } else {
+            details = validationError.message;
+          }
+        } catch {
+          details = validationError.message;
+        }
+      }
+      
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: Array.isArray(details) ? details : [details]
+      });
+    }
+
+    // Compute hash using Phase 1 hashing utility
+    const hash = computeDocumentHash(doc);
+
+    const { data, error } = await supabase
+      .from('core_rulesets')
+      .upsert({
+        id,
+        version,
+        doc: doc,
+        hash,
+        active: active || false
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating core ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save core ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.patch('/awf/core-rulesets/:id/:version/activate', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+
+    // First, deactivate all versions of this ruleset
+    await supabase
+      .from('core_rulesets')
+      .update({ active: false })
+      .eq('id', id);
+
+    // Then activate the specified version
+    const { data, error } = await supabase
+      .from('core_rulesets')
+      .update({ active: true })
+      .eq('id', id)
+      .eq('version', version)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error activating core ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to activate core ruleset',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

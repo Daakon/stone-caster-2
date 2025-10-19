@@ -50,34 +50,49 @@ describe('AWF Repositories', () => {
   });
 
   describe('CoreContractsRepository', () => {
-    it('should validate core contract documents', () => {
+    it('should validate core contract V2 documents', () => {
       const repo = new CoreContractsRepository({ supabase: mockSupabase });
       
       const validDoc = {
         contract: {
-          version: 'v4',
-          name: 'Test Contract',
-          description: 'A test contract',
+          name: "StoneCaster Core Contract",
+          awf_return: "Return exactly one JSON object named AWF with keys scn, txt, and optional choices, optional acts, optional val. No markdown, no code fences, no extra keys.",
+          keys: { required: ["scn","txt"], optional: ["choices","acts","val"] },
+          language: { one_language_only: true }
         },
-        acts: {
-          allowed: ['move', 'interact'],
-        },
+        core: {
+          acts_catalog: [
+            { type: "TIME_ADVANCE", mode: "add_number", target: "time.ticks" },
+            { type: "SCENE_SET", mode: "set_value", target: "hot.scene" }
+          ],
+          scales: {
+            skill: { min: 0, baseline: 50, max: 100 },
+            relationship: { min: 0, baseline: 50, max: 100 }
+          },
+          budgets: { input_max_tokens: 6000, output_max_tokens: 1200 }
+        }
       };
 
       expect(repo.validate(validDoc)).toBe(true);
     });
 
-    it('should reject invalid core contract documents', () => {
+    it('should reject invalid core contract V2 documents', () => {
       const repo = new CoreContractsRepository({ supabase: mockSupabase });
       
       const invalidDoc = {
         contract: {
-          version: 'v4',
-          // Missing name and description
+          // Missing name and awf_return
+          keys: { required: ["scn","txt"], optional: ["choices","acts","val"] }
         },
-        acts: {
-          allowed: ['move', 'interact'],
-        },
+        core: {
+          acts_catalog: [
+            { type: "TIME_ADVANCE", mode: "add_number", target: "time.ticks" }
+          ],
+          scales: {
+            skill: { min: 0, baseline: 50, max: 100 },
+            relationship: { min: 0, baseline: 50, max: 100 }
+          }
+        }
       };
 
       expect(repo.validate(invalidDoc)).toBe(false);
@@ -88,13 +103,19 @@ describe('AWF Repositories', () => {
       
       const doc = {
         contract: {
-          version: 'v4',
-          name: 'Test Contract',
-          description: 'A test contract',
+          name: "StoneCaster Core Contract",
+          awf_return: "Return exactly one JSON object named AWF with keys scn, txt, and optional choices, optional acts, optional val. No markdown, no code fences, no extra keys.",
+          keys: { required: ["scn","txt"], optional: ["choices","acts","val"] }
         },
-        acts: {
-          allowed: ['move', 'interact'],
-        },
+        core: {
+          acts_catalog: [
+            { type: "TIME_ADVANCE", mode: "add_number", target: "time.ticks" }
+          ],
+          scales: {
+            skill: { min: 0, baseline: 50, max: 100 },
+            relationship: { min: 0, baseline: 50, max: 100 }
+          }
+        }
       };
 
       const hash = repo.computeHash(doc);

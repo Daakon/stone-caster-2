@@ -9,14 +9,14 @@
  * with the required keys and follows the contract rules.
  */
 export const SYSTEM_AWF_RUNTIME = 
-  "You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. Follow `awf_bundle.contract`.";
+  "You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. Follow `awf_bundle.contract` and `awf_bundle.core.ruleset`.";
 
 /**
  * System prompt for AWF runtime with tool support
  * Includes tool policy and usage guidelines
  */
 export const SYSTEM_AWF_RUNTIME_WITH_TOOLS = 
-  "You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. Follow `awf_bundle.contract`.\n\n" +
+  "You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. Follow `awf_bundle.contract` and `awf_bundle.core.ruleset`.\n\n" +
   "You may use the GetLoreSlice tool to retrieve specific lore slices when needed. Tool policy: At most 2 GetLoreSlice calls per turn; request smallest slices first; avoid duplicates; do not echo retrieved text verbatim into txt; integrate naturally.";
 
 /**

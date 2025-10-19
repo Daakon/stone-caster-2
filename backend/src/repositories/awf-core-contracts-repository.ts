@@ -5,7 +5,7 @@
 
 import { AWFBaseRepository, RepositoryOptions, ActiveRepository } from './awf-base-repository.js';
 import { CoreContractRecord } from '../types/awf-core-contract.js';
-import { CoreContractSchema, validateCoreContract } from '../validators/awf-core-contract.schema.js';
+import { CoreContractV2Schema } from '../validators/awf-core-contract.schema.js';
 import { computeDocumentHash } from '../utils/awf-hashing.js';
 
 export class CoreContractsRepository extends AWFBaseRepository<CoreContractRecord> implements ActiveRepository<CoreContractRecord> {
@@ -75,7 +75,7 @@ export class CoreContractsRepository extends AWFBaseRepository<CoreContractRecor
 
   validate(doc: unknown): boolean {
     try {
-      validateCoreContract(doc);
+      CoreContractV2Schema.parse(doc);
       return true;
     } catch {
       return false;

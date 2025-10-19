@@ -5,6 +5,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { CoreContractsRepository } from './awf-core-contracts-repository.js';
+import { CoreRulesetsRepository } from './awf-core-rulesets-repository.js';
 import { WorldsRepository } from './awf-worlds-repository.js';
 import { AdventuresRepository } from './awf-adventures-repository.js';
 import { AdventureStartsRepository } from './awf-adventure-starts-repository.js';
@@ -19,6 +20,7 @@ export interface RepositoryFactoryOptions {
 export class AWFRepositoryFactory {
   private supabase: SupabaseClient;
   private coreContractsRepo: CoreContractsRepository | null = null;
+  private coreRulesetsRepo: CoreRulesetsRepository | null = null;
   private worldsRepo: WorldsRepository | null = null;
   private adventuresRepo: AdventuresRepository | null = null;
   private adventureStartsRepo: AdventureStartsRepository | null = null;
@@ -35,6 +37,13 @@ export class AWFRepositoryFactory {
       this.coreContractsRepo = new CoreContractsRepository({ supabase: this.supabase });
     }
     return this.coreContractsRepo;
+  }
+
+  getCoreRulesetsRepository(): CoreRulesetsRepository {
+    if (!this.coreRulesetsRepo) {
+      this.coreRulesetsRepo = new CoreRulesetsRepository(this.supabase);
+    }
+    return this.coreRulesetsRepo;
   }
 
   getWorldsRepository(): WorldsRepository {
@@ -83,6 +92,7 @@ export class AWFRepositoryFactory {
   getAllRepositories() {
     return {
       coreContracts: this.getCoreContractsRepository(),
+      coreRulesets: this.getCoreRulesetsRepository(),
       worlds: this.getWorldsRepository(),
       adventures: this.getAdventuresRepository(),
       adventureStarts: this.getAdventureStartsRepository(),

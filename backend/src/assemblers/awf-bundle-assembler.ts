@@ -87,6 +87,14 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
       throw new Error('No active core contract found');
     }
     
+    // Load core ruleset (default to ruleset.core.default@1.0.0 if not specified)
+    const rulesetRef = session.meta?.ruleset_ref || 'ruleset.core.default@1.0.0';
+    const [rulesetId, rulesetVersion] = rulesetRef.split('@');
+    const coreRuleset = await repos.coreRulesets.getByIdVersion(rulesetId, rulesetVersion);
+    if (!coreRuleset) {
+      throw new Error(`Core ruleset ${rulesetRef} not found`);
+    }
+    
     // Load world
     const world = await repos.worlds.getByIdVersion(session.world_ref, 'v1');
     if (!world) {
@@ -211,7 +219,7 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
     };
     
     // Apply injection map build pointers
-    await applyInjectionMap(bundle, injectionMap.doc.build, coreContract);
+    await applyInjectionMap(bundle, injectionMap.doc.build, coreContract, coreRuleset);
     
     // Validate the bundle
     const validationErrors = validateBundleStructure(bundle as unknown as Record<string, unknown>);
@@ -373,19 +381,28 @@ async function loadNpcData(
  * @param bundle - Bundle to modify
  * @param buildPointers - Build pointers from injection map
  * @param coreContract - Core contract data for injection
+ * @param coreRuleset - Core ruleset data for injection
  */
 async function applyInjectionMap(
   bundle: AwfBundle,
   buildPointers: Record<string, string>,
-  coreContract: any
+  coreContract: any,
+  coreRuleset: any
 ): Promise<void> {
   for (const [key, pointer] of Object.entries(buildPointers)) {
     try {
       // Handle core contract specific injections
       if (pointer === 'core_contracts.active.doc.contract') {
         setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.contract);
-      } else if (pointer === 'core_contracts.active.doc.rules') {
-        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.rules);
+      } else if (pointer === 'core_contracts.active.doc.core.acts_catalog') {
+        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.core.acts_catalog);
+      } else if (pointer === 'core_contracts.active.doc.core.scales') {
+        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.core.scales);
+      } else if (pointer === 'core_contracts.active.doc.core.budgets') {
+        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.core.budgets);
+      } else if (pointer.startsWith('core_rulesets[') && pointer.includes('].doc.ruleset')) {
+        // Handle ruleset injection: core_rulesets[{session.meta.ruleset_ref}].doc.ruleset
+        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreRuleset.doc.ruleset);
       } else {
         // For other pointers, use the pointer as a direct path
         setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, pointer);

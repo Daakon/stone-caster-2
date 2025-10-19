@@ -154,19 +154,168 @@ export class AwfLinter {
       }
     });
 
-    // Tone policy rule
+    // Core Contract V2 validation rule
     this.rules.push({
-      name: 'tone_policy',
+      name: 'core_contract_v2',
       severity: 'error',
       check: (doc: any, path: string) => {
         const issues: LintIssue[] = [];
         
+        // Core contracts should NOT have narrative fields (moved to rulesets)
+        if (doc.contract?.['scn.phases']) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contracts should not contain scn.phases (moved to rulesets)',
+            path,
+            suggestion: 'Remove scn.phases from core contract - use rulesets instead'
+          });
+        }
+
+        if (doc.contract?.['txt.policy']) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contracts should not contain txt.policy (moved to rulesets)',
+            path,
+            suggestion: 'Remove txt.policy from core contract - use rulesets instead'
+          });
+        }
+
+        if (doc.contract?.['choices.policy']) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contracts should not contain choices.policy (moved to rulesets)',
+            path,
+            suggestion: 'Remove choices.policy from core contract - use rulesets instead'
+          });
+        }
+
+        if (doc.defaults) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contracts should not contain defaults (moved to rulesets)',
+            path,
+            suggestion: 'Remove defaults from core contract - use rulesets instead'
+          });
+        }
+
+        // Core contracts should have required framework fields
+        if (!doc.contract?.name) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contract missing required contract.name',
+            path,
+            suggestion: 'Add contract.name field'
+          });
+        }
+
+        if (!doc.contract?.awf_return) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contract missing required contract.awf_return',
+            path,
+            suggestion: 'Add contract.awf_return field'
+          });
+        }
+
+        if (!doc.contract?.keys?.required || !Array.isArray(doc.contract.keys.required) || doc.contract.keys.required.length === 0) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contract missing required contract.keys.required array',
+            path,
+            suggestion: 'Add contract.keys.required array with required keys'
+          });
+        }
+
+        if (!doc.core?.acts_catalog || !Array.isArray(doc.core.acts_catalog) || doc.core.acts_catalog.length === 0) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contract missing required core.acts_catalog array',
+            path,
+            suggestion: 'Add core.acts_catalog array with act definitions'
+          });
+        }
+
+        if (!doc.core?.scales) {
+          issues.push({
+            rule: 'core_contract_v2',
+            severity: 'error',
+            message: 'Core contract missing required core.scales',
+            path,
+            suggestion: 'Add core.scales with skill and relationship scales'
+          });
+        }
+
+        return issues;
+      }
+    });
+
+    // Ruleset validation rule
+    this.rules.push({
+      name: 'ruleset_validation',
+      severity: 'error',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Only apply to ruleset documents
+        if (!path.includes('rulesets/') && !doc.ruleset) {
+          return issues;
+        }
+
+        // Rulesets must have required narrative fields
+        if (!doc.ruleset?.['scn.phases'] || !Array.isArray(doc.ruleset['scn.phases']) || doc.ruleset['scn.phases'].length === 0) {
+          issues.push({
+            rule: 'ruleset_validation',
+            severity: 'error',
+            message: 'Ruleset missing required scn.phases array',
+            path,
+            suggestion: 'Add scn.phases array with phase names'
+          });
+        }
+
+        if (!doc.ruleset?.['txt.policy'] || typeof doc.ruleset['txt.policy'] !== 'string') {
+          issues.push({
+            rule: 'ruleset_validation',
+            severity: 'error',
+            message: 'Ruleset missing required txt.policy string',
+            path,
+            suggestion: 'Add txt.policy string with narrative guidelines'
+          });
+        }
+
+        if (!doc.ruleset?.['choices.policy'] || typeof doc.ruleset['choices.policy'] !== 'string') {
+          issues.push({
+            rule: 'ruleset_validation',
+            severity: 'error',
+            message: 'Ruleset missing required choices.policy string',
+            path,
+            suggestion: 'Add choices.policy string with choice guidelines'
+          });
+        }
+
+        if (!doc.ruleset?.defaults || typeof doc.ruleset.defaults !== 'object') {
+          issues.push({
+            rule: 'ruleset_validation',
+            severity: 'error',
+            message: 'Ruleset missing required defaults object',
+            path,
+            suggestion: 'Add defaults object with txt_sentences_min, txt_sentences_max, etc.'
+          });
+        }
+
         // Check txt.policy sentence bounds (2-6 sentences)
-        if (doc.contract?.txt?.policy) {
-          const sentences = doc.contract.txt.policy.split(/[.!?]+/).filter((s: string) => s.trim().length > 0);
+        if (doc.ruleset?.['txt.policy']) {
+          const sentences = doc.ruleset['txt.policy'].split(/[.!?]+/).filter((s: string) => s.trim().length > 0);
           if (sentences.length < 2 || sentences.length > 6) {
             issues.push({
-              rule: 'tone_policy',
+              rule: 'ruleset_validation',
               severity: 'error',
               message: `txt.policy must have 2-6 sentences, found ${sentences.length}`,
               path,
@@ -176,14 +325,14 @@ export class AwfLinter {
         }
 
         // Check for mechanics in txt (should be in acts, not txt)
-        if (doc.contract?.txt?.policy) {
+        if (doc.ruleset?.['txt.policy']) {
           const mechanics = ['[', ']', '{', '}', 'roll', 'dice', 'skill', 'check'];
           const hasMechanics = mechanics.some(mech => 
-            doc.contract.txt.policy.toLowerCase().includes(mech)
+            doc.ruleset['txt.policy'].toLowerCase().includes(mech)
           );
           if (hasMechanics) {
             issues.push({
-              rule: 'tone_policy',
+              rule: 'ruleset_validation',
               severity: 'error',
               message: 'txt.policy should not contain mechanics (use acts instead)',
               path,
@@ -192,35 +341,21 @@ export class AwfLinter {
           }
         }
 
-        // Check choice labels ≤ 48 chars
-        if (doc.contract?.choices) {
-          doc.contract.choices.forEach((choice: any, index: number) => {
-            if (choice.label && choice.label.length > 48) {
-              issues.push({
-                rule: 'tone_policy',
-                severity: 'error',
-                message: `Choice ${index + 1} label exceeds 48 characters (${choice.label.length})`,
-                path,
-                suggestion: `Shorten label to ≤48 characters: "${choice.label.substring(0, 45)}..."`
-              });
-            }
-          });
-        }
-
         return issues;
       }
     });
 
-    // Acts catalog validation rule
+    // Acts catalog validation rule (updated for V2 structure)
     this.rules.push({
       name: 'acts_catalog_validation',
       severity: 'warning',
       check: (doc: any, path: string) => {
         const issues: LintIssue[] = [];
         
-        // Check acts_catalog structure
-        if (doc.acts_catalog) {
-          if (!Array.isArray(doc.acts_catalog)) {
+        // Check acts_catalog structure in core.acts_catalog (V2)
+        const actsCatalog = doc.core?.acts_catalog || doc.acts_catalog;
+        if (actsCatalog) {
+          if (!Array.isArray(actsCatalog)) {
             issues.push({
               rule: 'acts_catalog_validation',
               severity: 'error',
@@ -228,7 +363,7 @@ export class AwfLinter {
               path,
               suggestion: 'Convert acts_catalog to an array format'
             });
-          } else if (doc.acts_catalog.length === 0) {
+          } else if (actsCatalog.length === 0) {
             issues.push({
               rule: 'acts_catalog_validation',
               severity: 'warning',
@@ -238,7 +373,7 @@ export class AwfLinter {
             });
           } else {
             // Validate each act in the catalog
-            doc.acts_catalog.forEach((act: any, index: number) => {
+            actsCatalog.forEach((act: any, index: number) => {
               if (!act.type || typeof act.type !== 'string') {
                 issues.push({
                   rule: 'acts_catalog_validation',
