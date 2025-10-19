@@ -14,6 +14,7 @@
     "test:ci": "vitest run --coverage --passWithNoTests",
     "type-check": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx,js}\"",
+    "check:file-prompts": "node scripts/check-file-prompt-references.js",
     "setup:config": "node scripts/setup-config.js",
     "verify:config": "node scripts/verify-config.js",
     "create:env-template": "node scripts/create-env-template.js",

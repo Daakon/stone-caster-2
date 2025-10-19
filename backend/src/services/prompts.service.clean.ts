@@ -81,16 +81,17 @@ export class PromptsService {
       console.error('[PROMPTS_SERVICE] Error creating initial prompt:', error);
       
       if (error instanceof DatabasePromptError) {
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: `Database prompt error: ${error.message}`
-        });
+        throw new ServiceError(
+          ApiErrorCode.INTERNAL_SERVER_ERROR,
+          `Database prompt error: ${error.message}`,
+          { code: error.code, context: error.context }
+        );
       }
       
-      throw new ServiceError(500, {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to create initial prompt: ${error instanceof Error ? error.message : String(error)}`
-      });
+      throw new ServiceError(
+        ApiErrorCode.INTERNAL_SERVER_ERROR,
+        `Failed to create initial prompt: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -134,16 +135,17 @@ export class PromptsService {
       console.error('[PROMPTS_SERVICE] Error building prompt:', error);
       
       if (error instanceof DatabasePromptError) {
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: `Database prompt error: ${error.message}`
-        });
+        throw new ServiceError(
+          ApiErrorCode.INTERNAL_SERVER_ERROR,
+          `Database prompt error: ${error.message}`,
+          { code: error.code, context: error.context }
+        );
       }
       
-      throw new ServiceError(500, {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to build prompt: ${error instanceof Error ? error.message : String(error)}`
-      });
+      throw new ServiceError(
+        ApiErrorCode.INTERNAL_SERVER_ERROR,
+        `Failed to build prompt: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -237,29 +239,35 @@ export class PromptsService {
         setting: worldTemplate.setting,
         genre: worldTemplate.genre,
         themes: worldTemplate.themes,
-        rules: worldTemplate.rules || '',
-        mechanics: worldTemplate.rules || '',
-        lore: worldTemplate.description || '',
-        logic: worldTemplate.rules || '',
+        rules: worldTemplate.rules,
+        mechanics: worldTemplate.mechanics,
+        lore: worldTemplate.lore,
+        logic: worldTemplate.logic,
       },
       character: character ? {
         name: character.name,
+        role: character.role,
         race: character.race,
         class: character.class,
         level: character.level,
+        essence: character.essence,
+        age: character.age,
+        build: character.build,
+        eyes: character.eyes,
+        traits: character.traits,
         backstory: character.backstory,
-        skills: {},
-        inventory: [],
-        relationships: {},
-        goals: {
-          short_term: [],
-          long_term: []
-        },
-        flags: {},
-        reputation: {},
+        motivation: character.motivation,
+        skills: character.skills,
+        stats: character.stats,
+        inventory: character.inventory,
+        relationships: character.relationships,
+        goals: character.goals,
+        flags: character.flags,
+        reputation: character.reputation,
       } : undefined,
       adventure: {
         name: this.extractAdventureSlug(game),
+        slug: this.extractAdventureSlug(game),
       },
       runtime: {
         ticks: game.state_snapshot?.ticks || 0,
@@ -346,6 +354,3 @@ export class PromptsService {
     return this.estimateTokenCount(prompt);
   }
 }
-
-// Export singleton instance
-export const promptsService = new PromptsService(new DatabasePromptService());

@@ -607,9 +607,9 @@ export class TurnsService {
         }
       }
 
-      // Create initial state snapshot
+      // Create initial state snapshot - no phantom defaults
       const initialState = {
-        currentScene: 'forest_meet', // Use default starting scene
+        // Only set essential metadata, no default scenes or time bands
         character: characterData,
         adventure: adventureData,
         flags: {
@@ -619,12 +619,11 @@ export class TurnsService {
         },
         ledgers: {
           'game.turns': 0,
-          'game.scenes_visited': ['forest_meet'],
+          'game.scenes_visited': [],
           'game.actions_taken': []
         },
-        presence: 'present',
-        lastActs: [],
-        styleHint: 'neutral'
+        // No default time band, presence, or scene - let DB content determine these
+        runtimeTicks: 0
       };
 
       // Update the game with the initial state

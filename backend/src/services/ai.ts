@@ -2,7 +2,6 @@ import { configService } from '../config/index.js';
 import { promptsService } from './prompts.service.js';
 import { OpenAIService } from './openai.service.js';
 import { PromptWrapper, type GameStateData } from '../prompts/wrapper.js';
-import { PromptAssembler } from '../prompts/assembler.js';
 import { DatabasePromptService } from './db-prompt.service.js';
 import type { AIResponse, StoryAction, GameSave, Character } from '@shared';
 import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS } from '../constants/game-constants.js';
@@ -19,7 +18,6 @@ interface StoryContext {
 export class AIService {
   private openaiService: OpenAIService | null = null;
   private promptWrapper: PromptWrapper;
-  private promptAssembler: PromptAssembler;
   private databasePromptService: DatabasePromptService | null = null;
   private gameConfigService: GameConfigService;
   private databasePromptStatus: 'unknown' | 'healthy' | 'missing';
@@ -28,7 +26,6 @@ export class AIService {
 
   constructor(databasePromptService?: DatabasePromptService) {
     this.promptWrapper = new PromptWrapper();
-    this.promptAssembler = new PromptAssembler();
     this.databasePromptService = databasePromptService || null;
     this.gameConfigService = GameConfigService.getInstance();
     this.databasePromptStatus = this.databasePromptService ? 'unknown' : 'missing';
@@ -366,31 +363,8 @@ export class AIService {
         adventurePath = 'whispercross'; // Map to actual directory name
       }
       
-      // Try to load from the file-based template system first
-      const possiblePaths = [
-        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.start.prompt.json`,
-        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.prompt.json`,
-        `AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.start.prompt.json`,
-        `AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.prompt.json`,
-      ];
-
-      for (const path of possiblePaths) {
-        try {
-          const { readFileSync } = await import('fs');
-          const { join } = await import('path');
-          const fullPath = join(process.cwd(), path);
-          console.log(`[AI_SERVICE] Attempting to load from: ${fullPath}`);
-          const content = readFileSync(fullPath, 'utf-8');
-          const data = JSON.parse(content);
-          console.log(`[AI_SERVICE] Successfully loaded adventure start data from ${path}`);
-          return data;
-        } catch (error) {
-          console.log(`[AI_SERVICE] Failed to load from ${path}: ${error}`);
-          // Continue to next path
-        }
-      }
-
-      console.log(`[AI_SERVICE] No adventure start data found for ${worldId}/${adventureName}`);
+      // DB-only mode: No file-based loading
+      console.log(`[AI_SERVICE] DB-only mode: Adventure start data must come from database`);
       return null;
     } catch (error) {
       console.error(`[AI_SERVICE] Error loading adventure start data: ${error}`);
@@ -547,53 +521,82 @@ export class AIService {
     gameContext: any,
     optionId: string,
     choices: Array<{id: string, label: string}>
-  ): Promise<{ prompt: string; source: 'database' | 'filesystem'; fallbackReason?: string }> {
-    if (this.databasePromptService && this.databasePromptStatus !== 'missing') {
-      console.log('[AI_SERVICE] Using database assembly for prompt');
-      try {
-        const prompt = await this.buildDatabasePrompt(gameContext, optionId, choices);
-        this.databasePromptStatus = 'healthy';
-        this.lastDatabaseFallbackReason = null;
-        return { prompt, source: 'database' };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn('[AI_SERVICE] Database assembly failed, falling back to filesystem:', message);
-        if (this.isMissingDatabaseFunctionError(error)) {
-          this.databasePromptStatus = 'missing';
-          if (!this.hasLoggedMissingDatabasePrompts) {
-            console.warn(
-              '[AI_SERVICE] Supabase RPC prompt_segments_for_context is missing. Apply latest migrations or disable database prompts until ready.'
-            );
-            this.hasLoggedMissingDatabasePrompts = true;
-          }
-        }
-        try {
-          const prompt = await this.buildFilesystemPrompt(gameContext, optionId, choices);
-          this.lastDatabaseFallbackReason = message;
-          return { prompt, source: 'filesystem', fallbackReason: message };
-        } catch (filesystemError) {
-          console.error('[AI_SERVICE] Filesystem fallback failed after database assembly error:', filesystemError);
-          throw new Error(
-            `Database prompt assembly failed (${message}) and filesystem fallback failed: ${
-              filesystemError instanceof Error ? filesystemError.message : String(filesystemError)
-            }`,
-            { cause: filesystemError instanceof Error ? filesystemError : undefined }
-          );
-        }
-      }
+  ): Promise<{ prompt: string; source: 'database' }> {
+    // Check if database prompt service is available
+    if (!this.databasePromptService) {
+      throw new Error(
+        'DATABASE_PROMPT_SERVICE_MISSING: Database prompt service is not initialized. ' +
+        'This indicates a configuration error in the AI service setup.'
+      );
     }
 
-    if (this.databasePromptService && this.databasePromptStatus === 'missing') {
-      console.log('[AI_SERVICE] Using filesystem-based assembly for prompt (database prompts disabled)');
-    } else {
-      console.log('[AI_SERVICE] Using filesystem-based assembly for prompt');
+    // Check database status
+    if (this.databasePromptStatus === 'missing') {
+      throw new Error(
+        'DATABASE_SCHEMA_MISSING: The prompting schema and functions are not available in the database. ' +
+        'To fix this:\n' +
+        '1. Go to your Supabase Dashboard\n' +
+        '2. Navigate to SQL Editor\n' +
+        '3. Run the migration: supabase/migrations/20250103000000_create_prompting_schema.sql\n' +
+        '4. Then run: npm run ingest:prompts'
+      );
     }
-    const prompt = await this.buildFilesystemPrompt(gameContext, optionId, choices);
-    return {
-      prompt,
-      source: 'filesystem',
-      fallbackReason: this.lastDatabaseFallbackReason ?? undefined,
-    };
+
+    console.log('[AI_SERVICE] Using database assembly for prompt');
+    try {
+      const prompt = await this.buildDatabasePrompt(gameContext, optionId, choices);
+      this.databasePromptStatus = 'healthy';
+      this.lastDatabaseFallbackReason = null;
+      return { prompt, source: 'database' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      
+      // Provide specific error messages for common database issues
+      if (this.isMissingDatabaseFunctionError(error)) {
+        this.databasePromptStatus = 'missing';
+        throw new Error(
+          'DATABASE_FUNCTION_MISSING: The prompt_segments_for_context function is missing from the database. ' +
+          'To fix this:\n' +
+          '1. Go to your Supabase Dashboard\n' +
+          '2. Navigate to SQL Editor\n' +
+          '3. Run the migration: supabase/migrations/20250103000000_create_prompting_schema.sql\n' +
+          '4. Then run: npm run ingest:prompts\n' +
+          `Original error: ${message}`
+        );
+      }
+
+      if (message.includes('prompting.prompts')) {
+        throw new Error(
+          'DATABASE_TABLE_MISSING: The prompting.prompts table is missing from the database. ' +
+          'To fix this:\n' +
+          '1. Go to your Supabase Dashboard\n' +
+          '2. Navigate to SQL Editor\n' +
+          '3. Run the migration: supabase/migrations/20250103000000_create_prompting_schema.sql\n' +
+          '4. Then run: npm run ingest:prompts\n' +
+          `Original error: ${message}`
+        );
+      }
+
+      if (message.includes('permission denied') || message.includes('insufficient_privilege')) {
+        throw new Error(
+          'DATABASE_PERMISSION_ERROR: Insufficient database permissions to access prompt data. ' +
+          'To fix this:\n' +
+          '1. Check that your service key has proper permissions\n' +
+          '2. Ensure RLS policies are correctly configured\n' +
+          '3. Verify the prompting schema grants are applied\n' +
+          `Original error: ${message}`
+        );
+      }
+
+      // Generic database error
+      throw new Error(
+        `DATABASE_ERROR: Failed to build prompt from database. ${message}\n` +
+        'To troubleshoot:\n' +
+        '1. Check database connection and permissions\n' +
+        '2. Verify prompting schema is properly set up\n' +
+        '3. Run: npm run test:db-prompts to test database setup'
+      );
+    }
   }
 
   /**
@@ -648,151 +651,6 @@ export class AIService {
     }
   }
 
-  /**
-   * Build prompt using filesystem-based assembly (legacy)
-   */
-  private async buildFilesystemPrompt(
-    gameContext: any,
-    optionId: string,
-    choices: Array<{id: string, label: string}>
-  ): Promise<string> {
-    const isFirstTurn = gameContext.turn_index === 0;
-    const startingScene = gameContext.current_scene;
-    let adventureName: string | null = null;
-    let adventureStartData: any = null;
-    let context: Record<string, unknown> | null = null;
-
-    try {
-      // Initialize the prompt assembler for the world
-      await this.promptAssembler.initialize(gameContext.world_id);
-      
-      // Map scene to adventure name using the same logic as prompts service
-      adventureName = await this.mapSceneToAdventure(gameContext.world_id, startingScene);
-      
-      // Debug logging to see what we're getting
-      console.log(`[AI_SERVICE] Building prompt for turn ${gameContext.turn_index}:`, {
-        isFirstTurn,
-        adventureName,
-        startingScene,
-        worldId: gameContext.world_id,
-        adventureObject: gameContext.adventure
-      });
-      
-      // Load adventure start data for first turn
-      if (isFirstTurn) {
-        try {
-          adventureStartData = await this.loadAdventureStartData(gameContext.world_id, adventureName);
-          console.log(`[AI_SERVICE] Loaded adventure start data:`, {
-            hasData: !!adventureStartData,
-            start: adventureStartData?.start,
-            title: adventureStartData?.title
-          });
-        } catch (error) {
-          console.warn(`[AI_SERVICE] Could not load adventure start data: ${error}`);
-        }
-      }
-      
-      const playerInput = this.promptWrapper.resolvePlayerInput(
-        optionId, 
-        choices, 
-        isFirstTurn, 
-        adventureName, 
-        startingScene,
-        adventureStartData
-      );
-      
-      // HARD STOP: Validate input section for first turn
-      const validation = this.validateInputSection(playerInput, isFirstTurn);
-      if (!validation.valid) {
-        console.error(`[AI_SERVICE] HARD STOP - Input validation failed: ${validation.error}`);
-        console.error(`[AI_SERVICE] Generated playerInput: "${playerInput}"`);
-        console.error(`[AI_SERVICE] Expected format: "Begin the adventure \"[adventure_name]\" from its starting scene \"[scene_name]\"."`);
-        throw new Error(`HARD STOP - Invalid prompt input: ${validation.error}`);
-      }
-      
-      console.log(`[AI_SERVICE] Input validation passed for turn ${gameContext.turn_index}:`, {
-        playerInput,
-        isFirstTurn,
-        adventureName,
-        startingScene
-      });
-
-      // Build context for prompt assembly using the proper assembler
-      context = {
-        game: {
-          id: gameContext.id,
-          turn_index: gameContext.turn_index || 0,
-          summary: `Turn ${(gameContext.turn_index || 0) + 1} | World: ${gameContext.world_id} | Character: ${gameContext.character_id || 'Guest'}`,
-          current_scene: gameContext.current_scene || 'unknown',
-          state_snapshot: gameContext.state_snapshot,
-          option_id: optionId,
-        },
-        world: {
-          name: gameContext.world_id || 'unknown',
-          setting: 'A world of magic and adventure',
-          genre: 'fantasy',
-          themes: ['magic', 'adventure', 'mystery'],
-          rules: {},
-          mechanics: {},
-          lore: '',
-          logic: {},
-        },
-        character: gameContext.character || {},
-        adventure: gameContext.adventure || {},
-        runtime: {
-          ticks: gameContext.turn_index || 0,
-          presence: 'present',
-          ledgers: {},
-          flags: {},
-          last_acts: [],
-          style_hint: 'neutral',
-        },
-        system: {
-          schema_version: '1.0.0',
-          prompt_version: '2.0.0',
-          load_order: [],
-          hash: 'assembler-v1',
-        },
-      };
-
-      // Use the proper prompt assembler to load AI prompt files
-      const result = await this.promptAssembler.assemblePrompt(context);
-      
-      // Validate that we got proper AI prompt content
-      if (!result.prompt || result.prompt.length < 500) {
-        console.error(`[AI_SERVICE] CRITICAL: Prompt assembler returned insufficient content (${result.prompt?.length || 0} chars)`);
-        throw new Error(`Prompt assembler failed to load AI prompt files - content too minimal`);
-      }
-
-      return result.prompt;
-    } catch (error) {
-      console.error('[AI_SERVICE] Filesystem prompt build failed:', error);
-      console.error('[AI_SERVICE] Filesystem prompt failure context:', {
-        gameId: gameContext?.id,
-        worldId: gameContext?.world_id,
-        optionId,
-        choicesCount: choices.length,
-        isFirstTurn,
-        startingScene,
-        adventureName,
-        hasAdventureStartData: Boolean(adventureStartData),
-        contextSummary: context ? {
-          game: {
-            id: (context as any).game?.id,
-            turnIndex: (context as any).game?.turn_index,
-            currentScene: (context as any).game?.current_scene,
-            hasStateSnapshot: Boolean((context as any).game?.state_snapshot),
-          },
-          world: (context as any).world?.name,
-          adventure: (context as any).adventure ? Object.keys((context as any).adventure) : null,
-        } : null,
-        errorName: error instanceof Error ? error.name : 'UnknownError',
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-      });
-      throw error;
-    }
-  }
 
   /**
    * Build database prompt context

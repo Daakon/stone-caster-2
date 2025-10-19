@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { PromptRepository } from '../repositories/prompt.repository.js';
-import { DatabasePromptAssembler } from '../prompts/db-assembler.js';
+import { DatabasePromptAssembler } from '../prompts/database-prompt-assembler.js';
 import type { PromptContext, PromptAssemblyResult } from '../prompts/schemas.js';
 
 /**
