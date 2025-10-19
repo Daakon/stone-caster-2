@@ -132,7 +132,7 @@ describe('AWF Core Contract Schema', () => {
       const invalid = {
         ...validCoreContract,
         acts_catalog: [
-          { type: "INVALID", mode: "add_number", target: "time.ticks" } // Missing required fields
+          { type: "", mode: "add_number", target: "time.ticks" } // Empty type should fail
         ]
       };
       

@@ -71,59 +71,91 @@ describe('AWF Validators', () => {
   describe('WorldDocSchema', () => {
     it('should validate a minimal world document', () => {
       const validDoc = {
-        id: 'world.test.v1',
+        id: 'world.test',
         name: 'Test World',
-        version: 'v1',
-        hash: 'abc123',
+        version: '1.0.0',
+        slices: []
       };
-
       expect(() => WorldDocSchema.parse(validDoc)).not.toThrow();
     });
 
-    it('should validate a world document with timeworld and slices', () => {
+    it('should validate a world document with optional timeworld', () => {
       const validDoc = {
-        id: 'world.test.v1',
+        id: 'world.test',
         name: 'Test World',
-        version: 'v1',
-        hash: 'abc123',
+        version: '1.0.0',
         timeworld: {
           timezone: 'UTC',
-          calendar: 'test_calendar',
-          seasons: ['spring', 'summer'],
+          calendar: 'Gregorian',
+          seasons: ['Spring', 'Summer', 'Autumn', 'Winter']
         },
-        slices: [
-          {
-            id: 'slice.1',
-            name: 'Test Slice',
-            description: 'A test slice',
-            type: 'location',
-          },
-        ],
+        slices: []
       };
-
       expect(() => WorldDocSchema.parse(validDoc)).not.toThrow();
     });
 
-    it('should reject invalid world documents', () => {
-      const invalidDocs = [
-        {}, // Missing required fields
-        { id: 'world.test.v1' }, // Missing name, version, hash
-        { id: 'world.test.v1', name: 'Test' }, // Missing version, hash
-        { id: 'world.test.v1', name: 'Test', version: 'v1' }, // Missing hash
-        {
-          id: 'world.test.v1',
-          name: 'Test',
-          version: 'v1',
-          hash: 'abc123',
-          slices: [
-            {
-              id: 'slice.1',
-              name: 'Test Slice',
-              description: 'A test slice',
-              type: 'invalid_type', // Invalid type
-            },
-          ],
+    it('should validate a world document with top-level sections', () => {
+      const validDoc = {
+        id: 'world.test',
+        name: 'Test World',
+        version: '1.0.0',
+        bands: [
+          { id: 'dawn_to_mid_day', label: 'Dawn→Mid-Day', ticks: 60 },
+          { id: 'mid_day_to_evening', label: 'Mid-Day→Evening', ticks: 60 }
+        ],
+        weather_states: ['clear', 'overcast', 'rain', 'fog'],
+        weather_transition_bias: { 'clear->rain': 0.10, 'rain->clear': 0.25 },
+        magic: {
+          domains: ['Creation', 'Destruction', 'Arcane', 'Void'],
+          rules: ['Great workings require time and focus.']
         },
+        essence_behavior: {
+          Life: 'empathetic, restorative',
+          Death: 'stoic, accepts hardship',
+          Order: 'dutiful, plans ahead',
+          Chaos: 'impulsive, playful volatility'
+        },
+        slices: []
+      };
+      expect(() => WorldDocSchema.parse(validDoc)).not.toThrow();
+    });
+
+    it('should validate a world document with custom sections', () => {
+      const validDoc = {
+        id: 'world.test',
+        name: 'Test World',
+        version: '1.0.0',
+        custom_section: {
+          custom_field: 'custom_value',
+          another_field: 123
+        },
+        another_custom: ['item1', 'item2'],
+        slices: []
+      };
+      expect(() => WorldDocSchema.parse(validDoc)).not.toThrow();
+    });
+
+    it('should reject world documents missing required fields', () => {
+      const invalidDocs = [
+        {}, // Missing all required fields
+        { id: 'world.test' }, // Missing name, version
+        { id: 'world.test', name: 'Test World' }, // Missing version
+        { name: 'Test World', version: '1.0.0' }, // Missing id
+        { id: 'world.test', version: '1.0.0' }, // Missing name
+        { id: 'world.test', name: 'Test World' } // Missing version
+      ];
+
+      for (const doc of invalidDocs) {
+        expect(() => WorldDocSchema.parse(doc)).toThrow();
+      }
+    });
+
+    it('should reject world documents with invalid field types', () => {
+      const invalidDocs = [
+        { id: 123, name: 'Test World', version: '1.0.0', slices: [] }, // Invalid id type
+        { id: 'world.test', name: 123, version: '1.0.0', slices: [] }, // Invalid name type
+        { id: 'world.test', name: 'Test World', version: 123, slices: [] }, // Invalid version type
+        { id: 'world.test', name: 'Test World', version: '1.0.0', slices: 'not-array' } // Invalid slices type
       ];
 
       for (const doc of invalidDocs) {
@@ -190,22 +222,15 @@ describe('AWF Validators', () => {
     it('should reject invalid adventure documents', () => {
       const invalidDocs = [
         {}, // Missing required fields
-        { id: 'adv.test.v1' }, // Missing world_ref, version, hash
-        { id: 'adv.test.v1', world_ref: 'world.test.v1' }, // Missing version, hash
+        { id: 'adv.test.v1' }, // Missing world_ref
+        { world_ref: 'world.test.v1' }, // Missing id
+        {
+          id: 123, // Invalid id type
+          world_ref: 'world.test.v1',
+        },
         {
           id: 'adv.test.v1',
-          world_ref: 'world.test.v1',
-          version: 'v1',
-          hash: 'abc123',
-          objectives: [
-            {
-              id: 'obj.1',
-              title: 'Test Objective',
-              description: 'A test objective',
-              type: 'invalid_type', // Invalid type
-              status: 'active',
-            },
-          ],
+          world_ref: 123, // Invalid world_ref type
         },
       ];
 
@@ -253,16 +278,15 @@ describe('AWF Validators', () => {
     it('should reject invalid adventure start documents', () => {
       const invalidDocs = [
         {}, // Missing required fields
-        { start: {} }, // Missing start fields
-        { start: { scene: 'loc.1' } }, // Missing description
-        { start: { scene: 'loc.1', description: 'Test' } }, // Missing rules
+        { start: {} }, // Missing start.scene (required)
+        { start: { scene: 123 } }, // Invalid start.scene type
         {
           start: {
             scene: 'loc.1',
             description: 'Test',
           },
           rules: {
-            no_time_advance: 'invalid', // Invalid type
+            no_time_advance: 'invalid', // Invalid type for boolean
           },
         },
       ];

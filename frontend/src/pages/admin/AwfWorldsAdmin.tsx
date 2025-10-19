@@ -73,17 +73,27 @@ export default function AwfWorldsAdmin() {
     setValidationErrors([]);
   };
 
-  const handleNew = () => {
-    setEditingWorld(null);
-    setFormData({
-      id: '',
-      version: '',
-      doc: '{}',
-      slices: []
-    });
-    setIsEditing(true);
-    setValidationErrors([]);
-  };
+    const handleNew = () => {
+      setEditingWorld(null);
+      setFormData({
+        id: '',
+        version: '',
+        doc: JSON.stringify({
+          id: 'world.<slug>',
+          name: 'World Name',
+          version: '1.0.0',
+          timeworld: {
+            timezone: 'UTC',
+            calendar: 'Gregorian',
+            seasons: ['Spring', 'Summer', 'Autumn', 'Winter']
+          },
+          slices: []
+        }, null, 2),
+        slices: []
+      });
+      setIsEditing(true);
+      setValidationErrors([]);
+    };
 
   const handleCancel = () => {
     setIsEditing(false);
@@ -91,7 +101,17 @@ export default function AwfWorldsAdmin() {
     setFormData({
       id: '',
       version: '',
-      doc: '{}',
+      doc: JSON.stringify({
+        id: 'world.<slug>',
+        name: 'World Name',
+        version: '1.0.0',
+        timeworld: {
+          timezone: 'UTC',
+          calendar: 'Gregorian',
+          seasons: ['Spring', 'Summer', 'Autumn', 'Winter']
+        },
+        slices: []
+      }, null, 2),
       slices: []
     });
     setValidationErrors([]);
@@ -109,7 +129,29 @@ export default function AwfWorldsAdmin() {
     }
 
     try {
-      JSON.parse(formData.doc);
+      const doc = JSON.parse(formData.doc);
+      
+      // Validate document structure
+      if (!doc.id || typeof doc.id !== 'string') {
+        errors.push('Document must have an "id" field');
+      }
+      if (!doc.name || typeof doc.name !== 'string') {
+        errors.push('Document must have a "name" field');
+      }
+      if (!doc.version || typeof doc.version !== 'string') {
+        errors.push('Document must have a "version" field');
+      }
+      
+      // Validate timeworld if present
+      if (doc.timeworld) {
+        if (!doc.timeworld.timezone || typeof doc.timeworld.timezone !== 'string') {
+          errors.push('Timeworld timezone is required and must be a string');
+        }
+        if (!doc.timeworld.calendar || typeof doc.timeworld.calendar !== 'string') {
+          errors.push('Timeworld calendar is required and must be a string');
+        }
+      }
+
     } catch (error) {
       errors.push('Document must be valid JSON');
     }
@@ -139,7 +181,19 @@ export default function AwfWorldsAdmin() {
         await loadWorlds();
         handleCancel();
       } else {
-        toast.error(response.error || 'Failed to save world');
+        // Show detailed validation errors
+        if (response.details && Array.isArray(response.details)) {
+          const errorMessages = response.details.map((detail: any) => {
+            if (typeof detail === 'object' && detail.message) {
+              return `${detail.path?.join('.') || 'document'}: ${detail.message}`;
+            }
+            return detail;
+          });
+          setValidationErrors(errorMessages);
+          toast.error('Validation failed - see errors below');
+        } else {
+          toast.error(response.error || 'Failed to save world');
+        }
       }
     } catch (error) {
       console.error('Error saving world:', error);

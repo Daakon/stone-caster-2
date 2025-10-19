@@ -27,11 +27,32 @@ import {
   getDefaultWorldSlices, 
   getDefaultAdventureSlices 
 } from '../policies/scene-slice-policy.js';
+import { WorldDocFlex } from '../types/awf-world.js';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+/**
+ * Extract custom world sections (all unknown top-level keys)
+ */
+function getCustomWorldSections(worldDoc: WorldDocFlex): Record<string, unknown> {
+  const knownKeys = new Set([
+    'id', 'name', 'version', 'timeworld', 'bands', 'weather_states', 
+    'weather_transition_bias', 'lexicon', 'identity_language', 'magic', 
+    'essence_behavior', 'species_rules', 'factions_world', 'lore_index', 
+    'tone', 'locations', 'slices'
+  ]);
+  
+  const custom: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(worldDoc)) {
+    if (!knownKeys.has(key)) {
+      custom[key] = value;
+    }
+  }
+  return custom;
+}
 
 /**
  * Assemble an AWF bundle for a given session and input
@@ -128,8 +149,27 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
           doc: coreContract.doc as unknown as Record<string, unknown>,
         },
         world: {
-          ref: world.id,
-          hash: world.hash,
+          id: world.doc.id,
+          name: world.doc.name,
+          version: world.doc.version,
+          // Include timeworld if present
+          ...(world.doc.timeworld && { timeworld: world.doc.timeworld }),
+          // Prefer top-level bands, weather_states, weather_transition_bias; fall back to timeworld
+          ...(world.doc.bands && { bands: world.doc.bands }),
+          ...(world.doc.weather_states && { weather_states: world.doc.weather_states }),
+          ...(world.doc.weather_transition_bias && { weather_transition_bias: world.doc.weather_transition_bias }),
+          // Include known sections if present
+          ...(world.doc.lexicon && { lexicon: world.doc.lexicon }),
+          ...(world.doc.identity_language && { identity_language: world.doc.identity_language }),
+          ...(world.doc.magic && { magic: world.doc.magic }),
+          ...(world.doc.essence_behavior && { essence_behavior: world.doc.essence_behavior }),
+          ...(world.doc.species_rules && { species_rules: world.doc.species_rules }),
+          ...(world.doc.factions_world && { factions_world: world.doc.factions_world }),
+          ...(world.doc.lore_index && { lore_index: world.doc.lore_index }),
+          ...(world.doc.tone && { tone: world.doc.tone }),
+          ...(world.doc.locations && { locations: world.doc.locations }),
+          // Include custom sections (all remaining unknown top-level keys)
+          custom: getCustomWorldSections(world.doc),
           slice: worldSlices,
         },
         adventure: {

@@ -3,6 +3,8 @@
  * Phase 1: Data Model - Core document types
  */
 
+import { WorldDocFlex } from './awf-world.js';
+
 // Core Contract Document
 export interface CoreContractDoc {
   contract: {
@@ -50,55 +52,62 @@ export interface WorldDoc {
   }>;
 }
 
-// Adventure Document
+// Adventure Document - Flexible interface
 export interface AdventureDoc {
   id: string;
   world_ref: string;
-  version: string;
-  hash: string;
+  version?: string;
+  hash?: string;
   locations?: Array<{
     id: string;
     name: string;
-    description: string;
+    description?: string;
     connections?: string[];
     metadata?: Record<string, unknown>;
+    [k: string]: unknown; // Allow additional fields
   }>;
   objectives?: Array<{
     id: string;
-    title: string;
-    description: string;
-    type: 'main' | 'side' | 'optional';
-    status: 'active' | 'completed' | 'failed';
+    title?: string;
+    description?: string;
+    type?: string; // Allow any type string
+    status?: string; // Allow any status string
     metadata?: Record<string, unknown>;
+    [k: string]: unknown; // Allow additional fields
   }>;
   npcs?: Array<{
     id: string;
     name: string;
-    description: string;
-    role: string;
+    description?: string;
+    role?: string;
     location?: string;
     metadata?: Record<string, unknown>;
+    [k: string]: unknown; // Allow additional fields
   }>;
   slices?: Array<{
     id: string;
-    name: string;
-    description: string;
-    type: 'scene' | 'encounter' | 'puzzle' | 'dialogue';
+    name?: string;
+    description?: string;
+    type?: string; // Allow any type string
     metadata?: Record<string, unknown>;
+    [k: string]: unknown; // Allow additional fields
   }>;
+  [k: string]: unknown; // Allow additional top-level fields
 }
 
-// Adventure Start Document
+// Adventure Start Document - Flexible interface
 export interface AdventureStartDoc {
   start: {
     scene: string;
-    description: string;
+    description?: string;
     initial_state?: Record<string, unknown>;
+    [k: string]: unknown; // Allow additional fields
   };
-  rules: {
-    no_time_advance: boolean;
+  rules?: {
+    no_time_advance?: boolean;
     [key: string]: unknown;
   };
+  [k: string]: unknown; // Allow additional top-level fields
 }
 
 // Injection Map Document
@@ -125,7 +134,7 @@ export interface CoreContractRecord {
 export interface WorldRecord {
   id: string;
   version: string;
-  doc: WorldDoc;
+  doc: WorldDocFlex;
   hash: string;
   created_at: string;
   updated_at: string;

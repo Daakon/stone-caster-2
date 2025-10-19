@@ -5,7 +5,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { AWFRepositoryFactory } from '../src/repositories/awf-repository-factory.js';
-import { CoreContractDoc, WorldDoc, AdventureDoc, AdventureStartDoc, InjectionMapDoc } from '../src/types/awf-docs.js';
+import { AdventureDoc, AdventureStartDoc, InjectionMapDoc } from '../src/types/awf-docs.js';
+import { WorldDocFlex } from '../src/types/awf-world.js';
+import { CoreContract } from '../src/types/awf-core-contract.js';
 import { computeDocumentHash } from '../src/utils/awf-hashing.js';
 
 // Initialize Supabase client
@@ -17,62 +19,135 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const repoFactory = new AWFRepositoryFactory({ supabase });
 
 // Seed data
-const coreContractDoc: CoreContractDoc = {
+const coreContractDoc: CoreContract = {
   contract: {
-    version: 'v4',
-    name: 'Stone Caster Core Contract',
-    description: 'Core contract for Stone Caster AWF bundle system',
+    awf_return: 'scn, txt, optional choices, optional acts, optional val',
+    'scn.phases': ['scene_setup', 'narrative', 'choices', 'resolution'],
+    'txt.policy': 'minimum 50 words, descriptive narrative',
+    'choices.policy': 'offer 2-4 meaningful choices',
+    'acts.policy': 'include TIME_ADVANCE with ticks >= 1'
   },
-  acts: {
-    allowed: ['move', 'interact', 'inventory', 'save', 'load', 'quit'],
+  rules: {
+    language: {
+      one_language_only: true,
+      use_meta_locale: true
+    },
+    scales: {
+      skill_min: 0,
+      skill_max: 100,
+      relationship_min: 0,
+      relationship_max: 100,
+      baseline: 50
+    },
+    token_discipline: {
+      npcs_active_cap: 5,
+      sim_nearby_token_cap: 1000,
+      mods_micro_slice_cap_per_namespace: 200,
+      mods_micro_slice_cap_global: 1000,
+      episodic_cap: 50,
+      episodic_note_max_chars: 200
+    },
+    time: {
+      require_time_advance_each_nonfirst_turn: true,
+      allow_time_advance_on_first_turn: false
+    },
+    menus: {
+      min_choices: 2,
+      max_choices: 4,
+      label_max_chars: 50
+    },
+    mechanics_visibility: {
+      no_mechanics_in_txt: false
+    },
+    safety: {
+      consent_required_for_impactful_actions: true,
+      offer_player_reaction_when_npc_initiates: true
+    }
   },
-  memory: {
-    exemplars: [
-      {
-        id: 'exemplar-1',
-        content: 'Player moves to the forest clearing and discovers an ancient stone.',
-        metadata: { type: 'movement', location: 'forest_clearing' },
-      },
-      {
-        id: 'exemplar-2',
-        content: 'Player interacts with the mysterious NPC and learns about the prophecy.',
-        metadata: { type: 'interaction', npc: 'mysterious_wanderer' },
-      },
-    ],
-  },
+  acts_catalog: [
+    { type: 'move', mode: 'immediate', target: 'location' },
+    { type: 'interact', mode: 'immediate', target: 'npc' },
+    { type: 'inventory', mode: 'immediate', target: 'self' },
+    { type: 'save', mode: 'immediate', target: 'session' },
+    { type: 'load', mode: 'immediate', target: 'session' },
+    { type: 'quit', mode: 'immediate', target: 'session' }
+  ],
+  defaults: {
+    txt_sentences_min: 3,
+    txt_sentences_max: 8,
+    time_ticks_min_step: 1,
+    time_band_cycle: ['Dawn', 'Mid-Day', 'Evening', 'Mid-Night'],
+    cooldowns: {
+      dialogue_candidate_cooldown_turns: 3
+    }
+  }
 };
 
-const worldDoc: WorldDoc = {
-  id: 'world.mystika.v1',
+const worldDoc: WorldDocFlex = {
+  id: 'world.mystika',
   name: 'Mystika',
-  version: 'v1',
-  hash: '', // Will be computed
+  version: '1.0.0',
+  // Optional timeworld section
   timeworld: {
     timezone: 'UTC',
-    calendar: 'mystika_calendar',
-    seasons: ['spring', 'summer', 'autumn', 'winter'],
+    calendar: 'Gregorian',
+    seasons: ['Spring', 'Summer', 'Autumn', 'Winter']
   },
-  slices: [
-    {
-      id: 'slice.forest',
-      name: 'Enchanted Forest',
-      description: 'A mystical forest filled with ancient magic and mysterious creatures.',
-      type: 'location',
-      metadata: { biome: 'forest', magic_level: 'high' },
-    },
-    {
-      id: 'slice.tower',
-      name: 'Crystal Tower',
-      description: 'An ancient tower made of pure crystal, pulsing with magical energy.',
-      type: 'location',
-      metadata: { biome: 'tower', magic_level: 'extreme' },
-    },
+  // Top-level sections (preferred over timeworld)
+  bands: [
+    { id: 'dawn_to_mid_day', label: 'Dawn→Mid-Day', ticks: 60 },
+    { id: 'mid_day_to_evening', label: 'Mid-Day→Evening', ticks: 60 },
+    { id: 'evening_to_mid_night', label: 'Evening→Mid-Night', ticks: 60 },
+    { id: 'mid_night_to_dawn', label: 'Mid-Night→Dawn', ticks: 60 }
   ],
+  weather_states: ['clear', 'overcast', 'rain', 'fog'],
+  weather_transition_bias: { 'clear->rain': 0.10, 'rain->clear': 0.25, 'overcast->rain': 0.20, 'fog->clear': 0.15 },
+  lexicon: {
+    substitutions: { 'intel': 'gleanings', 'kilometer': 'league', 'okay': 'very well', 'minutes': 'ticks' },
+    avoid: ['modern slang', 'explicit tech jargon']
+  },
+  magic: {
+    domains: ['Creation', 'Destruction', 'Arcane', 'Void', 'Fire', 'Water', 'Earth', 'Air'],
+    rules: [
+      'Great workings require time and focus.',
+      'Instant long-range teleport is impossible.',
+      'Void use can corrupt outcomes with repetition.'
+    ]
+  },
+  essence_behavior: {
+    Life: 'empathetic, restorative',
+    Death: 'stoic, accepts hardship',
+    Order: 'dutiful, plans ahead',
+    Chaos: 'impulsive, playful volatility'
+  },
+  species_rules: {
+    shifter: { bond: 'spirit animal', speech_in_animal_form: false, costs: ['hunger↑', 'fatigue↑'] }
+  },
+  factions_world: [
+    'Glade packs resist slavers',
+    'Unaligned settlements waver',
+    'Slavers feed distant markets where silence earns coin'
+  ],
+  lore_index: {
+    entries: [
+      'Whispercross: damp glades, ward-scarred roots, old paths watched by quiet eyes.',
+      'Distant cities drive demand; caravans pay for silence and speed.'
+    ]
+  },
+  tone: { 
+    style: ['grounded high fantasy', 'sensory woods imagery', 'kinship under pressure'], 
+    taboos: ['modern slang', 'explicit tech jargon'] 
+  },
+  locations: [
+    { id: 'loc.whisper_docks', name: 'Whisper Docks' },
+    { id: 'loc.gleam_market', name: 'Gleam Market' }
+  ],
+  slices: []
 };
 
 const adventureDoc: AdventureDoc = {
   id: 'adv.whispercross.v1',
-  world_ref: 'world.mystika.v1',
+  world_ref: 'world.mystika',
   version: 'v1',
   hash: '', // Will be computed
   locations: [
@@ -150,7 +225,24 @@ const adventureStartDoc: AdventureStartDoc = {
 const injectionMapDoc: InjectionMapDoc = {
   build: {
     'core.contract': '/core/contract',
-    'world.data': '/world/data',
+    'world.id': '/world/id',
+    'world.name': '/world/name',
+    'world.version': '/world/version',
+    'world.timeworld': '/world/timeworld',
+    'world.bands': '/world/bands',
+    'world.weather_states': '/world/weather_states',
+    'world.weather_transition_bias': '/world/weather_transition_bias',
+    'world.lexicon': '/world/lexicon',
+    'world.identity_language': '/world/identity_language',
+    'world.magic': '/world/magic',
+    'world.essence_behavior': '/world/essence_behavior',
+    'world.species_rules': '/world/species_rules',
+    'world.factions_world': '/world/factions_world',
+    'world.lore_index': '/world/lore_index',
+    'world.tone': '/world/tone',
+    'world.locations': '/world/locations',
+    'world.slices': '/world/slices',
+    'world.custom': '/world/custom',
     'adventure.data': '/adventure/data',
     'session.state': '/session/state',
   },
@@ -174,8 +266,7 @@ async function seedData(): Promise<void> {
     const adventureHash = computeDocumentHash(adventureDoc);
 
     // Update docs with computed hashes
-    worldDoc.hash = worldHash;
-    adventureDoc.hash = adventureHash;
+    // Note: WorldDocFlex doesn't have hash field, it's computed by repository
 
     // Get repositories
     const coreContractsRepo = repoFactory.getCoreContractsRepository();
@@ -251,7 +342,7 @@ async function seedData(): Promise<void> {
 }
 
 // Run seeding if this script is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.includes('seed-awf-data')) {
   seedData();
 }
 

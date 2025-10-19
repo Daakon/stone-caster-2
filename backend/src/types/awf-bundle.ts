@@ -25,6 +25,7 @@ export interface AwfBundleMeta {
   adventure: string;
   turn_id: number;
   is_first_turn: boolean;
+  locale?: string;
   timestamp: string;
 }
 
@@ -38,8 +39,23 @@ export interface AwfBundleContract {
 
 // World information
 export interface AwfBundleWorld {
-  ref: string;
-  hash: string;
+  id: string;
+  name: string;
+  version: string;
+  timeworld?: Record<string, unknown>; // Optional timeworld section
+  bands?: Array<{ id: string; label?: string; ticks?: number }>; // Top-level bands
+  weather_states?: string[]; // Top-level weather states
+  weather_transition_bias?: Record<string, number>; // Top-level weather transition bias
+  lexicon?: Record<string, unknown>; // Lexicon section
+  identity_language?: Record<string, unknown>; // Identity language section
+  magic?: Record<string, unknown>; // Magic section
+  essence_behavior?: Record<string, unknown>; // Essence behavior section
+  species_rules?: Record<string, unknown>; // Species rules section
+  factions_world?: unknown[]; // Factions world section
+  lore_index?: Record<string, unknown>; // Lore index section
+  tone?: Record<string, unknown>; // Tone section
+  locations?: Array<{ id: string; name: string; [k: string]: unknown }>; // Locations section
+  custom?: Record<string, unknown>; // Custom sections
   slice: string[];
   doc?: Record<string, unknown>; // Optional inline content
 }

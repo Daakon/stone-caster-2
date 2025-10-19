@@ -309,7 +309,19 @@ export default function AwfCoreContractsAdmin() {
         await fetchCoreContracts();
         handleCancel();
       } else {
-        toast.error(response.error || 'Failed to save contract');
+        // Show detailed validation errors
+        if (response.details && Array.isArray(response.details)) {
+          const errorMessages = response.details.map((detail: any) => {
+            if (typeof detail === 'object' && detail.message) {
+              return `${detail.path?.join('.') || 'document'}: ${detail.message}`;
+            }
+            return detail;
+          });
+          setValidationErrors(errorMessages);
+          toast.error('Validation failed - see errors below');
+        } else {
+          toast.error(response.error || 'Failed to save contract');
+        }
       }
     } catch (error) {
       console.error('Error saving contract:', error);

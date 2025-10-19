@@ -1,0 +1,40 @@
+---
+title: No Server Startup Rule
+description: Prevent starting development servers - use builds and tests only
+---
+
+# No Server Startup Rule
+
+**CRITICAL**: Never start development servers (frontend or backend) in this project.
+
+## Prohibited Commands
+- `npm run dev`
+- `npm run dev:server`
+- `npm run dev:client` 
+- `npm run dev:parallel`
+- `npm run dev:local`
+- `npm start`
+- `node dist/index.js`
+- Any command that starts a server on ports 3000, 5173, 5174, 5175
+
+## Allowed Commands
+- `npm run build` - Build the project
+- `npm run test` - Run tests
+- `npm run lint` - Run linter
+- `npm run seed:data` - Seed database
+- `npm run validate:docs` - Validate documents
+- Any script that doesn't start a server
+
+## Rationale
+- Servers consume resources and can interfere with other development
+- Focus on code changes, builds, and tests instead
+- Database operations and validation can be done without servers
+- Prevents accidental long-running processes
+
+## Enforcement
+If a server is accidentally started:
+1. Immediately kill it with `npx kill-port 3000 5173 5174 5175`
+2. Acknowledge the mistake
+3. Continue with non-server tasks only
+
+**This rule cannot be broken under any circumstances.**

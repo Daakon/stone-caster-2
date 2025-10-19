@@ -679,10 +679,25 @@ router.post('/awf/core-contracts', authenticateToken, requireAdminRole, async (r
     try {
       validateCoreContract(doc);
     } catch (validationError) {
+      let details: string | any[] = 'Invalid document structure';
+      if (validationError instanceof Error) {
+        try {
+          // Try to parse Zod error details
+          const zodError = JSON.parse(validationError.message);
+          if (Array.isArray(zodError)) {
+            details = zodError;
+          } else {
+            details = validationError.message;
+          }
+        } catch {
+          details = validationError.message;
+        }
+      }
+      
       return res.status(400).json({
         ok: false,
         error: 'Document validation failed',
-        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
+        details: Array.isArray(details) ? details : [details]
       });
     }
 
@@ -799,10 +814,25 @@ router.post('/awf/worlds', authenticateToken, requireAdminRole, async (req, res)
     try {
       validatedDoc = WorldDocSchema.parse(doc);
     } catch (validationError) {
+      let details: string | any[] = 'Invalid document structure';
+      if (validationError instanceof Error) {
+        try {
+          // Try to parse Zod error details
+          const zodError = JSON.parse(validationError.message);
+          if (Array.isArray(zodError)) {
+            details = zodError;
+          } else {
+            details = validationError.message;
+          }
+        } catch {
+          details = validationError.message;
+        }
+      }
+      
       return res.status(400).json({
         ok: false,
         error: 'Document validation failed',
-        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
+        details: Array.isArray(details) ? details : [details]
       });
     }
 

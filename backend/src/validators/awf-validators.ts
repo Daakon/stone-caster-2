@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { WorldDocFlexSchema } from './awf-world.schema.js';
 
 // Core Contract Document Validator
 export const CoreContractDocSchema = z.object({
@@ -24,75 +25,58 @@ export const CoreContractDocSchema = z.object({
   }).optional(),
 });
 
-// World Document Validator
-export const WorldDocSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  version: z.string().min(1),
-  hash: z.string().min(1),
-  timeworld: z.object({
-    timezone: z.string().min(1),
-    calendar: z.string().min(1),
-    seasons: z.array(z.string()).optional(),
-  }).optional(),
-  slices: z.array(z.object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    description: z.string().min(1),
-    type: z.enum(['location', 'character', 'item', 'event']),
-    metadata: z.record(z.unknown()).optional(),
-  })).optional(),
-});
+// World Document Validator - now uses flexible schema
+export const WorldDocSchema = WorldDocFlexSchema;
 
-// Adventure Document Validator
+// Adventure Document Validator - Flexible schema
 export const AdventureDocSchema = z.object({
   id: z.string().min(1),
   world_ref: z.string().min(1),
-  version: z.string().min(1),
-  hash: z.string().min(1),
+  version: z.string().optional(),
+  hash: z.string().optional(),
   locations: z.array(z.object({
     id: z.string().min(1),
     name: z.string().min(1),
-    description: z.string().min(1),
+    description: z.string().optional(),
     connections: z.array(z.string()).optional(),
     metadata: z.record(z.unknown()).optional(),
-  })).optional(),
+  }).passthrough()).optional(),
   objectives: z.array(z.object({
     id: z.string().min(1),
-    title: z.string().min(1),
-    description: z.string().min(1),
-    type: z.enum(['main', 'side', 'optional']),
-    status: z.enum(['active', 'completed', 'failed']),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    type: z.string().optional(), // Allow any type string
+    status: z.string().optional(), // Allow any status string
     metadata: z.record(z.unknown()).optional(),
-  })).optional(),
+  }).passthrough()).optional(),
   npcs: z.array(z.object({
     id: z.string().min(1),
     name: z.string().min(1),
-    description: z.string().min(1),
-    role: z.string().min(1),
+    description: z.string().optional(),
+    role: z.string().optional(),
     location: z.string().optional(),
     metadata: z.record(z.unknown()).optional(),
-  })).optional(),
+  }).passthrough()).optional(),
   slices: z.array(z.object({
     id: z.string().min(1),
-    name: z.string().min(1),
-    description: z.string().min(1),
-    type: z.enum(['scene', 'encounter', 'puzzle', 'dialogue']),
+    name: z.string().optional(),
+    description: z.string().optional(),
+    type: z.string().optional(), // Allow any type string
     metadata: z.record(z.unknown()).optional(),
-  })).optional(),
-});
+  }).passthrough()).optional(),
+}).passthrough(); // Allow additional top-level fields
 
-// Adventure Start Document Validator
+// Adventure Start Document Validator - Flexible schema
 export const AdventureStartDocSchema = z.object({
   start: z.object({
     scene: z.string().min(1),
-    description: z.string().min(1),
+    description: z.string().optional(),
     initial_state: z.record(z.unknown()).optional(),
-  }),
+  }).passthrough(),
   rules: z.object({
-    no_time_advance: z.boolean(),
-  }).and(z.record(z.unknown())), // Allow additional rules
-});
+    no_time_advance: z.boolean().optional(),
+  }).passthrough().optional(), // Make rules optional and allow additional rules
+}).passthrough(); // Allow additional top-level fields
 
 // Injection Map Document Validator
 export const InjectionMapDocSchema = z.object({

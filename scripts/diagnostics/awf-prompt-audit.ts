@@ -210,6 +210,10 @@ async function main(): Promise<void> {
   const coreContractCheck = await checkCoreContractSchema(supabase);
   checks.push(coreContractCheck);
 
+  // World schema check
+  const worldSchemaCheck = await checkWorldSchema(supabase);
+  checks.push(worldSchemaCheck);
+
   // Legacy reference search
   const legacyCheck = await checkLegacyReferences();
   checks.push(legacyCheck);
@@ -592,6 +596,121 @@ async function inspectInjectionMap(supabase: SupabaseClient | null): Promise<Aud
   }
 }
 
+async function checkWorldSchema(supabase: SupabaseClient | null): Promise<AuditCheckResult> {
+  if (!supabase) {
+    return {
+      id: 'world-schema',
+      title: 'World schema compliance',
+      status: 'warning',
+      summary: 'World schema check skipped - no database connection'
+    };
+  }
+
+  try {
+    // Get latest world
+    const { data: world, error } = await supabase
+      .from('worlds')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !world) {
+      return {
+        id: 'world-schema',
+        title: 'World schema compliance',
+        status: 'fail',
+        summary: 'No world documents found',
+        details: error ? [error.message] : ['No world documents in database']
+      };
+    }
+
+    const doc = world.doc;
+    const issues: string[] = [];
+    const warnings: string[] = [];
+
+    // Check for required fields only
+    if (!doc.id || typeof doc.id !== 'string') {
+      issues.push('Missing or invalid "id" field');
+    }
+    if (!doc.name || typeof doc.name !== 'string') {
+      issues.push('Missing or invalid "name" field');
+    }
+    if (!doc.version || typeof doc.version !== 'string') {
+      issues.push('Missing or invalid "version" field');
+    }
+
+    // Check for slices (should be array if present)
+    if (doc.slices !== undefined && !Array.isArray(doc.slices)) {
+      issues.push('Invalid "slices" field - must be array if present');
+    }
+
+    // Warn if no bands are present (either top-level or in timeworld)
+    const hasTopLevelBands = Array.isArray(doc.bands) && doc.bands.length > 0;
+    const hasTimeworldBands = doc.timeworld && Array.isArray(doc.timeworld.bands) && doc.timeworld.bands.length > 0;
+    if (!hasTopLevelBands && !hasTimeworldBands) {
+      warnings.push('No bands found (neither top-level nor in timeworld)');
+    }
+
+    // Warn if no weather states are present
+    const hasTopLevelWeather = Array.isArray(doc.weather_states) && doc.weather_states.length > 0;
+    const hasTimeworldWeather = doc.timeworld && doc.timeworld.weather_states && Array.isArray(doc.timeworld.weather_states) && doc.timeworld.weather_states.length > 0;
+    if (!hasTopLevelWeather && !hasTimeworldWeather) {
+      warnings.push('No weather states found (neither top-level nor in timeworld)');
+    }
+
+    // Check for legacy fields (should not be present)
+    if (doc.hash) {
+      issues.push('CRITICAL: Legacy field "hash" found in document');
+    }
+    if (doc.time) {
+      issues.push('CRITICAL: Legacy field "time" found in document');
+    }
+    if (doc.title) {
+      issues.push('CRITICAL: Legacy field "title" found in document');
+    }
+    if (doc.time_bands) {
+      issues.push('CRITICAL: Legacy field "time_bands" found in document');
+    }
+
+    const criticalIssues = issues.filter(issue => issue.includes('CRITICAL'));
+    const status: CheckStatus = issues.length === 0 ? (warnings.length > 0 ? 'warning' : 'pass') : 'fail';
+
+    return {
+      id: 'world-schema',
+      title: 'World schema compliance',
+      status,
+      summary: status === 'pass'
+        ? 'World document matches flexible schema'
+        : status === 'warning'
+          ? 'World document matches flexible schema with warnings'
+          : criticalIssues.length > 0
+            ? 'World document contains legacy fields'
+            : 'World document missing required fields',
+      details: [...issues, ...warnings].length > 0 ? [...issues, ...warnings] : undefined,
+      data: {
+        worldId: world.id,
+        worldVersion: world.version,
+        hasTimeworld: Boolean(doc.timeworld),
+        hasTopLevelBands: hasTopLevelBands,
+        hasTimeworldBands: hasTimeworldBands,
+        hasTopLevelWeather: hasTopLevelWeather,
+        hasTimeworldWeather: hasTimeworldWeather,
+        hasCustomSections: Object.keys(doc).some(key => !['id', 'name', 'version', 'timeworld', 'bands', 'weather_states', 'weather_transition_bias', 'lexicon', 'identity_language', 'magic', 'essence_behavior', 'species_rules', 'factions_world', 'lore_index', 'tone', 'locations', 'slices'].includes(key)),
+        hasLegacyFields: criticalIssues.length > 0
+      }
+    };
+  } catch (error) {
+    return {
+      id: 'world-schema',
+      title: 'World schema compliance',
+      status: 'fail',
+      summary: 'Failed to check world schema',
+      details: [String(error)]
+    };
+  }
+}
+
 async function checkCoreContractSchema(supabase: SupabaseClient | null): Promise<AuditCheckResult> {
   if (!supabase) {
     return {
@@ -836,7 +955,7 @@ function evaluateTokenHygiene(result: BundleAssemblyResult): AuditCheckResult {
     data: {
       npcCount,
       estimatedTokens,
-      warmEpisodicEntries: Array.isArray(awf?.warm?.episodic) ? awf.warm.episodic.length : 0
+      warmEpisodicEntries: Array.isArray((awf?.warm as any)?.episodic) ? ((awf.warm as any).episodic as unknown[]).length : 0
     }
   };
 }
