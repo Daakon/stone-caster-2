@@ -2,7 +2,6 @@ import { configService } from '../config/index.js';
 import { promptsService } from './prompts.service.js';
 import { OpenAIService } from './openai.service.js';
 import { PromptWrapper, type GameStateData } from '../prompts/wrapper.js';
-import { PromptAssembler } from '../prompts/assembler.js';
 import { DatabasePromptService } from './db-prompt.service.js';
 import type { AIResponse, StoryAction, GameSave, Character } from '@shared';
 import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS } from '../constants/game-constants.js';
@@ -19,15 +18,17 @@ interface StoryContext {
 export class AIService {
   private openaiService: OpenAIService | null = null;
   private promptWrapper: PromptWrapper;
-  private promptAssembler: PromptAssembler;
   private databasePromptService: DatabasePromptService | null = null;
   private gameConfigService: GameConfigService;
+  private databasePromptStatus: 'unknown' | 'healthy' | 'missing';
+  private hasLoggedMissingDatabasePrompts = false;
+  private lastDatabaseFallbackReason: string | null = null;
 
   constructor(databasePromptService?: DatabasePromptService) {
     this.promptWrapper = new PromptWrapper();
-    this.promptAssembler = new PromptAssembler();
     this.databasePromptService = databasePromptService || null;
     this.gameConfigService = GameConfigService.getInstance();
+    this.databasePromptStatus = this.databasePromptService ? 'unknown' : 'missing';
     
     // Initialize OpenAI service lazily when first needed
     this.initializeOpenAIService();
@@ -68,6 +69,27 @@ export class AIService {
     choices: Array<{id: string, label: string}> = [],
     includeDebug: boolean = false
   ): Promise<{response: string, debug?: any, promptData?: any, promptMetadata?: any, model?: string, tokenCount?: number, promptId?: string}> {
+    const failureDetails: Record<string, unknown> = {
+      gameId: gameContext?.id,
+      worldId: gameContext?.world_id,
+      characterId: gameContext?.character_id ?? gameContext?.character?.id ?? null,
+      turnIndex: gameContext?.turn_index ?? null,
+      optionId,
+      choicesCount: choices.length,
+      includeDebug,
+      usingDatabasePrompts: Boolean(this.databasePromptService && this.databasePromptStatus !== 'missing'),
+      stateSnapshotPresent: Boolean(gameContext?.state_snapshot),
+      databasePromptStatus: this.databasePromptStatus,
+      lastDatabaseFallbackReason: this.lastDatabaseFallbackReason ?? undefined,
+    };
+    let promptSource: 'database' | 'filesystem' | 'unknown' =
+      this.databasePromptService && this.databasePromptStatus !== 'missing' ? 'database' : 'filesystem';
+    let validationDetails: Record<string, unknown> | null = null;
+    let promptLength: number | null = null;
+    let promptAssemblyStage: string = 'initialization';
+    let databaseFallbackReason: string | null =
+      this.databasePromptStatus === 'missing' ? this.lastDatabaseFallbackReason : null;
+
     try {
       console.log('[AI_SERVICE] Starting turn response generation with new wrapper...');
       
@@ -94,7 +116,14 @@ export class AIService {
         
         if (includeDebug) {
           testResponse.debug = {
-            promptState: { gameContext, optionId, choices },
+            promptState: {
+              gameContext,
+              optionId,
+              choices,
+              promptSource: 'test-mode',
+              databaseFallbackReason: this.lastDatabaseFallbackReason ?? undefined,
+              lastDatabaseFallbackReason: this.lastDatabaseFallbackReason ?? undefined,
+            },
             promptText: 'Test mode - no AI call made',
             aiResponseRaw: 'Test response',
             processingTime: 0,
@@ -111,7 +140,10 @@ export class AIService {
             sections: ['SYSTEM', 'CORE', 'WORLD', 'ADVENTURE', 'PLAYER', 'RNG', 'INPUT'],
             tokenCount: 0,
             assembledAt: new Date().toISOString(),
-            testMode: true
+            testMode: true,
+            source: 'test-mode',
+            databaseFallbackReason: this.lastDatabaseFallbackReason ?? undefined,
+            lastDatabaseFallbackReason: this.lastDatabaseFallbackReason ?? undefined,
           },
           model: 'test-mode',
           tokenCount: 0,
@@ -120,10 +152,24 @@ export class AIService {
       }
 
       // Build prompt using the new wrapper system
-      const prompt = await this.buildWrappedPrompt(gameContext, optionId, choices);
+      promptAssemblyStage = 'buildWrappedPrompt';
+      const buildResult = await this.buildWrappedPrompt(gameContext, optionId, choices);
+      const prompt = buildResult.prompt;
+      promptSource = buildResult.source;
+      failureDetails.promptSource = promptSource;
+      if (buildResult.fallbackReason) {
+        databaseFallbackReason = buildResult.fallbackReason;
+      }
+      failureDetails.databaseFallbackReason = databaseFallbackReason ?? undefined;
+      failureDetails.lastDatabaseFallbackReason = this.lastDatabaseFallbackReason ?? undefined;
+      failureDetails.databasePromptStatus = this.databasePromptStatus;
+      promptLength = prompt.length;
+      failureDetails.promptLength = promptLength;
       
       // Comprehensive prompt validation before sending to AI
+      promptAssemblyStage = 'promptValidation';
       const validationResult = this.validatePromptCompleteness(prompt, gameContext);
+      validationDetails = validationResult.details || null;
       if (!validationResult.valid) {
         console.error(`[AI_SERVICE] CRITICAL: Prompt validation failed - ${validationResult.error}`);
         console.error(`[AI_SERVICE] Validation details:`, validationResult.details);
@@ -144,13 +190,21 @@ export class AIService {
           optionId,
           choices,
           timestamp: new Date().toISOString(),
+          promptSource,
+          databaseFallbackReason: databaseFallbackReason ?? undefined,
+          lastDatabaseFallbackReason: this.lastDatabaseFallbackReason ?? undefined,
         };
         debugInfo.promptText = prompt;
+        debugInfo.promptSource = promptSource;
+        if (databaseFallbackReason) {
+          debugInfo.databaseFallbackReason = databaseFallbackReason;
+        }
       }
       
       const startTime = Date.now();
       
       // Generate response with OpenAI service
+      promptAssemblyStage = 'openAIRequest';
       const openaiService = this.getOpenAIService();
       const response = await openaiService.generateBufferedResponse(prompt);
       
@@ -194,7 +248,10 @@ export class AIService {
             sections: ['SYSTEM', 'CORE', 'WORLD', 'ADVENTURE', 'PLAYER', 'RNG', 'INPUT'],
             tokenCount: response.usage?.prompt_tokens || 0,
             assembledAt: new Date().toISOString(),
-            length: prompt.length
+            length: prompt.length,
+            source: promptSource,
+            databaseFallbackReason: databaseFallbackReason ?? undefined,
+            lastDatabaseFallbackReason: this.lastDatabaseFallbackReason ?? undefined,
           },
           model: 'gpt-4o-mini',
           tokenCount: response.usage?.total_tokens || 0,
@@ -223,7 +280,10 @@ export class AIService {
               tokenCount: response.usage?.prompt_tokens || 0,
               assembledAt: new Date().toISOString(),
               length: prompt.length,
-              repairAttempted: true
+              repairAttempted: true,
+              source: promptSource,
+              databaseFallbackReason: databaseFallbackReason ?? undefined,
+              lastDatabaseFallbackReason: this.lastDatabaseFallbackReason ?? undefined,
             },
             model: 'gpt-4o-mini',
             tokenCount: response.usage?.total_tokens || 0,
@@ -236,16 +296,33 @@ export class AIService {
       }
     } catch (error) {
       console.error('[AI_SERVICE] Error generating turn response:', error);
+      failureDetails.databasePromptStatus = this.databasePromptStatus;
+      failureDetails.lastDatabaseFallbackReason = this.lastDatabaseFallbackReason ?? undefined;
+      console.error('[AI_SERVICE] Prompt failure diagnostics:', {
+        ...failureDetails,
+        promptSource,
+        promptAssemblyStage,
+        validationIssues: validationDetails?.issues ?? null,
+        validationSummary: validationDetails,
+        promptLength,
+        databaseFallbackReason,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
       
       // Check if this is an OpenAI API key issue
       if (error instanceof Error && error.message.includes('OPENAI_API_KEY')) {
         console.error('[AI_SERVICE] CRITICAL: OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.');
-        throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.');
+        throw new Error('OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.', { cause: error });
       }
       
       // For any other error, throw it to prevent charging the user for failed AI responses
       console.error('[AI_SERVICE] CRITICAL: AI service failed - not charging user for failed response');
-      throw new Error(`AI service failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof Error) {
+        throw new Error(`AI service failed: ${error.message}`, { cause: error });
+      }
+      throw new Error(`AI service failed: ${String(error)}`);
     }
   }
 
@@ -286,31 +363,8 @@ export class AIService {
         adventurePath = 'whispercross'; // Map to actual directory name
       }
       
-      // Try to load from the file-based template system first
-      const possiblePaths = [
-        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.start.prompt.json`,
-        `backend/AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.prompt.json`,
-        `AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.start.prompt.json`,
-        `AI API Prompts/worlds/${worldId}/adventures/${adventurePath}/adventure.prompt.json`,
-      ];
-
-      for (const path of possiblePaths) {
-        try {
-          const { readFileSync } = await import('fs');
-          const { join } = await import('path');
-          const fullPath = join(process.cwd(), path);
-          console.log(`[AI_SERVICE] Attempting to load from: ${fullPath}`);
-          const content = readFileSync(fullPath, 'utf-8');
-          const data = JSON.parse(content);
-          console.log(`[AI_SERVICE] Successfully loaded adventure start data from ${path}`);
-          return data;
-        } catch (error) {
-          console.log(`[AI_SERVICE] Failed to load from ${path}: ${error}`);
-          // Continue to next path
-        }
-      }
-
-      console.log(`[AI_SERVICE] No adventure start data found for ${worldId}/${adventureName}`);
+      // DB-only mode: No file-based loading
+      console.log(`[AI_SERVICE] DB-only mode: Adventure start data must come from database`);
       return null;
     } catch (error) {
       console.error(`[AI_SERVICE] Error loading adventure start data: ${error}`);
@@ -467,16 +521,82 @@ export class AIService {
     gameContext: any,
     optionId: string,
     choices: Array<{id: string, label: string}>
-  ): Promise<string> {
-    // Try database assembly first if available
-    if (this.databasePromptService) {
-      console.log(`[AI_SERVICE] Using database assembly for prompt`);
-      return await this.buildDatabasePrompt(gameContext, optionId, choices);
+  ): Promise<{ prompt: string; source: 'database' }> {
+    // Check if database prompt service is available
+    if (!this.databasePromptService) {
+      throw new Error(
+        'DATABASE_PROMPT_SERVICE_MISSING: Database prompt service is not initialized. ' +
+        'This indicates a configuration error in the AI service setup.'
+      );
     }
 
-    // Fallback to filesystem-based assembly
-    console.log(`[AI_SERVICE] Using filesystem-based assembly for prompt`);
-    return await this.buildFilesystemPrompt(gameContext, optionId, choices);
+    // Check database status
+    if (this.databasePromptStatus === 'missing') {
+      throw new Error(
+        'DATABASE_SCHEMA_MISSING: The prompting schema and functions are not available in the database. ' +
+        'To fix this:\n' +
+        '1. Go to your Supabase Dashboard\n' +
+        '2. Navigate to SQL Editor\n' +
+        '3. Run the migration: supabase/migrations/20250103000000_create_prompting_schema.sql\n' +
+        '4. Then run: npm run ingest:prompts'
+      );
+    }
+
+    console.log('[AI_SERVICE] Using database assembly for prompt');
+    try {
+      const prompt = await this.buildDatabasePrompt(gameContext, optionId, choices);
+      this.databasePromptStatus = 'healthy';
+      this.lastDatabaseFallbackReason = null;
+      return { prompt, source: 'database' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      
+      // Provide specific error messages for common database issues
+      if (this.isMissingDatabaseFunctionError(error)) {
+        this.databasePromptStatus = 'missing';
+        throw new Error(
+          'DATABASE_FUNCTION_MISSING: The prompt_segments_for_context function is missing from the database. ' +
+          'To fix this:\n' +
+          '1. Go to your Supabase Dashboard\n' +
+          '2. Navigate to SQL Editor\n' +
+          '3. Run the migration: supabase/migrations/20250103000000_create_prompting_schema.sql\n' +
+          '4. Then run: npm run ingest:prompts\n' +
+          `Original error: ${message}`
+        );
+      }
+
+      if (message.includes('prompting.prompts')) {
+        throw new Error(
+          'DATABASE_TABLE_MISSING: The prompting.prompts table is missing from the database. ' +
+          'To fix this:\n' +
+          '1. Go to your Supabase Dashboard\n' +
+          '2. Navigate to SQL Editor\n' +
+          '3. Run the migration: supabase/migrations/20250103000000_create_prompting_schema.sql\n' +
+          '4. Then run: npm run ingest:prompts\n' +
+          `Original error: ${message}`
+        );
+      }
+
+      if (message.includes('permission denied') || message.includes('insufficient_privilege')) {
+        throw new Error(
+          'DATABASE_PERMISSION_ERROR: Insufficient database permissions to access prompt data. ' +
+          'To fix this:\n' +
+          '1. Check that your service key has proper permissions\n' +
+          '2. Ensure RLS policies are correctly configured\n' +
+          '3. Verify the prompting schema grants are applied\n' +
+          `Original error: ${message}`
+        );
+      }
+
+      // Generic database error
+      throw new Error(
+        `DATABASE_ERROR: Failed to build prompt from database. ${message}\n` +
+        'To troubleshoot:\n' +
+        '1. Check database connection and permissions\n' +
+        '2. Verify prompting schema is properly set up\n' +
+        '3. Run: npm run test:db-prompts to test database setup'
+      );
+    }
   }
 
   /**
@@ -487,138 +607,50 @@ export class AIService {
     optionId: string,
     choices: Array<{id: string, label: string}>
   ): Promise<string> {
-    // Build context for database assembly
-    const context = await this.buildDatabasePromptContext(gameContext, optionId, choices);
-    
-    // Use database prompt service
-    const result = await this.databasePromptService!.assemblePrompt(context);
-    
-    // Validate that we got proper AI prompt content
-    if (!result.prompt || result.prompt.length < 500) {
-      console.error(`[AI_SERVICE] CRITICAL: Database prompt assembler returned insufficient content (${result.prompt?.length || 0} chars)`);
-      throw new Error(`Database prompt assembler failed - content too minimal`);
-    }
-
-    console.log(`[AI_SERVICE] Database assembly completed with ${result.metadata.totalSegments} segments`);
-    return result.prompt;
-  }
-
-  /**
-   * Build prompt using filesystem-based assembly (legacy)
-   */
-  private async buildFilesystemPrompt(
-    gameContext: any,
-    optionId: string,
-    choices: Array<{id: string, label: string}>
-  ): Promise<string> {
-    // Initialize the prompt assembler for the world
-    await this.promptAssembler.initialize(gameContext.world_id);
-    
-    // Resolve player input to text
-    const isFirstTurn = gameContext.turn_index === 0;
-    const startingScene = gameContext.current_scene;
-    
-    // Map scene to adventure name using the same logic as prompts service
-    const adventureName = await this.mapSceneToAdventure(gameContext.world_id, startingScene);
-    
-    // Debug logging to see what we're getting
-    console.log(`[AI_SERVICE] Building prompt for turn ${gameContext.turn_index}:`, {
-      isFirstTurn,
-      adventureName,
-      startingScene,
-      worldId: gameContext.world_id,
-      adventureObject: gameContext.adventure
-    });
-    
-    // Load adventure start data for first turn
-    let adventureStartData = null;
-    if (isFirstTurn) {
-      try {
-        adventureStartData = await this.loadAdventureStartData(gameContext.world_id, adventureName);
-        console.log(`[AI_SERVICE] Loaded adventure start data:`, {
-          hasData: !!adventureStartData,
-          start: adventureStartData?.start,
-          title: adventureStartData?.title
-        });
-      } catch (error) {
-        console.warn(`[AI_SERVICE] Could not load adventure start data: ${error}`);
+    let context: any = null;
+    try {
+      // Build context for database assembly
+      context = await this.buildDatabasePromptContext(gameContext, optionId, choices);
+      
+      // Use database prompt service
+      const result = await this.databasePromptService!.assemblePrompt(context);
+      
+      // Validate that we got proper AI prompt content
+      if (!result.prompt || result.prompt.length < 500) {
+        console.error(`[AI_SERVICE] CRITICAL: Database prompt assembler returned insufficient content (${result.prompt?.length || 0} chars)`);
+        throw new Error(`Database prompt assembler failed - content too minimal`);
       }
-    }
-    
-    const playerInput = this.promptWrapper.resolvePlayerInput(
-      optionId, 
-      choices, 
-      isFirstTurn, 
-      adventureName, 
-      startingScene,
-      adventureStartData
-    );
-    
-    // HARD STOP: Validate input section for first turn
-    const validation = this.validateInputSection(playerInput, isFirstTurn);
-    if (!validation.valid) {
-      console.error(`[AI_SERVICE] HARD STOP - Input validation failed: ${validation.error}`);
-      console.error(`[AI_SERVICE] Generated playerInput: "${playerInput}"`);
-      console.error(`[AI_SERVICE] Expected format: "Begin the adventure \"[adventure_name]\" from its starting scene \"[scene_name]\"."`);
-      throw new Error(`HARD STOP - Invalid prompt input: ${validation.error}`);
-    }
-    
-    console.log(`[AI_SERVICE] Input validation passed for turn ${gameContext.turn_index}:`, {
-      playerInput,
-      isFirstTurn,
-      adventureName,
-      startingScene
-    });
 
-    // Build context for prompt assembly using the proper assembler
-    const context = {
-      game: {
-        id: gameContext.id,
-        turn_index: gameContext.turn_index || 0,
-        summary: `Turn ${(gameContext.turn_index || 0) + 1} | World: ${gameContext.world_id} | Character: ${gameContext.character_id || 'Guest'}`,
-        current_scene: gameContext.current_scene || 'unknown',
-        state_snapshot: gameContext.state_snapshot,
-        option_id: optionId,
-      },
-      world: {
-        name: gameContext.world_id || 'unknown',
-        setting: 'A world of magic and adventure',
-        genre: 'fantasy',
-        themes: ['magic', 'adventure', 'mystery'],
-        rules: {},
-        mechanics: {},
-        lore: '',
-        logic: {},
-      },
-      character: gameContext.character || {},
-      adventure: gameContext.adventure || {},
-      runtime: {
-        ticks: gameContext.turn_index || 0,
-        presence: 'present',
-        ledgers: {},
-        flags: {},
-        last_acts: [],
-        style_hint: 'neutral',
-      },
-      system: {
-        schema_version: '1.0.0',
-        prompt_version: '2.0.0',
-        load_order: [],
-        hash: 'assembler-v1',
-      },
-    };
-
-    // Use the proper prompt assembler to load AI prompt files
-    const result = await this.promptAssembler.assemblePrompt(context);
-    
-    // Validate that we got proper AI prompt content
-    if (!result.prompt || result.prompt.length < 500) {
-      console.error(`[AI_SERVICE] CRITICAL: Prompt assembler returned insufficient content (${result.prompt?.length || 0} chars)`);
-      throw new Error(`Prompt assembler failed to load AI prompt files - content too minimal`);
+      console.log(`[AI_SERVICE] Database assembly completed with ${result.metadata.totalSegments} segments`);
+      return result.prompt;
+    } catch (error) {
+      console.error('[AI_SERVICE] Database prompt build failed:', error);
+      console.error('[AI_SERVICE] Database prompt failure context:', {
+        gameId: gameContext?.id,
+        worldId: gameContext?.world_id,
+        optionId,
+        choicesCount: choices.length,
+        contextSummary: context ? {
+          game: {
+            id: context.game?.id,
+            turnIndex: context.game?.turn_index,
+            currentScene: context.game?.current_scene,
+            hasStateSnapshot: Boolean(context.game?.state_snapshot),
+          },
+          world: context.world?.name,
+          adventure: context.adventure?.name ?? context.adventure?.slug ?? null,
+          character: context.character?.name ?? context.character?.id ?? null,
+          runtimeTicks: context.runtime?.ticks,
+          systemHash: context.system?.hash,
+        } : null,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
+      throw error;
     }
-
-    return result.prompt;
   }
+
 
   /**
    * Build database prompt context
@@ -698,6 +730,13 @@ export class AIService {
         hash: 'database-v1',
       },
     };
+  }
+
+  private isMissingDatabaseFunctionError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    return /prompt_segments_for_context/i.test(error.message);
   }
 }
 

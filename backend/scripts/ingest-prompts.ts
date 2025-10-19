@@ -379,7 +379,7 @@ class PromptIngester {
     console.log(`💾 Upserting ${this.records.length} prompt records to database...`);
     
     const { error } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .upsert(
         this.records.map(record => ({
           slug: `${record.layer}-${record.world_slug || 'core'}-${record.adventure_slug || 'system'}-${record.hash.substring(0, 8)}`,

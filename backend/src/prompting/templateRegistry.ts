@@ -553,23 +553,4 @@ export class FileBasedTemplateLoader {
 // Singleton instance for the new file-based template loader
 const fileBasedLoader = new FileBasedTemplateLoader();
 
-/**
- * Get file-based template for a specific world
- */
-export async function getFileBasedTemplateForWorld(
-  worldSlug: string,
-  context: {
-    turn: number;
-    scene_id: string;
-    phase: string;
-    time_block_json: string;
-    weather_json: string;
-    player_min_json: string;
-    party_min_json: string;
-    flags_json: string;
-    last_outcome_min_json: string;
-    adventure_start_json?: string;
-  }
-): Promise<FileBasedTemplateResult> {
-  return fileBasedLoader.loadTemplateForWorld(worldSlug, context);
-}
+// OBSOLETE: File-based template functions removed in DB-only mode

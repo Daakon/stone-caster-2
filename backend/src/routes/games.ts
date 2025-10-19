@@ -48,16 +48,12 @@ const extractGuestCookieId = (req: Request, fallback?: string): string | undefin
 const resolveOwnershipContext = (req: Request, userId?: string, isGuest?: boolean): OwnershipContext => {
   const guestCookieId = extractGuestCookieId(req, isGuest ? userId : undefined);
 
+  if (userId && !isGuest) {
+    return { ownerId: userId, isGuestOwner: false, guestCookieId };
+  }
+
   if (isGuest && userId) {
     return { ownerId: userId, isGuestOwner: true, guestCookieId: guestCookieId ?? userId };
-  }
-
-  if (guestCookieId && guestCookieId !== userId) {
-    return { ownerId: guestCookieId, isGuestOwner: true, guestCookieId };
-  }
-
-  if (userId) {
-    return { ownerId: userId, isGuestOwner: false, guestCookieId };
   }
 
   if (guestCookieId) {
@@ -167,7 +163,12 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     const gamesService = new GamesService();
     const ownership = resolveOwnershipContext(req, userId, isGuest || false);
     const ownerId = ownership.ownerId ?? userId;
-    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
+    const game = await gamesService.getGameById(
+      gameId,
+      ownerId,
+      ownership.isGuestOwner,
+      ownership.guestCookieId
+    );
 
     if (!game) {
       return sendErrorWithStatus(
@@ -213,7 +214,13 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
     const gamesService = new GamesService();
     const ownership = resolveOwnershipContext(req, userId, isGuest || false);
     const ownerId = ownership.ownerId ?? userId;
-    const games = await gamesService.getGames(ownerId, ownership.isGuestOwner, limit, offset);
+    const games = await gamesService.getGames(
+      ownerId,
+      ownership.isGuestOwner,
+      limit,
+      offset,
+      ownership.guestCookieId
+    );
 
     sendSuccess(res, games, req);
   } catch (error) {
@@ -353,7 +360,12 @@ router.get('/:id/turns', optionalAuth, async (req: Request, res: Response) => {
     const gamesService = new GamesService();
     const ownership = resolveOwnershipContext(req, userId, isGuest || false);
     const ownerId = ownership.ownerId ?? userId;
-    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
+    const game = await gamesService.getGameById(
+      gameId,
+      ownerId,
+      ownership.isGuestOwner,
+      ownership.guestCookieId
+    );
 
     if (!game) {
       return sendErrorWithStatus(
@@ -412,7 +424,12 @@ router.get('/:id/session-turns', optionalAuth, async (req: Request, res: Respons
     const gamesService = new GamesService();
     const ownership = resolveOwnershipContext(req, userId, isGuest || false);
     const ownerId = ownership.ownerId ?? userId;
-    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
+    const game = await gamesService.getGameById(
+      gameId,
+      ownerId,
+      ownership.isGuestOwner,
+      ownership.guestCookieId
+    );
 
     if (!game) {
       return sendErrorWithStatus(
@@ -491,7 +508,12 @@ router.post('/:id/auto-initialize', optionalAuth, async (req: Request, res: Resp
     const gamesService = new GamesService();
     const ownership = resolveOwnershipContext(req, userId, isGuest || false);
     const ownerId = ownership.ownerId ?? userId;
-    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
+    const game = await gamesService.getGameById(
+      gameId,
+      ownerId,
+      ownership.isGuestOwner,
+      ownership.guestCookieId
+    );
 
     if (!game) {
       return sendErrorWithStatus(
@@ -639,7 +661,12 @@ router.post('/:id/initial-prompt', optionalAuth, async (req: Request, res: Respo
     const gamesService = new GamesService();
     const ownership = resolveOwnershipContext(req, userId, isGuest || false);
     const ownerId = ownership.ownerId ?? userId;
-    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
+    const game = await gamesService.getGameById(
+      gameId,
+      ownerId,
+      ownership.isGuestOwner,
+      ownership.guestCookieId
+    );
 
     if (!game) {
       return sendErrorWithStatus(
@@ -729,7 +756,12 @@ router.post('/:id/approve-prompt', optionalAuth, async (req: Request, res: Respo
     const gamesService = new GamesService();
     const ownership = resolveOwnershipContext(req, userId, isGuest || false);
     const ownerId = ownership.ownerId ?? userId;
-    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner);
+    const game = await gamesService.getGameById(
+      gameId,
+      ownerId,
+      ownership.isGuestOwner,
+      ownership.guestCookieId
+    );
 
     if (!game) {
       return sendErrorWithStatus(

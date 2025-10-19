@@ -1,0 +1,14 @@
+{
+  "world": {
+    "places": [
+      {
+        "id": "Invalid ID",
+        "name": "Test Place"
+      },
+      {
+        "id": "UPPERCASE",
+        "name": "Another Place"
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "test-scenario-2",
+  "sessionSeed": 67890,
+  "turns": [
+    {
+      "input": "I examine the test environment",
+      "expect": {
+        "mustInclude": [
+          "test"
+        ],
+        "choicesAtMost": 3
+      }
+    }
+  ]
+}

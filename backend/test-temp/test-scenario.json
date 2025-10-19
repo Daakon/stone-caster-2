@@ -1,0 +1,16 @@
+{
+  "name": "test-scenario",
+  "description": "Test scenario",
+  "sessionSeed": 12345,
+  "turns": [
+    {
+      "input": "I look around",
+      "expect": {
+        "mustInclude": [
+          "look"
+        ],
+        "choicesAtMost": 5
+      }
+    }
+  ]
+}

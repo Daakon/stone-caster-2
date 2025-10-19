@@ -1,0 +1,16 @@
+{
+  "name": "violation-test",
+  "description": "Test expectation violations",
+  "sessionSeed": 54321,
+  "turns": [
+    {
+      "input": "I look around",
+      "expect": {
+        "mustInclude": [
+          "missing_text"
+        ],
+        "choicesAtMost": 1
+      }
+    }
+  ]
+}

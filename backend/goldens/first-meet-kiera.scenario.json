@@ -1,0 +1,37 @@
+{
+  "name": "first-meet-kiera",
+  "description": "First encounter with Kiera in the forest glade",
+  "sessionSeed": 424242,
+  "turns": [
+    {
+      "input": "I step into the glade and look toward the eyes.",
+      "expect": {
+        "mustInclude": ["glade", "eyes"],
+        "choicesAtMost": 5,
+        "sceneChange": true
+      }
+    },
+    {
+      "input": "I greet softly.",
+      "expect": {
+        "acts": {
+          "requireOne": ["SCENE_SET"],
+          "forbid": ["TIME_ADVANCE"]
+        },
+        "firstTurn": true,
+        "mustInclude": ["greet", "softly"]
+      }
+    },
+    {
+      "input": "I present the token.",
+      "expect": {
+        "acts": {
+          "requireOne": ["TIME_ADVANCE"]
+        },
+        "mustInclude": ["token", "present"]
+      }
+    }
+  ]
+}
+
+

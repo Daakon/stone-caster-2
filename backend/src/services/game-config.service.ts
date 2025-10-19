@@ -68,39 +68,8 @@ export class GameConfigService {
         adventurePath = 'whispercross'; // Map to actual directory name
       }
       
-      const possiblePaths = [
-        join(process.cwd(), 'AI API Prompts', 'worlds', worldId, 'adventures', adventurePath, 'adventure.start.prompt.json'),
-        join(process.cwd(), 'AI API Prompts', 'worlds', worldId, 'adventures', adventurePath, 'adventure.prompt.json'),
-        join(process.cwd(), 'backend', 'AI API Prompts', 'worlds', worldId, 'adventures', adventurePath, 'adventure.start.prompt.json'),
-        join(process.cwd(), 'backend', 'AI API Prompts', 'worlds', worldId, 'adventures', adventurePath, 'adventure.prompt.json'),
-      ];
-
-      for (const path of possiblePaths) {
-        try {
-          const content = readFileSync(path, 'utf-8');
-          const adventureData = JSON.parse(content);
-          
-          // Validate and normalize the adventure data
-          const config: AdventureConfig = {
-            id: adventureData.id || adventureId,
-            title: adventureData.title || adventureId,
-            start: adventureData.start || {
-              scene: SCENE_IDS.DEFAULT_START,
-              policy: 'ai_first',
-              hints: []
-            },
-            scenes: adventureData.scenes || []
-          };
-
-          this.adventureCache.set(cacheKey, config);
-          return config;
-        } catch (error) {
-          // Try next path
-          continue;
-        }
-      }
-
-      console.warn(`[GAME_CONFIG] Could not load adventure config for ${worldId}:${adventureId}`);
+      // DB-only mode: No file-based loading
+      console.log(`[GAME_CONFIG] DB-only mode: Adventure config must come from database`);
       return null;
     } catch (error) {
       console.error(`[GAME_CONFIG] Error loading adventure config:`, error);

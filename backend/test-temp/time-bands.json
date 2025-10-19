@@ -1,0 +1,16 @@
+{
+  "world": {
+    "timeworld": {
+      "bands": [
+        {
+          "id": "dawn",
+          "ticks": 1
+        },
+        {
+          "id": "day",
+          "ticks": 2
+        }
+      ]
+    }
+  }
+}

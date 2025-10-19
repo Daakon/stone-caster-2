@@ -1,0 +1,10 @@
+{
+  "name": "scenario1",
+  "description": "First scenario",
+  "sessionSeed": 11111,
+  "turns": [
+    {
+      "input": "test1"
+    }
+  ]
+}

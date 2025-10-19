@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-10-19T18:55:29.853Z",
+  "summary": {
+    "failedScenarios": 0,
+    "failedTurns": 0,
+    "averageLatency": 5000,
+    "tokenUsage": {
+      "average": 3000
+    }
+  }
+}

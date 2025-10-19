@@ -1,0 +1,27 @@
+AWF Prompt Audit
+Generated: 2025-10-18T21:45:25.553Z
+Duration: 994ms
+Overall: FAIL
+Pass: 2, Warning: 2, Fail: 4
+
+Checks:
+- [PASS] Module load check :: Core AWF modules imported successfully
+    • assembler loaded
+    • orchestrator loaded
+    • validators loaded
+- [FAIL] Bundle schema compliance :: Bundle schema check skipped because bundle assembly failed
+    • No AWF sessions found in database
+- [PASS] System prompt verification :: System prompt matches minimal runtime requirements
+    • Runtime prompt: You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `…
+- [FAIL] Injection map inspection :: Failed to fetch injection map: Could not find the table 'public.injection_map' in the schema cache
+- [FAIL] Legacy path references :: Legacy prompt references found
+    • db-assembler: 8 matches
+    • markdown: 111 matches
+    • <<<FILE: 41 matches
+    • prompts/assembler: 10 matches
+    • file embed (<< <): 44 matches
+- [FAIL] Bundle persistence check :: Potential bundle persistence writes found
+    • docs\migration\phase-12-i18n-multilingual-support.md:74
+    • scripts\diagnostics\awf-prompt-audit.ts:655
+- [WARNING] Token and tier hygiene :: Token hygiene could not be evaluated because bundle data was unavailable
+- [WARNING] LiveOps and localization checks :: LiveOps and localization checks skipped due to missing bundle data

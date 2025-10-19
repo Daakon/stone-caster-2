@@ -1,0 +1,23 @@
+{
+  "contract": {
+    "acts": {
+      "allowed": [
+        "SCENE_SET",
+        "TIME_ADVANCE"
+      ]
+    },
+    "txt": {
+      "policy": "Write in second person. Use present tense. Keep it engaging."
+    },
+    "choices": [
+      {
+        "id": "choice1",
+        "label": "Short choice"
+      },
+      {
+        "id": "choice2",
+        "label": "Another choice"
+      }
+    ]
+  }
+}

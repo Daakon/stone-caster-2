@@ -16,6 +16,13 @@ export default defineConfig({
     watch: {
       // Watch shared directory for changes
       ignored: ['!**/shared/**']
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false
+      }
     }
   },
   // Disable telemetry during development

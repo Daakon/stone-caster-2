@@ -1,18 +1,18 @@
-# Prompt Assembly System
+# Database-Only Prompt Assembly System
 
-This directory contains the Layer P2 prompt assembly pipeline that dynamically loads and assembles prompts from the `AI API Prompts/` directory structure.
+This directory contains the database-only prompt assembly pipeline that loads and assembles prompts from the database.
 
 ## Architecture
 
-The system follows a strict load order and authority hierarchy to ensure consistent AI behavior:
+The system uses a database-first approach with no filesystem dependencies:
 
 ```
-Game Context → PromptAssembler → PromptLoader → AI API Prompts/
-     ↓              ↓                ↓              ↓
-Character      Manifest         File System    JSON/MD Files
-World          Templates        Load Order     Dynamic Content
-Adventure      Validation       Variables      World-Specific
-Runtime        Assembly         Audit Trail    Core Systems
+Game Context → DatabasePromptAssembler → PromptRepository → Database
+     ↓              ↓                        ↓              ↓
+Character      Database Segments         Supabase      Prompt Segments
+World          Variable Replacement      RLS          World-Specific
+Adventure      Template Processing       Caching      Core Systems
+Runtime        Assembly & Validation     Audit Trail  Dynamic Content
 ```
 
 ## Load Order (Authority Hierarchy)

@@ -1,0 +1,229 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AWF Bundle Schema",
+  "type": "object",
+  "required": [
+    "meta",
+    "contract",
+    "core",
+    "world",
+    "adventure",
+    "start",
+    "quest_graph",
+    "sim",
+    "party",
+    "economy",
+    "mechanics",
+    "npcs",
+    "warm",
+    "hot",
+    "mods_ctx",
+    "liveops",
+    "rng",
+    "input"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "awf_version",
+        "session_id",
+        "turn_id",
+        "locale",
+        "world_ref",
+        "adventure_ref",
+        "time"
+      ],
+      "properties": {
+        "awf_version": { "type": "string" },
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "number" },
+        "locale": { "type": "string" },
+        "world_ref": { "type": "string" },
+        "adventure_ref": { "type": "string" },
+        "time": {
+          "type": "object",
+          "required": ["band", "ticks"],
+          "properties": {
+            "band": { "type": "string" },
+            "ticks": { "type": "number" }
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "contract": {
+      "type": "object",
+      "required": [
+        "awf_return",
+        "scn.phases",
+        "txt.policy",
+        "choices.policy",
+        "acts.policy"
+      ],
+      "properties": {
+        "awf_return": { "type": "string" },
+        "scn.phases": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "txt.policy": { "type": "string" },
+        "choices.policy": { "type": "string" },
+        "acts.policy": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "core": {
+      "type": "object",
+      "required": ["rules"],
+      "properties": {
+        "rules": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "world": {
+      "type": "object",
+      "required": ["doc", "slices"],
+      "properties": {
+        "doc": { "type": "object" },
+        "slices": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "adventure": {
+      "type": "object",
+      "required": ["doc", "slices"],
+      "properties": {
+        "doc": { "type": "object" },
+        "slices": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "start": {
+      "type": "object",
+      "required": ["hints"],
+      "properties": {
+        "hints": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "quest_graph": {
+      "type": "object",
+      "required": ["active"],
+      "properties": {
+        "active": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "sim": {
+      "type": "object",
+      "required": ["nearby"],
+      "properties": {
+        "nearby": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "party": {
+      "type": "object",
+      "required": ["members", "intents"],
+      "properties": {
+        "members": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "intents": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "economy": {
+      "type": "object",
+      "required": ["inv", "curr"],
+      "properties": {
+        "inv": { "type": "object" },
+        "curr": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "mechanics": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "npcs": {
+      "type": "object",
+      "required": ["active"],
+      "properties": {
+        "active": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "warm": {
+      "type": "object",
+      "required": ["episodic", "pins"],
+      "properties": {
+        "episodic": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "pins": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "hot": {
+      "type": "object",
+      "required": ["scene", "objectives", "flags"],
+      "properties": {
+        "scene": { "type": "string" },
+        "objectives": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "flags": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "mods_ctx": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "liveops": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "rng": {
+      "type": "object",
+      "required": ["seed"],
+      "properties": {
+        "seed": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "input": {
+      "type": "object",
+      "required": ["player_text", "last_choice_id"],
+      "properties": {
+        "player_text": { "type": "string" },
+        "last_choice_id": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

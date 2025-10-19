@@ -65,6 +65,7 @@ interface EnvConfig {
   stripeWebhookSecret: string;
   frontendUrl: string;
   apiUrl: string;
+  awfBundleOn: boolean;
 }
 
 interface ConfigSnapshot {
@@ -191,6 +192,10 @@ class ConfigServiceImpl implements ConfigService {
     return { ...this.env };
   }
 
+  public getAwfBundleEnabled(): boolean {
+    return this.env.awfBundleOn;
+  }
+
   public whenReady(): Promise<void> {
     return this.readyPromise;
   }
@@ -257,6 +262,7 @@ class ConfigServiceImpl implements ConfigService {
       stripeWebhookSecret: source.STRIPE_WEBHOOK_SECRET || 'whsec_local_dev_secret',
       frontendUrl: source.FRONTEND_URL ?? 'http://localhost:5173',
       apiUrl: source.API_URL ?? 'http://localhost:3000',
+      awfBundleOn: source.AWF_BUNDLE_ON === 'true' || source.AWF_BUNDLE_ON === '1',
     };
   }
 

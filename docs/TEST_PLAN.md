@@ -110,6 +110,19 @@ Layer P1 focuses on replacing frontend mock data with live API integration. This
   - Proper DTO mapping with title and name fields
   - Content service error handling
 
+#### Games Service Adventure Resolution Tests
+- **File:** `backend/src/services/games.service.test.ts`
+- **Coverage:**
+  - Adventure slug → deterministic UUID mapping fallback
+  - Character world validation against adventure metadata
+  - Conflict handling for characters already bound to active games
+  - Propagation of adventure metadata into newly created game snapshots
+- **Test Scenarios:**
+  - Spawn succeeds for authenticated players when Supabase adventures table is unavailable
+  - Spawn fails with `NOT_FOUND` when the supplied slug is unknown
+  - Spawn fails with `VALIDATION_FAILED` when character world mismatches the adventure world
+  - Spawn fails with `CONFLICT` when the character already has an active game session
+
 ### Frontend Unit Tests
 
 #### GamePage Live Data Tests

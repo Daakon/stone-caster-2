@@ -491,7 +491,7 @@ export class GameStateService {
    * Load adventure data
    */
   private async loadAdventure(worldId: string, adventureName: string): Promise<any> {
-    // This would load adventure data from the AI API Prompts or database
+    // This would load adventure data from the database
     // For now, return a basic structure
     return {
       name: adventureName,

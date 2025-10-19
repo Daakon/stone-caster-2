@@ -9,3 +9,8 @@ WHERE id = 'your-user-id-here';
 -- SELECT id, email, raw_user_meta_data FROM auth.users WHERE email = 'your-email@example.com';
 
 
+
+
+
+
+

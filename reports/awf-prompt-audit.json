@@ -1,0 +1,1200 @@
+{
+  "generatedAt": "2025-10-18T21:45:25.553Z",
+  "durationMs": 994,
+  "summary": {
+    "overall": "fail",
+    "pass": 2,
+    "warning": 2,
+    "fail": 4
+  },
+  "context": {},
+  "checks": [
+    {
+      "id": "module-load",
+      "title": "Module load check",
+      "status": "pass",
+      "summary": "Core AWF modules imported successfully",
+      "details": [
+        "assembler loaded",
+        "orchestrator loaded",
+        "validators loaded"
+      ]
+    },
+    {
+      "id": "bundle-schema",
+      "title": "Bundle schema compliance",
+      "status": "fail",
+      "summary": "Bundle schema check skipped because bundle assembly failed",
+      "details": [
+        "No AWF sessions found in database"
+      ]
+    },
+    {
+      "id": "system-prompt",
+      "title": "System prompt verification",
+      "status": "pass",
+      "summary": "System prompt matches minimal runtime requirements",
+      "details": [
+        "Runtime prompt: You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `…"
+      ],
+      "data": {
+        "runtimeExcerpt": "You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. Fo…",
+        "runtimeWithToolsExcerpt": "You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. Fo…"
+      }
+    },
+    {
+      "id": "injection-map",
+      "title": "Injection map inspection",
+      "status": "fail",
+      "summary": "Failed to fetch injection map: Could not find the table 'public.injection_map' in the schema cache"
+    },
+    {
+      "id": "legacy-references",
+      "title": "Legacy path references",
+      "status": "fail",
+      "summary": "Legacy prompt references found",
+      "details": [
+        "db-assembler: 8 matches",
+        "markdown: 111 matches",
+        "<<<FILE: 41 matches",
+        "prompts/assembler: 10 matches",
+        "file embed (<< <): 44 matches"
+      ],
+      "data": {
+        "matches": [
+          {
+            "pattern": "db-assembler",
+            "matches": [
+              {
+                "file": "backend\\src\\services\\db-prompt.service.ts",
+                "line": 3,
+                "snippet": "import { DatabasePromptAssembler } from '../prompts/db-assembler.js';"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 155,
+                "snippet": "│   ├── db-assembler.ts"
+              },
+              {
+                "file": "docs\\migration\\phase-8-legacy-decommission.md",
+                "line": 56,
+                "snippet": "backend/src/prompts/db-assembler.ts          # Database assembler"
+              },
+              {
+                "file": "docs\\migration\\phase-8-legacy-decommission.md",
+                "line": 58,
+                "snippet": "backend/tests/prompts/db-assembler.test.ts  # DB assembler tests"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_SUMMARY.md",
+                "line": 34,
+                "snippet": "#### Database Prompt Assembler (`backend/src/prompts/db-assembler.ts`)"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_SUMMARY.md",
+                "line": 57,
+                "snippet": "- **`backend/tests/prompts/db-assembler.test.ts`** - Prompt assembly logic"
+              },
+              {
+                "file": "docs\\TEST_PLAN.md",
+                "line": 28,
+                "snippet": "- **File:** `backend/tests/prompts/db-assembler.test.ts`"
+              },
+              {
+                "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+                "line": 107,
+                "snippet": "{ pattern: 'db-assembler', matches: [] },"
+              }
+            ]
+          },
+          {
+            "pattern": "markdown",
+            "matches": [
+              {
+                "file": "backend\\AI API Prompts\\awf.scheme.json",
+                "line": 5,
+                "snippet": "\"content\": \"JSON Schema Validation:\\n- Response must be valid JSON object\\n- Required fields: scn (string), txt (string)\\n- Optional fields: choices (array), acts (array), val (object)\\n- txt must be "
+              },
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 2,
+                "snippet": "You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks using rng BEFORE"
+              },
+              {
+                "file": "backend\\AI API Prompts\\core.prompt.json",
+                "line": 4,
+                "snippet": "\"awf_return\": \"Return exactly one JSON object with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys.\","
+              },
+              {
+                "file": "backend\\AI API Prompts\\core.rpg-storyteller.json",
+                "line": 5,
+                "snippet": "\"content\": \"You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks usin"
+              },
+              {
+                "file": "backend\\AI API Prompts\\engine.system.json",
+                "line": 5,
+                "snippet": "\"content\": \"AWF Contract Definition:\\n- scn: String - Current scene identifier\\n- txt: String - Narrative text (required, min 50 words)\\n- optional choices: Array of {choice: string, outcome: string}\\"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\awf.scheme.json",
+                "line": 5,
+                "snippet": "\"content\": \"JSON Schema Validation:\\n- Response must be valid JSON object\\n- Required fields: scn (string), txt (string)\\n- Optional fields: choices (array), acts (array), val (object)\\n- txt must be "
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 2,
+                "snippet": "You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks using rng BEFORE"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\core.prompt.json",
+                "line": 4,
+                "snippet": "\"awf_return\": \"Return exactly one JSON object with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys.\","
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\core.rpg-storyteller.json",
+                "line": 5,
+                "snippet": "\"content\": \"You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks usin"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\engine.system.json",
+                "line": 5,
+                "snippet": "\"content\": \"AWF Contract Definition:\\n- scn: String - Current scene identifier\\n- txt: String - Narrative text (required, min 50 words)\\n- optional choices: Array of {choice: string, outcome: string}\\"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\loader.ts",
+                "line": 203,
+                "snippet": "segments = this.extractSegmentsFromMarkdown(content, nameWithoutExt);"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\loader.ts",
+                "line": 295,
+                "snippet": "* Extract segments from Markdown content"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\loader.ts",
+                "line": 297,
+                "snippet": "private extractSegmentsFromMarkdown(content: string, filename: string): string[] {"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\loader.ts",
+                "line": 298,
+                "snippet": "// Split markdown into logical sections"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\loader.ts",
+                "line": 333,
+                "snippet": "* Format JSON content as a prompt segment with minimized JSON in markdown code blocks"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\loader.ts",
+                "line": 368,
+                "snippet": "* Format a JSON section for prompt use with minimized JSON in markdown code blocks"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\loader.ts",
+                "line": 406,
+                "snippet": "// Not JSON, try markdown"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\loader.ts",
+                "line": 409,
+                "snippet": "// Try to extract from markdown headers or content"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\README.md",
+                "line": 213,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\wrapper.ts",
+                "line": 43,
+                "snippet": "private readonly SYSTEM_PREAMBLE = `You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra k"
+              },
+              {
+                "file": "backend\\docs\\PROMPT_JSON_MINIMIZATION_FIX.md",
+                "line": 51,
+                "snippet": "- Returns raw content for non-JSON files (markdown, text)"
+              },
+              {
+                "file": "backend\\docs\\PROMPT_JSON_MINIMIZATION_FIX.md",
+                "line": 139,
+                "snippet": "- Markdown and text files are not affected"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 38,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 58,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 75,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 114,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 127,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 145,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 156,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_SYSTEM_GUIDE.md",
+                "line": 5,
+                "snippet": "The Stone Caster template system uses a \"just-add-files\" approach that simplifies prompt creation and maintenance. Instead of complex template engines, the system uses a single markdown template file "
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_SYSTEM_GUIDE.md",
+                "line": 71,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\scripts\\demo-prompt-cleaning.js",
+                "line": 65,
+                "snippet": "console.log('📝 Formatted Prompt (with markdown code blocks):');"
+              },
+              {
+                "file": "backend\\scripts\\demo-prompt-cleaning.js",
+                "line": 88,
+                "snippet": "console.log('• JSON is properly wrapped in markdown code blocks');"
+              },
+              {
+                "file": "backend\\scripts\\ingest-prompts.ts",
+                "line": 276,
+                "snippet": "file_type: 'markdown',"
+              },
+              {
+                "file": "backend\\scripts\\simple-prompt-test.js",
+                "line": 132,
+                "snippet": "console.log('📝 Formatted Prompt (with markdown code blocks):');"
+              },
+              {
+                "file": "backend\\scripts\\simple-prompt-test.js",
+                "line": 155,
+                "snippet": "console.log('• JSON is properly wrapped in markdown code blocks');"
+              },
+              {
+                "file": "backend\\src\\marketplace\\pack-pipeline.ts",
+                "line": 759,
+                "snippet": "'.md': 'markdown',"
+              },
+              {
+                "file": "backend\\src\\model\\system-prompts.ts",
+                "line": 12,
+                "snippet": "\"You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. F"
+              },
+              {
+                "file": "backend\\src\\model\\system-prompts.ts",
+                "line": 19,
+                "snippet": "\"You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. F"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 24,
+                "snippet": "- Do **not** include markdown or extra text outside the single JSON object."
+              },
+              {
+                "file": "backend\\src\\prompts\\assembler.ts",
+                "line": 16,
+                "snippet": "* Filesystem prompt assembler that loads markdown/JSON templates and"
+              },
+              {
+                "file": "backend\\src\\prompts\\db-assembler.ts",
+                "line": 230,
+                "snippet": "// Legacy helpers used by certain markdown templates"
+              },
+              {
+                "file": "backend\\src\\prompts\\loader.ts",
+                "line": 203,
+                "snippet": "segments = this.extractSegmentsFromMarkdown(content, nameWithoutExt);"
+              },
+              {
+                "file": "backend\\src\\prompts\\loader.ts",
+                "line": 295,
+                "snippet": "* Extract segments from Markdown content"
+              },
+              {
+                "file": "backend\\src\\prompts\\loader.ts",
+                "line": 297,
+                "snippet": "private extractSegmentsFromMarkdown(content: string, filename: string): string[] {"
+              },
+              {
+                "file": "backend\\src\\prompts\\loader.ts",
+                "line": 298,
+                "snippet": "// Split markdown into logical sections"
+              },
+              {
+                "file": "backend\\src\\prompts\\loader.ts",
+                "line": 333,
+                "snippet": "* Format JSON content as a prompt segment with minimized JSON in markdown code blocks"
+              },
+              {
+                "file": "backend\\src\\prompts\\loader.ts",
+                "line": 368,
+                "snippet": "* Format a JSON section for prompt use with minimized JSON in markdown code blocks"
+              },
+              {
+                "file": "backend\\src\\prompts\\loader.ts",
+                "line": 406,
+                "snippet": "// Not JSON, try markdown"
+              },
+              {
+                "file": "backend\\src\\prompts\\loader.ts",
+                "line": 409,
+                "snippet": "// Try to extract from markdown headers or content"
+              },
+              {
+                "file": "backend\\src\\prompts\\README.md",
+                "line": 213,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "backend\\src\\prompts\\wrapper.ts",
+                "line": 43,
+                "snippet": "private readonly SYSTEM_PREAMBLE = `You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra k"
+              },
+              {
+                "file": "backend\\src\\schema\\semver-diff.ts",
+                "line": 239,
+                "snippet": "* Generate a markdown-formatted diff report"
+              },
+              {
+                "file": "backend\\src\\schema\\semver-diff.ts",
+                "line": 241,
+                "snippet": "static generateMarkdownReport(diff: SemanticDiff): string {"
+              },
+              {
+                "file": "backend\\src\\schema\\semver-diff.ts",
+                "line": 322,
+                "snippet": "const report = SemverDiff.generateMarkdownReport(diff);"
+              },
+              {
+                "file": "backend\\src\\services\\openai.service.ts",
+                "line": 191,
+                "snippet": "return `You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys.`;"
+              },
+              {
+                "file": "backend\\src\\services\\translation-cache.service.ts",
+                "line": 261,
+                "snippet": "// Remove any markdown formatting"
+              },
+              {
+                "file": "backend\\src\\services\\turns.service.ts",
+                "line": 269,
+                "snippet": "console.log(`[TURNS] Legacy markdown path in use for game ${gameId}`);"
+              },
+              {
+                "file": "backend\\src\\services\\turns.service.ts",
+                "line": 727,
+                "snippet": "console.log(`[TURNS] Legacy markdown path in use for initial prompt in game ${game.id}`);"
+              },
+              {
+                "file": "backend\\tests\\ai-prompt-validation.test.ts",
+                "line": 96,
+                "snippet": "You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks using rng BEFORE"
+              },
+              {
+                "file": "backend\\tests\\ai-prompt-validation.test.ts",
+                "line": 134,
+                "snippet": "You are the runtime engine. Return ONE JSON object (AWF) with keys: scn, txt, optional choices, optional acts, optional val. No markdown, no code fences, no extra keys. Resolve checks using rng BEFORE"
+              },
+              {
+                "file": "backend\\tests\\awf-phase9-authoring.test.ts",
+                "line": 303,
+                "snippet": "it('should generate markdown report', () => {"
+              },
+              {
+                "file": "backend\\tests\\awf-phase9-authoring.test.ts",
+                "line": 308,
+                "snippet": "const report = SemverDiff.generateMarkdownReport(diff);"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 3,
+                "snippet": "This document describes the safety mechanisms and feature flags implemented in Phase 0 of the AWF bundle migration to prepare for the transition from markdown-based prompts to the new AWF bundle syste"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 7,
+                "snippet": "Phase 0 implements safety switches and feature flags that allow controlled testing of the new AWF bundle system while maintaining the existing markdown-based prompt system as the default. This ensures"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 16,
+                "snippet": "# Default: false (legacy markdown system)"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 102,
+                "snippet": "console.log(`[TURNS] Legacy markdown path in use for game ${gameId}`);"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 117,
+                "snippet": "console.log(`[TURNS] Legacy markdown path in use for initial prompt in game ${game.id}`);"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 175,
+                "snippet": "[TURNS] Legacy markdown path in use for game def-456"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 192,
+                "snippet": "3. All sessions will use the legacy markdown path"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 229,
+                "snippet": "grep \"Legacy markdown path\" logs/"
+              },
+              {
+                "file": "docs\\migration\\phase-0-safety-switches.md",
+                "line": 242,
+                "snippet": "4. **Phase 4**: Remove legacy markdown system"
+              },
+              {
+                "file": "docs\\migration\\phase-11-tool-calls.md",
+                "line": 192,
+                "snippet": "You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. Fo"
+              },
+              {
+                "file": "docs\\migration\\phase-17-economy-kernel.md",
+                "line": 36,
+                "snippet": "- **Buy/Sell Spreads**: Configurable markup and markdown rates"
+              },
+              {
+                "file": "docs\\migration\\phase-17-economy-kernel.md",
+                "line": 55,
+                "snippet": "- **Vendor Pricing**: Markup/markdown with buy/sell spreads"
+              },
+              {
+                "file": "docs\\migration\\phase-5-turn-integration.md",
+                "line": 86,
+                "snippet": "You will be given one JSON object `awf_bundle`. Return exactly one JSON object named `AWF` with keys `scn`, `txt`, and optional `choices`, `acts`, `val`. No markdown, no code fences, no extra keys. Fo"
+              },
+              {
+                "file": "docs\\migration\\phase-8-legacy-decommission.md",
+                "line": 3,
+                "snippet": "This document describes the final phase of the AWF migration, which removes the legacy markdown prompt system, makes AWF the default runtime, and establishes post-launch monitoring and maintenance pro"
+              },
+              {
+                "file": "docs\\migration\\phase-8-legacy-decommission.md",
+                "line": 10,
+                "snippet": "- **Removing legacy systems**: Complete elimination of markdown prompt templates"
+              },
+              {
+                "file": "docs\\migration\\phase-8-legacy-decommission.md",
+                "line": 304,
+                "snippet": "- ✅ Legacy markdown prompt system fully removed"
+              },
+              {
+                "file": "docs\\migration\\phase-8-legacy-decommission.md",
+                "line": 324,
+                "snippet": "2. **Legacy system removed** - No more markdown prompt templates"
+              },
+              {
+                "file": "docs\\migration\\schema-evolution.md",
+                "line": 268,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "docs\\migration\\schema-evolution.md",
+                "line": 280,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "docs\\migration\\schema-evolution.md",
+                "line": 335,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "docs\\PROMPT_ENTRY_GUIDE.md",
+                "line": 20,
+                "snippet": "- Select the `format` (Markdown, JSON, or String) to enable validation tools."
+              },
+              {
+                "file": "docs\\PROMPT_ENTRY_GUIDE.md",
+                "line": 46,
+                "snippet": "| **Format Buttons** | Optional | Markdown / JSON / String | Used by the validation helpers, stored in metadata. |"
+              },
+              {
+                "file": "docs\\PROMPT_ENTRY_GUIDE.md",
+                "line": 73,
+                "snippet": "5. Paste lore content (Markdown). Set format to **Markdown**, click **Validate**."
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 400,
+                "snippet": "case 'markdown':"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 401,
+                "snippet": "// Basic markdown validation - check for common syntax"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 440,
+                "snippet": "case 'markdown':"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 441,
+                "snippet": "// Basic markdown minification - remove extra whitespace"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 442,
+                "snippet": "const minifiedMarkdown = content"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 448,
+                "snippet": "content: minifiedMarkdown,"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 449,
+                "snippet": "tokenCount: estimateTokens(minifiedMarkdown)"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 488,
+                "snippet": "case 'markdown':"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 489,
+                "snippet": "// Basic markdown formatting - ensure proper line breaks"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 490,
+                "snippet": "const formattedMarkdown = content"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 496,
+                "snippet": "content: formattedMarkdown,"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 497,
+                "snippet": "tokenCount: estimateTokens(formattedMarkdown)"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 954,
+                "snippet": "variant={editingPrompt.metadata?.format === 'markdown' ? 'default' : 'outline'}"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 960,
+                "snippet": "format: 'markdown'"
+              },
+              {
+                "file": "frontend\\src\\pages\\admin\\PromptAdmin.tsx",
+                "line": 964,
+                "snippet": "Markdown"
+              },
+              {
+                "file": "PROMPT_CLEANING_IMPROVEMENTS.md",
+                "line": 5,
+                "snippet": "The prompt generation system has been enhanced to ensure that JSON objects are properly cleaned and minimized before being embedded in markdown files. This improvement reduces token usage, improves re"
+              },
+              {
+                "file": "PROMPT_CLEANING_IMPROVEMENTS.md",
+                "line": 22,
+                "snippet": "### 3. Enhanced Markdown Formatting"
+              },
+              {
+                "file": "PROMPT_CLEANING_IMPROVEMENTS.md",
+                "line": 28,
+                "snippet": "- **Code block wrapping**: Properly wraps JSON in markdown code blocks"
+              },
+              {
+                "file": "PROMPT_CLEANING_IMPROVEMENTS.md",
+                "line": 54,
+                "snippet": "```markdown"
+              },
+              {
+                "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+                "line": 108,
+                "snippet": "{ pattern: 'markdown', matches: [] },"
+              },
+              {
+                "file": "tests\\test_prompt.md",
+                "line": 1,
+                "snippet": "\"# RPG Storyteller AI System\\n\\n## Context\\n- **World**: mystika\\n- **Player**: Thorne Shifter (undefined)\\n- **Adventure**: None\\n- **Scene**: forest_meet\\n- **Turn**: 1\\n\\n## Instructions\\nYou are a"
+              },
+              {
+                "file": "tests\\test_prompt_cleaned.md",
+                "line": 284,
+                "snippet": "\\\"no_markdown_intros\\\": true"
+              },
+              {
+                "file": "tests\\test_prompt_cleaned.md",
+                "line": 1521,
+                "snippet": "\\\"Character creation: no markdown intros, creation is a normal AWF turn\\\""
+              },
+              {
+                "file": "tests\\test_prompt_cleaned.md",
+                "line": 1552,
+                "snippet": "\\\"No extra keys, no markdown\\\","
+              },
+              {
+                "file": "tests\\test_prompt_cleaned.md",
+                "line": 2094,
+                "snippet": "\\\"allow_markdown\\\": false,"
+              }
+            ]
+          },
+          {
+            "pattern": "<<<FILE",
+            "matches": [
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 5,
+                "snippet": "<<<FILE core.prompt.json >>>"
+              },
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 9,
+                "snippet": "<<<FILE worlds/{{world_name}}/world.prompt.json >>>"
+              },
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 13,
+                "snippet": "<<<FILE worlds/{{world_name}}/adventures/{{adventure_name}}/adventure.prompt.json >>>"
+              },
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 17,
+                "snippet": "<<<FILE worlds/{{world_name}}/adventures/{{adventure_name}}/adventure.start.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\assembler.ts",
+                "line": 129,
+                "snippet": "* Process file inclusions in segments (replace <<<FILE ... >>> with actual content)"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\assembler.ts",
+                "line": 132,
+                "snippet": "// Match <<<FILE path >>> patterns"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\assembler.ts",
+                "line": 133,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 5,
+                "snippet": "<<<FILE core.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 9,
+                "snippet": "<<<FILE worlds/{{world_name}}/world.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 13,
+                "snippet": "<<<FILE worlds/{{world_name}}/adventures/{{adventure_name}}/adventure.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 17,
+                "snippet": "<<<FILE worlds/{{world_name}}/adventures/{{adventure_name}}/adventure.start.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\db-assembler.ts",
+                "line": 127,
+                "snippet": "* Process file inclusions in segments (replace <<<FILE ... >>> with actual content)"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\db-assembler.ts",
+                "line": 131,
+                "snippet": "// Match <<<FILE path >>> patterns"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\db-assembler.ts",
+                "line": 132,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 40,
+                "snippet": "<<<FILE core/worlds/yourworld/world-codex.yourworld-logic.json"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 77,
+                "snippet": "<<<FILE core/worlds/yourworld/world-codex.yourworld-lore.md"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 116,
+                "snippet": "<<<FILE yourworld/adventure.yourquest.json"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 147,
+                "snippet": "<<<FILE core/policy/your-custom-policy.md"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 159,
+                "snippet": "<<<FILE core/worlds/specialworld/special-content.json"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_SYSTEM_GUIDE.md",
+                "line": 19,
+                "snippet": "- **File placeholders** like `<<<FILE path/to/file.json>>>`"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_SYSTEM_GUIDE.md",
+                "line": 73,
+                "snippet": "<<<FILE path/to/new-file.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 6,
+                "snippet": "> 2) Paste entire file contents where the `<<<FILE … >>>` fences appear (verbatim, unchanged),"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 54,
+                "snippet": "<<<FILE Worlds/Mystika/world-codex.mystika-logic.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 59,
+                "snippet": "<<<FILE Worlds/Mystika/adventure.whispercross.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 64,
+                "snippet": "<<<FILE Core/agency.presence-and-guardrails.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 75,
+                "snippet": "<<<FILE Worlds/Mystika/world-codex.mystika-lore.md"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 80,
+                "snippet": "<<<FILE Core/style.ui-global.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 85,
+                "snippet": "<<<FILE Core/romance-safety-policy.md"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 101,
+                "snippet": "3) Paste entire file contents into each matching `<<<FILE … >>>` block."
+              },
+              {
+                "file": "backend\\src\\prompting\\templateRegistry.ts",
+                "line": 439,
+                "snippet": "// Process file placeholders (<<<FILE ... >>>)"
+              },
+              {
+                "file": "backend\\src\\prompting\\templateRegistry.ts",
+                "line": 440,
+                "snippet": "const filePlaceholderRegex = /<<<FILE\\s+([^>]+?)>>>/gs;"
+              },
+              {
+                "file": "backend\\src\\prompts\\assembler.ts",
+                "line": 110,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "backend\\src\\prompts\\db-assembler.ts",
+                "line": 141,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "backend\\tests\\ai-service-integration.test.ts",
+                "line": 175,
+                "snippet": "expect(result.promptData).not.toContain('<<<FILE');"
+              },
+              {
+                "file": "backend\\tests\\prompt-assembly.test.ts",
+                "line": 94,
+                "snippet": "expect(result.prompt).not.toContain('<<<FILE');"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_PLAN.md",
+                "line": 162,
+                "snippet": "The system maintains support for legacy file inclusions using `<<<FILE path >>>` syntax:"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_PLAN.md",
+                "line": 165,
+                "snippet": "// Process file inclusions in segments (replace <<<FILE ... >>> with actual content)"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_PLAN.md",
+                "line": 167,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_SUMMARY.md",
+                "line": 99,
+                "snippet": "- **File inclusion support** for legacy `<<<FILE path >>>` syntax"
+              },
+              {
+                "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+                "line": 109,
+                "snippet": "{ pattern: '<<<FILE', matches: [] },"
+              },
+              {
+                "file": "tests\\test_prompt.md",
+                "line": 1,
+                "snippet": "\"# RPG Storyteller AI System\\n\\n## Context\\n- **World**: mystika\\n- **Player**: Thorne Shifter (undefined)\\n- **Adventure**: None\\n- **Scene**: forest_meet\\n- **Turn**: 1\\n\\n## Instructions\\nYou are a"
+              }
+            ]
+          },
+          {
+            "pattern": "prompts/assembler",
+            "matches": [
+              {
+                "file": "backend\\docs\\PROMPT_JSON_MINIMIZATION_FIX.md",
+                "line": 111,
+                "snippet": "- `backend/src/prompts/assembler.ts` - Final prompt assembly cleaning"
+              },
+              {
+                "file": "backend\\scripts\\test-prompt-cleaning.js",
+                "line": 9,
+                "snippet": "import { PromptAssembler } from '../dist/prompts/assembler.js';"
+              },
+              {
+                "file": "backend\\src\\services\\ai.ts",
+                "line": 5,
+                "snippet": "import { PromptAssembler } from '../prompts/assembler.js';"
+              },
+              {
+                "file": "backend\\TEMPLATE_REGISTRY_IMPLEMENTATION.md",
+                "line": 70,
+                "snippet": "- `backend/src/prompts/assembler.ts` - Fixed TypeScript error"
+              },
+              {
+                "file": "backend\\tests\\prompt-assembly.test.ts",
+                "line": 2,
+                "snippet": "import { PromptAssembler } from '../src/prompts/assembler.js';"
+              },
+              {
+                "file": "backend\\tests\\prompts.service.test.ts",
+                "line": 156,
+                "snippet": "vi.mock('../src/prompts/assembler.js', () => ({"
+              },
+              {
+                "file": "docs\\migration\\phase-8-legacy-decommission.md",
+                "line": 55,
+                "snippet": "backend/src/prompts/assembler.ts              # Legacy prompt assembler"
+              },
+              {
+                "file": "docs\\migration\\phase-8-legacy-decommission.md",
+                "line": 57,
+                "snippet": "backend/tests/prompts/assembler.test.ts      # Assembler tests"
+              },
+              {
+                "file": "docs\\play-flow-layer-plan.md",
+                "line": 49,
+                "snippet": "- ✅ `backend/src/prompts/assembler.ts` - PromptAssembler service that composes manifest entries with runtime data"
+              },
+              {
+                "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+                "line": 110,
+                "snippet": "{ pattern: 'prompts/assembler', matches: [] },"
+              }
+            ]
+          },
+          {
+            "pattern": "file embed (<< <)",
+            "matches": [
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 5,
+                "snippet": "<<<FILE core.prompt.json >>>"
+              },
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 9,
+                "snippet": "<<<FILE worlds/{{world_name}}/world.prompt.json >>>"
+              },
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 13,
+                "snippet": "<<<FILE worlds/{{world_name}}/adventures/{{adventure_name}}/adventure.prompt.json >>>"
+              },
+              {
+                "file": "backend\\AI API Prompts\\baseline.md",
+                "line": 17,
+                "snippet": "<<<FILE worlds/{{world_name}}/adventures/{{adventure_name}}/adventure.start.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\assembler.ts",
+                "line": 129,
+                "snippet": "* Process file inclusions in segments (replace <<<FILE ... >>> with actual content)"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\assembler.ts",
+                "line": 132,
+                "snippet": "// Match <<<FILE path >>> patterns"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\assembler.ts",
+                "line": 133,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 5,
+                "snippet": "<<<FILE core.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 9,
+                "snippet": "<<<FILE worlds/{{world_name}}/world.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 13,
+                "snippet": "<<<FILE worlds/{{world_name}}/adventures/{{adventure_name}}/adventure.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\baseline.md",
+                "line": 17,
+                "snippet": "<<<FILE worlds/{{world_name}}/adventures/{{adventure_name}}/adventure.start.prompt.json >>>"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\db-assembler.ts",
+                "line": 127,
+                "snippet": "* Process file inclusions in segments (replace <<<FILE ... >>> with actual content)"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\db-assembler.ts",
+                "line": 131,
+                "snippet": "// Match <<<FILE path >>> patterns"
+              },
+              {
+                "file": "backend\\backups\\pre-awf\\2025-10-16T22-51-14\\db-assembler.ts",
+                "line": 132,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 40,
+                "snippet": "<<<FILE core/worlds/yourworld/world-codex.yourworld-logic.json"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 77,
+                "snippet": "<<<FILE core/worlds/yourworld/world-codex.yourworld-lore.md"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 116,
+                "snippet": "<<<FILE yourworld/adventure.yourquest.json"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 147,
+                "snippet": "<<<FILE core/policy/your-custom-policy.md"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_CUSTOMIZATION_EXAMPLES.md",
+                "line": 159,
+                "snippet": "<<<FILE core/worlds/specialworld/special-content.json"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_SYSTEM_GUIDE.md",
+                "line": 19,
+                "snippet": "- **File placeholders** like `<<<FILE path/to/file.json>>>`"
+              },
+              {
+                "file": "backend\\docs\\TEMPLATE_SYSTEM_GUIDE.md",
+                "line": 73,
+                "snippet": "<<<FILE path/to/new-file.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 6,
+                "snippet": "> 2) Paste entire file contents where the `<<<FILE … >>>` fences appear (verbatim, unchanged),"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 54,
+                "snippet": "<<<FILE Worlds/Mystika/world-codex.mystika-logic.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 59,
+                "snippet": "<<<FILE Worlds/Mystika/adventure.whispercross.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 64,
+                "snippet": "<<<FILE Core/agency.presence-and-guardrails.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 75,
+                "snippet": "<<<FILE Worlds/Mystika/world-codex.mystika-lore.md"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 80,
+                "snippet": "<<<FILE Core/style.ui-global.json"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 85,
+                "snippet": "<<<FILE Core/romance-safety-policy.md"
+              },
+              {
+                "file": "backend\\src\\prompting\\stone_caster_mvp_webapp_prompt_template_just_add_files.md",
+                "line": 101,
+                "snippet": "3) Paste entire file contents into each matching `<<<FILE … >>>` block."
+              },
+              {
+                "file": "backend\\src\\prompting\\templateRegistry.ts",
+                "line": 439,
+                "snippet": "// Process file placeholders (<<<FILE ... >>>)"
+              },
+              {
+                "file": "backend\\src\\prompting\\templateRegistry.ts",
+                "line": 440,
+                "snippet": "const filePlaceholderRegex = /<<<FILE\\s+([^>]+?)>>>/gs;"
+              },
+              {
+                "file": "backend\\src\\prompts\\assembler.ts",
+                "line": 110,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "backend\\src\\prompts\\db-assembler.ts",
+                "line": 141,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "backend\\tests\\ai-service-integration.test.ts",
+                "line": 175,
+                "snippet": "expect(result.promptData).not.toContain('<<<FILE');"
+              },
+              {
+                "file": "backend\\tests\\prompt-assembly.test.ts",
+                "line": 94,
+                "snippet": "expect(result.prompt).not.toContain('<<<FILE');"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_PLAN.md",
+                "line": 162,
+                "snippet": "The system maintains support for legacy file inclusions using `<<<FILE path >>>` syntax:"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_PLAN.md",
+                "line": 165,
+                "snippet": "// Process file inclusions in segments (replace <<<FILE ... >>> with actual content)"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_PLAN.md",
+                "line": 167,
+                "snippet": "const filePattern = /<<<FILE\\s+([^>]+)\\s*>>>/g;"
+              },
+              {
+                "file": "docs\\PROMPT_MIGRATION_SUMMARY.md",
+                "line": 99,
+                "snippet": "- **File inclusion support** for legacy `<<<FILE path >>>` syntax"
+              },
+              {
+                "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+                "line": 109,
+                "snippet": "{ pattern: '<<<FILE', matches: [] },"
+              },
+              {
+                "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+                "line": 485,
+                "snippet": "if (runtime && /<<<|```/.test(runtime)) {"
+              },
+              {
+                "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+                "line": 488,
+                "snippet": "if (runtimeWithTools && /<<<|```/.test(runtimeWithTools)) {"
+              },
+              {
+                "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+                "line": 610,
+                "snippet": "const hasMatch = isFileEmbedPattern ? line.includes('<<<') : Boolean(regex?.test(line));"
+              },
+              {
+                "file": "tests\\test_prompt.md",
+                "line": 1,
+                "snippet": "\"# RPG Storyteller AI System\\n\\n## Context\\n- **World**: mystika\\n- **Player**: Thorne Shifter (undefined)\\n- **Adventure**: None\\n- **Scene**: forest_meet\\n- **Turn**: 1\\n\\n## Instructions\\nYou are a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bundle-persistence",
+      "title": "Bundle persistence check",
+      "status": "fail",
+      "summary": "Potential bundle persistence writes found",
+      "details": [
+        "docs\\migration\\phase-12-i18n-multilingual-support.md:74",
+        "scripts\\diagnostics\\awf-prompt-audit.ts:655"
+      ],
+      "data": {
+        "matches": [
+          {
+            "file": "docs\\migration\\phase-12-i18n-multilingual-support.md",
+            "line": 74,
+            "snippet": "f_sessions` table (default: 'en-US') - Updated `SessionRecord` type to include locale field - Locale flows from session into `awf_bundle.meta.locale` #### System Prompt Enhancement ```typescript"
+          },
+          {
+            "file": "scripts\\diagnostics\\awf-prompt-audit.ts",
+            "line": 655,
+            "snippet": "filePath, 'utf-8'); const regex = /(insert|upsert|update)[\\s\\S]{0,120}awf_bundle/gi; let match: RegExpExecArray | null; while ((match = regex.exec(content))) { const snippetStart = M"
+          }
+        ]
+      }
+    },
+    {
+      "id": "token-hygiene",
+      "title": "Token and tier hygiene",
+      "status": "warning",
+      "summary": "Token hygiene could not be evaluated because bundle data was unavailable"
+    },
+    {
+      "id": "liveops-localization",
+      "title": "LiveOps and localization checks",
+      "status": "warning",
+      "summary": "LiveOps and localization checks skipped due to missing bundle data"
+    }
+  ]
+}

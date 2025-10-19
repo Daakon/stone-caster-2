@@ -4,6 +4,14 @@ import { createClient } from '@supabase/supabase-js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validateRequest } from '../middleware/validation.js';
 import { IdParamSchema } from '@shared';
+import { 
+  WorldDocSchema, 
+  AdventureDocSchema, 
+  AdventureStartDocSchema 
+} from '../validators/awf-validators.js';
+import { CoreContractV2Schema } from '../validators/awf-core-contract.schema.js';
+import { CoreRulesetV1Schema } from '../validators/awf-ruleset.schema.js';
+import { computeDocumentHash } from '../utils/awf-hashing.js';
 
 const router = Router();
 
@@ -116,7 +124,7 @@ router.get('/prompts', authenticateToken, requireAdminRole, async (req, res) => 
     } = req.query;
 
     let query = supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .select('*')
       .order('layer', { ascending: true })
       .order('sort_order', { ascending: true });
@@ -185,7 +193,7 @@ router.get(
       const { id } = req.params;
 
       const { data, error } = await supabase
-        .from('prompts')
+        .from('prompting.prompts')
         .select('*')
         .eq('id', id)
         .single();
@@ -228,7 +236,7 @@ router.post('/prompts', authenticateToken, requireAdminRole, async (req, res) =>
     const minifiedMetadata = JSON.stringify(validatedData.metadata);
 
     const { data, error } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .insert({
         ...validatedData,
         metadata: minifiedMetadata,
@@ -284,7 +292,7 @@ router.put(
 
       // Check if prompt exists and is not locked
       const { data: existingPrompt, error: fetchError } = await supabase
-        .from('prompts')
+        .from('prompting.prompts')
         .select('locked')
         .eq('id', id)
         .single();
@@ -313,7 +321,7 @@ router.put(
       }
 
       const { data, error } = await supabase
-        .from('prompts')
+        .from('prompting.prompts')
         .update({
           ...updateData,
           updated_by: userId,
@@ -358,7 +366,7 @@ router.delete('/prompts/:id([0-9a-fA-F-]{36})', authenticateToken, requireAdminR
 
     // Check if prompt exists and is not locked
     const { data: existingPrompt, error: fetchError } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .select('locked')
       .eq('id', id)
       .single();
@@ -381,7 +389,7 @@ router.delete('/prompts/:id([0-9a-fA-F-]{36})', authenticateToken, requireAdminR
     }
 
     const { error } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .delete()
       .eq('id', id);
 
@@ -414,7 +422,7 @@ router.patch('/prompts/:id([0-9a-fA-F-]{36})/toggle-active', authenticateToken, 
 
     // Get current status
     const { data: currentPrompt, error: fetchError } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .select('active, locked')
       .eq('id', id)
       .single();
@@ -437,7 +445,7 @@ router.patch('/prompts/:id([0-9a-fA-F-]{36})/toggle-active', authenticateToken, 
     }
 
     const { data, error } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .update({
         active: !currentPrompt.active,
         updated_by: userId,
@@ -476,7 +484,7 @@ router.patch('/prompts/:id([0-9a-fA-F-]{36})/toggle-locked', authenticateToken, 
 
     // Get current status
     const { data: currentPrompt, error: fetchError } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .select('locked')
       .eq('id', id)
       .single();
@@ -492,7 +500,7 @@ router.patch('/prompts/:id([0-9a-fA-F-]{36})/toggle-locked', authenticateToken, 
     }
 
     const { data, error } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .update({
         locked: !currentPrompt.locked,
         updated_by: userId,
@@ -605,7 +613,7 @@ router.post('/prompts/bulk', authenticateToken, requireAdminRole, async (req, re
     }
 
     const { data, error } = await supabase
-      .from('prompts')
+      .from('prompting.prompts')
       .update(updateData)
       .in('id', promptIds)
       .select();
@@ -624,6 +632,533 @@ router.post('/prompts/bulk', authenticateToken, requireAdminRole, async (req, re
     res.status(500).json({
       ok: false,
       error: 'Failed to perform bulk operation',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// AWF Document Routes
+// Core Contracts
+router.get('/awf/core-contracts', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('core_contracts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching core contracts:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch core contracts',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/core-contracts', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version, doc, active } = req.body;
+
+    // Validate required fields
+    if (!id || !version || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, version, doc'
+      });
+    }
+
+    // Validate document using CoreContractV2Schema
+    try {
+      CoreContractV2Schema.parse(doc);
+    } catch (validationError) {
+      let details: string | any[] = 'Invalid document structure';
+      if (validationError instanceof Error) {
+        try {
+          // Try to parse Zod error details
+          const zodError = JSON.parse(validationError.message);
+          if (Array.isArray(zodError)) {
+            details = zodError;
+          } else {
+            details = validationError.message;
+          }
+        } catch {
+          details = validationError.message;
+        }
+      }
+      
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: Array.isArray(details) ? details : [details]
+      });
+    }
+
+    // Compute hash using Phase 1 hashing utility
+    const hash = computeDocumentHash(doc);
+
+    const { data, error } = await supabase
+      .from('core_contracts')
+      .upsert({
+        id,
+        version,
+        doc: doc,
+        hash,
+        active: active || false
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating core contract:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save core contract',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.patch('/awf/core-contracts/:id/:version/activate', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+
+    // First, deactivate all versions of this contract
+    await supabase
+      .from('core_contracts')
+      .update({ active: false })
+      .eq('id', id);
+
+    // Then activate the specified version
+    const { data, error } = await supabase
+      .from('core_contracts')
+      .update({ active: true })
+      .eq('id', id)
+      .eq('version', version)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error activating core contract:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to activate core contract',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Core Rulesets
+router.get('/awf/core-rulesets', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('core_rulesets')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching core rulesets:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch core rulesets',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/core-rulesets', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version, doc, active } = req.body;
+
+    // Validate required fields
+    if (!id || !version || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, version, doc'
+      });
+    }
+
+    // Validate document using CoreRulesetV1Schema
+    try {
+      CoreRulesetV1Schema.parse(doc);
+    } catch (validationError) {
+      let details: string | any[] = 'Invalid document structure';
+      if (validationError instanceof Error) {
+        try {
+          // Try to parse Zod error details
+          const zodError = JSON.parse(validationError.message);
+          if (Array.isArray(zodError)) {
+            details = zodError;
+          } else {
+            details = validationError.message;
+          }
+        } catch {
+          details = validationError.message;
+        }
+      }
+      
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: Array.isArray(details) ? details : [details]
+      });
+    }
+
+    // Compute hash using Phase 1 hashing utility
+    const hash = computeDocumentHash(doc);
+
+    const { data, error } = await supabase
+      .from('core_rulesets')
+      .upsert({
+        id,
+        version,
+        doc: doc,
+        hash,
+        active: active || false
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating core ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save core ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.patch('/awf/core-rulesets/:id/:version/activate', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+
+    // First, deactivate all versions of this ruleset
+    await supabase
+      .from('core_rulesets')
+      .update({ active: false })
+      .eq('id', id);
+
+    // Then activate the specified version
+    const { data, error } = await supabase
+      .from('core_rulesets')
+      .update({ active: true })
+      .eq('id', id)
+      .eq('version', version)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error activating core ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to activate core ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Worlds
+router.get('/awf/worlds', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('worlds')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching worlds:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch worlds',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/worlds', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version, doc } = req.body;
+
+    // Validate required fields
+    if (!id || !version || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, version, doc'
+      });
+    }
+
+    // Validate document using Phase 1 validator
+    let validatedDoc;
+    try {
+      validatedDoc = WorldDocSchema.parse(doc);
+    } catch (validationError) {
+      let details: string | any[] = 'Invalid document structure';
+      if (validationError instanceof Error) {
+        try {
+          // Try to parse Zod error details
+          const zodError = JSON.parse(validationError.message);
+          if (Array.isArray(zodError)) {
+            details = zodError;
+          } else {
+            details = validationError.message;
+          }
+        } catch {
+          details = validationError.message;
+        }
+      }
+      
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: Array.isArray(details) ? details : [details]
+      });
+    }
+
+    // Compute hash using Phase 1 hashing utility
+    const hash = computeDocumentHash(validatedDoc);
+
+    const { data, error } = await supabase
+      .from('worlds')
+      .upsert({
+        id,
+        version,
+        doc: validatedDoc,
+        hash
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating world:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save world',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Adventures
+router.get('/awf/adventures', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('adventures')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching adventures:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch adventures',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/adventures', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, world_ref, version, doc } = req.body;
+
+    // Validate required fields
+    if (!id || !world_ref || !version || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, world_ref, version, doc'
+      });
+    }
+
+    // Validate document using Phase 1 validator
+    let validatedDoc;
+    try {
+      validatedDoc = AdventureDocSchema.parse(doc);
+    } catch (validationError) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
+      });
+    }
+
+    // Compute hash using Phase 1 hashing utility
+    const hash = computeDocumentHash(validatedDoc);
+
+    const { data, error } = await supabase
+      .from('adventures')
+      .upsert({
+        id,
+        world_ref,
+        version,
+        doc: validatedDoc,
+        hash
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating adventure:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save adventure',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Adventure Starts
+router.get('/awf/adventure-starts', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('adventure_starts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching adventure starts:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch adventure starts',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/adventure-starts', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { adventure_ref, doc, use_once } = req.body;
+
+    // Validate required fields
+    if (!adventure_ref || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: adventure_ref, doc'
+      });
+    }
+
+    // Validate document using Phase 1 validator
+    let validatedDoc;
+    try {
+      validatedDoc = AdventureStartDocSchema.parse(doc);
+    } catch (validationError) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('adventure_starts')
+      .upsert({
+        adventure_ref,
+        doc: validatedDoc,
+        use_once: use_once || true
+      }, { onConflict: 'adventure_ref' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating adventure start:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save adventure start',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

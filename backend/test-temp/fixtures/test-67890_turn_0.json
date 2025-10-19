@@ -1,0 +1,17 @@
+{
+  "AWF": {
+    "scn": "test-scene-2",
+    "txt": "You examine the test environment. It appears to be a test.",
+    "choices": [
+      {
+        "id": "choice1",
+        "label": "Test option 1"
+      },
+      {
+        "id": "choice2",
+        "label": "Test option 2"
+      }
+    ],
+    "acts": []
+  }
+}

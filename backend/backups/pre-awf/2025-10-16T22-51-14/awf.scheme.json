@@ -1,0 +1,14 @@
+{
+  "segments": [
+    {
+      "id": "json-schema-validation",
+      "content": "JSON Schema Validation:\n- Response must be valid JSON object\n- Required fields: scn (string), txt (string)\n- Optional fields: choices (array), acts (array), val (object)\n- txt must be minimum 50 words\n- choices array items must have 'choice' and 'outcome' fields\n- No markdown, no code fences, no extra keys\n- TIME_ADVANCE must be number ≥ 1"
+    },
+    {
+      "id": "response-format",
+      "content": "Response Format Requirements:\n- Single JSON object only\n- No arrays at root level\n- No nested objects beyond specified structure\n- All string values properly escaped\n- Numeric values as numbers, not strings\n- Boolean values as true/false, not strings"
+    }
+  ],
+  "variables": ["response", "validation"],
+  "version": "1.0.0"
+}

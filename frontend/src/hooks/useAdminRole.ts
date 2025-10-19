@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/auth';
-import { supabase } from '@/lib/supabase';
+import { useAdminStore } from '@/stores/adminStore';
 
 interface AdminRoleState {
   isAdmin: boolean;
@@ -11,6 +11,7 @@ interface AdminRoleState {
 
 export function useAdminRole(): AdminRoleState {
   const { user, isAuthenticated } = useAuthStore();
+  const { fetchUserRole, getCachedUserRole, roleLoading, roleError } = useAdminStore();
   const [state, setState] = useState<AdminRoleState>({
     isAdmin: false,
     isLoading: true,
@@ -31,15 +32,25 @@ export function useAdminRole(): AdminRoleState {
       }
 
       try {
-        // Get user role from application database (user_profiles table)
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('auth_user_id', user.id)
-          .single();
+        // Check if we have a cached role first
+        const cachedRole = getCachedUserRole();
+        if (cachedRole) {
+          console.log('useAdminRole: Using cached role:', cachedRole);
+          const isAdmin = cachedRole === 'prompt_admin';
+          setState({
+            isAdmin,
+            isLoading: false,
+            userRole: cachedRole,
+            error: isAdmin ? null : 'Insufficient permissions'
+          });
+          return;
+        }
+
+        // Fetch role if not cached
+        await fetchUserRole(user.id);
+        const role = getCachedUserRole();
         
-        if (error) {
-          console.error('Error fetching user role:', error);
+        if (!role) {
           setState({
             isAdmin: false,
             isLoading: false,
@@ -49,29 +60,14 @@ export function useAdminRole(): AdminRoleState {
           return;
         }
 
-        const role = data?.role || 'user';
-        console.log('useAdminRole check:', { 
-          role, 
-          userId: user.id,
-          profileData: data
-        });
+        const isAdmin = role === 'prompt_admin';
+        console.log('useAdminRole: Fetched role:', role, 'isAdmin:', isAdmin);
         
-        if (role !== 'prompt_admin') {
-          console.log('useAdminRole: Access denied, role is', role, 'but expected prompt_admin');
-          setState({
-            isAdmin: false,
-            isLoading: false,
-            userRole: role,
-            error: 'Insufficient permissions'
-          });
-          return;
-        }
-
         setState({
-          isAdmin: true,
+          isAdmin,
           isLoading: false,
           userRole: role,
-          error: null
+          error: isAdmin ? null : 'Insufficient permissions'
         });
       } catch (error) {
         console.error('Role verification error:', error);
@@ -85,7 +81,21 @@ export function useAdminRole(): AdminRoleState {
     };
 
     verifyAdminRole();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, fetchUserRole, getCachedUserRole]);
+
+  // Update state when store changes
+  useEffect(() => {
+    if (roleLoading) {
+      setState(prev => ({ ...prev, isLoading: true }));
+    } else if (roleError) {
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: roleError,
+        isAdmin: false 
+      }));
+    }
+  }, [roleLoading, roleError]);
 
   return state;
 }
