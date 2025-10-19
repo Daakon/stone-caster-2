@@ -82,14 +82,18 @@ export interface AwfBundleNpcs {
   count: number;
 }
 
-// Individual NPC
+// Individual NPC (compact format)
 export interface AwfBundleNpc {
-  id: string;
+  id: string | null;
+  ver: string | null;
   name: string;
-  description: string;
-  role: string;
-  location?: string;
-  metadata?: Record<string, unknown>;
+  archetype: string | null;
+  summary: string;
+  style: {
+    voice: string | null;
+    register: string | null;
+  };
+  tags: string[];
 }
 
 // Player information

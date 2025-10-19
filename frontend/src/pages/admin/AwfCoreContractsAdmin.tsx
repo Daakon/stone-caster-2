@@ -34,54 +34,24 @@ export default function AwfCoreContractsAdmin() {
     contractsError 
   } = useAdminStore();
 
-  // Helper function to create default document structure
+  // Helper function to create default document structure (framework-only)
   const createDefaultDocument = () => {
     return JSON.stringify({
       contract: {
-        awf_return: "json",
-        "scn.phases": ["setup", "play", "resolution"],
-        "txt.policy": "narrative",
-        "choices.policy": "player_choice",
-        "acts.policy": "system_controlled"
+        name: "StoneCaster Core Contract",
+        awf_return: "Return exactly one JSON object named AWF with keys scn, txt, and optional choices, optional acts, optional val. No markdown, no code fences, no extra keys.",
+        keys: { required: ["scn","txt"], optional: ["choices","acts","val"] },
+        language: { one_language_only: true },
+        time: { 
+          first_turn_time_advance_allowed: false, 
+          require_time_advance_on_nonfirst_turn: true, 
+          ticks_min_step: 1 
+        },
+        menus: { min: 1, max: 5, label_max_chars: 48 },
+        validation: { policy: "No extra top-level keys; avoid nulls; compact values." }
       },
-      rules: {
-        language: {
-          one_language_only: true,
-          use_meta_locale: true
-        },
-        scales: {
-          skill_min: 0,
-          skill_max: 100,
-          relationship_min: 0,
-          relationship_max: 100,
-          baseline: 50
-        },
-        token_discipline: {
-          npcs_active_cap: 5,
-          sim_nearby_token_cap: 260,
-          mods_micro_slice_cap_per_namespace: 80,
-          mods_micro_slice_cap_global: 200,
-          episodic_cap: 60,
-          episodic_note_max_chars: 120
-        },
-        time: {
-          require_time_advance_each_nonfirst_turn: true,
-          allow_time_advance_on_first_turn: false
-        },
-        menus: {
-          min_choices: 1,
-          max_choices: 5,
-          label_max_chars: 48
-        },
-        mechanics_visibility: {
-          no_mechanics_in_txt: true
-        },
-        safety: {
-          consent_required_for_impactful_actions: true,
-          offer_player_reaction_when_npc_initiates: true
-        }
-      },
-      acts_catalog: [
+      core: {
+        acts_catalog: [
         { type: "TIME_ADVANCE", mode: "add_number", target: "time.ticks" },
         { type: "SCENE_SET", mode: "set_value", target: "hot.scene" },
         { type: "OBJECTIVE_UPDATE", mode: "upsert_by_id", target: "hot.objectives" },
@@ -101,15 +71,12 @@ export default function AwfCoreContractsAdmin() {
         { type: "PARTY_RECRUIT", mode: "upsert_by_id", target: "party.members" },
         { type: "PARTY_DISMISS", mode: "upsert_by_id", target: "party.members" },
         { type: "PARTY_SET_INTENT", mode: "upsert_by_id", target: "party.intents" }
-      ],
-      defaults: {
-        txt_sentences_min: 2,
-        txt_sentences_max: 6,
-        time_ticks_min_step: 1,
-        time_band_cycle: ["Dawn", "Mid-Day", "Evening", "Mid-Night"],
-        cooldowns: {
-          dialogue_candidate_cooldown_turns: 1
-        }
+        ],
+        scales: {
+          skill: { min: 0, baseline: 50, max: 100 },
+          relationship: { min: 0, baseline: 50, max: 100 }
+        },
+        budgets: { input_max_tokens: 6000, output_max_tokens: 1200 }
       }
     }, null, 2);
   };
@@ -477,7 +444,9 @@ export default function AwfCoreContractsAdmin() {
             <div>
               <Label htmlFor="doc">Document (JSON)</Label>
               <p className="text-sm text-muted-foreground mb-2">
-                Required structure: contract (awf_return, scn.phases, txt.policy, choices.policy, acts.policy), rules (language, scales, token_discipline, time, menus, mechanics_visibility, safety), acts_catalog (array of {"type", "mode", "target"}), defaults (txt_sentences_min/max, time_ticks_min_step, time_band_cycle, cooldowns)
+                Core is framework-only (output contract, acts catalog, scales, budgets). Narrative phases/policies live in Rulesets.
+                <br />
+                Required structure: contract (awf_return, keys, language, time, menus, validation), core (acts_catalog, scales, budgets)
               </p>
               <Textarea
                 id="doc"

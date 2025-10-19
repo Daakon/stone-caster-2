@@ -183,7 +183,9 @@ export class CIChecker {
       '**/worlds/**/*.json',
       '**/adventures/**/*.json',
       '**/start/**/*.json',
-      '**/scenarios/**/*.json'
+      '**/scenarios/**/*.json',
+      '**/games/**/*.json', // Phase 1: Include games for state validation
+      '**/rulesets/**/*.json' // Phase 1: Include rulesets for narrative validation
     ];
     
     return files.filter(file => 

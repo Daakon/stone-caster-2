@@ -11,6 +11,7 @@ import {
 } from '../validators/awf-validators.js';
 import { CoreContractV2Schema } from '../validators/awf-core-contract.schema.js';
 import { CoreRulesetV1Schema } from '../validators/awf-ruleset.schema.js';
+import { NPCDocV1Schema } from '../validators/awf-npc.schema.js';
 import { computeDocumentHash } from '../utils/awf-hashing.js';
 
 const router = Router();
@@ -1159,6 +1160,254 @@ router.post('/awf/adventure-starts', authenticateToken, requireAdminRole, async 
     res.status(500).json({
       ok: false,
       error: 'Failed to save adventure start',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Core Rulesets
+router.get('/awf/rulesets', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('core_rulesets')
+      .select('*')
+      .order('id', { ascending: true })
+      .order('version', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching rulesets:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch rulesets',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/rulesets', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version, doc } = req.body;
+
+    // Validate required fields
+    if (!id || !version || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, version, doc'
+      });
+    }
+
+    // Validate document using CoreRulesetV1Schema
+    let validatedDoc;
+    try {
+      validatedDoc = CoreRulesetV1Schema.parse(doc);
+    } catch (validationError) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
+      });
+    }
+
+    // Compute hash
+    const hash = computeDocumentHash(validatedDoc);
+
+    const { data, error } = await supabase
+      .from('core_rulesets')
+      .upsert({
+        id,
+        version,
+        doc: validatedDoc,
+        hash
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.delete('/awf/rulesets/:id/:version', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+
+    if (!id || !version) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required parameters: id, version'
+      });
+    }
+
+    const { error } = await supabase
+      .from('core_rulesets')
+      .delete()
+      .eq('id', id)
+      .eq('version', version);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'Ruleset deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// NPC Management Routes
+router.get('/awf/npcs', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, tag } = req.query;
+    
+    let query = supabase
+      .from('npcs')
+      .select('*')
+      .order('id', { ascending: true })
+      .order('version', { ascending: false });
+
+    // Apply filters
+    if (id) {
+      query = query.eq('id', id);
+    }
+    
+    if (tag) {
+      query = query.contains('doc->npc->tags', [tag]);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching NPCs:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch NPCs',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/npcs', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version, doc } = req.body;
+
+    if (!id || !version || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, version, doc'
+      });
+    }
+
+    // Validate document using NPCDocV1Schema
+    let validatedDoc;
+    try {
+      validatedDoc = NPCDocV1Schema.parse(doc);
+    } catch (validationError) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
+      });
+    }
+
+    // Compute hash
+    const hash = computeDocumentHash(validatedDoc);
+
+    const { data, error } = await supabase
+      .from('npcs')
+      .upsert({
+        id,
+        version,
+        doc: validatedDoc,
+        hash
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating NPC:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save NPC',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.delete('/awf/npcs/:id/:version', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+
+    if (!id || !version) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required parameters: id, version'
+      });
+    }
+
+    const { error } = await supabase
+      .from('npcs')
+      .delete()
+      .eq('id', id)
+      .eq('version', version);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'NPC deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting NPC:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete NPC',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

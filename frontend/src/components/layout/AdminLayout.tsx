@@ -139,6 +139,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <a href="/admin/awf/core-contracts">Core Contracts</a>
             </Button>
             <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/awf/rulesets">Rulesets</a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
               <a href="/admin/awf/worlds">Worlds</a>
             </Button>
             <Button variant="ghost" size="sm" asChild>

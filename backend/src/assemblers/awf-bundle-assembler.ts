@@ -22,12 +22,15 @@ import {
   calculateBundleMetrics,
   validateBundleStructure
 } from '../utils/awf-bundle-helpers.js';
+import { resolveRulesetRef, parseRulesetRef } from '../utils/awf-ruleset-resolver.js';
 import { 
   getSlicesForScene, 
   getDefaultWorldSlices, 
   getDefaultAdventureSlices 
 } from '../policies/scene-slice-policy.js';
 import { WorldDocFlex } from '../types/awf-world.js';
+import { collectNpcRefs } from './npc-collector.js';
+import { compactNpcDoc } from './npc-compactor.js';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -69,17 +72,23 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
     const repoFactory = new AWFRepositoryFactory({ supabase });
     const repos = repoFactory.getAllRepositories();
     
-    // Load session data
-    const session = await repos.sessions.getByIdVersion(params.sessionId);
-    if (!session) {
-      throw new Error(`Session ${params.sessionId} not found`);
+    // Load game data (primary source of truth)
+    const game = await repos.gameStates.getByIdVersion(params.sessionId);
+    if (!game) {
+      throw new Error(`Game ${params.sessionId} not found`);
     }
     
-    // Load game state
-    const gameState = await repos.gameStates.getByIdVersion(params.sessionId);
-    if (!gameState) {
-      throw new Error(`Game state for session ${params.sessionId} not found`);
-    }
+    // Load optional session data (for overrides only)
+    const session = await repos.sessions.getByIdVersion(params.sessionId).catch(() => null);
+    
+    // Resolve ruleset and locale from game meta with optional session overrides
+    const { ruleset_ref, locale } = resolveRulesetRef({ 
+      game: { state_snapshot: (game as any).state_snapshot }, 
+      session: session
+    });
+    
+    // Parse ruleset reference
+    const { id: rulesetId, version: rulesetVersion } = parseRulesetRef(ruleset_ref);
     
     // Load core contract (active)
     const coreContract = await repos.coreContracts.getActive('default');
@@ -87,28 +96,36 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
       throw new Error('No active core contract found');
     }
     
-    // Load core ruleset (default to ruleset.core.default@1.0.0 if not specified)
-    const rulesetRef = session.meta?.ruleset_ref || 'ruleset.core.default@1.0.0';
-    const [rulesetId, rulesetVersion] = rulesetRef.split('@');
+    // Load core ruleset
     const coreRuleset = await repos.coreRulesets.getByIdVersion(rulesetId, rulesetVersion);
     if (!coreRuleset) {
-      throw new Error(`Core ruleset ${rulesetRef} not found`);
+      throw new Error(`Core ruleset ${ruleset_ref} not found`);
     }
     
-    // Load world
-    const world = await repos.worlds.getByIdVersion(session.world_ref, 'v1');
+    // Load world from game meta
+    const worldRef = (game as any).state_snapshot?.meta?.world_ref;
+    if (!worldRef) {
+      throw new Error('No world_ref found in game.state_snapshot.meta');
+    }
+    const [worldId, worldVersion] = worldRef.split('@');
+    const world = await repos.worlds.getByIdVersion(worldId, worldVersion);
     if (!world) {
-      throw new Error(`World ${session.world_ref} not found`);
+      throw new Error(`World ${worldRef} not found`);
     }
     
-    // Load adventure
-    const adventure = await repos.adventures.getByIdVersion(session.adventure_ref, 'v1');
+    // Load adventure from game meta
+    const adventureRef = (game as any).state_snapshot?.meta?.adventure_ref;
+    if (!adventureRef) {
+      throw new Error('No adventure_ref found in game.state_snapshot.meta');
+    }
+    const [adventureId, adventureVersion] = adventureRef.split('@');
+    const adventure = await repos.adventures.getByIdVersion(adventureId, adventureVersion);
     if (!adventure) {
-      throw new Error(`Adventure ${session.adventure_ref} not found`);
+      throw new Error(`Adventure ${adventureRef} not found`);
     }
     
     // Load adventure start (optional)
-    const adventureStart = await repos.adventureStarts.getByAdventureRef(session.adventure_ref);
+    const adventureStart = await repos.adventureStarts.getByAdventureRef(adventureRef);
     
     // Load injection map
     const injectionMap = await repos.injectionMap.getByIdVersion('default');
@@ -117,13 +134,17 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
     }
     
     // Load player data (from existing character system)
-    const player = await loadPlayerData(session.player_id);
+    const playerId = (game as any).user_id || (game as any).cookie_group_id;
+    if (!playerId) {
+      throw new Error('No player_id found in game');
+    }
+    const player = await loadPlayerData(playerId);
     
-    // Load NPCs (from adventure or game state)
-    const npcs = await loadNpcData(adventure, gameState);
+    // Load NPCs using new collection system
+    const npcs = await loadNpcData(repos, (game as any).state_snapshot, adventure, coreRuleset, locale);
     
     // Determine current scene for slice selection
-    const currentScene = gameState.hot.scene as string | undefined;
+    const currentScene = (game as any).state_snapshot?.hot?.scene as string | undefined;
     
     // Select slices based on scene or defaults
     const worldSlices = selectSlices(
@@ -143,11 +164,11 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
       awf_bundle: {
         meta: {
           engine_version: '1.0.0',
-          world: session.world_ref,
-          adventure: session.adventure_ref,
-          turn_id: session.turn_id,
-          is_first_turn: session.is_first_turn,
-          locale: session.locale || 'en-US',
+          world: worldRef,
+          adventure: adventureRef,
+          turn_id: (game as any).turn_count || 1,
+          is_first_turn: (game as any).turn_count === 0,
+          locale: locale,
           timestamp: new Date().toISOString(),
         },
         contract: {
@@ -184,15 +205,15 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
           ref: adventure.id,
           hash: adventure.hash,
           slice: adventureSlices,
-          start_hint: session.is_first_turn && adventureStart ? {
+          start_hint: ((game as any).turn_count === 0) && adventureStart ? {
             scene: adventureStart.doc.start.scene,
             description: adventureStart.doc.start.description || '',
             initial_state: adventureStart.doc.start.initial_state,
           } : undefined,
         },
         npcs: {
-          active: filterActiveNpcs(npcs, 5),
-          count: Math.min(npcs.length, 5),
+          active: npcs, // This is now the compact NPC format
+          count: npcs.length,
         },
         player: {
           id: player.id,
@@ -203,12 +224,12 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
           metadata: player.metadata,
         },
         game_state: {
-          hot: gameState.hot,
-          warm: gameState.warm,
-          cold: gameState.cold,
+          hot: (game as any).state_snapshot?.hot || {},
+          warm: (game as any).state_snapshot?.warm || {},
+          cold: (game as any).state_snapshot?.cold || {},
         },
         rng: {
-          seed: generateRngSeed(params.sessionId, session.turn_id),
+          seed: generateRngSeed(params.sessionId, (game as any).turn_count || 1),
           policy: 'deterministic',
         },
         input: {
@@ -218,8 +239,12 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
       },
     };
     
-    // Apply injection map build pointers
-    await applyInjectionMap(bundle, injectionMap.doc.build, coreContract, coreRuleset);
+    // Apply injection map build pointers with environment variables
+    const env = {
+      ruleset_ref: ruleset_ref,
+      locale: locale,
+    };
+    await applyInjectionMap(bundle, injectionMap.doc.build, coreContract, coreRuleset, npcs, env);
     
     // Validate the bundle
     const validationErrors = validateBundleStructure(bundle as unknown as Record<string, unknown>);
@@ -234,8 +259,8 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
     // Log assembly metrics
     console.log(`[AWF] Bundle assembly completed:`, {
       sessionId: params.sessionId,
-      turnId: session.turn_id,
-      isFirstTurn: session.is_first_turn,
+      turnId: session?.turn_id || 1,
+      isFirstTurn: session?.is_first_turn || false,
       byteSize: metrics.byteSize,
       estimatedTokens: metrics.estimatedTokens,
       npcCount: metrics.npcCount,
@@ -326,54 +351,54 @@ async function loadPlayerData(playerId: string | null): Promise<{
  * @returns Array of NPCs
  */
 async function loadNpcData(
+  repos: any,
+  gameState: any,
   adventure: any,
-  gameState: any
+  coreRuleset: any,
+  locale?: string
 ): Promise<Array<{
-  id: string;
+  id: string | null;
+  ver: string | null;
   name: string;
-  description: string;
-  role: string;
-  location?: string;
-  metadata?: Record<string, unknown>;
+  archetype: string | null;
+  summary: string;
+  style: {
+    voice: string | null;
+    register: string | null;
+  };
+  tags: string[];
 }>> {
-  const npcs: Array<{
-    id: string;
-    name: string;
-    description: string;
-    role: string;
-    location?: string;
-    metadata?: Record<string, unknown>;
-  }> = [];
-  
-  // Add NPCs from adventure
-  if (adventure.doc.npcs && Array.isArray(adventure.doc.npcs)) {
-    for (const npc of adventure.doc.npcs) {
-      npcs.push({
-        id: npc.id || `npc_${npcs.length}`,
-        name: npc.name || 'Unknown NPC',
-        description: npc.description || '',
-        role: npc.role || 'unknown',
-        location: npc.location,
-        metadata: npc.metadata,
-      });
-    }
+  // Collect NPC refs from multiple sources
+  const npcRefs = collectNpcRefs({
+    game: gameState,
+    adventure: adventure?.doc,
+    ruleset: coreRuleset?.doc
+  });
+
+  if (npcRefs.length === 0) {
+    return [];
   }
-  
-  // Add NPCs from game state (if any)
-  if (gameState.hot.npcs && Array.isArray(gameState.hot.npcs)) {
-    for (const npc of gameState.hot.npcs) {
-      npcs.push({
-        id: npc.id || `state_npc_${npcs.length}`,
-        name: npc.name || 'Unknown NPC',
-        description: npc.description || '',
-        role: npc.role || 'unknown',
-        location: npc.location,
-        metadata: npc.metadata,
-      });
-    }
-  }
-  
-  return npcs;
+
+  // Parse refs into id@version format
+  const npcIds = npcRefs.map(ref => {
+    const [id, version] = ref.split('@');
+    return { id, version: version || undefined };
+  });
+
+  // Fetch NPC documents
+  const npcDocs = await repos.npcs.listByIds(npcIds);
+
+  // Compact NPCs for token efficiency
+  const compactNpcs = npcDocs.map((doc: any) => {
+    const compacted = compactNpcDoc(doc.doc, locale);
+    return {
+      ...compacted,
+      id: doc.id,
+      ver: doc.version
+    };
+  });
+
+  return compactNpcs;
 }
 
 /**
@@ -387,7 +412,9 @@ async function applyInjectionMap(
   bundle: AwfBundle,
   buildPointers: Record<string, string>,
   coreContract: any,
-  coreRuleset: any
+  coreRuleset: any,
+  npcs: any[],
+  env?: Record<string, string>
 ): Promise<void> {
   for (const [key, pointer] of Object.entries(buildPointers)) {
     try {
@@ -401,8 +428,11 @@ async function applyInjectionMap(
       } else if (pointer === 'core_contracts.active.doc.core.budgets') {
         setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.core.budgets);
       } else if (pointer.startsWith('core_rulesets[') && pointer.includes('].doc.ruleset')) {
-        // Handle ruleset injection: core_rulesets[{session.meta.ruleset_ref}].doc.ruleset
+        // Handle ruleset injection: core_rulesets[{env.ruleset_ref}].doc.ruleset
         setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreRuleset.doc.ruleset);
+      } else if (pointer === 'npcs.by_refs[/scenario/fixed_npcs[*].npc_ref]' || key === 'npcs') {
+        // Handle NPC injection: inject compacted NPCs
+        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, npcs);
       } else {
         // For other pointers, use the pointer as a direct path
         setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, pointer);

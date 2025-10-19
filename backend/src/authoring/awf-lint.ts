@@ -70,7 +70,9 @@ export class AwfLinter {
         first_turn_rules: { enabled: true, severity: 'error' },
         slice_coverage: { enabled: true, severity: 'warning' },
         stable_ids: { enabled: true, severity: 'error' },
-        time_bands: { enabled: true, severity: 'error' }
+        time_bands: { enabled: true, severity: 'error' },
+        npc_validation: { enabled: true, severity: 'error' },
+        bundle_npc_validation: { enabled: true, severity: 'warning' }
       },
       ignore: ['node_modules/**', '.git/**'],
       strict: false
@@ -258,6 +260,61 @@ export class AwfLinter {
     });
 
     // Ruleset validation rule
+    this.rules.push({
+      name: 'games_only_state',
+      severity: 'error',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check that games.state_snapshot.meta contains required fields
+        if (path.includes('games/') && doc.state_snapshot?.meta) {
+          const meta = doc.state_snapshot.meta;
+          
+          if (!meta.world_ref) {
+            issues.push({
+              rule: 'games_only_state',
+              severity: 'error',
+              message: 'games.state_snapshot.meta must contain world_ref',
+              path,
+              suggestion: 'Add world_ref to games.state_snapshot.meta'
+            });
+          }
+          
+          if (!meta.adventure_ref) {
+            issues.push({
+              rule: 'games_only_state',
+              severity: 'error',
+              message: 'games.state_snapshot.meta must contain adventure_ref',
+              path,
+              suggestion: 'Add adventure_ref to games.state_snapshot.meta'
+            });
+          }
+          
+          if (!meta.ruleset_ref) {
+            issues.push({
+              rule: 'games_only_state',
+              severity: 'warning',
+              message: 'games.state_snapshot.meta should contain ruleset_ref (will default to ruleset.core.default@1.0.0)',
+              path,
+              suggestion: 'Add ruleset_ref to games.state_snapshot.meta'
+            });
+          }
+          
+          if (!meta.locale) {
+            issues.push({
+              rule: 'games_only_state',
+              severity: 'warning',
+              message: 'games.state_snapshot.meta should contain locale (will default to en-US)',
+              path,
+              suggestion: 'Add locale to games.state_snapshot.meta'
+            });
+          }
+        }
+        
+        return issues;
+      }
+    });
+
     this.rules.push({
       name: 'ruleset_validation',
       severity: 'error',
@@ -559,6 +616,157 @@ export class AwfLinter {
           }
         }
 
+        return issues;
+      }
+    });
+
+    // NPC validation rule
+    this.rules.push({
+      name: 'npc_validation',
+      severity: 'error',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Only apply to NPC documents
+        if (!path.includes('npcs/') && !doc.npc) {
+          return issues;
+        }
+
+        // NPCs must have required fields
+        if (!doc.npc?.display_name || typeof doc.npc.display_name !== 'string') {
+          issues.push({
+            rule: 'npc_validation',
+            severity: 'error',
+            message: 'NPC missing required display_name',
+            path,
+            suggestion: 'Add display_name string to NPC'
+          });
+        }
+
+        if (!doc.npc?.summary || typeof doc.npc.summary !== 'string') {
+          issues.push({
+            rule: 'npc_validation',
+            severity: 'error',
+            message: 'NPC missing required summary',
+            path,
+            suggestion: 'Add summary string to NPC (≤160 chars)'
+          });
+        }
+
+        // Check summary length
+        if (doc.npc?.summary && doc.npc.summary.length > 160) {
+          issues.push({
+            rule: 'npc_validation',
+            severity: 'error',
+            message: `NPC summary too long: ${doc.npc.summary.length} chars (max 160)`,
+            path,
+            suggestion: 'Shorten summary to ≤160 characters'
+          });
+        }
+
+        // Check display_name length
+        if (doc.npc?.display_name && doc.npc.display_name.length > 64) {
+          issues.push({
+            rule: 'npc_validation',
+            severity: 'error',
+            message: `NPC display_name too long: ${doc.npc.display_name.length} chars (max 64)`,
+            path,
+            suggestion: 'Shorten display_name to ≤64 characters'
+          });
+        }
+
+        // Check traits/skills ranges
+        if (doc.npc?.traits) {
+          for (const [trait, value] of Object.entries(doc.npc.traits)) {
+            if (typeof value !== 'number' || value < 0 || value > 100) {
+              issues.push({
+                rule: 'npc_validation',
+                severity: 'error',
+                message: `NPC trait '${trait}' must be 0-100, found ${value}`,
+                path,
+                suggestion: 'Set trait value between 0-100'
+              });
+            }
+          }
+        }
+
+        if (doc.npc?.skills) {
+          for (const [skill, value] of Object.entries(doc.npc.skills)) {
+            if (typeof value !== 'number' || value < 0 || value > 100) {
+              issues.push({
+                rule: 'npc_validation',
+                severity: 'error',
+                message: `NPC skill '${skill}' must be 0-100, found ${value}`,
+                path,
+                suggestion: 'Set skill value between 0-100'
+              });
+            }
+          }
+        }
+
+        return issues;
+      }
+    });
+
+    // Bundle NPC validation rule
+    this.rules.push({
+      name: 'bundle_npc_validation',
+      severity: 'warning',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check bundle NPCs array
+        if (path.includes('bundles/') && doc.awf_bundle?.npcs) {
+          const npcs = doc.awf_bundle.npcs;
+          
+          if (!Array.isArray(npcs)) {
+            issues.push({
+              rule: 'bundle_npc_validation',
+              severity: 'error',
+              message: 'Bundle npcs must be an array',
+              path,
+              suggestion: 'Convert npcs to array format'
+            });
+          } else {
+            // Check NPC count against ruleset cap
+            const ruleset = doc.awf_bundle?.core?.ruleset;
+            const cap = ruleset?.token_discipline?.npcs_active_cap ?? 5;
+            
+            if (npcs.length > cap) {
+              issues.push({
+                rule: 'bundle_npc_validation',
+                severity: 'warning',
+                message: `Bundle has ${npcs.length} NPCs, exceeds cap of ${cap}`,
+                path,
+                suggestion: 'Reduce NPC count or increase ruleset cap'
+              });
+            }
+
+            // Validate each NPC structure
+            npcs.forEach((npc: any, index: number) => {
+              if (!npc.name || typeof npc.name !== 'string') {
+                issues.push({
+                  rule: 'bundle_npc_validation',
+                  severity: 'error',
+                  message: `Bundle NPC ${index} missing name`,
+                  path: `${path}.npcs[${index}]`,
+                  suggestion: 'Add name string to NPC'
+                });
+              }
+              
+              if (!npc.summary || typeof npc.summary !== 'string') {
+                issues.push({
+                  rule: 'bundle_npc_validation',
+                  severity: 'error',
+                  message: `Bundle NPC ${index} missing summary`,
+                  path: `${path}.npcs[${index}]`,
+                  suggestion: 'Add summary string to NPC'
+                });
+              }
+            });
+          }
+        }
+        
         return issues;
       }
     });

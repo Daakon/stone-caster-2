@@ -44,6 +44,14 @@ export interface AwfAdventureStart {
   updated_at: string;
 }
 
+export interface AwfCoreRuleset {
+  id: string;
+  version: string;
+  doc: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AwfDocumentResponse {
   ok: boolean;
   data?: any;
@@ -169,6 +177,28 @@ export class AwfAdminService {
     return this.makeRequest<AwfDocumentResponse>('/awf/adventure-starts', {
       method: 'POST',
       body: JSON.stringify(data)
+    });
+  }
+
+  // Core Rulesets
+  async getCoreRulesets(): Promise<AwfDocumentResponse> {
+    return this.makeRequest<AwfDocumentResponse>('/awf/rulesets');
+  }
+
+  async createCoreRuleset(data: {
+    id: string;
+    version: string;
+    doc: Record<string, unknown>;
+  }): Promise<AwfDocumentResponse> {
+    return this.makeRequest<AwfDocumentResponse>('/awf/rulesets', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async deleteCoreRuleset(id: string, version: string): Promise<AwfDocumentResponse> {
+    return this.makeRequest<AwfDocumentResponse>(`/awf/rulesets/${id}/${version}`, {
+      method: 'DELETE'
     });
   }
 

@@ -64,3 +64,12 @@ export interface CoreRulesetV1 {
     };
   };
 }
+
+// Database record type for core rulesets
+export interface CoreRulesetRecord {
+  id: string;
+  version: string;
+  doc: CoreRulesetV1;
+  created_at: string;
+  updated_at: string;
+}
