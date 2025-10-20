@@ -150,6 +150,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <Button variant="ghost" size="sm" asChild>
               <a href="/admin/awf/adventure-starts">Adventure Starts</a>
             </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/awf/scenarios">Scenarios</a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/awf/injection-maps">Injection Maps</a>
+            </Button>
             <Button variant="ghost" size="sm" disabled>
               Analytics
             </Button>

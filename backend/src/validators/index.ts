@@ -13,8 +13,33 @@ export { CoreRulesetV1Schema, type CoreRulesetV1 } from './awf-ruleset.schema.js
 export { NPCDocV1Schema } from './awf-npc.schema.js';
 export { type NPCDocV1 } from '../types/awf-npc.js';
 
-// World schemas
+// Scenario V1 (game startpoints)
+export { ScenarioDocV1Schema } from './awf-scenario.schema.js';
+export { type ScenarioDocV1 } from '../types/awf-scenario.js';
+
+// World schemas (flexible)
+export { WorldDocV1Schema, TimeworldSchema } from './awf-world.schema.js';
 export { WorldDocFlexSchema, type WorldDocFlex } from './awf-world.schema.js';
+
+// Adventure schemas (flexible)
+export { AdventureDocV1Schema } from './awf-adventure.schema.js';
+
+// Injection Map schemas
+export { 
+  InjectionRuleV1Schema, 
+  InjectionMapDocV1Schema,
+  DryRunRequestSchema,
+  BundleDiffRequestSchema
+} from './awf-injection-map.schema.js';
+export { 
+  type InjectionRuleV1,
+  type InjectionMapDocV1,
+  type InjectionMapRecord,
+  type DryRunRequest,
+  type DryRunResponse,
+  type BundleDiffRequest,
+  type BundleDiffResponse
+} from '../types/awf-injection-map.js';
 
 // Bundle validators
 export { 

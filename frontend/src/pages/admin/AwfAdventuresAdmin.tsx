@@ -1,486 +1,455 @@
 /**
- * AWF Adventures Admin Page
- * Phase 2: Admin UI - Adventure document management
+ * AWF Adventures Admin Page (Flexible)
+ * Admin interface for managing adventures with flexible schemas
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Plus, 
-  Edit, 
-  Save, 
-  X, 
-  Download,
-  Upload,
-  AlertTriangle,
-  Tag,
-  ExternalLink
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { awfAdminService, type AwfAdventure, type AwfWorld } from '@/services/awfAdminService';
+import { Loader2, Plus, Download, Upload, Trash2, Edit, Globe, Users } from 'lucide-react';
+
+interface Adventure {
+  id: string;
+  version: string;
+  doc: {
+    id: string;
+    name: string;
+    version: string;
+    world_ref: string;
+    synopsis?: string;
+    cast?: Array<{ npc_ref: string }>;
+    slices?: string[];
+    i18n?: Record<string, { name?: string; synopsis?: string }>;
+    [key: string]: any; // Allow custom fields
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+const defaultAdventureTemplate = {
+  id: "adv.new_adventure",
+  name: "New Adventure",
+  version: "1.0.0",
+  world_ref: "world.mystika@1.0.0",
+  synopsis: "A new adventure begins...",
+  cast: [
+    { npc_ref: "npc.companion@1.0.0" }
+  ],
+  slices: ["core", "combat"],
+  i18n: {
+    es: { 
+      name: "Nueva Aventura",
+      synopsis: "Una nueva aventura comienza..."
+    },
+    fr: { 
+      name: "Nouvelle Aventure",
+      synopsis: "Une nouvelle aventure commence..."
+    }
+  }
+};
 
 export default function AwfAdventuresAdmin() {
-  const [adventures, setAdventures] = useState<AwfAdventure[]>([]);
-  const [worlds, setWorlds] = useState<AwfWorld[]>([]);
+  const [adventures, setAdventures] = useState<Adventure[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingAdventure, setEditingAdventure] = useState<AwfAdventure | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    id: '',
-    world_ref: '',
-    version: '',
-    doc: '{}',
-    slices: [] as string[]
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingAdventure, setEditingAdventure] = useState<Adventure | null>(null);
+  const [jsonEditor, setJsonEditor] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [newSlice, setNewSlice] = useState('');
+  const [activeTab, setActiveTab] = useState('list');
 
-  // Load data on mount
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  // Load adventures
+  const loadAdventures = async () => {
     try {
       setLoading(true);
-      const [adventuresResponse, worldsResponse] = await Promise.all([
-        awfAdminService.getAdventures(),
-        awfAdminService.getWorlds()
-      ]);
-
-      if (adventuresResponse.ok && adventuresResponse.data) {
-        setAdventures(adventuresResponse.data);
+      const response = await fetch('/api/admin/awf/adventures');
+      const data = await response.json();
+      
+      if (data.ok) {
+        setAdventures(data.data || []);
       } else {
-        toast.error(adventuresResponse.error || 'Failed to load adventures');
+        setError(data.error || 'Failed to load adventures');
       }
-
-      if (worldsResponse.ok && worldsResponse.data) {
-        setWorlds(worldsResponse.data);
-      } else {
-        toast.error(worldsResponse.error || 'Failed to load worlds');
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Failed to load data');
+    } catch (err) {
+      setError('Failed to load adventures');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = (adventure: AwfAdventure) => {
-    setEditingAdventure(adventure);
-    const doc = adventure.doc as any;
-    setFormData({
-      id: adventure.id,
-      world_ref: adventure.world_ref,
-      version: adventure.version,
-      doc: JSON.stringify(adventure.doc, null, 2),
-      slices: doc.slices || []
-    });
-    setIsEditing(true);
-    setValidationErrors([]);
-  };
-
-  const handleNew = () => {
-    setEditingAdventure(null);
-    setFormData({
-      id: '',
-      world_ref: '',
-      version: '',
-      doc: '{}',
-      slices: []
-    });
-    setIsEditing(true);
-    setValidationErrors([]);
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setEditingAdventure(null);
-    setFormData({
-      id: '',
-      world_ref: '',
-      version: '',
-      doc: '{}',
-      slices: []
-    });
-    setValidationErrors([]);
-  };
-
-  const validateForm = (): boolean => {
-    const errors: string[] = [];
-
-    if (!formData.id.trim()) {
-      errors.push('ID is required');
-    }
-
-    if (!formData.world_ref.trim()) {
-      errors.push('World reference is required');
-    }
-
-    if (!formData.version.trim()) {
-      errors.push('Version is required');
-    }
-
+  // Save adventure
+  const saveAdventure = async (adventure: Adventure) => {
     try {
-      JSON.parse(formData.doc);
-    } catch (error) {
-      errors.push('Document must be valid JSON');
-    }
+      const response = await fetch('/api/admin/awf/adventures', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: adventure.id,
+          version: adventure.version,
+          doc: adventure.doc
+        })
+      });
 
-    // Check if world_ref exists
-    if (formData.world_ref && !worlds.find(w => w.id === formData.world_ref)) {
-      errors.push('Selected world does not exist');
+      const data = await response.json();
+      
+      if (data.ok) {
+        await loadAdventures();
+        setEditingAdventure(null);
+        // setSelectedAdventure(null);
+        setActiveTab('list');
+      } else {
+        setError(data.error || 'Failed to save adventure');
+      }
+    } catch (err) {
+      setError('Failed to save adventure');
     }
-
-    setValidationErrors(errors);
-    return errors.length === 0;
   };
 
-  const handleSave = async () => {
-    if (!validateForm()) {
+  // Delete adventure
+  const deleteAdventure = async (id: string, version: string) => {
+    if (!confirm('Are you sure you want to delete this adventure?')) {
       return;
     }
 
     try {
-      const doc = JSON.parse(formData.doc);
-      // Add slices to the document
-      doc.slices = formData.slices;
-      
-      const response = await awfAdminService.createAdventure({
-        id: formData.id,
-        world_ref: formData.world_ref,
-        version: formData.version,
-        doc
+      const response = await fetch(`/api/admin/awf/adventures/${id}/${version}`, {
+        method: 'DELETE'
       });
 
-      if (response.ok) {
-        toast.success('Adventure saved successfully');
-        await loadData();
-        handleCancel();
+      const data = await response.json();
+      
+      if (data.ok) {
+        await loadAdventures();
+        // setSelectedAdventure(null);
       } else {
-        toast.error(response.error || 'Failed to save adventure');
+        setError(data.error || 'Failed to delete adventure');
       }
-    } catch (error) {
-      console.error('Error saving adventure:', error);
-      toast.error('Failed to save adventure');
+    } catch (err) {
+      setError('Failed to delete adventure');
     }
   };
 
-  const handleExport = (adventure: AwfAdventure) => {
-    const exportData = {
-      id: adventure.id,
-      version: adventure.version,
-      hash: adventure.hash,
-      doc: adventure.doc
-    };
-    awfAdminService.exportDocument(exportData, `${adventure.id}.${adventure.version}.json`);
-    toast.success('Adventure exported successfully');
+  // Validate JSON
+  const validateJson = (json: string) => {
+    try {
+      const parsed = JSON.parse(json);
+      const errors: string[] = [];
+      
+      if (!parsed.id || typeof parsed.id !== 'string') {
+        errors.push('Missing required field: id');
+      }
+      if (!parsed.name || typeof parsed.name !== 'string') {
+        errors.push('Missing required field: name');
+      }
+      if (!parsed.version || typeof parsed.version !== 'string') {
+        errors.push('Missing required field: version');
+      }
+      if (!parsed.world_ref || typeof parsed.world_ref !== 'string') {
+        errors.push('Missing required field: world_ref');
+      }
+      
+      // Check cast length
+      if (parsed.cast && Array.isArray(parsed.cast) && parsed.cast.length > 12) {
+        errors.push(`Cast has ${parsed.cast.length} NPCs, exceeds recommended limit of 12`);
+      }
+      
+      // Check for large custom fields
+      Object.keys(parsed).forEach(key => {
+        if (!['id', 'name', 'version', 'world_ref', 'synopsis', 'cast', 'slices', 'i18n'].includes(key)) {
+          const value = parsed[key];
+          if (typeof value === 'object' && value !== null) {
+            const serialized = JSON.stringify(value);
+            if (serialized.length > 2048) {
+              errors.push(`Custom field '${key}' exceeds 2KB (${Math.round(serialized.length/1024)}KB)`);
+            }
+          }
+        }
+      });
+      
+      setValidationErrors(errors);
+      return errors.length === 0;
+    } catch (err) {
+      setValidationErrors(['Invalid JSON format']);
+      return false;
+    }
   };
 
-  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle JSON editor changes
+  const handleJsonChange = (value: string) => {
+    setJsonEditor(value);
+    validateJson(value);
+  };
+
+  // Create new adventure
+  const createNewAdventure = () => {
+    const newAdventure: Adventure = {
+      id: `adv.new_${Date.now()}`,
+      version: '1.0.0',
+      doc: defaultAdventureTemplate,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    setEditingAdventure(newAdventure);
+    setJsonEditor(JSON.stringify(newAdventure.doc, null, 2));
+    setActiveTab('editor');
+  };
+
+  // Edit adventure
+  const editAdventure = (adventure: Adventure) => {
+    setEditingAdventure(adventure);
+    setJsonEditor(JSON.stringify(adventure.doc, null, 2));
+    setActiveTab('editor');
+  };
+
+  // Save from JSON editor
+  const saveFromJson = () => {
+    if (!validateJson(jsonEditor)) {
+      return;
+    }
+
+    if (!editingAdventure) {
+      return;
+    }
+
+    try {
+      const parsedDoc = JSON.parse(jsonEditor);
+      const updatedAdventure = {
+        ...editingAdventure,
+        doc: parsedDoc
+      };
+      
+      saveAdventure(updatedAdventure);
+    } catch (err) {
+      setError('Failed to parse JSON');
+    }
+  };
+
+  // Export adventures
+  const exportAdventures = () => {
+    const dataStr = JSON.stringify(adventures, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'adventures.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import adventures
+  const importAdventures = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    awfAdminService.importDocument(file)
-      .then((data) => {
-        const doc = data.doc || {};
-        setFormData({
-          id: data.id || '',
-          world_ref: data.world_ref || '',
-          version: data.version || '',
-          doc: JSON.stringify(doc, null, 2),
-          slices: doc.slices || []
-        });
-        setIsEditing(true);
-        toast.success('Adventure imported successfully');
-      })
-      .catch((error) => {
-        toast.error('Failed to import adventure: ' + error.message);
-      });
-
-    // Reset file input
-    event.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target?.result as string);
+        if (Array.isArray(imported)) {
+          imported.forEach(adventure => {
+            saveAdventure(adventure);
+          });
+        } else {
+          saveAdventure(imported);
+        }
+      } catch (err) {
+        setError('Failed to parse imported file');
+      }
+    };
+    reader.readAsText(file);
   };
 
-  const addSlice = () => {
-    if (newSlice.trim() && !formData.slices.includes(newSlice.trim())) {
-      setFormData({
-        ...formData,
-        slices: [...formData.slices, newSlice.trim()]
-      });
-      setNewSlice('');
-    }
-  };
+  // Filter adventures
+  const filteredAdventures = adventures.filter(adventure => {
+    const matchesSearch = !searchTerm || 
+      adventure.doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      adventure.doc.world_ref.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesSearch;
+  });
 
-  const removeSlice = (slice: string) => {
-    setFormData({
-      ...formData,
-      slices: formData.slices.filter(s => s !== slice)
-    });
-  };
-
-  const getWorldName = (worldRef: string) => {
-    const world = worlds.find(w => w.id === worldRef);
-    return world ? `${world.id} v${world.version}` : worldRef;
-  };
+  useEffect(() => {
+    loadAdventures();
+  }, []);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Adventures</h1>
-          <p className="text-muted-foreground">
-            Manage AWF adventure documents
+          <h1 className="text-3xl font-bold">AWF Adventures</h1>
+          <p className="text-gray-600 mt-2">
+            Adventures may include cast, slices, and i18n. Unknown keys are preserved.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <input
-            type="file"
-            accept=".json"
-            onChange={handleImport}
-            className="hidden"
-            id="import-adventure"
-          />
-          <label htmlFor="import-adventure">
-            <Button variant="outline" size="sm">
-              <Upload className="h-4 w-4 mr-2" />
-              Import
-            </Button>
-          </label>
-          <Button onClick={handleNew}>
-            <Plus className="h-4 w-4 mr-2" />
+        <div className="flex gap-2">
+          <Button onClick={createNewAdventure} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
             New Adventure
           </Button>
+          <Button onClick={exportAdventures} variant="outline" className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <label className="flex items-center gap-2 px-4 py-2 border rounded-md cursor-pointer hover:bg-gray-50">
+            <Upload className="h-4 w-4" />
+            Import
+            <input
+              type="file"
+              accept=".json"
+              onChange={importAdventures}
+              className="hidden"
+            />
+          </label>
         </div>
       </div>
 
-      {/* Validation Errors */}
-      {validationErrors.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <ul className="list-disc list-inside">
-              {validationErrors.map((error, index) => (
-                <li key={index}>{error}</li>
-              ))}
-            </ul>
-          </AlertDescription>
+      {error && (
+        <Alert className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* World Reference Warning */}
-      {formData.world_ref && !worlds.find(w => w.id === formData.world_ref) && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Selected world "{formData.world_ref}" does not exist. Please select a valid world.
-          </AlertDescription>
-        </Alert>
-      )}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList>
+          <TabsTrigger value="list">List</TabsTrigger>
+          <TabsTrigger value="editor">JSON Editor</TabsTrigger>
+        </TabsList>
 
-      {/* Editor Form */}
-      {isEditing && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {editingAdventure ? 'Edit Adventure' : 'New Adventure'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="id">ID</Label>
-                <Input
-                  id="id"
-                  value={formData.id}
-                  onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                  placeholder="e.g., adv.whispercross"
-                />
-              </div>
-              <div>
-                <Label htmlFor="version">Version</Label>
-                <Input
-                  id="version"
-                  value={formData.version}
-                  onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-                  placeholder="e.g., v1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="world_ref">World Reference</Label>
-              <Select
-                value={formData.world_ref}
-                onValueChange={(value) => setFormData({ ...formData, world_ref: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a world..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {worlds.map((world) => (
-                    <SelectItem key={world.id} value={world.id}>
-                      {world.id} v{world.version}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="doc">Document (JSON)</Label>
-              <Textarea
-                id="doc"
-                value={formData.doc}
-                onChange={(e) => setFormData({ ...formData, doc: e.target.value })}
-                placeholder="Enter JSON document..."
-                rows={10}
-                className="font-mono text-sm"
-              />
-            </div>
-
-            {/* Slices Editor */}
-            <div>
-              <Label>Slices</Label>
-              <p className="text-sm text-muted-foreground mb-2">
-                Slices are named subsets your runtime can request to reduce tokens (e.g., timekeeping, whispercross_region, encounter_forest_edge).
-              </p>
-              <div className="flex items-center space-x-2 mb-2">
-                <Input
-                  value={newSlice}
-                  onChange={(e) => setNewSlice(e.target.value)}
-                  placeholder="Enter slice name..."
-                  onKeyPress={(e) => e.key === 'Enter' && addSlice()}
-                />
-                <Button onClick={addSlice} size="sm">
-                  <Tag className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {formData.slices.map((slice, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                    {slice}
-                    <button
-                      onClick={() => removeSlice(slice)}
-                      className="ml-1 hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Button onClick={handleSave}>
-                <Save className="h-4 w-4 mr-2" />
-                Save
-              </Button>
-              <Button variant="outline" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Adventures List */}
-      <div className="grid gap-4">
-        {adventures.map((adventure) => {
-          const doc = adventure.doc as any;
-          const slices = doc.slices || [];
-          return (
-            <Card key={`${adventure.id}-${adventure.version}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <CardTitle className="text-lg">
-                      {adventure.id} v{adventure.version}
-                    </CardTitle>
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      <ExternalLink className="h-3 w-3" />
-                      {getWorldName(adventure.world_ref)}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleExport(adventure)}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(adventure)}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                  </div>
+        <TabsContent value="list">
+          <Card>
+            <CardHeader>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <Label htmlFor="search">Search</Label>
+                  <Input
+                    id="search"
+                    placeholder="Search adventures..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="flex items-center gap-2"
+                  />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground">
-                    <strong>Hash:</strong> {adventure.hash}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    <strong>Updated:</strong> {new Date(adventure.updated_at).toLocaleString()}
-                  </div>
-                  {slices.length > 0 && (
-                    <div className="text-sm">
-                      <strong>Slices:</strong>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {slices.map((slice: string, index: number) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {slice}
-                          </Badge>
-                        ))}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {filteredAdventures.map((adventure) => (
+                  <Card key={`${adventure.id}@${adventure.version}`} className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold">{adventure.doc.name}</h3>
+                          <Badge variant="outline">{adventure.doc.world_ref}</Badge>
+                        </div>
+                        {adventure.doc.synopsis && (
+                          <p className="text-sm text-gray-600 mb-2">{adventure.doc.synopsis}</p>
+                        )}
+                        <div className="flex gap-2 mb-2">
+                          <Badge variant="outline">{adventure.id}@{adventure.version}</Badge>
+                          {adventure.doc.slices?.map(slice => (
+                            <Badge key={slice} variant="secondary">{slice}</Badge>
+                          ))}
+                        </div>
+                        <div className="flex gap-4 text-sm text-gray-500">
+                          {adventure.doc.cast && adventure.doc.cast.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {adventure.doc.cast.length} NPCs
+                            </div>
+                          )}
+                          {adventure.doc.i18n && Object.keys(adventure.doc.i18n).length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Globe className="h-3 w-3" />
+                              {Object.keys(adventure.doc.i18n).join(', ')} locales
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {/* setSelectedAdventure(adventure); */}}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => editAdventure(adventure)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteAdventure(adventure.id, adventure.version)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {adventures.length === 0 && !isEditing && (
-        <Card>
-          <CardContent className="text-center py-8">
-            <p className="text-muted-foreground">No adventures found.</p>
-            <Button onClick={handleNew} className="mt-4">
-              <Plus className="h-4 w-4 mr-2" />
-              Create First Adventure
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="editor">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>JSON Editor</CardTitle>
+                <div className="flex gap-2">
+                  <Button onClick={saveFromJson} disabled={validationErrors.length > 0}>
+                    Save
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingAdventure(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {validationErrors.length > 0 && (
+                <Alert className="mb-4">
+                  <AlertDescription>
+                    <ul>
+                      {validationErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+              <Textarea
+                value={jsonEditor}
+                onChange={(e) => handleJsonChange(e.target.value)}
+                placeholder="Enter adventure JSON..."
+                className="min-h-[500px] font-mono text-sm"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
-
-

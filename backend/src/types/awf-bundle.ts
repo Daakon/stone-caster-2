@@ -10,6 +10,7 @@ export interface AwfBundle {
     contract: AwfBundleContract;
     world: AwfBundleWorld;
     adventure: AwfBundleAdventure;
+    scenario?: AwfBundleScenario | null;
     npcs: AwfBundleNpcs;
     player: AwfBundlePlayer;
     game_state: AwfBundleGameState;
@@ -94,6 +95,15 @@ export interface AwfBundleNpc {
     register: string | null;
   };
   tags: string[];
+}
+
+// Scenario (compact format)
+export interface AwfBundleScenario {
+  ref?: string;
+  name: string;
+  synopsis: string;
+  start_scene: string;
+  fixed_npcs: Array<{ npc_ref: string }>;
 }
 
 // Player information

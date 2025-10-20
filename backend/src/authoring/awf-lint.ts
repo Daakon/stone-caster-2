@@ -56,8 +56,12 @@ export class AwfLinter {
   private config: LintConfig;
   private rules: LintRule[] = [];
 
-  constructor(configPath?: string) {
-    this.config = this.loadConfig(configPath);
+  constructor(configPath?: string | LintConfig) {
+    if (typeof configPath === 'string' || !configPath) {
+      this.config = this.loadConfig(configPath);
+    } else {
+      this.config = configPath;
+    }
     this.registerRules();
   }
 
@@ -72,7 +76,15 @@ export class AwfLinter {
         stable_ids: { enabled: true, severity: 'error' },
         time_bands: { enabled: true, severity: 'error' },
         npc_validation: { enabled: true, severity: 'error' },
-        bundle_npc_validation: { enabled: true, severity: 'warning' }
+        bundle_npc_validation: { enabled: true, severity: 'warning' },
+        scenario_validation: { enabled: true, severity: 'error' },
+        bundle_scenario_validation: { enabled: true, severity: 'warning' },
+        world_validation: { enabled: true, severity: 'error' },
+        adventure_validation: { enabled: true, severity: 'error' },
+        bundle_world_adv_validation: { enabled: true, severity: 'warning' },
+        injection_map_validation: { enabled: true, severity: 'error' },
+        bundle_injection_validation: { enabled: true, severity: 'warning' },
+        bundle_entry_validation: { enabled: true, severity: 'warning' }
       },
       ignore: ['node_modules/**', '.git/**'],
       strict: false
@@ -767,6 +779,509 @@ export class AwfLinter {
           }
         }
         
+        return issues;
+      }
+    });
+
+    // Scenario validation rules
+    this.rules.push({
+      name: 'scenario_validation',
+      severity: 'error',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check if this is a scenario document
+        if (!path.includes('scenarios/') && !doc.scenario) {
+          return issues;
+        }
+
+        // Validate scenario structure
+        if (!doc.scenario?.display_name || typeof doc.scenario.display_name !== 'string') {
+          issues.push({
+            rule: 'scenario_validation',
+            severity: 'error',
+            message: 'Scenario missing required display_name',
+            path,
+            suggestion: 'Add scenario.display_name string'
+          });
+        }
+
+        if (!doc.scenario?.start_scene || typeof doc.scenario.start_scene !== 'string') {
+          issues.push({
+            rule: 'scenario_validation',
+            severity: 'error',
+            message: 'Scenario missing required start_scene',
+            path,
+            suggestion: 'Add scenario.start_scene string'
+          });
+        }
+
+        // Check length constraints
+        if (doc.scenario?.display_name && doc.scenario.display_name.length > 64) {
+          issues.push({
+            rule: 'scenario_validation',
+            severity: 'error',
+            message: 'Scenario display_name exceeds 64 characters',
+            path,
+            suggestion: 'Shorten scenario.display_name to 64 characters or less'
+          });
+        }
+
+        if (doc.scenario?.synopsis && doc.scenario.synopsis.length > 160) {
+          issues.push({
+            rule: 'scenario_validation',
+            severity: 'error',
+            message: 'Scenario synopsis exceeds 160 characters',
+            path,
+            suggestion: 'Shorten scenario.synopsis to 160 characters or less'
+          });
+        }
+
+        // Check array limits
+        if (doc.scenario?.fixed_npcs && Array.isArray(doc.scenario.fixed_npcs) && doc.scenario.fixed_npcs.length > 12) {
+          issues.push({
+            rule: 'scenario_validation',
+            severity: 'error',
+            message: 'Scenario fixed_npcs exceeds limit of 12',
+            path,
+            suggestion: 'Reduce fixed_npcs array to 12 items or less'
+          });
+        }
+
+        if (doc.scenario?.starting_party && Array.isArray(doc.scenario.starting_party) && doc.scenario.starting_party.length > 6) {
+          issues.push({
+            rule: 'scenario_validation',
+            severity: 'error',
+            message: 'Scenario starting_party exceeds limit of 6',
+            path,
+            suggestion: 'Reduce starting_party array to 6 items or less'
+          });
+        }
+
+        return issues;
+      }
+    });
+
+    // Bundle scenario validation
+    this.rules.push({
+      name: 'bundle_scenario_validation',
+      severity: 'warning',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check bundle scenario block
+        if (path.includes('bundles/') && doc.awf_bundle?.scenario) {
+          const scenario = doc.awf_bundle.scenario;
+          
+          if (!scenario.name || typeof scenario.name !== 'string') {
+            issues.push({
+              rule: 'bundle_scenario_validation',
+              severity: 'error',
+              message: 'Bundle scenario missing name',
+              path,
+              suggestion: 'Add scenario.name string'
+            });
+          }
+          
+          if (!scenario.start_scene || typeof scenario.start_scene !== 'string') {
+            issues.push({
+              rule: 'bundle_scenario_validation',
+              severity: 'error',
+              message: 'Bundle scenario missing start_scene',
+              path,
+              suggestion: 'Add scenario.start_scene string'
+            });
+          }
+
+          // Check fixed_npcs array
+          if (scenario.fixed_npcs && Array.isArray(scenario.fixed_npcs)) {
+            if (scenario.fixed_npcs.length > 8) {
+              issues.push({
+                rule: 'bundle_scenario_validation',
+                severity: 'warning',
+                message: `Bundle scenario has ${scenario.fixed_npcs.length} fixed_npcs, exceeds cap of 8`,
+                path,
+                suggestion: 'Reduce fixed_npcs array to 8 items or less'
+              });
+            }
+          }
+        }
+
+        return issues;
+      }
+    });
+
+    // World validation rules (flexible)
+    this.rules.push({
+      name: 'world_validation',
+      severity: 'error',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check if this is a world document
+        if (!path.includes('worlds/') && !doc.name) {
+          return issues;
+        }
+
+        // Validate required fields
+        if (!doc.name || typeof doc.name !== 'string') {
+          issues.push({
+            rule: 'world_validation',
+            severity: 'error',
+            message: 'World missing required name',
+            path,
+            suggestion: 'Add world.name string'
+          });
+        }
+
+        // Warn if timeworld missing (allowed but recommended)
+        if (!doc.timeworld) {
+          issues.push({
+            rule: 'world_validation',
+            severity: 'warning',
+            message: 'World missing timeworld (recommended)',
+            path,
+            suggestion: 'Add timeworld object with timezone and calendar'
+          });
+        }
+
+        // Check for large unknown objects (prevent bloat)
+        Object.keys(doc).forEach(key => {
+          if (!['id', 'name', 'version', 'timeworld', 'slices', 'i18n'].includes(key)) {
+            const value = doc[key];
+            if (typeof value === 'object' && value !== null) {
+              const serialized = JSON.stringify(value);
+              if (serialized.length > 2048) { // 2KB limit
+                issues.push({
+                  rule: 'world_validation',
+                  severity: 'warning',
+                  message: `World custom field '${key}' exceeds 2KB (${Math.round(serialized.length/1024)}KB)`,
+                  path,
+                  suggestion: 'Consider splitting large custom fields or reducing size'
+                });
+              }
+            }
+          }
+        });
+
+        return issues;
+      }
+    });
+
+    // Adventure validation rules (flexible)
+    this.rules.push({
+      name: 'adventure_validation',
+      severity: 'error',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check if this is an adventure document
+        if (!path.includes('adventures/') && !doc.name) {
+          return issues;
+        }
+
+        // Validate required fields
+        if (!doc.name || typeof doc.name !== 'string') {
+          issues.push({
+            rule: 'adventure_validation',
+            severity: 'error',
+            message: 'Adventure missing required name',
+            path,
+            suggestion: 'Add adventure.name string'
+          });
+        }
+
+        if (!doc.world_ref || typeof doc.world_ref !== 'string') {
+          issues.push({
+            rule: 'adventure_validation',
+            severity: 'error',
+            message: 'Adventure missing required world_ref',
+            path,
+            suggestion: 'Add adventure.world_ref string'
+          });
+        }
+
+        // Check cast length
+        if (doc.cast && Array.isArray(doc.cast) && doc.cast.length > 12) {
+          issues.push({
+            rule: 'adventure_validation',
+            severity: 'warning',
+            message: `Adventure cast has ${doc.cast.length} NPCs, exceeds recommended limit of 12`,
+            path,
+            suggestion: 'Reduce cast size or consider splitting into multiple adventures'
+          });
+        }
+
+        // Check for large unknown objects (prevent bloat)
+        Object.keys(doc).forEach(key => {
+          if (!['id', 'name', 'version', 'world_ref', 'synopsis', 'cast', 'slices', 'i18n'].includes(key)) {
+            const value = doc[key];
+            if (typeof value === 'object' && value !== null) {
+              const serialized = JSON.stringify(value);
+              if (serialized.length > 2048) { // 2KB limit
+                issues.push({
+                  rule: 'adventure_validation',
+                  severity: 'warning',
+                  message: `Adventure custom field '${key}' exceeds 2KB (${Math.round(serialized.length/1024)}KB)`,
+                  path,
+                  suggestion: 'Consider splitting large custom fields or reducing size'
+                });
+              }
+            }
+          }
+        });
+
+        return issues;
+      }
+    });
+
+    // Bundle world/adventure validation
+    this.rules.push({
+      name: 'bundle_world_adv_validation',
+      severity: 'warning',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check bundle world/adventure blocks
+        if (path.includes('bundles/') && doc.awf_bundle) {
+          const bundle = doc.awf_bundle;
+          
+          // Check world block
+          if (bundle.world) {
+            if (!bundle.world.name || typeof bundle.world.name !== 'string') {
+              issues.push({
+                rule: 'bundle_world_adv_validation',
+                severity: 'error',
+                message: 'Bundle world missing name',
+                path,
+                suggestion: 'Add world.name string'
+              });
+            }
+          }
+          
+          // Check adventure block
+          if (bundle.adventure) {
+            if (!bundle.adventure.name || typeof bundle.adventure.name !== 'string') {
+              issues.push({
+                rule: 'bundle_world_adv_validation',
+                severity: 'error',
+                message: 'Bundle adventure missing name',
+                path,
+                suggestion: 'Add adventure.name string'
+              });
+            }
+
+            // Check adventure cast length
+            if (bundle.adventure.cast && Array.isArray(bundle.adventure.cast)) {
+              if (bundle.adventure.cast.length > 12) {
+                issues.push({
+                  rule: 'bundle_world_adv_validation',
+                  severity: 'warning',
+                  message: `Bundle adventure cast has ${bundle.adventure.cast.length} NPCs, may have been trimmed`,
+                  path,
+                  suggestion: 'Check if cast was trimmed due to token limits'
+                });
+              }
+            }
+          }
+        }
+
+        return issues;
+      }
+    });
+
+    // Injection Map validation rules
+    this.rules.push({
+      name: 'injection_map_validation',
+      severity: 'error',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check if this is an injection map document
+        if (!path.includes('injection-maps/') && !doc.rules) {
+          return issues;
+        }
+
+        // Validate injection map structure
+        if (!doc.rules || !Array.isArray(doc.rules)) {
+          issues.push({
+            rule: 'injection_map_validation',
+            severity: 'error',
+            message: 'Injection map missing required rules array',
+            path,
+            suggestion: 'Add rules array with injection rules'
+          });
+        } else if (doc.rules.length === 0) {
+          issues.push({
+            rule: 'injection_map_validation',
+            severity: 'error',
+            message: 'Injection map rules array is empty',
+            path,
+            suggestion: 'Add at least one injection rule'
+          });
+        } else {
+          // Validate each rule
+          doc.rules.forEach((rule: any, index: number) => {
+            if (!rule.from || typeof rule.from !== 'string') {
+              issues.push({
+                rule: 'injection_map_validation',
+                severity: 'error',
+                message: `Rule ${index + 1} missing required 'from' field`,
+                path,
+                suggestion: 'Add from field with source JSON pointer'
+              });
+            }
+
+            if (!rule.to || typeof rule.to !== 'string') {
+              issues.push({
+                rule: 'injection_map_validation',
+                severity: 'error',
+                message: `Rule ${index + 1} missing required 'to' field`,
+                path,
+                suggestion: 'Add to field with target JSON pointer'
+              });
+            }
+
+            // Validate JSON pointer format
+            if (rule.to && !rule.to.startsWith('/')) {
+              issues.push({
+                rule: 'injection_map_validation',
+                severity: 'error',
+                message: `Rule ${index + 1} 'to' field must be absolute JSON pointer (start with /)`,
+                path,
+                suggestion: 'Change to field to start with /'
+              });
+            }
+
+            // Validate limit configuration
+            if (rule.limit) {
+              if (!rule.limit.units || !['tokens', 'count'].includes(rule.limit.units)) {
+                issues.push({
+                  rule: 'injection_map_validation',
+                  severity: 'error',
+                  message: `Rule ${index + 1} limit.units must be 'tokens' or 'count'`,
+                  path,
+                  suggestion: 'Set limit.units to either "tokens" or "count"'
+                });
+              }
+
+              if (!rule.limit.max || typeof rule.limit.max !== 'number' || rule.limit.max <= 0) {
+                issues.push({
+                  rule: 'injection_map_validation',
+                  severity: 'error',
+                  message: `Rule ${index + 1} limit.max must be positive number`,
+                  path,
+                  suggestion: 'Set limit.max to positive number'
+                });
+              }
+            }
+          });
+        }
+
+        return issues;
+      }
+    });
+
+    // Bundle injection map validation
+    this.rules.push({
+      name: 'bundle_injection_validation',
+      severity: 'warning',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check bundle structure for injection map compliance
+        if (path.includes('bundles/') && doc.awf_bundle) {
+          const bundle = doc.awf_bundle;
+          
+          // Check for required bundle roots
+          const requiredRoots = ['meta', 'contract', 'world', 'adventure', 'npcs', 'player'];
+          for (const root of requiredRoots) {
+            if (!bundle[root]) {
+              issues.push({
+                rule: 'bundle_injection_validation',
+                severity: 'warning',
+                message: `Bundle missing required root: ${root}`,
+                path,
+                suggestion: `Add ${root} field to bundle structure`
+              });
+            }
+          }
+
+          // Check for token budget warnings
+          const bundleSize = JSON.stringify(bundle).length;
+          const estimatedTokens = Math.ceil(bundleSize / 4);
+          
+          if (estimatedTokens > 50000) { // 50k token warning
+            issues.push({
+              rule: 'bundle_injection_validation',
+              severity: 'warning',
+              message: `Bundle size is large: ${estimatedTokens.toLocaleString()} tokens`,
+              path,
+              suggestion: 'Consider trimming bundle size or using injection map limits'
+            });
+          }
+
+          // Check for determinism issues
+          if (bundle.meta && bundle.meta.timestamp) {
+            const timestamp = new Date(bundle.meta.timestamp);
+            const now = new Date();
+            const ageMinutes = (now.getTime() - timestamp.getTime()) / (1000 * 60);
+            
+            if (ageMinutes > 5) { // 5 minute age warning
+              issues.push({
+                rule: 'bundle_injection_validation',
+                severity: 'warning',
+                message: `Bundle timestamp is ${Math.round(ageMinutes)} minutes old`,
+                path,
+                suggestion: 'Ensure bundle is generated fresh for each request'
+              });
+            }
+          }
+        }
+
+        return issues;
+      }
+    });
+
+    // Bundle entry validation
+    this.rules.push({
+      name: 'bundle_entry_validation',
+      severity: 'warning',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        
+        // Check bundle structure for scenario presence
+        if (path.includes('bundles/') && doc.awf_bundle) {
+          const bundle = doc.awf_bundle;
+          
+          // Check if scenario_ref exists in meta
+          if (bundle.meta && bundle.meta.scenario_ref) {
+            const scenarioRef = bundle.meta.scenario_ref;
+            
+            // Check if scenario exists in bundle
+            if (!bundle.scenario) {
+              issues.push({
+                rule: 'bundle_entry_validation',
+                severity: 'warning',
+                message: `Bundle references scenario '${scenarioRef}' but scenario field is missing`,
+                path,
+                suggestion: 'Ensure scenario is loaded and included in bundle'
+              });
+            } else {
+              // Check if scenario is public
+              if (bundle.scenario.is_public === false) {
+                issues.push({
+                  rule: 'bundle_entry_validation',
+                  severity: 'warning',
+                  message: `Scenario '${scenarioRef}' is marked as private (is_public: false)`,
+                  path,
+                  suggestion: 'Consider making scenario public or use a different scenario'
+                });
+              }
+            }
+          }
+        }
+
         return issues;
       }
     });

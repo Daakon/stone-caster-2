@@ -23,7 +23,7 @@ CREATE POLICY "awf_npcs_admin_select" ON public.npcs
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.user_profiles up 
-      WHERE up.user_id = auth.uid() 
+      WHERE up.auth_user_id = auth.uid() 
       AND up.role IN ('admin')
     )
   );
@@ -33,7 +33,7 @@ CREATE POLICY "awf_npcs_admin_write" ON public.npcs
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM public.user_profiles up 
-      WHERE up.user_id = auth.uid() 
+      WHERE up.auth_user_id = auth.uid() 
       AND up.role IN ('admin')
     )
   );

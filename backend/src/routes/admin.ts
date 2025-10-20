@@ -12,6 +12,12 @@ import {
 import { CoreContractV2Schema } from '../validators/awf-core-contract.schema.js';
 import { CoreRulesetV1Schema } from '../validators/awf-ruleset.schema.js';
 import { NPCDocV1Schema } from '../validators/awf-npc.schema.js';
+import { ScenarioDocV1Schema } from '../validators/awf-scenario.schema.js';
+import { 
+  InjectionMapDocV1Schema, 
+  DryRunRequestSchema, 
+  BundleDiffRequestSchema 
+} from '../validators/awf-injection-map.schema.js';
 import { computeDocumentHash } from '../utils/awf-hashing.js';
 
 const router = Router();
@@ -1408,6 +1414,451 @@ router.delete('/awf/npcs/:id/:version', authenticateToken, requireAdminRole, asy
     res.status(500).json({
       ok: false,
       error: 'Failed to delete NPC',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Scenario Management Routes
+router.get('/awf/scenarios', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { world_ref, adventure_ref, tag, q, limit } = req.query;
+    
+    let query = supabase
+      .from('scenarios')
+      .select('*')
+      .order('id', { ascending: true })
+      .order('version', { ascending: false });
+
+    if (world_ref) {
+      query = query.eq('doc->>world_ref', world_ref);
+    }
+    
+    if (adventure_ref) {
+      query = query.eq('doc->>adventure_ref', adventure_ref);
+    }
+    
+    if (tag) {
+      query = query.contains('doc->scenario->tags', [tag]);
+    }
+    
+    if (q) {
+      // Search in display_name and synopsis
+      query = query.or(`doc->scenario->display_name.ilike.%${q}%,doc->scenario->synopsis.ilike.%${q}%`);
+    }
+
+    if (limit) {
+      query = query.limit(parseInt(limit as string, 10));
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching scenarios:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch scenarios',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/scenarios', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version, doc } = req.body;
+
+    if (!id || !version || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, version, doc'
+      });
+    }
+
+    let validatedDoc;
+    try {
+      validatedDoc = ScenarioDocV1Schema.parse(doc);
+    } catch (validationError) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
+      });
+    }
+
+    const hash = computeDocumentHash(validatedDoc);
+
+    const { data, error } = await supabase
+      .from('scenarios')
+      .upsert({
+        id,
+        version,
+        doc: validatedDoc,
+        hash
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating scenario:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save scenario',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.delete('/awf/scenarios/:id/:version', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+
+    if (!id || !version) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required parameters: id, version'
+      });
+    }
+
+    const { error } = await supabase
+      .from('scenarios')
+      .delete()
+      .eq('id', id)
+      .eq('version', version);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'Scenario deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting scenario:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete scenario',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Injection Map Management Routes
+router.get('/awf/injection-maps', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, is_active } = req.query;
+    
+    let query = supabase
+      .from('injection_maps')
+      .select('*')
+      .order('id', { ascending: true })
+      .order('version', { ascending: false });
+
+    if (id) {
+      query = query.eq('id', id);
+    }
+    
+    if (is_active !== undefined) {
+      query = query.eq('is_active', is_active === 'true');
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error fetching injection maps:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch injection maps',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/injection-maps', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version, label, doc, is_active } = req.body;
+
+    if (!id || !version || !label || !doc) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: id, version, label, doc'
+      });
+    }
+
+    let validatedDoc;
+    try {
+      validatedDoc = InjectionMapDocV1Schema.parse(doc);
+    } catch (validationError) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Document validation failed',
+        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
+      });
+    }
+
+    const hash = computeDocumentHash(validatedDoc);
+
+    const { data, error } = await supabase
+      .from('injection_maps')
+      .upsert({
+        id,
+        version,
+        label,
+        doc: validatedDoc,
+        is_active: is_active || false,
+        hash
+      }, { onConflict: 'id,version' })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating/updating injection map:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save injection map',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.post('/awf/injection-maps/:id/:version/activate', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+
+    if (!id || !version) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required parameters: id, version'
+      });
+    }
+
+    // Clear all active flags first
+    const { error: clearError } = await supabase
+      .from('injection_maps')
+      .update({ is_active: false })
+      .eq('is_active', true);
+
+    if (clearError) {
+      throw clearError;
+    }
+
+    // Set this one as active
+    const { data, error } = await supabase
+      .from('injection_maps')
+      .update({ is_active: true })
+      .eq('id', id)
+      .eq('version', version)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Injection map not found'
+      });
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error activating injection map:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to activate injection map',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+router.delete('/awf/injection-maps/:id/:version', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+
+    if (!id || !version) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required parameters: id, version'
+      });
+    }
+
+    const { error } = await supabase
+      .from('injection_maps')
+      .delete()
+      .eq('id', id)
+      .eq('version', version);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'Injection map deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting injection map:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete injection map',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Dry-run endpoint
+router.post('/awf/injection-maps/:id/:version/dry-run', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, version } = req.params;
+    const { game_id, game_snapshot } = req.body;
+
+    if (!id || !version) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required parameters: id, version'
+      });
+    }
+
+    // Validate request body
+    try {
+      DryRunRequestSchema.parse({ game_id, game_snapshot });
+    } catch (validationError) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid request body',
+        details: validationError instanceof Error ? validationError.message : 'Invalid request structure'
+      });
+    }
+
+    // Get the injection map
+    const { data: mapData, error: mapError } = await supabase
+      .from('injection_maps')
+      .select('*')
+      .eq('id', id)
+      .eq('version', version)
+      .single();
+
+    if (mapError || !mapData) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Injection map not found'
+      });
+    }
+
+    // TODO: Implement dry-run logic with assembler
+    // For now, return a mock response
+    const bundlePreview = {
+      contract: { id: 'mock-contract' },
+      world: { id: 'mock-world' },
+      adventure: { id: 'mock-adventure' }
+    };
+
+    const bytes = JSON.stringify(bundlePreview).length;
+    const tokensEst = Math.ceil(bytes / 4); // Rough estimate
+
+    res.json({
+      ok: true,
+      data: {
+        bundlePreview,
+        bytes,
+        tokensEst
+      }
+    });
+  } catch (error) {
+    console.error('Error running dry-run:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to run dry-run',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Bundle diff endpoint
+router.post('/awf/bundle-diff', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { left, right } = req.body;
+
+    // Validate request body
+    try {
+      BundleDiffRequestSchema.parse({ left, right });
+    } catch (validationError) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid request body',
+        details: validationError instanceof Error ? validationError.message : 'Invalid request structure'
+      });
+    }
+
+    // TODO: Implement bundle diff logic
+    // For now, return a mock response
+    const diff = {
+      op: 'replace',
+      path: '/world/id',
+      value: 'new-world-id'
+    };
+
+    const leftBytes = 1024;
+    const rightBytes = 2048;
+    const leftTokens = 256;
+    const rightTokens = 512;
+    const deltaBytes = rightBytes - leftBytes;
+    const deltaTokens = rightTokens - leftTokens;
+
+    res.json({
+      ok: true,
+      data: {
+        diff,
+        leftBytes,
+        rightBytes,
+        leftTokens,
+        rightTokens,
+        deltaBytes,
+        deltaTokens
+      }
+    });
+  } catch (error) {
+    console.error('Error running bundle diff:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to run bundle diff',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

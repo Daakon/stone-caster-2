@@ -7,12 +7,13 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { CoreContractsRepository } from './awf-core-contracts-repository.js';
 import { CoreRulesetsRepository } from './awf-core-rulesets-repository.js';
 import { NPCRepository } from './awf-npc-repository.js';
+import { ScenarioRepository } from './awf-scenario-repository.js';
+import { InjectionMapRepository } from './awf-injection-map-repository.js';
 import { WorldsRepository } from './awf-worlds-repository.js';
 import { AdventuresRepository } from './awf-adventures-repository.js';
 import { AdventureStartsRepository } from './awf-adventure-starts-repository.js';
 import { SessionsRepository } from './awf-sessions-repository.js';
 import { GameStatesRepository } from './awf-game-states-repository.js';
-import { InjectionMapRepository } from './awf-injection-map-repository.js';
 
 export interface RepositoryFactoryOptions {
   supabase: SupabaseClient;
@@ -23,12 +24,13 @@ export class AWFRepositoryFactory {
   private coreContractsRepo: CoreContractsRepository | null = null;
   private coreRulesetsRepo: CoreRulesetsRepository | null = null;
   private npcRepo: NPCRepository | null = null;
+  private scenarioRepo: ScenarioRepository | null = null;
+  private injectionMapRepo: InjectionMapRepository | null = null;
   private worldsRepo: WorldsRepository | null = null;
   private adventuresRepo: AdventuresRepository | null = null;
   private adventureStartsRepo: AdventureStartsRepository | null = null;
   private sessionsRepo: SessionsRepository | null = null;
   private gameStatesRepo: GameStatesRepository | null = null;
-  private injectionMapRepo: InjectionMapRepository | null = null;
 
   constructor(options: RepositoryFactoryOptions) {
     this.supabase = options.supabase;
@@ -43,7 +45,7 @@ export class AWFRepositoryFactory {
 
   getCoreRulesetsRepository(): CoreRulesetsRepository {
     if (!this.coreRulesetsRepo) {
-      this.coreRulesetsRepo = new CoreRulesetsRepository(this.supabase);
+      this.coreRulesetsRepo = new CoreRulesetsRepository({ supabase: this.supabase });
     }
     return this.coreRulesetsRepo;
   }
@@ -53,6 +55,20 @@ export class AWFRepositoryFactory {
       this.npcRepo = new NPCRepository({ supabase: this.supabase });
     }
     return this.npcRepo;
+  }
+
+  getScenarioRepository(): ScenarioRepository {
+    if (!this.scenarioRepo) {
+      this.scenarioRepo = new ScenarioRepository({ supabase: this.supabase });
+    }
+    return this.scenarioRepo;
+  }
+
+  getInjectionMapRepository(): InjectionMapRepository {
+    if (!this.injectionMapRepo) {
+      this.injectionMapRepo = new InjectionMapRepository(this.supabase as any);
+    }
+    return this.injectionMapRepo;
   }
 
   getWorldsRepository(): WorldsRepository {
@@ -90,25 +106,19 @@ export class AWFRepositoryFactory {
     return this.gameStatesRepo;
   }
 
-  getInjectionMapRepository(): InjectionMapRepository {
-    if (!this.injectionMapRepo) {
-      this.injectionMapRepo = new InjectionMapRepository({ supabase: this.supabase });
-    }
-    return this.injectionMapRepo;
-  }
-
   // Convenience method to get all repositories
   getAllRepositories() {
     return {
       coreContracts: this.getCoreContractsRepository(),
       coreRulesets: this.getCoreRulesetsRepository(),
       npcs: this.getNPCRepository(),
+      scenarios: this.getScenarioRepository(),
       worlds: this.getWorldsRepository(),
       adventures: this.getAdventuresRepository(),
       adventureStarts: this.getAdventureStartsRepository(),
       sessions: this.getSessionsRepository(),
       gameStates: this.getGameStatesRepository(),
-      injectionMap: this.getInjectionMapRepository(),
+      injectionMaps: this.getInjectionMapRepository(),
     };
   }
 }

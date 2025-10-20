@@ -28,6 +28,7 @@ import GamePage from './pages/GamePage';
 import UnifiedGamePage from './pages/UnifiedGamePage';
 import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
+import ScenarioPicker from './pages/player/ScenarioPicker';
 import { AdminRouter } from './components/admin/AdminRouter';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -137,6 +138,11 @@ function App() {
                   </ProtectedRoute>
                 } />
                 <Route path="/support" element={<SupportPage pageType="faq" />} />
+                <Route path="/scenarios" element={
+                  <ProtectedRoute>
+                    <ScenarioPicker />
+                  </ProtectedRoute>
+                } />
                 <Route path="/game/:id" element={<GamePage />} />
                 <Route path="/play/:gameId" element={<UnifiedGamePage />} />
                 <Route path="/unified-game/:id" element={<UnifiedGamePage />} />

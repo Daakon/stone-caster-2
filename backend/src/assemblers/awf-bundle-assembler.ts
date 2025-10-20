@@ -31,6 +31,9 @@ import {
 import { WorldDocFlex } from '../types/awf-world.js';
 import { collectNpcRefs } from './npc-collector.js';
 import { compactNpcDoc } from './npc-compactor.js';
+import { loadScenario } from './load-scenario.js';
+import { compactWorld, compactAdventure, applyWorldTokenDiscipline, applyAdventureTokenDiscipline } from './world-adv-compact.js';
+import { executeInjectionMap, createInjectionContext } from './injection-map-executor.js';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -127,10 +130,10 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
     // Load adventure start (optional)
     const adventureStart = await repos.adventureStarts.getByAdventureRef(adventureRef);
     
-    // Load injection map
-    const injectionMap = await repos.injectionMap.getByIdVersion('default');
+    // Load active injection map
+    const injectionMap = await repos.injectionMaps.getActive();
     if (!injectionMap) {
-      throw new Error('Default injection map not found');
+      console.warn('[AWF] No active injection map found, using fallback assembly');
     }
     
     // Load player data (from existing character system)
@@ -140,8 +143,12 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
     }
     const player = await loadPlayerData(playerId);
     
-    // Load NPCs using new collection system
-    const npcs = await loadNpcData(repos, (game as any).state_snapshot, adventure, coreRuleset, locale);
+    // Load scenario (optional) - do this first so NPC collector can use it
+    const scenarioRef = (game as any).state_snapshot?.meta?.scenario_ref;
+    const scenario = scenarioRef ? await loadScenario(repos, scenarioRef, locale) : null;
+    
+    // Load NPCs using new collection system (now with scenario)
+    const npcs = await loadNpcData(repos, (game as any).state_snapshot, adventure, coreRuleset, locale, scenario);
     
     // Determine current scene for slice selection
     const currentScene = (game as any).state_snapshot?.hot?.scene as string | undefined;
@@ -177,40 +184,9 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
           hash: coreContract.hash,
           doc: coreContract.doc as unknown as Record<string, unknown>,
         },
-        world: {
-          id: world.doc.id,
-          name: world.doc.name,
-          version: world.doc.version,
-          // Include timeworld if present
-          ...(world.doc.timeworld && { timeworld: world.doc.timeworld }),
-          // Prefer top-level bands, weather_states, weather_transition_bias; fall back to timeworld
-          ...(world.doc.bands && { bands: world.doc.bands }),
-          ...(world.doc.weather_states && { weather_states: world.doc.weather_states }),
-          ...(world.doc.weather_transition_bias && { weather_transition_bias: world.doc.weather_transition_bias }),
-          // Include known sections if present
-          ...(world.doc.lexicon && { lexicon: world.doc.lexicon }),
-          ...(world.doc.identity_language && { identity_language: world.doc.identity_language }),
-          ...(world.doc.magic && { magic: world.doc.magic }),
-          ...(world.doc.essence_behavior && { essence_behavior: world.doc.essence_behavior }),
-          ...(world.doc.species_rules && { species_rules: world.doc.species_rules }),
-          ...(world.doc.factions_world && { factions_world: world.doc.factions_world }),
-          ...(world.doc.lore_index && { lore_index: world.doc.lore_index }),
-          ...(world.doc.tone && { tone: world.doc.tone }),
-          ...(world.doc.locations && { locations: world.doc.locations }),
-          // Include custom sections (all remaining unknown top-level keys)
-          custom: getCustomWorldSections(world.doc),
-          slice: worldSlices,
-        },
-        adventure: {
-          ref: adventure.id,
-          hash: adventure.hash,
-          slice: adventureSlices,
-          start_hint: ((game as any).turn_count === 0) && adventureStart ? {
-            scene: adventureStart.doc.start.scene,
-            description: adventureStart.doc.start.description || '',
-            initial_state: adventureStart.doc.start.initial_state,
-          } : undefined,
-        },
+        world: applyWorldTokenDiscipline(compactWorld(world.doc, locale)),
+        adventure: applyAdventureTokenDiscipline(compactAdventure(adventure.doc, locale)),
+        scenario: scenario, // Compact scenario data (null if no scenario)
         npcs: {
           active: npcs, // This is now the compact NPC format
           count: npcs.length,
@@ -239,12 +215,29 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
       },
     };
     
-    // Apply injection map build pointers with environment variables
-    const env = {
-      ruleset_ref: ruleset_ref,
-      locale: locale,
-    };
-    await applyInjectionMap(bundle, injectionMap.doc.build, coreContract, coreRuleset, npcs, env);
+    // Apply injection map if available
+    if (injectionMap) {
+      const context = createInjectionContext({
+        world: world.doc,
+        adventure: adventure.doc,
+        scenario: scenario,
+        npcs: npcs,
+        contract: coreContract.doc,
+        player: player,
+        game: (game as any).state_snapshot,
+        session: session
+      });
+      
+      const injectionResult = executeInjectionMap(injectionMap.doc, context, bundle.awf_bundle);
+      
+      if (!injectionResult.success) {
+        console.warn('[AWF] Injection map execution had errors:', injectionResult.errors);
+      }
+      
+      console.log(`[AWF] Injection map applied: ${injectionResult.appliedRules} rules, ${injectionResult.skippedRules} skipped`);
+    } else {
+      console.log('[AWF] No injection map available, using default bundle structure');
+    }
     
     // Validate the bundle
     const validationErrors = validateBundleStructure(bundle as unknown as Record<string, unknown>);
@@ -355,7 +348,8 @@ async function loadNpcData(
   gameState: any,
   adventure: any,
   coreRuleset: any,
-  locale?: string
+  locale?: string,
+  scenario?: any
 ): Promise<Array<{
   id: string | null;
   ver: string | null;
@@ -371,7 +365,8 @@ async function loadNpcData(
   // Collect NPC refs from multiple sources
   const npcRefs = collectNpcRefs({
     game: gameState,
-    adventure: adventure?.doc,
+    scenario: scenario,
+    adventure: adventure?.doc, // Keep raw adventure for NPC collector to access cast
     ruleset: coreRuleset?.doc
   });
 
@@ -408,37 +403,3 @@ async function loadNpcData(
  * @param coreContract - Core contract data for injection
  * @param coreRuleset - Core ruleset data for injection
  */
-async function applyInjectionMap(
-  bundle: AwfBundle,
-  buildPointers: Record<string, string>,
-  coreContract: any,
-  coreRuleset: any,
-  npcs: any[],
-  env?: Record<string, string>
-): Promise<void> {
-  for (const [key, pointer] of Object.entries(buildPointers)) {
-    try {
-      // Handle core contract specific injections
-      if (pointer === 'core_contracts.active.doc.contract') {
-        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.contract);
-      } else if (pointer === 'core_contracts.active.doc.core.acts_catalog') {
-        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.core.acts_catalog);
-      } else if (pointer === 'core_contracts.active.doc.core.scales') {
-        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.core.scales);
-      } else if (pointer === 'core_contracts.active.doc.core.budgets') {
-        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreContract.doc.core.budgets);
-      } else if (pointer.startsWith('core_rulesets[') && pointer.includes('].doc.ruleset')) {
-        // Handle ruleset injection: core_rulesets[{env.ruleset_ref}].doc.ruleset
-        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, coreRuleset.doc.ruleset);
-      } else if (pointer === 'npcs.by_refs[/scenario/fixed_npcs[*].npc_ref]' || key === 'npcs') {
-        // Handle NPC injection: inject compacted NPCs
-        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, npcs);
-      } else {
-        // For other pointers, use the pointer as a direct path
-        setAtPointer(bundle as unknown as Record<string, unknown>, `/awf_bundle/${key}`, pointer);
-      }
-    } catch (error) {
-      console.warn(`[AWF] Failed to apply injection map pointer ${key}: ${pointer}`, error);
-    }
-  }
-}

@@ -26,6 +26,7 @@ import playersV3Router from './routes/players-v3.js';
 import cookieLinkingRouter from './routes/cookie-linking.js';
 import debugRouter from './routes/debug.js';
 import adminRouter from './routes/admin.js';
+import playerRouter from './routes/player.js';
 import { observabilityMiddleware } from './middleware/observability.js';
 
 const app = express();
@@ -99,6 +100,7 @@ app.use('/api/cookie-linking', cookieLinkingRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/debug', debugRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/player', playerRouter);
 
 // Swagger API documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {

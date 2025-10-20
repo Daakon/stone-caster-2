@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { WorldDocFlexSchema } from './awf-world.schema.js';
+import { WorldDocV1Schema } from './awf-world.schema.js';
 
 // Core Contract Document Validator
 export const CoreContractDocSchema = z.object({
@@ -26,7 +26,7 @@ export const CoreContractDocSchema = z.object({
 });
 
 // World Document Validator - now uses flexible schema
-export const WorldDocSchema = WorldDocFlexSchema;
+export const WorldDocSchema = WorldDocV1Schema;
 
 // Adventure Document Validator - Flexible schema
 export const AdventureDocSchema = z.object({

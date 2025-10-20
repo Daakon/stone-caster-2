@@ -1,474 +1,438 @@
 /**
- * AWF Worlds Admin Page
- * Phase 2: Admin UI - World document management
+ * AWF Worlds Admin Page (Flexible)
+ * Admin interface for managing worlds with flexible schemas
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Plus, 
-  Edit, 
-  Save, 
-  X, 
-  Download,
-  Upload,
-  AlertTriangle,
-  Tag
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { awfAdminService, type AwfWorld } from '@/services/awfAdminService';
+import { Loader2, Plus, Download, Upload, Trash2, Edit, Globe, Clock } from 'lucide-react';
+
+interface World {
+  id: string;
+  version: string;
+  doc: {
+    id: string;
+    name: string;
+    version: string;
+    timeworld?: {
+      timezone: string;
+      calendar: string;
+      seasons?: string[];
+    };
+    slices?: string[];
+    i18n?: Record<string, { name?: string }>;
+    [key: string]: any; // Allow custom fields
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+const defaultWorldTemplate = {
+  id: "world.new_world",
+  name: "New World",
+  version: "1.0.0",
+  timeworld: {
+    timezone: "UTC",
+    calendar: "gregorian",
+    seasons: ["spring", "summer", "autumn", "winter"]
+  },
+  slices: ["core", "magic"],
+  i18n: {
+    es: { name: "Mundo Nuevo" },
+    fr: { name: "Monde Nouveau" }
+  }
+};
 
 export default function AwfWorldsAdmin() {
-  const [worlds, setWorlds] = useState<AwfWorld[]>([]);
+  const [worlds, setWorlds] = useState<World[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingWorld, setEditingWorld] = useState<AwfWorld | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    id: '',
-    version: '',
-    doc: '{}',
-    slices: [] as string[]
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingWorld, setEditingWorld] = useState<World | null>(null);
+  const [jsonEditor, setJsonEditor] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [newSlice, setNewSlice] = useState('');
+  const [activeTab, setActiveTab] = useState('list');
 
-  // Load worlds on mount
-  useEffect(() => {
-    loadWorlds();
-  }, []);
-
+  // Load worlds
   const loadWorlds = async () => {
     try {
       setLoading(true);
-      const response = await awfAdminService.getWorlds();
-      if (response.ok && response.data) {
-        setWorlds(response.data);
+      const response = await fetch('/api/admin/awf/worlds');
+      const data = await response.json();
+      
+      if (data.ok) {
+        setWorlds(data.data || []);
       } else {
-        toast.error(response.error || 'Failed to load worlds');
+        setError(data.error || 'Failed to load worlds');
       }
-    } catch (error) {
-      console.error('Error loading worlds:', error);
-      toast.error('Failed to load worlds');
+    } catch (err) {
+      setError('Failed to load worlds');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = (world: AwfWorld) => {
-    setEditingWorld(world);
-    const doc = world.doc as any;
-    setFormData({
-      id: world.id,
-      version: world.version,
-      doc: JSON.stringify(world.doc, null, 2),
-      slices: doc.slices || []
-    });
-    setIsEditing(true);
-    setValidationErrors([]);
-  };
-
-    const handleNew = () => {
-      setEditingWorld(null);
-      setFormData({
-        id: '',
-        version: '',
-        doc: JSON.stringify({
-          id: 'world.<slug>',
-          name: 'World Name',
-          version: '1.0.0',
-          timeworld: {
-            timezone: 'UTC',
-            calendar: 'Gregorian',
-            seasons: ['Spring', 'Summer', 'Autumn', 'Winter']
-          },
-          slices: []
-        }, null, 2),
-        slices: []
-      });
-      setIsEditing(true);
-      setValidationErrors([]);
-    };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setEditingWorld(null);
-    setFormData({
-      id: '',
-      version: '',
-      doc: JSON.stringify({
-        id: 'world.<slug>',
-        name: 'World Name',
-        version: '1.0.0',
-        timeworld: {
-          timezone: 'UTC',
-          calendar: 'Gregorian',
-          seasons: ['Spring', 'Summer', 'Autumn', 'Winter']
-        },
-        slices: []
-      }, null, 2),
-      slices: []
-    });
-    setValidationErrors([]);
-  };
-
-  const validateForm = (): boolean => {
-    const errors: string[] = [];
-
-    if (!formData.id.trim()) {
-      errors.push('ID is required');
-    }
-
-    if (!formData.version.trim()) {
-      errors.push('Version is required');
-    }
-
+  // Save world
+  const saveWorld = async (world: World) => {
     try {
-      const doc = JSON.parse(formData.doc);
-      
-      // Validate document structure
-      if (!doc.id || typeof doc.id !== 'string') {
-        errors.push('Document must have an "id" field');
-      }
-      if (!doc.name || typeof doc.name !== 'string') {
-        errors.push('Document must have a "name" field');
-      }
-      if (!doc.version || typeof doc.version !== 'string') {
-        errors.push('Document must have a "version" field');
-      }
-      
-      // Validate timeworld if present
-      if (doc.timeworld) {
-        if (!doc.timeworld.timezone || typeof doc.timeworld.timezone !== 'string') {
-          errors.push('Timeworld timezone is required and must be a string');
-        }
-        if (!doc.timeworld.calendar || typeof doc.timeworld.calendar !== 'string') {
-          errors.push('Timeworld calendar is required and must be a string');
-        }
-      }
+      const response = await fetch('/api/admin/awf/worlds', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: world.id,
+          version: world.version,
+          doc: world.doc
+        })
+      });
 
-    } catch (error) {
-      errors.push('Document must be valid JSON');
+      const data = await response.json();
+      
+      if (data.ok) {
+        await loadWorlds();
+        setEditingWorld(null);
+        // setSelectedWorld(null);
+        setActiveTab('list');
+      } else {
+        setError(data.error || 'Failed to save world');
+      }
+    } catch (err) {
+      setError('Failed to save world');
     }
-
-    setValidationErrors(errors);
-    return errors.length === 0;
   };
 
-  const handleSave = async () => {
-    if (!validateForm()) {
+  // Delete world
+  const deleteWorld = async (id: string, version: string) => {
+    if (!confirm('Are you sure you want to delete this world?')) {
       return;
     }
 
     try {
-      const doc = JSON.parse(formData.doc);
-      // Add slices to the document
-      doc.slices = formData.slices;
-      
-      const response = await awfAdminService.createWorld({
-        id: formData.id,
-        version: formData.version,
-        doc
+      const response = await fetch(`/api/admin/awf/worlds/${id}/${version}`, {
+        method: 'DELETE'
       });
 
-      if (response.ok) {
-        toast.success('World saved successfully');
+      const data = await response.json();
+      
+      if (data.ok) {
         await loadWorlds();
-        handleCancel();
+        // setSelectedWorld(null);
       } else {
-        // Show detailed validation errors
-        if (response.details && Array.isArray(response.details)) {
-          const errorMessages = response.details.map((detail: any) => {
-            if (typeof detail === 'object' && detail.message) {
-              return `${detail.path?.join('.') || 'document'}: ${detail.message}`;
-            }
-            return detail;
-          });
-          setValidationErrors(errorMessages);
-          toast.error('Validation failed - see errors below');
-        } else {
-          toast.error(response.error || 'Failed to save world');
-        }
+        setError(data.error || 'Failed to delete world');
       }
-    } catch (error) {
-      console.error('Error saving world:', error);
-      toast.error('Failed to save world');
+    } catch (err) {
+      setError('Failed to delete world');
     }
   };
 
-  const handleExport = (world: AwfWorld) => {
-    const exportData = {
-      id: world.id,
-      version: world.version,
-      hash: world.hash,
-      doc: world.doc
-    };
-    awfAdminService.exportDocument(exportData, `${world.id}.${world.version}.json`);
-    toast.success('World exported successfully');
+  // Validate JSON
+  const validateJson = (json: string) => {
+    try {
+      const parsed = JSON.parse(json);
+      const errors: string[] = [];
+      
+      if (!parsed.id || typeof parsed.id !== 'string') {
+        errors.push('Missing required field: id');
+      }
+      if (!parsed.name || typeof parsed.name !== 'string') {
+        errors.push('Missing required field: name');
+      }
+      if (!parsed.version || typeof parsed.version !== 'string') {
+        errors.push('Missing required field: version');
+      }
+      
+      // Check for large custom fields
+      Object.keys(parsed).forEach(key => {
+        if (!['id', 'name', 'version', 'timeworld', 'slices', 'i18n'].includes(key)) {
+          const value = parsed[key];
+          if (typeof value === 'object' && value !== null) {
+            const serialized = JSON.stringify(value);
+            if (serialized.length > 2048) {
+              errors.push(`Custom field '${key}' exceeds 2KB (${Math.round(serialized.length/1024)}KB)`);
+            }
+          }
+        }
+      });
+      
+      setValidationErrors(errors);
+      return errors.length === 0;
+    } catch (err) {
+      setValidationErrors(['Invalid JSON format']);
+      return false;
+    }
   };
 
-  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle JSON editor changes
+  const handleJsonChange = (value: string) => {
+    setJsonEditor(value);
+    validateJson(value);
+  };
+
+  // Create new world
+  const createNewWorld = () => {
+    const newWorld: World = {
+      id: `world.new_${Date.now()}`,
+      version: '1.0.0',
+      doc: defaultWorldTemplate,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    setEditingWorld(newWorld);
+    setJsonEditor(JSON.stringify(newWorld.doc, null, 2));
+    setActiveTab('editor');
+  };
+
+  // Edit world
+  const editWorld = (world: World) => {
+    setEditingWorld(world);
+    setJsonEditor(JSON.stringify(world.doc, null, 2));
+    setActiveTab('editor');
+  };
+
+  // Save from JSON editor
+  const saveFromJson = () => {
+    if (!validateJson(jsonEditor)) {
+      return;
+    }
+
+    if (!editingWorld) {
+      return;
+    }
+
+    try {
+      const parsedDoc = JSON.parse(jsonEditor);
+      const updatedWorld = {
+        ...editingWorld,
+        doc: parsedDoc
+      };
+      
+      saveWorld(updatedWorld);
+    } catch (err) {
+      setError('Failed to parse JSON');
+    }
+  };
+
+  // Export worlds
+  const exportWorlds = () => {
+    const dataStr = JSON.stringify(worlds, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'worlds.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import worlds
+  const importWorlds = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    awfAdminService.importDocument(file)
-      .then((data) => {
-        const doc = data.doc || {};
-        setFormData({
-          id: data.id || '',
-          version: data.version || '',
-          doc: JSON.stringify(doc, null, 2),
-          slices: doc.slices || []
-        });
-        setIsEditing(true);
-        toast.success('World imported successfully');
-      })
-      .catch((error) => {
-        toast.error('Failed to import world: ' + error.message);
-      });
-
-    // Reset file input
-    event.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target?.result as string);
+        if (Array.isArray(imported)) {
+          imported.forEach(world => {
+            saveWorld(world);
+          });
+        } else {
+          saveWorld(imported);
+        }
+      } catch (err) {
+        setError('Failed to parse imported file');
+      }
+    };
+    reader.readAsText(file);
   };
 
-  const addSlice = () => {
-    if (newSlice.trim() && !formData.slices.includes(newSlice.trim())) {
-      setFormData({
-        ...formData,
-        slices: [...formData.slices, newSlice.trim()]
-      });
-      setNewSlice('');
-    }
-  };
+  // Filter worlds
+  const filteredWorlds = worlds.filter(world => {
+    const matchesSearch = !searchTerm || 
+      world.doc.name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesSearch;
+  });
 
-  const removeSlice = (slice: string) => {
-    setFormData({
-      ...formData,
-      slices: formData.slices.filter(s => s !== slice)
-    });
-  };
+  useEffect(() => {
+    loadWorlds();
+  }, []);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Worlds</h1>
-          <p className="text-muted-foreground">
-            Manage AWF world documents
+          <h1 className="text-3xl font-bold">AWF Worlds</h1>
+          <p className="text-gray-600 mt-2">
+            Worlds may include custom keys; known fields validate strictly. Optional: timeworld, slices, i18n.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <input
-            type="file"
-            accept=".json"
-            onChange={handleImport}
-            className="hidden"
-            id="import-world"
-          />
-          <label htmlFor="import-world">
-            <Button variant="outline" size="sm">
-              <Upload className="h-4 w-4 mr-2" />
-              Import
-            </Button>
-          </label>
-          <Button onClick={handleNew}>
-            <Plus className="h-4 w-4 mr-2" />
+        <div className="flex gap-2">
+          <Button onClick={createNewWorld} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
             New World
           </Button>
+          <Button onClick={exportWorlds} variant="outline" className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <label className="flex items-center gap-2 px-4 py-2 border rounded-md cursor-pointer hover:bg-gray-50">
+            <Upload className="h-4 w-4" />
+            Import
+            <input
+              type="file"
+              accept=".json"
+              onChange={importWorlds}
+              className="hidden"
+            />
+          </label>
         </div>
       </div>
 
-      {/* Validation Errors */}
-      {validationErrors.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <ul className="list-disc list-inside">
-              {validationErrors.map((error, index) => (
-                <li key={index}>{error}</li>
-              ))}
-            </ul>
-          </AlertDescription>
+      {error && (
+        <Alert className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Editor Form */}
-      {isEditing && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {editingWorld ? 'Edit World' : 'New World'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="id">ID</Label>
-                <Input
-                  id="id"
-                  value={formData.id}
-                  onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                  placeholder="e.g., world.mystika"
-                />
-              </div>
-              <div>
-                <Label htmlFor="version">Version</Label>
-                <Input
-                  id="version"
-                  value={formData.version}
-                  onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-                  placeholder="e.g., v1"
-                />
-              </div>
-            </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList>
+          <TabsTrigger value="list">List</TabsTrigger>
+          <TabsTrigger value="editor">JSON Editor</TabsTrigger>
+        </TabsList>
 
-            <div>
-              <Label htmlFor="doc">Document (JSON)</Label>
-              <Textarea
-                id="doc"
-                value={formData.doc}
-                onChange={(e) => setFormData({ ...formData, doc: e.target.value })}
-                placeholder="Enter JSON document..."
-                rows={10}
-                className="font-mono text-sm"
-              />
-            </div>
-
-            {/* Slices Editor */}
-            <div>
-              <Label>Slices</Label>
-              <p className="text-sm text-muted-foreground mb-2">
-                Slices are named subsets your runtime can request to reduce tokens (e.g., timekeeping, whispercross_region, encounter_forest_edge).
-              </p>
-              <div className="flex items-center space-x-2 mb-2">
-                <Input
-                  value={newSlice}
-                  onChange={(e) => setNewSlice(e.target.value)}
-                  placeholder="Enter slice name..."
-                  onKeyPress={(e) => e.key === 'Enter' && addSlice()}
-                />
-                <Button onClick={addSlice} size="sm">
-                  <Tag className="h-4 w-4 mr-1" />
-                  Add
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {formData.slices.map((slice, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                    {slice}
-                    <button
-                      onClick={() => removeSlice(slice)}
-                      className="ml-1 hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Button onClick={handleSave}>
-                <Save className="h-4 w-4 mr-2" />
-                Save
-              </Button>
-              <Button variant="outline" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Worlds List */}
-      <div className="grid gap-4">
-        {worlds.map((world) => {
-          const doc = world.doc as any;
-          const slices = doc.slices || [];
-          return (
-            <Card key={`${world.id}-${world.version}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <CardTitle className="text-lg">
-                      {world.id} v{world.version}
-                    </CardTitle>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleExport(world)}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(world)}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                  </div>
+        <TabsContent value="list">
+          <Card>
+            <CardHeader>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <Label htmlFor="search">Search</Label>
+                  <Input
+                    id="search"
+                    placeholder="Search worlds..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="flex items-center gap-2"
+                  />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground">
-                    <strong>Hash:</strong> {world.hash}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    <strong>Updated:</strong> {new Date(world.updated_at).toLocaleString()}
-                  </div>
-                  {slices.length > 0 && (
-                    <div className="text-sm">
-                      <strong>Slices:</strong>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {slices.map((slice: string, index: number) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {slice}
-                          </Badge>
-                        ))}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {filteredWorlds.map((world) => (
+                  <Card key={`${world.id}@${world.version}`} className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold">{world.doc.name}</h3>
+                          {world.doc.timeworld && (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {world.doc.timeworld.timezone}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-2 mb-2">
+                          <Badge variant="outline">{world.id}@{world.version}</Badge>
+                          {world.doc.slices?.map(slice => (
+                            <Badge key={slice} variant="secondary">{slice}</Badge>
+                          ))}
+                        </div>
+                        {world.doc.i18n && Object.keys(world.doc.i18n).length > 0 && (
+                          <div className="flex gap-1">
+                            <Globe className="h-3 w-3 text-gray-500" />
+                            <span className="text-sm text-gray-500">
+                              {Object.keys(world.doc.i18n).join(', ')} locales
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {/* setSelectedWorld(world); */}}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => editWorld(world)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteWorld(world.id, world.version)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {worlds.length === 0 && !isEditing && (
-        <Card>
-          <CardContent className="text-center py-8">
-            <p className="text-muted-foreground">No worlds found.</p>
-            <Button onClick={handleNew} className="mt-4">
-              <Plus className="h-4 w-4 mr-2" />
-              Create First World
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="editor">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>JSON Editor</CardTitle>
+                <div className="flex gap-2">
+                  <Button onClick={saveFromJson} disabled={validationErrors.length > 0}>
+                    Save
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingWorld(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {validationErrors.length > 0 && (
+                <Alert className="mb-4">
+                  <AlertDescription>
+                    <ul>
+                      {validationErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+              <Textarea
+                value={jsonEditor}
+                onChange={(e) => handleJsonChange(e.target.value)}
+                placeholder="Enter world JSON..."
+                className="min-h-[500px] font-mono text-sm"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
-
-

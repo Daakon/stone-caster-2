@@ -22,6 +22,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
   const baseNavigation = [
     { name: 'Adventures', href: '/adventures' },
     { name: 'My Adventures', href: '/my-adventures' },
+    { name: 'Scenarios', href: '/scenarios' },
   ];
 
   // Authenticated-only navigation items
