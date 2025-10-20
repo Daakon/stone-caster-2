@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Plus, Download, Upload, Trash2, Edit, Globe, Clock } from 'lucide-react';
+import { AwfAdminService } from '@/services/awfAdminService';
 
 interface World {
   id: string;
@@ -64,16 +65,19 @@ export default function AwfWorldsAdmin() {
   const loadWorlds = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/awf/worlds');
-      const data = await response.json();
+      setError(null);
       
-      if (data.ok) {
-        setWorlds(data.data || []);
+      const adminService = new AwfAdminService();
+      const response = await adminService.getWorlds();
+      
+      if (response.ok) {
+        setWorlds(response.data || []);
       } else {
-        setError(data.error || 'Failed to load worlds');
+        setError(response.error || 'Failed to load worlds');
       }
     } catch (err) {
-      setError('Failed to load worlds');
+      console.error('Error loading worlds:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load worlds');
     } finally {
       setLoading(false);
     }
@@ -82,30 +86,25 @@ export default function AwfWorldsAdmin() {
   // Save world
   const saveWorld = async (world: World) => {
     try {
-      const response = await fetch('/api/admin/awf/worlds', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: world.id,
-          version: world.version,
-          doc: world.doc
-        })
-      });
-
-      const data = await response.json();
+      setError(null);
       
-      if (data.ok) {
+      const adminService = new AwfAdminService();
+      const response = await adminService.createWorld({
+        id: world.id,
+        version: world.version,
+        doc: world.doc
+      });
+      
+      if (response.ok) {
         await loadWorlds();
         setEditingWorld(null);
-        // setSelectedWorld(null);
         setActiveTab('list');
       } else {
-        setError(data.error || 'Failed to save world');
+        setError(response.error || 'Failed to save world');
       }
     } catch (err) {
-      setError('Failed to save world');
+      console.error('Error saving world:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save world');
     }
   };
 
