@@ -1,0 +1,58 @@
+table_name,column_name,data_type,nullable,primary_key,foreign_key,indexes,notes
+adventures_legacy,id,uuid,false,true,,idx_adventures_slug,Legacy adventures table
+adventures_legacy,slug,varchar(100),false,false,,idx_adventures_slug,Unique slug for URL
+adventures_legacy,title,varchar(200),false,false,,,Display title
+adventures_legacy,description,text,true,false,,,Description text
+adventures_legacy,world_slug,varchar(100),false,false,,idx_adventures_world_slug,World reference
+adventures_legacy,tags,jsonb,true,false,,,Tags array
+adventures_legacy,scenarios,jsonb,true,false,,,Scenarios array
+adventures_legacy,is_active,boolean,false,false,,idx_adventures_active,Active status
+adventures_legacy,created_at,timestamptz,false,false,,,Creation timestamp
+adventures_legacy,updated_at,timestamptz,false,false,,,Update timestamp
+adventures_awf,id,text,false,true,,idx_adventures_id,AWF adventure ID
+adventures_awf,world_ref,text,false,false,,idx_adventures_world_ref,World reference
+adventures_awf,version,text,false,true,,,Version string
+adventures_awf,doc,jsonb,false,false,,,Adventure document
+adventures_awf,hash,text,false,false,,,Content hash
+adventures_awf,created_at,timestamptz,false,false,,idx_adventures_created_at,Creation timestamp
+adventures_awf,updated_at,timestamptz,false,false,,,Update timestamp
+scenarios,id,text,false,true,,scenarios_id_idx,Scenario ID
+scenarios,version,text,false,true,,,Version string
+scenarios,doc,jsonb,false,false,,,Scenario document
+scenarios,created_at,timestamptz,false,false,,,Creation timestamp
+scenarios,updated_at,timestamptz,false,false,,,Update timestamp
+scenarios,world_ref,text,true,false,,scenarios_world_ref_idx,From doc->>'world_ref'
+scenarios,adventure_ref,text,true,false,,scenarios_adventure_ref_idx,From doc->>'adventure_ref'
+scenarios,tags,text[],true,false,,scenarios_tags_gin,From doc->'scenario'->'tags'
+worlds,id,text,false,true,,idx_worlds_id,World ID
+worlds,version,text,false,true,,,Version string
+worlds,doc,jsonb,false,false,,,World document
+worlds,hash,text,false,false,,,Content hash
+worlds,created_at,timestamptz,false,false,,idx_worlds_created_at,Creation timestamp
+worlds,updated_at,timestamptz,false,false,,,Update timestamp
+games,id,uuid,false,true,,,Game instance ID
+games,adventure_id,uuid,false,false,adventures(id),idx_games_adventure_id,Legacy adventure reference
+games,character_id,uuid,true,false,characters(id),idx_games_character_id,Character reference
+games,user_id,uuid,true,false,auth.users(id),idx_games_user_id,User reference
+games,cookie_group_id,uuid,true,false,cookie_groups(id),idx_games_cookie_group_id,Guest reference
+games,world_slug,varchar(100),false,false,,idx_games_world_slug,World slug
+games,state_snapshot,jsonb,false,false,,,Game state
+games,turn_count,integer,false,false,,,Turn counter
+games,status,varchar(20),false,false,,idx_games_status,Game status
+games,created_at,timestamptz,false,false,,idx_games_created_at,Creation timestamp
+games,updated_at,timestamptz,false,false,,,Update timestamp
+games,last_played_at,timestamptz,false,false,,idx_games_last_played_at,Last played
+turns,id,uuid,false,true,,,Turn ID
+turns,game_id,uuid,false,false,games(id),idx_turns_game_id,Game reference
+turns,option_id,uuid,true,false,,,Option reference
+turns,ai_response,jsonb,false,false,,,AI response
+turns,created_at,timestamptz,false,false,,idx_turns_created_at,Creation timestamp
+characters,id,uuid,false,true,,,Character ID
+characters,active_game_id,uuid,true,false,games(id),idx_characters_active_game_id,Active game
+characters,user_id,uuid,true,false,auth.users(id),,User reference
+characters,world_slug,varchar(100),false,false,,,World slug
+characters,name,varchar(100),false,false,,,Character name
+characters,description,text,true,false,,,Character description
+characters,stats,jsonb,true,false,,,Character stats
+characters,created_at,timestamptz,false,false,,,Creation timestamp
+characters,updated_at,timestamptz,false,false,,,Update timestamp
