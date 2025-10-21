@@ -56,3 +56,5 @@ characters,description,text,true,false,,,Character description
 characters,stats,jsonb,true,false,,,Character stats
 characters,created_at,timestamptz,false,false,,,Creation timestamp
 characters,updated_at,timestamptz,false,false,,,Update timestamp
+
+

@@ -68,3 +68,5 @@ COMMENT ON COLUMN games.state_snapshot IS 'Complete game state including meta (w
 COMMENT ON COLUMN sessions.game_id IS 'Reference to the game this session belongs to (if sessions table exists)';
 COMMENT ON COLUMN sessions.ruleset_ref IS 'Optional ruleset override for this session';
 COMMENT ON COLUMN sessions.locale IS 'Optional locale override for this session';
+
+

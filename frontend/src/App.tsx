@@ -29,7 +29,7 @@ import UnifiedGamePage from './pages/UnifiedGamePage';
 import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
 import ScenarioPicker from './pages/player/ScenarioPicker';
-import { AdminRouter } from './components/admin/AdminRouter';
+import { AppAdminShell } from './admin/AppAdminShell';
 import NotFoundPage from './pages/NotFoundPage';
 
 const queryClient = new QueryClient({
@@ -150,7 +150,7 @@ function App() {
                 <Route path="/auth/signin" element={<AuthPage mode="signin" />} />
                 <Route path="/auth/signup" element={<AuthPage mode="signup" />} />
                 <Route path="/auth/success" element={<AuthSuccessPage />} />
-                <Route path="/admin/*" element={<AdminRouter />} />
+                <Route path="/admin/*" element={<AppAdminShell />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </AppLayout>

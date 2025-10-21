@@ -64,3 +64,5 @@ COMMENT ON TABLE core_rulesets IS 'AWF Core Rulesets - narrative/pacing/style po
 COMMENT ON COLUMN core_rulesets.id IS 'Ruleset identifier (e.g., ruleset.core.default)';
 COMMENT ON COLUMN core_rulesets.version IS 'Semantic version (e.g., 1.0.0)';
 COMMENT ON COLUMN core_rulesets.doc IS 'Ruleset document JSON';
+
+

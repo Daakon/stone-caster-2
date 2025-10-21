@@ -349,3 +349,5 @@ describe('AWF Assembler - Games-Only State', () => {
     })).rejects.toThrow('No world_ref found in game.state_snapshot.meta');
   });
 });
+
+
