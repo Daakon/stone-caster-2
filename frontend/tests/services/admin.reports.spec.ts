@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AdminReportsService } from '@/services/admin.reports';
+import { AdminReportsService } from '../../../services/admin.reports';
 
 // Mock Supabase
 const mockSupabase = {

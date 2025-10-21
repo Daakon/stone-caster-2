@@ -21,7 +21,7 @@ import {
   X,
   Loader2
 } from 'lucide-react';
-import { AdminReportsService, ContentReport, ReportFilters } from '../../../services/admin.reports';
+import { AdminReportsService, type ContentReport, type ReportFilters } from '../../../services/admin.reports';
 import { useAppRoles } from '@/admin/routeGuard';
 import { toast } from 'sonner';
 

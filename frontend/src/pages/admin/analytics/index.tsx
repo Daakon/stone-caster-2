@@ -15,7 +15,7 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
-import { AdminAnalyticsService, OverviewCards, DailySeries } from '@/services/admin.analytics';
+import { AdminAnalyticsService, type OverviewCards, type DailySeries } from '@/services/admin.analytics';
 import { useAppRoles } from '@/admin/routeGuard';
 import { toast } from 'sonner';
 

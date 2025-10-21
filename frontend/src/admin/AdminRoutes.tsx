@@ -9,12 +9,12 @@ import { Guarded } from './routeGuard';
 // Import admin pages
 import AdminHome from '@/pages/admin/index';
 import EntryPointsAdmin from '@/pages/admin/entry-points/index';
-import EntryPointEditPage from '@/pages/admin/entry-points/[id]';
+import EntryPointEditPage from '@/pages/admin/entry-points/id';
 import PromptSegmentsAdmin from '@/pages/admin/prompt-segments/index';
 import NPCsAdmin from '@/pages/admin/npcs/index';
 import ReviewsAdmin from '@/pages/admin/reviews/index';
 import ReportsAdmin from '@/pages/admin/reports/index';
-import ReportDetailPage from '@/pages/admin/reports/[id]';
+import ReportDetailPage from '@/pages/admin/reports/id';
 import AnalyticsAdmin from '@/pages/admin/analytics/index';
 import RolesAdmin from '@/pages/admin/roles/index';
 

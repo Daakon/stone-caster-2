@@ -2,10 +2,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import ReportsQueue from '@/pages/admin/reports/index';
-import { AdminReportsService } from '@/services/admin.reports';
+import { AdminReportsService } from '../../../services/admin.reports';
 
 // Mock the admin reports service
-vi.mock('@/services/admin.reports', () => ({
+vi.mock('../../../services/admin.reports', () => ({
   AdminReportsService: {
     listReports: vi.fn(),
     getReportStats: vi.fn()

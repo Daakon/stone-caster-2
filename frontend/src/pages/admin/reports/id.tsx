@@ -6,7 +6,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
 import { 
   ArrowLeft, 
   CheckCircle, 
@@ -17,7 +16,7 @@ import {
   FileText,
   Loader2
 } from 'lucide-react';
-import { AdminReportsService, ContentReport } from '@/services/admin.reports';
+import { AdminReportsService, type ContentReport } from '../../../services/admin.reports';
 import { useAppRoles } from '@/admin/routeGuard';
 import { toast } from 'sonner';
 

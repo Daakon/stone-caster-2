@@ -1,4 +1,4 @@
-﻿import 'dotenv/config';
+import 'dotenv/config';
 function req(name: string): string {
   const v = process.env[name];
   if (!v || v === '__REPLACE_ME__') {

@@ -1,4 +1,4 @@
-﻿import { type AppError, toAppError } from './errors';
+import { type AppError, toAppError } from './errors';
 import { supabase } from './supabase';
 import { GuestCookieService } from '../services/guestCookie';
 import type { GameListDTO } from '@shared';
