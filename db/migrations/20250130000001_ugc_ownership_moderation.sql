@@ -115,12 +115,12 @@ BEGIN
         SELECT 1 FROM pg_proc WHERE proname = 'update_updated_at_column'
     ) THEN
         CREATE OR REPLACE FUNCTION update_updated_at_column()
-        RETURNS TRIGGER AS $$
+        RETURNS TRIGGER AS $func$
         BEGIN
             NEW.updated_at = now();
             RETURN NEW;
         END;
-        $$ LANGUAGE plpgsql;
+        $func$ LANGUAGE plpgsql;
     END IF;
     
     -- Create the trigger if it doesn't exist

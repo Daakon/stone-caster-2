@@ -1,11 +1,26 @@
--- Core Schema Migration - Greenfield Implementation
--- Creates the foundational tables for the Stone Caster system
--- No legacy references - clean slate implementation
+-- Recreate Core Schema - Clean Slate Approach
+-- This migration drops existing tables and recreates them with proper constraints
 
 -- ============================================================================
--- WORLDS TABLE
+-- DROP EXISTING TABLES (in reverse dependency order)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS worlds (
+
+-- Drop tables that depend on others first
+DROP TABLE IF EXISTS turns CASCADE;
+DROP TABLE IF EXISTS games CASCADE;
+DROP TABLE IF EXISTS prompt_segments CASCADE;
+DROP TABLE IF EXISTS entry_points CASCADE;
+
+-- Drop core tables
+DROP TABLE IF EXISTS rulesets CASCADE;
+DROP TABLE IF EXISTS worlds CASCADE;
+
+-- ============================================================================
+-- CREATE TABLES WITH PROPER CONSTRAINTS
+-- ============================================================================
+
+-- WORLDS TABLE
+CREATE TABLE worlds (
     id text PRIMARY KEY,
     version text NOT NULL DEFAULT '1.0.0',
     status text NOT NULL DEFAULT 'active' CHECK (status IN ('draft', 'active', 'archived')),
@@ -15,10 +30,8 @@ CREATE TABLE IF NOT EXISTS worlds (
     CONSTRAINT uk_worlds_id UNIQUE (id)
 );
 
--- ============================================================================
 -- RULESETS TABLE
--- ============================================================================
-CREATE TABLE IF NOT EXISTS rulesets (
+CREATE TABLE rulesets (
     id text PRIMARY KEY,
     version text NOT NULL DEFAULT '1.0.0',
     status text NOT NULL DEFAULT 'active' CHECK (status IN ('draft', 'active', 'archived')),
@@ -28,10 +41,8 @@ CREATE TABLE IF NOT EXISTS rulesets (
     CONSTRAINT uk_rulesets_id UNIQUE (id)
 );
 
--- ============================================================================
 -- ENTRY_POINTS TABLE
--- ============================================================================
-CREATE TABLE IF NOT EXISTS entry_points (
+CREATE TABLE entry_points (
     id text PRIMARY KEY,
     slug text UNIQUE NOT NULL,
     type text NOT NULL CHECK (type IN ('adventure', 'scenario', 'sandbox', 'quest')),
@@ -55,10 +66,8 @@ CREATE TABLE IF NOT EXISTS entry_points (
     CONSTRAINT uk_entry_points_id UNIQUE (id)
 );
 
--- ============================================================================
 -- PROMPT_SEGMENTS TABLE
--- ============================================================================
-CREATE TABLE IF NOT EXISTS prompt_segments (
+CREATE TABLE prompt_segments (
     id bigserial PRIMARY KEY,
     scope text NOT NULL CHECK (scope IN ('core', 'ruleset', 'world', 'entry', 'entry_start', 'npc', 'game_state', 'player', 'rng', 'input')),
     ref_id text, -- nullable (used for scopes that need a target like world/entry/npc)
@@ -70,10 +79,8 @@ CREATE TABLE IF NOT EXISTS prompt_segments (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- ============================================================================
 -- GAMES TABLE
--- ============================================================================
-CREATE TABLE IF NOT EXISTS games (
+CREATE TABLE games (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     entry_point_id text NOT NULL REFERENCES entry_points(id) ON DELETE RESTRICT,
     entry_point_type text NOT NULL, -- denormalized for quick filters; must match entry_points.type
@@ -87,10 +94,8 @@ CREATE TABLE IF NOT EXISTS games (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- ============================================================================
 -- TURNS TABLE
--- ============================================================================
-CREATE TABLE IF NOT EXISTS turns (
+CREATE TABLE turns (
     id bigserial PRIMARY KEY,
     game_id uuid NOT NULL REFERENCES games(id) ON DELETE CASCADE,
     idx int NOT NULL,
@@ -150,26 +155,23 @@ CREATE INDEX IF NOT EXISTS idx_games_world ON games (world_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_turns_game_idx ON turns (game_id, idx);
 
 -- ============================================================================
--- ROLLBACK BLOCK (commented out)
+-- VERIFICATION
 -- ============================================================================
-/*
--- Rollback script - uncomment to drop all objects created by this migration
--- DROP INDEX IF EXISTS idx_turns_game_idx;
--- DROP INDEX IF EXISTS idx_games_world;
--- DROP INDEX IF EXISTS idx_games_entry_point;
--- DROP INDEX IF EXISTS idx_games_owner;
--- DROP INDEX IF EXISTS idx_prompt_segments_ref;
--- DROP INDEX IF EXISTS idx_prompt_segments_scope;
--- DROP INDEX IF EXISTS idx_entry_points_search;
--- DROP INDEX IF EXISTS idx_entry_points_tags;
--- DROP INDEX IF EXISTS idx_entry_points_status_vis;
--- DROP INDEX IF EXISTS idx_entry_points_ruleset;
--- DROP INDEX IF EXISTS idx_entry_points_world;
--- DROP INDEX IF EXISTS idx_entry_points_type;
--- DROP TABLE IF EXISTS turns;
--- DROP TABLE IF EXISTS games;
--- DROP TABLE IF EXISTS prompt_segments;
--- DROP TABLE IF EXISTS entry_points;
--- DROP TABLE IF EXISTS rulesets;
--- DROP TABLE IF EXISTS worlds;
-*/
+
+-- List all tables created
+SELECT table_name, table_type 
+FROM information_schema.tables 
+WHERE table_schema = 'public' 
+    AND table_name IN ('worlds', 'rulesets', 'entry_points', 'prompt_segments', 'games', 'turns')
+ORDER BY table_name;
+
+-- List all unique constraints
+SELECT 
+    tc.table_name,
+    tc.constraint_name,
+    tc.constraint_type
+FROM information_schema.table_constraints tc
+WHERE tc.table_schema = 'public'
+    AND tc.table_name IN ('worlds', 'rulesets', 'entry_points')
+    AND tc.constraint_type IN ('UNIQUE', 'PRIMARY KEY')
+ORDER BY tc.table_name, tc.constraint_name;
