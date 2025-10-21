@@ -187,7 +187,7 @@ export default function NPCsAdmin() {
                   <SelectValue placeholder="All worlds" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All worlds</SelectItem>
+                  <SelectItem value="all">All worlds</SelectItem>
                   {worlds.map((world) => (
                     <SelectItem key={world.id} value={world.id}>
                       {world.name}

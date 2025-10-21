@@ -153,11 +153,11 @@ export default function EntryPointsAdmin() {
             <div className="space-y-2">
               <Label htmlFor="lifecycle">Lifecycle</Label>
               <Select
-                value={filters.lifecycle?.[0] || ''}
+                value={filters.lifecycle?.[0] || 'all'}
                 onValueChange={(value) => 
                   setFilters(prev => ({ 
                     ...prev, 
-                    lifecycle: value ? [value] : undefined 
+                    lifecycle: value === 'all' ? undefined : [value]
                   }))
                 }
               >
@@ -165,7 +165,7 @@ export default function EntryPointsAdmin() {
                   <SelectValue placeholder="All lifecycles" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All lifecycles</SelectItem>
+                  <SelectItem value="all">All lifecycles</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="pending_review">Pending Review</SelectItem>
                   <SelectItem value="changes_requested">Changes Requested</SelectItem>
@@ -179,11 +179,11 @@ export default function EntryPointsAdmin() {
             <div className="space-y-2">
               <Label htmlFor="visibility">Visibility</Label>
               <Select
-                value={filters.visibility?.[0] || ''}
+                value={filters.visibility?.[0] || 'all'}
                 onValueChange={(value) => 
                   setFilters(prev => ({ 
                     ...prev, 
-                    visibility: value ? [value] : undefined 
+                    visibility: value === 'all' ? undefined : [value]
                   }))
                 }
               >
@@ -191,7 +191,7 @@ export default function EntryPointsAdmin() {
                   <SelectValue placeholder="All visibility" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All visibility</SelectItem>
+                  <SelectItem value="all">All visibility</SelectItem>
                   <SelectItem value="public">Public</SelectItem>
                   <SelectItem value="unlisted">Unlisted</SelectItem>
                   <SelectItem value="private">Private</SelectItem>
@@ -202,11 +202,11 @@ export default function EntryPointsAdmin() {
             <div className="space-y-2">
               <Label htmlFor="world">World</Label>
               <Select
-                value={filters.world_id || ''}
+                value={filters.world_id || 'all'}
                 onValueChange={(value) => 
                   setFilters(prev => ({ 
                     ...prev, 
-                    world_id: value || undefined 
+                    world_id: value === 'all' ? undefined : value
                   }))
                 }
               >
@@ -214,7 +214,7 @@ export default function EntryPointsAdmin() {
                   <SelectValue placeholder="All worlds" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All worlds</SelectItem>
+                  <SelectItem value="all">All worlds</SelectItem>
                   {worlds.map(world => (
                     <SelectItem key={world.id} value={world.id}>
                       {world.name}

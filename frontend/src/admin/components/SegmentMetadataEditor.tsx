@@ -193,7 +193,7 @@ export function SegmentMetadataEditor({ value, onChange, scope }: SegmentMetadat
                     <SelectValue placeholder="Select locale" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No locale (default)</SelectItem>
+                    <SelectItem value="default">No locale (default)</SelectItem>
                     {getCommonLocales().map(locale => (
                       <SelectItem key={locale} value={locale}>
                         {locale}
@@ -215,7 +215,7 @@ export function SegmentMetadataEditor({ value, onChange, scope }: SegmentMetadat
                     <SelectValue placeholder="Select kind" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No kind</SelectItem>
+                    <SelectItem value="default">No kind</SelectItem>
                     {getCommonKinds().map(kind => (
                       <SelectItem key={kind} value={kind}>
                         {kind}
@@ -238,7 +238,7 @@ export function SegmentMetadataEditor({ value, onChange, scope }: SegmentMetadat
                       <SelectValue placeholder="Select tier" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No tier</SelectItem>
+                      <SelectItem value="default">No tier</SelectItem>
                       <SelectItem value="0">0 - Common</SelectItem>
                       <SelectItem value="1">1 - Uncommon</SelectItem>
                       <SelectItem value="2">2 - Rare</SelectItem>

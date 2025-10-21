@@ -26,14 +26,14 @@ export function AdminRoutes() {
       
       {/* Public admin routes (any authenticated user) */}
       <Route path="/admin" element={<AdminHome />} />
-      <Route path="/admin/entry-points" element={<EntryPointsAdmin />} />
-      <Route path="/admin/entry-points/:id" element={<EntryPointEditPage />} />
-      <Route path="/admin/prompt-segments" element={<PromptSegmentsAdmin />} />
-      <Route path="/admin/npcs" element={<NPCsAdmin />} />
+      <Route path="/entry-points" element={<EntryPointsAdmin />} />
+      <Route path="/entry-points/:id" element={<EntryPointEditPage />} />
+      <Route path="/prompt-segments" element={<PromptSegmentsAdmin />} />
+      <Route path="/npcs" element={<NPCsAdmin />} />
       
       {/* Moderator routes */}
       <Route 
-        path="/admin/reviews" 
+        path="/reviews" 
         element={
           <Guarded allow={['moderator', 'admin']}>
             <ReviewsAdmin />
@@ -41,7 +41,7 @@ export function AdminRoutes() {
         } 
       />
       <Route 
-        path="/admin/reports" 
+        path="/reports" 
         element={
           <Guarded allow={['moderator', 'admin']}>
             <ReportsAdmin />
@@ -49,7 +49,7 @@ export function AdminRoutes() {
         } 
       />
       <Route 
-        path="/admin/reports/:id" 
+        path="/reports/:id" 
         element={
           <Guarded allow={['moderator', 'admin']}>
             <ReportDetailPage />
@@ -57,7 +57,7 @@ export function AdminRoutes() {
         } 
       />
       <Route 
-        path="/admin/analytics" 
+        path="/analytics" 
         element={
           <Guarded allow={['moderator', 'admin']}>
             <AnalyticsAdmin />
@@ -67,7 +67,7 @@ export function AdminRoutes() {
       
       {/* Admin-only routes */}
       <Route 
-        path="/admin/roles" 
+        path="/roles" 
         element={
           <Guarded allow="admin">
             <RolesAdmin />

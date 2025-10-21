@@ -179,7 +179,7 @@ export default function ReviewsAdmin() {
                   <SelectValue placeholder="All states" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All states</SelectItem>
+                  <SelectItem value="all">All states</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="changes_requested">Changes Requested</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
@@ -203,7 +203,7 @@ export default function ReviewsAdmin() {
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All types</SelectItem>
+                  <SelectItem value="all">All types</SelectItem>
                   <SelectItem value="entry_point">Entry Point</SelectItem>
                   <SelectItem value="prompt_segment">Prompt Segment</SelectItem>
                   <SelectItem value="npc">NPC</SelectItem>
@@ -226,7 +226,7 @@ export default function ReviewsAdmin() {
                   <SelectValue placeholder="All reviewers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All reviewers</SelectItem>
+                  <SelectItem value="all">All reviewers</SelectItem>
                   <SelectItem value="me">Assigned to me</SelectItem>
                   <SelectItem value="all">All reviewers</SelectItem>
                 </SelectContent>

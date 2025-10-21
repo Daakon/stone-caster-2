@@ -34,6 +34,7 @@ export interface NPCListResponse {
 }
 
 export interface CreateNPCPayload {
+  id: string;
   world_id: string;
   name: string;
   archetype?: string;
@@ -47,6 +48,7 @@ export interface UpdateNPCPayload {
   archetype?: string;
   role_tags?: string[];
   portrait_url?: string;
+  world_id?: string;
   doc?: Record<string, any>;
 }
 
@@ -62,26 +64,20 @@ export class NPCsService {
 
     let query = supabase
       .from('npcs')
-      .select(`
-        *,
-        world:world_id (
-          id,
-          doc
-        )
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('updated_at', { ascending: false });
 
     // Apply filters
     if (filters.worldId) {
-      query = query.eq('world_id', filters.worldId);
+      query = query.eq('doc->npc->world_id', filters.worldId);
     }
 
     if (filters.tags && filters.tags.length > 0) {
-      query = query.overlaps('role_tags', filters.tags);
+      query = query.overlaps('doc->npc->tags', filters.tags);
     }
 
     if (filters.q) {
-      query = query.or(`name.ilike.%${filters.q}%,archetype.ilike.%${filters.q}%`);
+      query = query.or(`doc->npc->name.ilike.%${filters.q}%,doc->npc->archetype.ilike.%${filters.q}%`);
     }
 
     // Apply pagination
@@ -102,10 +98,17 @@ export class NPCsService {
     const nextCursor = hasMore ? npcs[npcs.length - 1]?.updated_at : undefined;
 
     // Transform data for display
-    const transformedNPCs = npcs.map(npc => ({
-      ...npc,
-      world_name: npc.world?.doc?.name || npc.world_id
-    }));
+    const transformedNPCs = npcs.map(npc => {
+      const npcData = npc.doc?.npc || {};
+      return {
+        ...npc,
+        name: npcData.name || npc.id,
+        archetype: npcData.archetype,
+        role_tags: npcData.tags || [],
+        world_id: npcData.world_id,
+        world_name: npcData.world_name || npcData.world_id
+      };
+    });
 
     return {
       data: transformedNPCs,
@@ -125,13 +128,7 @@ export class NPCsService {
 
     const { data, error } = await supabase
       .from('npcs')
-      .select(`
-        *,
-        world:world_id (
-          id,
-          doc
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -141,9 +138,14 @@ export class NPCsService {
 
     if (!data) return null;
 
+    const npcData = data.doc?.npc || {};
     return {
       ...data,
-      world_name: data.world?.doc?.name || data.world_id
+      name: npcData.name || data.id,
+      archetype: npcData.archetype,
+      role_tags: npcData.tags || [],
+      world_id: npcData.world_id,
+      world_name: npcData.world_name || npcData.world_id
     };
   }
 
@@ -159,26 +161,33 @@ export class NPCsService {
     const { data, error } = await supabase
       .from('npcs')
       .insert({
-        ...payload,
-        role_tags: payload.role_tags || [],
-        doc: payload.doc || {}
+        id: payload.id,
+        version: '1.0.0',
+        doc: {
+          npc: {
+            name: payload.name,
+            archetype: payload.archetype,
+            world_id: payload.world_id,
+            tags: payload.role_tags || [],
+            ...payload.doc
+          }
+        }
       })
-      .select(`
-        *,
-        world:world_id (
-          id,
-          doc
-        )
-      `)
+      .select('*')
       .single();
 
     if (error) {
       throw new Error(`Failed to create NPC: ${error.message}`);
     }
 
+    const npcData = data.doc?.npc || {};
     return {
       ...data,
-      world_name: data.world?.doc?.name || data.world_id
+      name: npcData.name || data.id,
+      archetype: npcData.archetype,
+      role_tags: npcData.tags || [],
+      world_id: npcData.world_id,
+      world_name: npcData.world_name || npcData.world_id
     };
   }
 
@@ -194,26 +203,33 @@ export class NPCsService {
     const { data, error } = await supabase
       .from('npcs')
       .update({
-        ...payload,
+        doc: {
+          npc: {
+            name: payload.name,
+            archetype: payload.archetype,
+            world_id: payload.world_id,
+            tags: payload.role_tags || [],
+            ...payload.doc
+          }
+        },
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
-      .select(`
-        *,
-        world:world_id (
-          id,
-          doc
-        )
-      `)
+      .select('*')
       .single();
 
     if (error) {
       throw new Error(`Failed to update NPC: ${error.message}`);
     }
 
+    const npcData = data.doc?.npc || {};
     return {
       ...data,
-      world_name: data.world?.doc?.name || data.world_id
+      name: npcData.name || data.id,
+      archetype: npcData.archetype,
+      role_tags: npcData.tags || [],
+      world_id: npcData.world_id,
+      world_name: npcData.world_name || npcData.world_id
     };
   }
 
@@ -289,7 +305,7 @@ export class NPCsService {
     const filePath = `npc_portraits/${fileName}`;
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('npc_portraits')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -348,7 +364,7 @@ export class NPCsService {
 
     const { data, error } = await supabase
       .from('npcs')
-      .select('role_tags');
+      .select('doc');
 
     if (error) {
       throw new Error(`Failed to fetch role tags: ${error.message}`);
@@ -356,8 +372,9 @@ export class NPCsService {
 
     const allTags = new Set<string>();
     (data || []).forEach(npc => {
-      if (npc.role_tags) {
-        npc.role_tags.forEach(tag => allTags.add(tag));
+      const tags = npc.doc?.npc?.tags || [];
+      if (Array.isArray(tags)) {
+        tags.forEach(tag => allTags.add(tag));
       }
     });
 

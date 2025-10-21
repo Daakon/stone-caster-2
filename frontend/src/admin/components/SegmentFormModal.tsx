@@ -105,16 +105,17 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
 
   const checkForDuplicates = async () => {
     try {
-      const contentHash = segmentsService.computeContentHash(watchedContent);
-      const duplicates = await segmentsService.findNearDuplicates({
-        scope: watchedScope,
-        refId: selectedRefId || undefined,
-        contentHash,
-        excludeId: segment?.id
-      });
+      // Temporarily disabled duplicate checking until database function is fixed
+      // const contentHash = segmentsService.computeContentHash(watchedContent);
+      // const duplicates = await segmentsService.findNearDuplicates({
+      //   scope: watchedScope,
+      //   refId: selectedRefId || undefined,
+      //   contentHash,
+      //   excludeId: segment?.id
+      // });
 
-      setDuplicates(duplicates);
-      setShowDuplicateWarning(duplicates.length > 0);
+      setDuplicates([]);
+      setShowDuplicateWarning(false);
     } catch (error) {
       console.error('Error checking duplicates:', error);
     }

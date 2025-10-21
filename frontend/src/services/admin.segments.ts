@@ -180,8 +180,8 @@ export class SegmentsService {
     // Use RPC for content hash comparison
     const { data, error } = await supabase.rpc('find_segment_duplicates', {
       p_scope: params.scope,
+      p_content: params.contentHash, // Using contentHash as the content to match
       p_ref_id: params.refId || null,
-      p_content_hash: params.contentHash,
       p_exclude_id: params.excludeId || null
     });
 

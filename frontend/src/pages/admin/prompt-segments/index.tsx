@@ -249,11 +249,11 @@ export default function PromptSegmentsAdmin() {
             <div className="space-y-2">
               <Label htmlFor="scope">Scope</Label>
               <Select
-                value={filters.scope?.[0] || ''}
+                value={filters.scope?.[0] || 'all'}
                 onValueChange={(value) => 
                   setFilters(prev => ({ 
                     ...prev, 
-                    scope: value ? [value] : undefined 
+                    scope: value === 'all' ? undefined : [value]
                   }))
                 }
               >
@@ -261,7 +261,7 @@ export default function PromptSegmentsAdmin() {
                   <SelectValue placeholder="All scopes" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All scopes</SelectItem>
+                  <SelectItem value="all">All scopes</SelectItem>
                   <SelectItem value="core">Core</SelectItem>
                   <SelectItem value="ruleset">Ruleset</SelectItem>
                   <SelectItem value="world">World</SelectItem>
@@ -279,11 +279,11 @@ export default function PromptSegmentsAdmin() {
             <div className="space-y-2">
               <Label htmlFor="active">Status</Label>
               <Select
-                value={filters.active === undefined ? '' : filters.active.toString()}
+                value={filters.active === undefined ? 'all' : filters.active.toString()}
                 onValueChange={(value) => 
                   setFilters(prev => ({ 
                     ...prev, 
-                    active: value === '' ? undefined : value === 'true'
+                    active: value === 'all' ? undefined : value === 'true'
                   }))
                 }
               >
@@ -291,7 +291,7 @@ export default function PromptSegmentsAdmin() {
                   <SelectValue placeholder="All status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All status</SelectItem>
+                  <SelectItem value="all">All status</SelectItem>
                   <SelectItem value="true">Active</SelectItem>
                   <SelectItem value="false">Inactive</SelectItem>
                 </SelectContent>
@@ -301,11 +301,11 @@ export default function PromptSegmentsAdmin() {
             <div className="space-y-2">
               <Label htmlFor="locale">Locale</Label>
               <Select
-                value={filters.locale || ''}
+                value={filters.locale || 'all'}
                 onValueChange={(value) => 
                   setFilters(prev => ({ 
                     ...prev, 
-                    locale: value || undefined 
+                    locale: value === 'all' ? undefined : value
                   }))
                 }
               >
@@ -313,7 +313,7 @@ export default function PromptSegmentsAdmin() {
                   <SelectValue placeholder="All locales" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All locales</SelectItem>
+                  <SelectItem value="all">All locales</SelectItem>
                   {availableLocales.map(locale => (
                     <SelectItem key={locale} value={locale}>
                       {locale}
