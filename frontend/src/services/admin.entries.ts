@@ -1,61 +1,99 @@
 /**
- * Worlds Admin Service
- * CRUD operations for worlds management
+ * Entries Admin Service
+ * CRUD operations for entries management
  */
 
 import { supabase } from '@/lib/supabase';
 
-export interface World {
+export interface Entry {
   id: string;
   name: string;
   slug: string;
+  world_id: string;
   status: 'draft' | 'active' | 'archived';
   description?: string;
   created_at: string;
   updated_at: string;
+  // Related data
+  world?: {
+    id: string;
+    name: string;
+  };
+  rulesets?: Array<{
+    id: string;
+    name: string;
+    sort_order: number;
+  }>;
+  npcs?: Array<{
+    id: string;
+    name: string;
+  }>;
+  npc_packs?: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
-export interface WorldFilters {
+export interface EntryFilters {
   status?: 'draft' | 'active' | 'archived';
+  world_id?: string;
   search?: string;
 }
 
-export interface CreateWorldData {
+export interface CreateEntryData {
   name: string;
+  world_id: string;
   description?: string;
   status?: 'draft' | 'active' | 'archived';
 }
 
-export interface UpdateWorldData extends Partial<CreateWorldData> {}
+export interface UpdateEntryData extends Partial<CreateEntryData> {}
 
-export interface WorldListResponse {
-  data: World[];
+export interface EntryListResponse {
+  data: Entry[];
   count: number;
   hasMore: boolean;
 }
 
-export class WorldsService {
+export class EntriesService {
   /**
-   * List worlds with filters and pagination
+   * List entries with filters and pagination
    */
-  async listWorlds(
-    filters: WorldFilters = {},
+  async listEntries(
+    filters: EntryFilters = {},
     page: number = 1,
     pageSize: number = 20
-  ): Promise<WorldListResponse> {
+  ): Promise<EntryListResponse> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     let query = supabase
-      .from('worlds')
-      .select('*', { count: 'exact' })
+      .from('entries')
+      .select(`
+        *,
+        world:worlds(id, name),
+        rulesets:entry_rulesets(
+          ruleset:rulesets(id, name),
+          sort_order
+        ),
+        npcs:entry_npcs(
+          npc:npcs(id, name)
+        ),
+        npc_packs:entry_npc_packs(
+          pack:npc_packs(id, name)
+        )
+      `, { count: 'exact' })
       .order('updated_at', { ascending: false });
 
     // Apply filters
     if (filters.status !== undefined) {
       query = query.eq('status', filters.status);
+    }
+
+    if (filters.world_id) {
+      query = query.eq('world_id', filters.world_id);
     }
 
     if (filters.search) {
@@ -70,7 +108,7 @@ export class WorldsService {
     const { data, error, count } = await query;
 
     if (error) {
-      throw new Error(`Failed to fetch worlds: ${error.message}`);
+      throw new Error(`Failed to fetch entries: ${error.message}`);
     }
 
     return {
@@ -81,142 +119,133 @@ export class WorldsService {
   }
 
   /**
-   * Get a single world by ID
+   * Get a single entry by ID
    */
-  async getWorld(id: string): Promise<World> {
+  async getEntry(id: string): Promise<Entry> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { data, error } = await supabase
-      .from('worlds')
-      .select('*')
+      .from('entries')
+      .select(`
+        *,
+        world:worlds(id, name),
+        rulesets:entry_rulesets(
+          ruleset:rulesets(id, name),
+          sort_order
+        ),
+        npcs:entry_npcs(
+          npc:npcs(id, name)
+        ),
+        npc_packs:entry_npc_packs(
+          pack:npc_packs(id, name)
+        )
+      `)
       .eq('id', id)
       .single();
 
     if (error) {
-      throw new Error(`Failed to fetch world: ${error.message}`);
+      throw new Error(`Failed to fetch entry: ${error.message}`);
     }
 
     return data;
   }
 
   /**
-   * Create a new world
+   * Create a new entry
    */
-  async createWorld(data: CreateWorldData): Promise<World> {
+  async createEntry(data: CreateEntryData): Promise<Entry> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { data: result, error } = await supabase
-      .from('worlds')
+      .from('entries')
       .insert({
         ...data,
-        status: data.status ?? 'active'
+        status: data.status ?? 'draft'
       })
       .select()
       .single();
 
     if (error) {
-      throw new Error(`Failed to create world: ${error.message}`);
+      throw new Error(`Failed to create entry: ${error.message}`);
     }
 
     return result;
   }
 
   /**
-   * Update an existing world
+   * Update an existing entry
    */
-  async updateWorld(id: string, data: UpdateWorldData): Promise<World> {
+  async updateEntry(id: string, data: UpdateEntryData): Promise<Entry> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { data: result, error } = await supabase
-      .from('worlds')
+      .from('entries')
       .update(data)
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      throw new Error(`Failed to update world: ${error.message}`);
+      throw new Error(`Failed to update entry: ${error.message}`);
     }
 
     return result;
   }
 
   /**
-   * Delete a world
+   * Delete an entry
    */
-  async deleteWorld(id: string): Promise<void> {
+  async deleteEntry(id: string): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { error } = await supabase
-      .from('worlds')
+      .from('entries')
       .delete()
       .eq('id', id);
 
     if (error) {
-      throw new Error(`Failed to delete world: ${error.message}`);
+      throw new Error(`Failed to delete entry: ${error.message}`);
     }
   }
 
   /**
-   * Get all active worlds (for dropdowns)
+   * Toggle entry status between active and archived
    */
-  async getActiveWorlds(): Promise<World[]> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    const { data, error } = await supabase
-      .from('worlds')
-      .select('*')
-      .eq('status', 'active')
-      .order('name', { ascending: true });
-
-    if (error) {
-      throw new Error(`Failed to fetch active worlds: ${error.message}`);
-    }
-
-    return data || [];
-  }
-
-  /**
-   * Toggle world status between active and archived
-   */
-  async toggleStatus(id: string): Promise<World> {
+  async toggleStatus(id: string): Promise<Entry> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     // Get current status
-    const current = await this.getWorld(id);
+    const current = await this.getEntry(id);
     const newStatus = current.status === 'active' ? 'archived' : 'active';
     
     const { data: result, error } = await supabase
-      .from('worlds')
+      .from('entries')
       .update({ status: newStatus })
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      throw new Error(`Failed to toggle world status: ${error.message}`);
+      throw new Error(`Failed to toggle entry status: ${error.message}`);
     }
 
     return result;
   }
 }
 
-export const worldsService = new WorldsService();
+export const entriesService = new EntriesService();

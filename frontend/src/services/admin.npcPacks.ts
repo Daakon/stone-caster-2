@@ -1,11 +1,11 @@
 /**
- * Worlds Admin Service
- * CRUD operations for worlds management
+ * NPC Packs Admin Service
+ * CRUD operations for NPC packs management
  */
 
 import { supabase } from '@/lib/supabase';
 
-export interface World {
+export interface NPCPack {
   id: string;
   name: string;
   slug: string;
@@ -13,44 +13,54 @@ export interface World {
   description?: string;
   created_at: string;
   updated_at: string;
+  // Related data
+  members?: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
-export interface WorldFilters {
+export interface NPCPackFilters {
   status?: 'draft' | 'active' | 'archived';
   search?: string;
 }
 
-export interface CreateWorldData {
+export interface CreateNPCPackData {
   name: string;
   description?: string;
   status?: 'draft' | 'active' | 'archived';
 }
 
-export interface UpdateWorldData extends Partial<CreateWorldData> {}
+export interface UpdateNPCPackData extends Partial<CreateNPCPackData> {}
 
-export interface WorldListResponse {
-  data: World[];
+export interface NPCPackListResponse {
+  data: NPCPack[];
   count: number;
   hasMore: boolean;
 }
 
-export class WorldsService {
+export class NPCPacksService {
   /**
-   * List worlds with filters and pagination
+   * List NPC packs with filters and pagination
    */
-  async listWorlds(
-    filters: WorldFilters = {},
+  async listNPCPacks(
+    filters: NPCPackFilters = {},
     page: number = 1,
     pageSize: number = 20
-  ): Promise<WorldListResponse> {
+  ): Promise<NPCPackListResponse> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     let query = supabase
-      .from('worlds')
-      .select('*', { count: 'exact' })
+      .from('npc_packs')
+      .select(`
+        *,
+        members:npc_pack_members(
+          npc:npcs(id, name)
+        )
+      `, { count: 'exact' })
       .order('updated_at', { ascending: false });
 
     // Apply filters
@@ -70,7 +80,7 @@ export class WorldsService {
     const { data, error, count } = await query;
 
     if (error) {
-      throw new Error(`Failed to fetch worlds: ${error.message}`);
+      throw new Error(`Failed to fetch NPC packs: ${error.message}`);
     }
 
     return {
@@ -81,38 +91,43 @@ export class WorldsService {
   }
 
   /**
-   * Get a single world by ID
+   * Get a single NPC pack by ID
    */
-  async getWorld(id: string): Promise<World> {
+  async getNPCPack(id: string): Promise<NPCPack> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { data, error } = await supabase
-      .from('worlds')
-      .select('*')
+      .from('npc_packs')
+      .select(`
+        *,
+        members:npc_pack_members(
+          npc:npcs(id, name)
+        )
+      `)
       .eq('id', id)
       .single();
 
     if (error) {
-      throw new Error(`Failed to fetch world: ${error.message}`);
+      throw new Error(`Failed to fetch NPC pack: ${error.message}`);
     }
 
     return data;
   }
 
   /**
-   * Create a new world
+   * Create a new NPC pack
    */
-  async createWorld(data: CreateWorldData): Promise<World> {
+  async createNPCPack(data: CreateNPCPackData): Promise<NPCPack> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { data: result, error } = await supabase
-      .from('worlds')
+      .from('npc_packs')
       .insert({
         ...data,
         status: data.status ?? 'active'
@@ -121,102 +136,145 @@ export class WorldsService {
       .single();
 
     if (error) {
-      throw new Error(`Failed to create world: ${error.message}`);
+      throw new Error(`Failed to create NPC pack: ${error.message}`);
     }
 
     return result;
   }
 
   /**
-   * Update an existing world
+   * Update an existing NPC pack
    */
-  async updateWorld(id: string, data: UpdateWorldData): Promise<World> {
+  async updateNPCPack(id: string, data: UpdateNPCPackData): Promise<NPCPack> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { data: result, error } = await supabase
-      .from('worlds')
+      .from('npc_packs')
       .update(data)
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      throw new Error(`Failed to update world: ${error.message}`);
+      throw new Error(`Failed to update NPC pack: ${error.message}`);
     }
 
     return result;
   }
 
   /**
-   * Delete a world
+   * Delete an NPC pack
    */
-  async deleteWorld(id: string): Promise<void> {
+  async deleteNPCPack(id: string): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { error } = await supabase
-      .from('worlds')
+      .from('npc_packs')
       .delete()
       .eq('id', id);
 
     if (error) {
-      throw new Error(`Failed to delete world: ${error.message}`);
+      throw new Error(`Failed to delete NPC pack: ${error.message}`);
     }
   }
 
   /**
-   * Get all active worlds (for dropdowns)
+   * Get all active NPC packs (for dropdowns)
    */
-  async getActiveWorlds(): Promise<World[]> {
+  async getActiveNPCPacks(): Promise<NPCPack[]> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { data, error } = await supabase
-      .from('worlds')
+      .from('npc_packs')
       .select('*')
       .eq('status', 'active')
       .order('name', { ascending: true });
 
     if (error) {
-      throw new Error(`Failed to fetch active worlds: ${error.message}`);
+      throw new Error(`Failed to fetch active NPC packs: ${error.message}`);
     }
 
     return data || [];
   }
 
   /**
-   * Toggle world status between active and archived
+   * Add NPCs to a pack
    */
-  async toggleStatus(id: string): Promise<World> {
+  async addNPCsToPack(packId: string, npcIds: string[]): Promise<void> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No authentication token available');
+    }
+
+    const members = npcIds.map(npcId => ({
+      pack_id: packId,
+      npc_id: npcId
+    }));
+
+    const { error } = await supabase
+      .from('npc_pack_members')
+      .insert(members);
+
+    if (error) {
+      throw new Error(`Failed to add NPCs to pack: ${error.message}`);
+    }
+  }
+
+  /**
+   * Remove NPCs from a pack
+   */
+  async removeNPCsFromPack(packId: string, npcIds: string[]): Promise<void> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No authentication token available');
+    }
+
+    const { error } = await supabase
+      .from('npc_pack_members')
+      .delete()
+      .eq('pack_id', packId)
+      .in('npc_id', npcIds);
+
+    if (error) {
+      throw new Error(`Failed to remove NPCs from pack: ${error.message}`);
+    }
+  }
+
+  /**
+   * Toggle NPC pack status between active and archived
+   */
+  async toggleStatus(id: string): Promise<NPCPack> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     // Get current status
-    const current = await this.getWorld(id);
+    const current = await this.getNPCPack(id);
     const newStatus = current.status === 'active' ? 'archived' : 'active';
     
     const { data: result, error } = await supabase
-      .from('worlds')
+      .from('npc_packs')
       .update({ status: newStatus })
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      throw new Error(`Failed to toggle world status: ${error.message}`);
+      throw new Error(`Failed to toggle NPC pack status: ${error.message}`);
     }
 
     return result;
   }
 }
 
-export const worldsService = new WorldsService();
+export const npcPacksService = new NPCPacksService();
