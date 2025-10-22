@@ -21,8 +21,8 @@ const worldSchema = z.object({
   slug: z.string().min(1, 'Slug is required').max(50, 'Slug must be less than 50 characters')
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-  status: z.enum(['draft', 'active', 'archived']),
-  locale: z.string().min(1, 'Locale is required')
+  prompt: z.string().max(2000, 'Prompt must be less than 2000 characters').optional(),
+  status: z.enum(['draft', 'active', 'archived'])
 });
 
 type WorldFormData = z.infer<typeof worldSchema>;
@@ -49,8 +49,8 @@ export function WorldForm({ world, onSubmit, onCancel, loading = false }: WorldF
       name: world?.name || '',
       slug: world?.slug || '',
       description: world?.description || '',
-      status: world?.status || 'draft',
-      locale: world?.locale || 'en'
+      prompt: world?.prompt || '',
+      status: world?.status || 'draft'
     }
   });
 
@@ -137,27 +137,20 @@ export function WorldForm({ world, onSubmit, onCancel, loading = false }: WorldF
             </div>
 
             <div>
-              <Label htmlFor="locale">Locale</Label>
-              <Select
-                value={watch('locale')}
-                onValueChange={(value) => setValue('locale', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
-                  <SelectItem value="de">German</SelectItem>
-                  <SelectItem value="it">Italian</SelectItem>
-                  <SelectItem value="pt">Portuguese</SelectItem>
-                  <SelectItem value="ru">Russian</SelectItem>
-                  <SelectItem value="ja">Japanese</SelectItem>
-                  <SelectItem value="ko">Korean</SelectItem>
-                  <SelectItem value="zh">Chinese</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="prompt">Prompt</Label>
+              <Textarea
+                id="prompt"
+                {...register('prompt')}
+                rows={4}
+                placeholder="Enter the world's prompt content for AI generation..."
+                className={errors.prompt ? 'border-red-500' : ''}
+              />
+              {errors.prompt && (
+                <p className="text-sm text-red-600 mt-1">{errors.prompt.message}</p>
+              )}
+              <p className="text-sm text-gray-600 mt-1">
+                This prompt will be used by the AI to understand the world's context and setting.
+              </p>
             </div>
           </div>
 

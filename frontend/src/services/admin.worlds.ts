@@ -11,6 +11,7 @@ export interface World {
   slug: string;
   status: 'draft' | 'active' | 'archived';
   description?: string;
+  prompt?: string;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +24,7 @@ export interface WorldFilters {
 export interface CreateWorldData {
   name: string;
   description?: string;
+  prompt?: string;
   status?: 'draft' | 'active' | 'archived';
 }
 

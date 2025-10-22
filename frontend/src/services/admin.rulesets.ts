@@ -10,6 +10,7 @@ export interface Ruleset {
   name: string;
   slug: string;
   description?: string;
+  prompt?: string;
   status: 'draft' | 'active' | 'archived';
   version_major: number;
   version_minor: number;
@@ -31,6 +32,7 @@ export interface CreateRulesetData {
   name: string;
   slug?: string; // Optional, will be auto-generated if not provided
   description?: string;
+  prompt?: string;
   status?: 'draft' | 'active' | 'archived';
 }
 

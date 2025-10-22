@@ -21,6 +21,7 @@ const rulesetSchema = z.object({
   slug: z.string().min(1, 'Slug is required').max(50, 'Slug must be less than 50 characters')
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
+  prompt: z.string().max(2000, 'Prompt must be less than 2000 characters').optional(),
   status: z.enum(['draft', 'active', 'archived'])
 });
 
@@ -48,6 +49,7 @@ export function RulesetForm({ ruleset, onSubmit, onCancel, loading = false }: Ru
       name: ruleset?.name || '',
       slug: ruleset?.slug || '',
       description: ruleset?.description || '',
+      prompt: ruleset?.prompt || '',
       status: ruleset?.status ?? 'active'
     }
   });
@@ -130,6 +132,23 @@ export function RulesetForm({ ruleset, onSubmit, onCancel, loading = false }: Ru
             {errors.description && (
               <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
             )}
+          </div>
+
+          <div>
+            <Label htmlFor="prompt">Prompt</Label>
+            <Textarea
+              id="prompt"
+              {...register('prompt')}
+              placeholder="Enter the ruleset's prompt content for AI generation..."
+              rows={4}
+              className={errors.prompt ? 'border-red-500' : ''}
+            />
+            {errors.prompt && (
+              <p className="text-sm text-red-600 mt-1">{errors.prompt.message}</p>
+            )}
+            <p className="text-sm text-gray-600 mt-1">
+              This prompt will be used by the AI to understand the ruleset's mechanics and constraints.
+            </p>
           </div>
 
           <div>
