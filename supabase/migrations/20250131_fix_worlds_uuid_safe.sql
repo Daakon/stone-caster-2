@@ -43,6 +43,7 @@ UPDATE public.worlds SET name = id WHERE name IS NULL;
 ALTER TABLE public.worlds ALTER COLUMN name SET NOT NULL;
 
 -- Create a view that provides UUID-based access for admin
+-- Handle the composite primary key by getting the latest version
 CREATE OR REPLACE VIEW public.worlds_admin AS
 SELECT 
   wm.uuid_id as id,
@@ -55,7 +56,12 @@ SELECT
   w.created_at,
   w.updated_at
 FROM public.worlds w
-JOIN public.world_id_mapping wm ON w.id = wm.text_id;
+JOIN public.world_id_mapping wm ON w.id = wm.text_id
+WHERE w.version = (
+  SELECT MAX(version) 
+  FROM public.worlds w2 
+  WHERE w2.id = w.id
+);
 
 -- Enable RLS on the mapping table
 ALTER TABLE public.world_id_mapping ENABLE ROW LEVEL SECURITY;
