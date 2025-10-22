@@ -151,6 +151,19 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
     return descriptions[scope as keyof typeof descriptions] || '';
   };
 
+  const getScopeReferenceHelp = (scope: string) => {
+    const help = {
+      core: 'No reference required - applies globally',
+      ruleset: 'Pick a Ruleset this segment belongs to',
+      world: 'Pick a World this segment belongs to',
+      entry: 'Pick an Entry this segment belongs to',
+      entry_start: 'Pick the Entry this start text initializes',
+      npc: 'Pick an NPC this content describes'
+    };
+
+    return help[scope as keyof typeof help] || 'Select a reference target for this scope.';
+  };
+
   const isRefIdRequired = () => {
     return ['ruleset', 'world', 'entry', 'entry_start', 'npc'].includes(watchedScope);
   };
@@ -219,11 +232,15 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
               {/* Reference ID */}
               {isRefIdRequired() && (
                 <div className="space-y-2">
+                  <Label htmlFor="ref_id">Reference</Label>
                   <RefIdPicker
                     scope={watchedScope as 'world' | 'ruleset' | 'entry' | 'npc'}
                     value={selectedRefId}
                     onChange={handleRefIdChange}
                   />
+                  <p className="text-sm text-gray-600">
+                    {getScopeReferenceHelp(watchedScope)}
+                  </p>
                   {errors.ref_id && (
                     <p className="text-sm text-red-500">{errors.ref_id.message}</p>
                   )}

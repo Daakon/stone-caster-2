@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { validateSegmentData } from './validation';
+import { validateSegmentData, expectedRefTable } from './validation';
 
 export interface PromptSegment {
   id: string;
@@ -78,6 +78,31 @@ export interface UpdateSegmentData {
 }
 
 export class SegmentsService {
+  /**
+   * Validate that a reference ID exists in the correct table
+   * @param scope - The scope to validate
+   * @param refId - The reference ID to check
+   * @throws Error with code 'SEGMENT_REF_NOT_FOUND' if reference doesn't exist
+   */
+  private async validateReference(scope: string, refId?: string): Promise<void> {
+    if (!refId) return;
+    
+    const table = expectedRefTable(scope);
+    if (!table) return;
+    
+    const { data, error } = await supabase
+      .from(table)
+      .select('id')
+      .eq('id', refId)
+      .single();
+    
+    if (error || !data) {
+      const error: any = new Error(`Reference ID '${refId}' not found in ${table}`);
+      error.code = 'SEGMENT_REF_NOT_FOUND';
+      throw error;
+    }
+  }
+
   /**
    * List all segments with filters and pagination
    */
@@ -340,6 +365,9 @@ export class SegmentsService {
 
     // Validate segment data
     validateSegmentData(data);
+    
+    // Validate reference ID exists in correct table
+    await this.validateReference(data.scope, data.ref_id);
 
     const segmentData = {
       ...data,
@@ -377,6 +405,9 @@ export class SegmentsService {
         ref_id: data.ref_id || '',
         content: data.content || ''
       });
+      
+      // Validate reference ID exists in correct table
+      await this.validateReference(data.scope, data.ref_id);
     }
 
     const { data: result, error } = await supabase

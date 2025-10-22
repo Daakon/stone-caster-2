@@ -68,6 +68,41 @@ export function getScopeReferenceHelp(scope: string): string {
 }
 
 /**
+ * Assert that a scope has the correct reference ID
+ * @param scope - The scope to validate
+ * @param refId - The reference ID to validate
+ * @throws Error with code 'SEGMENT_REF_REQUIRED' if ref_id is missing
+ */
+export function assertScopeRef(scope: string, refId?: string): void {
+  // ref_id required for: ruleset, world, entry, entry_start, npc
+  const needsRef = scope !== 'core';
+  if (!needsRef) return;
+
+  if (!refId) {
+    const error: any = new Error(`Scope '${scope}' requires a reference id.`);
+    error.code = 'SEGMENT_REF_REQUIRED';
+    throw error;
+  }
+}
+
+/**
+ * Get the expected reference table for a scope
+ * @param scope - The scope to check
+ * @returns The table name that should contain the reference ID
+ */
+export function expectedRefTable(scope: string): 'worlds' | 'rulesets' | 'entries' | 'npcs' | null {
+  switch (scope) {
+    case 'world': return 'worlds';
+    case 'ruleset': return 'rulesets';
+    case 'entry':
+    case 'entry_start': return 'entries';
+    case 'npc': return 'npcs';
+    case 'core': return null;
+    default: return null;
+  }
+}
+
+/**
  * Validate segment creation data
  * @param data - The segment data to validate
  * @throws Error if validation fails
@@ -79,6 +114,9 @@ export function validateSegmentData(data: {
 }): void {
   // Validate scope
   assertAllowedScope(data.scope);
+  
+  // Validate ref_id requirement
+  assertScopeRef(data.scope, data.ref_id);
   
   // Validate content
   if (!data.content || data.content.trim().length === 0) {
