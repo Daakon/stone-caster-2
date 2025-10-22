@@ -139,3 +139,5 @@ ON CONFLICT (id) DO UPDATE SET
 COMMENT ON COLUMN games.state_snapshot IS 'Complete game state including meta (world_ref, adventure_ref, ruleset_ref, locale) and hot/warm/cold state';
 
 
+
+

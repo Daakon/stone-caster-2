@@ -58,3 +58,5 @@ characters,created_at,timestamptz,false,false,,,Creation timestamp
 characters,updated_at,timestamptz,false,false,,,Update timestamp
 
 
+
+

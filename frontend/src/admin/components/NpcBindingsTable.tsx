@@ -337,3 +337,5 @@ export default function NpcBindingsTable({ npcId, bindings, onBindingChange, can
     </Card>
   );
 }
+
+

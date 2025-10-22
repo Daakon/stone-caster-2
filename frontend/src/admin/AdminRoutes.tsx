@@ -12,6 +12,10 @@ import EntryPointsAdmin from '@/pages/admin/entry-points/index';
 import EntryPointEditPage from '@/pages/admin/entry-points/id';
 import PromptSegmentsAdmin from '@/pages/admin/prompt-segments/index';
 import NPCsAdmin from '@/pages/admin/npcs/index';
+import WorldsAdmin from '@/pages/admin/worlds/index';
+import WorldDetailPage from '@/pages/admin/worlds/[id]';
+import RulesetsAdmin from '@/pages/admin/rulesets/index';
+import RulesetDetailPage from '@/pages/admin/rulesets/[id]';
 import ReviewsAdmin from '@/pages/admin/reviews/index';
 import ReportsAdmin from '@/pages/admin/reports/index';
 import ReportDetailPage from '@/pages/admin/reports/id';
@@ -30,6 +34,42 @@ export function AdminRoutes() {
       <Route path="/entry-points/:id" element={<EntryPointEditPage />} />
       <Route path="/prompt-segments" element={<PromptSegmentsAdmin />} />
       <Route path="/npcs" element={<NPCsAdmin />} />
+      
+      {/* Worlds routes (Creators: read; Mods/Admin: CRUD) */}
+      <Route 
+        path="/worlds" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <WorldsAdmin />
+          </Guarded>
+        } 
+      />
+      <Route 
+        path="/worlds/:id" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <WorldDetailPage />
+          </Guarded>
+        } 
+      />
+      
+      {/* Rulesets routes (Creators: read; Mods/Admin: CRUD) */}
+      <Route 
+        path="/rulesets" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <RulesetsAdmin />
+          </Guarded>
+        } 
+      />
+      <Route 
+        path="/rulesets/:id" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <RulesetDetailPage />
+          </Guarded>
+        } 
+      />
       
       {/* Moderator routes */}
       <Route 

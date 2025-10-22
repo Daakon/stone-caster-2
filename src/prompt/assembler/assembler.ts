@@ -124,11 +124,20 @@ async function assembleStaticLayers(
     parts.push(block('core', coreSegments.map(s => s.content).join('\n\n')));
   }
 
-  // Ruleset segments
-  const rulesetSegments = await dbAdapter.getSegments('ruleset', args.rulesetId);
-  if (rulesetSegments.length > 0) {
-    segmentIds.ruleset.push(...rulesetSegments.map(s => s.id));
-    parts.push(block('ruleset', rulesetSegments.map(s => s.content).join('\n\n')));
+  // Ruleset segments (multiple rulesets in order)
+  const rulesets = await dbAdapter.getRulesetsForEntry(args.entryPointId);
+  const allRulesetSegments: any[] = [];
+  
+  for (const ruleset of rulesets) {
+    const rulesetSegments = await dbAdapter.getSegments('ruleset', ruleset.id);
+    if (rulesetSegments.length > 0) {
+      segmentIds.ruleset.push(...rulesetSegments.map(s => s.id));
+      allRulesetSegments.push(...rulesetSegments);
+    }
+  }
+  
+  if (allRulesetSegments.length > 0) {
+    parts.push(block('ruleset', allRulesetSegments.map(s => s.content).join('\n\n')));
   }
 
   // World segments
@@ -163,10 +172,6 @@ export function validateAssembleArgs(args: AssembleArgs): {
 
   if (!args.worldId) {
     errors.push('worldId is required');
-  }
-
-  if (!args.rulesetId) {
-    errors.push('rulesetId is required');
   }
 
   if (args.tokenBudget && args.tokenBudget < 100) {

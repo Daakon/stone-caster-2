@@ -17,3 +17,5 @@ END $$;
 COMMENT ON COLUMN sessions.ruleset_ref IS 'Reference to active ruleset (e.g., ruleset.core.default@1.0.0)';
 
 
+
+

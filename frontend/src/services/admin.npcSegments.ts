@@ -394,3 +394,5 @@ export class NPCSegmentsService {
 }
 
 export const npcSegmentsService = new NPCSegmentsService();
+
+

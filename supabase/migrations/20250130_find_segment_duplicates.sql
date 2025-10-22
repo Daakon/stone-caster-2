@@ -1,8 +1,13 @@
 -- Find Segment Duplicates Function
 -- Creates a function to find duplicate prompt segments based on content hash
 
--- Drop the existing function first
-DROP FUNCTION IF EXISTS find_segment_duplicates(text, text, text, text);
+-- Drop the existing function first (if it exists)
+DO $$ 
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'find_segment_duplicates') THEN
+        DROP FUNCTION find_segment_duplicates(text, text, text, text);
+    END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION find_segment_duplicates(
     p_scope text,

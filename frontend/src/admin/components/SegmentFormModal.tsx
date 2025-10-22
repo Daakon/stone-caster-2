@@ -19,7 +19,6 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { segmentsService, type PromptSegment, type CreateSegmentData, type UpdateSegmentData } from '@/services/admin.segments';
-import { refsService, type RefItem } from '@/services/admin.refs';
 import { SegmentMetadataEditor } from './SegmentMetadataEditor';
 import { RefIdPicker } from './RefIdPicker';
 import { useAppRoles } from '@/admin/routeGuard';
@@ -47,7 +46,6 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
   const [loading, setLoading] = useState(false);
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
-  const [refKind, setRefKind] = useState<'world' | 'ruleset' | 'entry' | 'npc' | 'none'>('none');
   const [selectedRefId, setSelectedRefId] = useState<string>('');
 
   const {
@@ -72,25 +70,11 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
   const watchedScope = watch('scope');
   const watchedContent = watch('content');
 
-  // Update ref kind when scope changes
+  // Update ref_id when scope changes
   useEffect(() => {
-    const scopeToRefKind = {
-      core: 'none',
-      ruleset: 'ruleset',
-      world: 'world',
-      entry: 'entry',
-      entry_start: 'entry',
-      npc: 'npc',
-      game_state: 'none',
-      player: 'none',
-      rng: 'none',
-      input: 'none'
-    };
-
-    const newRefKind = scopeToRefKind[watchedScope] || 'none';
-    setRefKind(newRefKind);
+    const scopesRequiringRef = ['ruleset', 'world', 'entry', 'entry_start', 'npc'];
     
-    if (newRefKind === 'none') {
+    if (!scopesRequiringRef.includes(watchedScope)) {
       setValue('ref_id', '');
       setSelectedRefId('');
     }
@@ -151,7 +135,6 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
     reset();
     setDuplicates([]);
     setShowDuplicateWarning(false);
-    setRefKind('none');
     setSelectedRefId('');
     onClose();
   };
@@ -243,14 +226,12 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
               </div>
 
               {/* Reference ID */}
-              {refKind !== 'none' && (
+              {isRefIdRequired() && (
                 <div className="space-y-2">
-                  <Label htmlFor="ref_id">Reference *</Label>
                   <RefIdPicker
-                    refKind={refKind}
+                    scope={watchedScope as 'world' | 'ruleset' | 'entry' | 'npc'}
                     value={selectedRefId}
                     onChange={handleRefIdChange}
-                    required={isRefIdRequired()}
                   />
                   {errors.ref_id && (
                     <p className="text-sm text-red-500">{errors.ref_id.message}</p>

@@ -125,6 +125,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <a href="/admin/npcs">NPCs</a>
             </Button>
             <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/worlds">Worlds</a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <a href="/admin/rulesets">Rulesets</a>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
               <a href="/admin/reviews">Reviews</a>
             </Button>
             <Button variant="ghost" size="sm" asChild>

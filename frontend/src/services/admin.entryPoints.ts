@@ -7,10 +7,10 @@ import { supabase } from '@/lib/supabase';
 
 export interface EntryPoint {
   id: string;
+  name: string;
   slug: string;
   type: 'adventure' | 'scenario' | 'sandbox' | 'quest';
   world_id: string;
-  ruleset_id: string;
   title: string;
   subtitle?: string;
   description: string;
@@ -22,6 +22,12 @@ export interface EntryPoint {
   owner_user_id: string;
   created_at: string;
   updated_at: string;
+  // Multi-ruleset support
+  rulesets?: Array<{
+    id: string;
+    name: string;
+    sort_order: number;
+  }>;
 }
 
 export interface EntryPointFilters {
@@ -34,10 +40,12 @@ export interface EntryPointFilters {
 }
 
 export interface CreateEntryPointData {
-  slug: string;
+  name: string;
+  slug?: string; // Optional, will be auto-generated if not provided
   type: 'adventure' | 'scenario' | 'sandbox' | 'quest';
   world_id: string;
-  ruleset_id: string;
+  rulesetIds: string[];
+  rulesetOrder?: string[]; // Optional ordering, falls back to alphabetical
   title: string;
   subtitle?: string;
   description: string;
@@ -58,6 +66,51 @@ export interface EntryPointListResponse {
 }
 
 export class EntryPointsService {
+  /**
+   * Generate a unique slug from a name
+   */
+  private async generateUniqueSlug(baseSlug: string, excludeId?: string): Promise<string> {
+    let slug = baseSlug;
+    let counter = 1;
+
+    while (true) {
+      let query = supabase
+        .from('entry_points')
+        .select('id')
+        .eq('slug', slug);
+
+      if (excludeId) {
+        query = query.neq('id', excludeId);
+      }
+
+      const { data, error } = await query.single();
+
+      if (error && error.code === 'PGRST116') {
+        // No existing slug found, we can use this one
+        break;
+      }
+
+      if (error) {
+        throw new Error(`Failed to check slug uniqueness: ${error.message}`);
+      }
+
+      // Slug exists, try with counter
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+
+    return slug;
+  }
+
+  /**
+   * Create slug from name
+   */
+  private createSlugFromName(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
   /**
    * List entry points with filters and pagination
    */
@@ -98,7 +151,7 @@ export class EntryPointsService {
     }
 
     if (filters.search) {
-      query = query.textSearch('search_text', filters.search);
+      query = query.or(`name.ilike.%${filters.search}%,slug.ilike.%${filters.search}%,title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
     }
 
     // Apply pagination
@@ -130,7 +183,16 @@ export class EntryPointsService {
 
     const { data, error } = await supabase
       .from('entry_points')
-      .select('*')
+      .select(`
+        *,
+        rulesets:entry_point_rulesets (
+          sort_order,
+          ruleset:ruleset_id (
+            id,
+            name
+          )
+        )
+      `)
       .eq('id', id)
       .single();
 
@@ -138,7 +200,17 @@ export class EntryPointsService {
       throw new Error(`Failed to fetch entry point: ${error.message}`);
     }
 
-    return data;
+    // Transform the rulesets data
+    const rulesets = (data.rulesets || []).map((item: any) => ({
+      id: item.ruleset.id,
+      name: item.ruleset.name,
+      sort_order: item.sort_order
+    }));
+
+    return {
+      ...data,
+      rulesets
+    };
   }
 
   /**
@@ -150,10 +222,19 @@ export class EntryPointsService {
       throw new Error('No authentication token available');
     }
 
+    // Extract ruleset data
+    const { rulesetIds, rulesetOrder, ...entryData } = data;
+
+    // Generate slug if not provided
+    const slug = data.slug || this.createSlugFromName(data.name);
+    const uniqueSlug = await this.generateUniqueSlug(slug);
+
+    // Create the entry point
     const { data: result, error } = await supabase
       .from('entry_points')
       .insert({
-        ...data,
+        ...entryData,
+        slug: uniqueSlug,
         owner_user_id: session.user.id,
         lifecycle: 'draft'
       })
@@ -162,6 +243,25 @@ export class EntryPointsService {
 
     if (error) {
       throw new Error(`Failed to create entry point: ${error.message}`);
+    }
+
+    // Create ruleset associations
+    if (rulesetIds && rulesetIds.length > 0) {
+      const rulesetAssociations = rulesetIds.map((rulesetId, index) => ({
+        entry_point_id: result.id,
+        ruleset_id: rulesetId,
+        sort_order: rulesetOrder ? rulesetOrder.indexOf(rulesetId) : index
+      }));
+
+      const { error: rulesetError } = await supabase
+        .from('entry_point_rulesets')
+        .insert(rulesetAssociations);
+
+      if (rulesetError) {
+        // Clean up the entry point if ruleset association fails
+        await supabase.from('entry_points').delete().eq('id', result.id);
+        throw new Error(`Failed to create ruleset associations: ${rulesetError.message}`);
+      }
     }
 
     return result;
@@ -176,15 +276,58 @@ export class EntryPointsService {
       throw new Error('No authentication token available');
     }
 
+    // Extract ruleset data if present
+    const { rulesetIds, rulesetOrder, ...entryData } = data;
+
+    // Handle slug updates
+    let updateData = { ...entryData };
+    if (data.slug || data.name) {
+      const slug = data.slug || (data.name ? this.createSlugFromName(data.name) : undefined);
+      if (slug) {
+        updateData.slug = await this.generateUniqueSlug(slug, id);
+      }
+    }
+
+    // Update the entry point
     const { data: result, error } = await supabase
       .from('entry_points')
-      .update(data)
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
       throw new Error(`Failed to update entry point: ${error.message}`);
+    }
+
+    // Update ruleset associations if provided
+    if (rulesetIds !== undefined) {
+      // Delete existing associations
+      const { error: deleteError } = await supabase
+        .from('entry_point_rulesets')
+        .delete()
+        .eq('entry_point_id', id);
+
+      if (deleteError) {
+        throw new Error(`Failed to remove existing ruleset associations: ${deleteError.message}`);
+      }
+
+      // Create new associations
+      if (rulesetIds.length > 0) {
+        const rulesetAssociations = rulesetIds.map((rulesetId, index) => ({
+          entry_point_id: id,
+          ruleset_id: rulesetId,
+          sort_order: rulesetOrder ? rulesetOrder.indexOf(rulesetId) : index
+        }));
+
+        const { error: rulesetError } = await supabase
+          .from('entry_point_rulesets')
+          .insert(rulesetAssociations);
+
+        if (rulesetError) {
+          throw new Error(`Failed to create ruleset associations: ${rulesetError.message}`);
+        }
+      }
     }
 
     return result;
@@ -251,7 +394,7 @@ export class EntryPointsService {
   /**
    * Get worlds for typeahead
    */
-  async getWorlds(): Promise<Array<{ id: string; name: string }>> {
+  async getWorlds(): Promise<Array<{ id: string; name: string; slug: string }>> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
@@ -259,8 +402,8 @@ export class EntryPointsService {
 
     const { data, error } = await supabase
       .from('worlds')
-      .select('id, doc')
-      .order('created_at', { ascending: false });
+      .select('id, name, slug')
+      .order('name', { ascending: true });
 
     if (error) {
       throw new Error(`Failed to fetch worlds: ${error.message}`);
@@ -268,23 +411,25 @@ export class EntryPointsService {
 
     return (data || []).map(world => ({
       id: world.id,
-      name: world.doc?.name || world.id
+      name: world.name,
+      slug: world.slug
     }));
   }
 
   /**
    * Get rulesets for typeahead
    */
-  async getRulesets(): Promise<Array<{ id: string; name: string }>> {
+  async getRulesets(): Promise<Array<{ id: string; name: string; slug: string }>> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
     const { data, error } = await supabase
-      .from('core_rulesets')
-      .select('id, doc')
-      .order('created_at', { ascending: false });
+      .from('rulesets')
+      .select('id, name, slug')
+      .eq('active', true)
+      .order('name', { ascending: true });
 
     if (error) {
       throw new Error(`Failed to fetch rulesets: ${error.message}`);
@@ -292,7 +437,8 @@ export class EntryPointsService {
 
     return (data || []).map(ruleset => ({
       id: ruleset.id,
-      name: ruleset.doc?.name || ruleset.id
+      name: ruleset.name,
+      slug: ruleset.slug
     }));
   }
 }

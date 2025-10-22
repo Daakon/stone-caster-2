@@ -26,7 +26,7 @@ export type SegmentRow = {
 export type AssembleArgs = {
   entryPointId: string;
   worldId: string;
-  rulesetId: string;
+  // rulesetId removed - now fetched from entry_point_rulesets
   // turn context
   gameId?: string;
   isFirstTurn?: boolean;               // drives entry_start
@@ -65,6 +65,7 @@ export type AssembleResult = {
 // Database adapter interface for testability
 export interface DbAdapter {
   getSegments(scope: Scope, refId?: string): Promise<SegmentRow[]>;
+  getRulesetsForEntry(entryId: string): Promise<Array<{id: string, name: string, sort_order: number}>>;
 }
 
 // NPC tier drop information

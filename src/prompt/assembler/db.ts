@@ -42,6 +42,36 @@ export class SupabaseDbAdapter implements DbAdapter {
       metadata: row.metadata || {}
     }));
   }
+
+  /**
+   * Get all rulesets for an entry point in their configured order
+   * @param entryId Entry point ID
+   * @returns Array of rulesets with their sort order
+   */
+  async getRulesetsForEntry(entryId: string): Promise<Array<{id: string, name: string, sort_order: number}>> {
+    const { data, error } = await this.supabase
+      .from('entry_point_rulesets')
+      .select(`
+        sort_order,
+        ruleset:ruleset_id (
+          id,
+          name
+        )
+      `)
+      .eq('entry_point_id', entryId)
+      .order('sort_order', { ascending: true })
+      .order('ruleset_id', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to fetch rulesets for entry ${entryId}: ${error.message}`);
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.ruleset.id,
+      name: row.ruleset.name,
+      sort_order: row.sort_order
+    }));
+  }
 }
 
 /**
@@ -74,6 +104,12 @@ export class MockDbAdapter implements DbAdapter {
         
         return a.id - b.id;
       });
+  }
+
+  async getRulesetsForEntry(entryId: string): Promise<Array<{id: string, name: string, sort_order: number}>> {
+    // Mock implementation - return empty array for testing
+    // In real tests, this would be populated with test data
+    return [];
   }
 
   /**

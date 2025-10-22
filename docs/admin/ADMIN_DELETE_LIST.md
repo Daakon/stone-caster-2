@@ -60,3 +60,5 @@
 - `frontend/src/services/awfAdminService.ts` — **KEEP** — AWF admin service
 - `backend/src/routes/admin.ts` — **KEEP** — Core admin routes (remove legacy endpoints)
 - AWF tables: `core_contracts`, `core_rulesets`, `worlds`, `npcs`, `injection_maps` — **KEEP**
+
+
