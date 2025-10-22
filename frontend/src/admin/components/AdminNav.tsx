@@ -34,6 +34,12 @@ const NAV_ITEMS = [
     icon: '👥'
   },
   {
+    label: 'Entries',
+    href: '/admin/entries',
+    roles: ['creator', 'moderator', 'admin'] as const,
+    icon: '📚'
+  },
+  {
     label: 'Worlds',
     href: '/admin/worlds',
     roles: ['creator', 'moderator', 'admin'] as const,
