@@ -268,10 +268,6 @@ export default function PromptSegmentsAdmin() {
                   <SelectItem value="entry">Entry</SelectItem>
                   <SelectItem value="entry_start">Entry Start</SelectItem>
                   <SelectItem value="npc">NPC</SelectItem>
-                  <SelectItem value="game_state">Game State</SelectItem>
-                  <SelectItem value="player">Player</SelectItem>
-                  <SelectItem value="rng">RNG</SelectItem>
-                  <SelectItem value="input">Input</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -7,14 +7,18 @@ import { estimateTokens, applyTruncationPolicy, createBudgetConfig } from './bud
 import { buildNpcBlock } from './npc';
 import { buildStateBlocks } from './state';
 
-// Static order for prompt assembly
-const ORDER: Scope[] = [
+// Static order for prompt assembly (DB-driven scopes only)
+const STATIC_ORDER: Scope[] = [
   'core',
   'ruleset', 
   'world',
   'entry',
   'entry_start',
-  'npc',
+  'npc'
+];
+
+// Dynamic scopes (generated at runtime, not stored in segments)
+const DYNAMIC_ORDER: Scope[] = [
   'game_state',
   'player',
   'rng',
@@ -82,7 +86,7 @@ export async function assemblePrompt(
 
   // Create initial metadata
   const meta: AssembleResult['meta'] = {
-    order: ORDER,
+    order: [...STATIC_ORDER, ...DYNAMIC_ORDER],
     segmentIdsByScope: segmentIds,
     tokensEstimated: estimateTokens(prompt)
   };

@@ -15,8 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { segmentsService, type PromptSegment, type CreateSegmentData, type UpdateSegmentData } from '@/services/admin.segments';
 import { SegmentMetadataEditor } from './SegmentMetadataEditor';
@@ -24,7 +23,7 @@ import { RefIdPicker } from './RefIdPicker';
 import { useAppRoles } from '@/admin/routeGuard';
 
 const segmentSchema = z.object({
-  scope: z.enum(['core', 'ruleset', 'world', 'entry', 'entry_start', 'npc', 'game_state', 'player', 'rng', 'input']),
+  scope: z.enum(['core', 'ruleset', 'world', 'entry', 'entry_start', 'npc']),
   ref_id: z.string().optional(),
   content: z.string().min(1, 'Content is required'),
   version: z.string().min(1, 'Version is required'),
@@ -42,7 +41,7 @@ interface SegmentFormModalProps {
 }
 
 export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFormModalProps) {
-  const { isCreator, isModerator, isAdmin } = useAppRoles();
+  const { isCreator } = useAppRoles();
   const [loading, setLoading] = useState(false);
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
@@ -105,9 +104,9 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
     }
   };
 
-  const handleRefIdChange = (refId: string) => {
-    setSelectedRefId(refId);
-    setValue('ref_id', refId);
+  const handleRefIdChange = (refId: string | undefined) => {
+    setSelectedRefId(refId || '');
+    setValue('ref_id', refId || '');
   };
 
   const onSubmit = async (data: SegmentFormData) => {
@@ -145,12 +144,8 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
       ruleset: 'Ruleset-specific prompts',
       world: 'World-level prompts for all content in a world',
       entry: 'Entry point main prompts',
-      entry_start: 'Entry point start prompts',
-      npc: 'NPC-specific prompts',
-      game_state: 'Game state prompts',
-      player: 'Player-specific prompts',
-      rng: 'Random number generation prompts',
-      input: 'Input processing prompts'
+      entry_start: 'Entry point start prompts (first turn only)',
+      npc: 'NPC-specific prompts'
     };
 
     return descriptions[scope as keyof typeof descriptions] || '';
@@ -214,10 +209,6 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
                     <SelectItem value="entry">Entry</SelectItem>
                     <SelectItem value="entry_start">Entry Start</SelectItem>
                     <SelectItem value="npc">NPC</SelectItem>
-                    <SelectItem value="game_state">Game State</SelectItem>
-                    <SelectItem value="player">Player</SelectItem>
-                    <SelectItem value="rng">RNG</SelectItem>
-                    <SelectItem value="input">Input</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.scope && (

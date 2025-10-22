@@ -4,15 +4,16 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { validateSegmentData } from './validation';
 
 export interface PromptSegment {
   id: string;
-  scope: 'core' | 'ruleset' | 'world' | 'entry' | 'entry_start' | 'npc' | 'game_state' | 'player' | 'rng' | 'input';
+  scope: 'core' | 'ruleset' | 'world' | 'entry' | 'entry_start' | 'npc';
   ref_id: string;
   content: string;
   metadata: {
     kind?: string;
-    tier?: number;
+    tier?: string;
     locale?: string;
     notes?: string;
     [key: string]: any;
@@ -47,8 +48,8 @@ export interface NearDuplicate {
 }
 
 export interface CreateSegmentData {
-  scope: 'entry' | 'entry_start';
-  ref_id: string;
+  scope: 'core' | 'ruleset' | 'world' | 'entry' | 'entry_start' | 'npc';
+  ref_id?: string; // Optional for 'core' scope
   content: string;
   metadata?: {
     kind?: string;
@@ -62,6 +63,8 @@ export interface CreateSegmentData {
 }
 
 export interface UpdateSegmentData {
+  scope?: 'core' | 'ruleset' | 'world' | 'entry' | 'entry_start' | 'npc';
+  ref_id?: string;
   content?: string;
   metadata?: {
     kind?: string;
@@ -335,6 +338,9 @@ export class SegmentsService {
       throw new Error('No authentication token available');
     }
 
+    // Validate segment data
+    validateSegmentData(data);
+
     const segmentData = {
       ...data,
       version: data.version || '1.0.0',
@@ -362,6 +368,15 @@ export class SegmentsService {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
+    }
+
+    // Validate segment data if scope is being updated
+    if (data.scope) {
+      validateSegmentData({
+        scope: data.scope,
+        ref_id: data.ref_id || '',
+        content: data.content || ''
+      });
     }
 
     const { data: result, error } = await supabase
