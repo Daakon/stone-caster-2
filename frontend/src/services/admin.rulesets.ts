@@ -10,14 +10,14 @@ export interface Ruleset {
   name: string;
   slug: string;
   description?: string;
-  active: boolean;
+  status: 'draft' | 'active' | 'archived';
   owner_user_id: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface RulesetFilters {
-  active?: boolean;
+  status?: 'draft' | 'active' | 'archived';
   search?: string;
 }
 
@@ -25,7 +25,7 @@ export interface CreateRulesetData {
   name: string;
   slug?: string; // Optional, will be auto-generated if not provided
   description?: string;
-  active?: boolean;
+  status?: 'draft' | 'active' | 'archived';
 }
 
 export interface UpdateRulesetData extends Partial<CreateRulesetData> {}
@@ -102,8 +102,8 @@ export class RulesetsService {
       .order('updated_at', { ascending: false });
 
     // Apply filters
-    if (filters.active !== undefined) {
-      query = query.eq('active', filters.active);
+    if (filters.status !== undefined) {
+      query = query.eq('status', filters.status);
     }
 
     if (filters.search) {
@@ -168,7 +168,7 @@ export class RulesetsService {
       .insert({
         ...data,
         slug: uniqueSlug,
-        active: data.active ?? true,
+        status: data.status ?? 'active',
         owner_user_id: session.user.id
       })
       .select()
@@ -244,7 +244,7 @@ export class RulesetsService {
     const { data, error } = await supabase
       .from('rulesets')
       .select('*')
-      .eq('active', true)
+      .eq('status', 'active')
       .order('name', { ascending: true });
 
     if (error) {
@@ -255,9 +255,9 @@ export class RulesetsService {
   }
 
   /**
-   * Toggle ruleset active status
+   * Toggle ruleset status between active and archived
    */
-  async toggleActive(id: string): Promise<Ruleset> {
+  async toggleStatus(id: string): Promise<Ruleset> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
@@ -265,10 +265,11 @@ export class RulesetsService {
 
     // Get current status
     const current = await this.getRuleset(id);
+    const newStatus = current.status === 'active' ? 'archived' : 'active';
     
     const { data: result, error } = await supabase
       .from('rulesets')
-      .update({ active: !current.active })
+      .update({ status: newStatus })
       .eq('id', id)
       .select()
       .single();
@@ -282,5 +283,7 @@ export class RulesetsService {
 }
 
 export const rulesetsService = new RulesetsService();
+
+
 
 

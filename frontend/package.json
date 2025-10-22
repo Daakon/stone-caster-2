@@ -13,7 +13,12 @@
     "test:e2e": "playwright test --reporter=list",
     "test:e2e:ci": "playwright test --reporter=list",
     "test:a11y": "playwright test --grep='Accessibility Tests' --reporter=list",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "audit:knip": "knip --reporter compact",
+    "audit:tsprune": "ts-prune --ignore \"**/*.test.ts\"",
+    "audit:unimported": "unimported",
+    "audit:depcheck": "depcheck --skip-missing=true",
+    "audit:admin": "npm run audit:knip && npm run audit:tsprune && npm run audit:unimported && npm run audit:depcheck"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",

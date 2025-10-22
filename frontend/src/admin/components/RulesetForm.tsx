@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { rulesetsService, type Ruleset, type CreateRulesetData, type UpdateRulesetData } from '@/services/admin.rulesets';
@@ -21,7 +21,7 @@ const rulesetSchema = z.object({
   slug: z.string().min(1, 'Slug is required').max(50, 'Slug must be less than 50 characters')
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-  active: z.boolean()
+  status: z.enum(['draft', 'active', 'archived'])
 });
 
 type RulesetFormData = z.infer<typeof rulesetSchema>;
@@ -48,7 +48,7 @@ export function RulesetForm({ ruleset, onSubmit, onCancel, loading = false }: Ru
       name: ruleset?.name || '',
       slug: ruleset?.slug || '',
       description: ruleset?.description || '',
-      active: ruleset?.active ?? true
+      status: ruleset?.status ?? 'active'
     }
   });
 
@@ -132,14 +132,22 @@ export function RulesetForm({ ruleset, onSubmit, onCancel, loading = false }: Ru
             )}
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="active"
-              checked={watch('active')}
-              onCheckedChange={(checked) => setValue('active', checked)}
-            />
-            <Label htmlFor="active">Active</Label>
-            <p className="text-sm text-gray-600">
+          <div>
+            <Label htmlFor="status">Status</Label>
+            <Select
+              value={watch('status')}
+              onValueChange={(value) => setValue('status', value as 'draft' | 'active' | 'archived')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-gray-600 mt-1">
               Active rulesets are available for selection in entry points
             </p>
           </div>
@@ -157,5 +165,7 @@ export function RulesetForm({ ruleset, onSubmit, onCancel, loading = false }: Ru
     </Card>
   );
 }
+
+
 
 
