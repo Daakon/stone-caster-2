@@ -11,6 +11,12 @@ export interface Ruleset {
   slug: string;
   description?: string;
   status: 'draft' | 'active' | 'archived';
+  version_major: number;
+  version_minor: number;
+  version_patch: number;
+  version_semver: string;
+  published_at?: string;
+  is_mutable: boolean;
   owner_user_id: string;
   created_at: string;
   updated_at: string;
@@ -279,6 +285,94 @@ export class RulesetsService {
     }
 
     return result;
+  }
+
+  /**
+   * Publish a draft ruleset to active status
+   */
+  async publishRuleset(id: string): Promise<{ success: boolean; ruleset?: Ruleset; error?: string }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No authentication token available');
+    }
+
+    const { data, error } = await supabase.rpc('publish_ruleset', { ruleset_id: id });
+
+    if (error) {
+      throw new Error(`Failed to publish ruleset: ${error.message}`);
+    }
+
+    if (!data.success) {
+      return { success: false, error: data.error };
+    }
+
+    // Get the updated ruleset
+    const updatedRuleset = await this.getRuleset(id);
+    return { success: true, ruleset: updatedRuleset };
+  }
+
+  /**
+   * Clone a ruleset with version bump
+   */
+  async cloneRuleset(
+    id: string, 
+    bumpType: 'major' | 'minor' | 'patch' = 'minor'
+  ): Promise<{ success: boolean; newRuleset?: Ruleset; error?: string }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No authentication token available');
+    }
+
+    const { data, error } = await supabase.rpc('clone_ruleset', { 
+      ruleset_id: id, 
+      bump_type: bumpType 
+    });
+
+    if (error) {
+      throw new Error(`Failed to clone ruleset: ${error.message}`);
+    }
+
+    if (!data.success) {
+      return { success: false, error: data.error };
+    }
+
+    // Get the new ruleset
+    const newRuleset = await this.getRuleset(data.new_id);
+    return { success: true, newRuleset };
+  }
+
+  /**
+   * Get ruleset revision history
+   */
+  async getRulesetRevisions(rulesetId: string): Promise<Array<{
+    id: string;
+    snapshot: any;
+    created_at: string;
+    actor?: string;
+  }>> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No authentication token available');
+    }
+
+    const { data, error } = await supabase
+      .from('ruleset_revisions')
+      .select('*')
+      .eq('ruleset_id', rulesetId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to fetch ruleset revisions: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  /**
+   * Check if ruleset can be edited (only drafts are mutable)
+   */
+  canEdit(ruleset: Ruleset): boolean {
+    return ruleset.is_mutable && ruleset.status === 'draft';
   }
 }
 

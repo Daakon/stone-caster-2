@@ -19,6 +19,7 @@ import RulesetDetailPage from '@/pages/admin/rulesets/[id]';
 import EntriesAdmin from '@/pages/admin/entries/index';
 import EntryEditPage from '@/pages/admin/entries/edit';
 import EntryPreviewPage from '@/pages/admin/entries/preview';
+import ImportExportPage from '@/pages/admin/tools/import-export';
 import ReviewsAdmin from '@/pages/admin/reviews/index';
 import ReportsAdmin from '@/pages/admin/reports/index';
 import ReportDetailPage from '@/pages/admin/reports/id';
@@ -55,14 +56,22 @@ export function AdminRoutes() {
           </Guarded>
         } 
       />
-      <Route 
-        path="/entries/:id/preview" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <EntryPreviewPage />
-          </Guarded>
-        } 
-      />
+        <Route
+          path="/entries/:id/preview"
+          element={
+            <Guarded allow={['creator', 'moderator', 'admin']}>
+              <EntryPreviewPage />
+            </Guarded>
+          }
+        />
+        <Route
+          path="/tools/import-export"
+          element={
+            <Guarded allow={['admin']}>
+              <ImportExportPage />
+            </Guarded>
+          }
+        />
       
       {/* Worlds routes (Creators: read; Mods/Admin: CRUD) */}
       <Route 

@@ -45,12 +45,18 @@ const NAV_ITEMS = [
     roles: ['creator', 'moderator', 'admin'] as const,
     icon: '🌍'
   },
-  {
-    label: 'Rulesets',
-    href: '/admin/rulesets',
-    roles: ['creator', 'moderator', 'admin'] as const,
-    icon: '📋'
-  },
+    {
+      label: 'Rulesets',
+      href: '/admin/rulesets',
+      roles: ['creator', 'moderator', 'admin'] as const,
+      icon: '📋'
+    },
+    {
+      label: 'Import/Export',
+      href: '/admin/tools/import-export',
+      roles: ['admin'] as const,
+      icon: '📦'
+    },
   {
     label: 'Reviews',
     href: '/admin/reviews',

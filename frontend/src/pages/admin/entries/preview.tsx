@@ -1,25 +1,32 @@
 /**
- * Entry Assembly Preview Page
- * Shows the effective ruleset order for prompt assembly
+ * Entry Preview Page with Bundle Preview
+ * Shows the effective ruleset order and runtime JSON for an entry
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
-import { ArrowLeft, RefreshCw, Copy, Check } from 'lucide-react';
-
-import { entriesService, type Entry } from '@/services/admin.entries';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { entriesService } from '@/services/admin.entries';
+import { bundlePreviewService } from '@/services/admin.bundlePreview';
+import { ArrowLeft, Copy, Download, Eye, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export default function EntryPreviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [entry, setEntry] = useState<Entry | null>(null);
+  const [entry, setEntry] = useState<any>(null);
+  const [bundlePreview, setBundlePreview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [previewOptions, setPreviewOptions] = useState({
+    includeDrafts: false,
+    maxSize: 32000
+  });
 
   useEffect(() => {
     if (id) {
@@ -30,35 +37,70 @@ export default function EntryPreviewPage() {
   const loadEntry = async () => {
     try {
       setLoading(true);
-      const entryData = await entriesService.getEntry(id!);
-      setEntry(entryData);
-    } catch (error) {
-      console.error('Failed to load entry:', error);
-      toast.error('Failed to load entry');
+      const data = await entriesService.getEntry(id!);
+      setEntry(data);
+      
+      // Generate bundle preview
+      const preview = await bundlePreviewService.generatePreview(id!, previewOptions);
+      setBundlePreview(preview);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load entry');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCopyOrder = async () => {
-    if (!entry) return;
-
-    const orderText = `Entry: ${entry.name}
-World: ${entry.world?.name || 'No world'}
-Ruleset Order:
-${entry.rulesets?.map((r, index) => `${index + 1}. ${r.name}`).join('\n') || 'No rulesets'}
-
-NPCs: ${entry.npcs?.map(n => n.name).join(', ') || 'None'}
-NPC Packs: ${entry.npc_packs?.map(p => p.name).join(', ') || 'None'}`;
+  const handleCopyToClipboard = async () => {
+    if (!bundlePreview) return;
 
     try {
-      await navigator.clipboard.writeText(orderText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast.success('Assembly order copied to clipboard');
-    } catch (error) {
-      console.error('Failed to copy:', error);
-      toast.error('Failed to copy to clipboard');
+      const result = await bundlePreviewService.copyToClipboard(id!, previewOptions);
+      if (result.success) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        setError(result.error || 'Failed to copy to clipboard');
+      }
+    } catch (err) {
+      setError('Failed to copy to clipboard');
+    }
+  };
+
+  const handleDownloadJSON = async () => {
+    if (!bundlePreview) return;
+
+    try {
+      const result = await bundlePreviewService.generateRuntimeJSON(id!, previewOptions);
+      if (result.success) {
+        const filename = `${entry.name.toLowerCase().replace(/\s+/g, '-')}-bundle.json`;
+        const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        setError(result.error || 'Failed to generate JSON');
+      }
+    } catch (err) {
+      setError('Failed to download JSON');
+    }
+  };
+
+  const handleRefreshPreview = async () => {
+    if (!id) return;
+
+    try {
+      setLoading(true);
+      const preview = await bundlePreviewService.generatePreview(id, previewOptions);
+      setBundlePreview(preview);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh preview');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -66,255 +108,353 @@ NPC Packs: ${entry.npc_packs?.map(p => p.name).join(', ') || 'None'}`;
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Loading entry preview...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-600">Loading entry...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600">{error}</p>
+        <Button onClick={() => navigate('/admin/entries')} className="mt-4">
+          Back to Entries
+        </Button>
       </div>
     );
   }
 
   if (!entry) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-muted-foreground">Entry not found</p>
-          <Button
-            className="mt-4"
-            onClick={() => navigate('/admin/entries')}
-          >
-            Back to Entries
-          </Button>
-        </div>
+      <div className="text-center py-8">
+        <p className="text-gray-600">Entry not found</p>
+        <Button onClick={() => navigate('/admin/entries')} className="mt-4">
+          Back to Entries
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(`/admin/entries/${entry.id}/edit`)}
+            onClick={() => navigate('/admin/entries')}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Edit
+            Back
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Assembly Preview</h1>
-            <p className="text-muted-foreground">
-              Effective ruleset order for prompt assembly
-            </p>
+            <h1 className="text-2xl font-bold">{entry.name}</h1>
+            <p className="text-gray-600">Bundle Preview & Assembly Order</p>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex space-x-2">
           <Button
+            onClick={handleRefreshPreview}
             variant="outline"
-            onClick={loadEntry}
-            disabled={loading}
+            size="sm"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <Eye className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button onClick={handleCopyOrder}>
-            {copied ? (
-              <Check className="h-4 w-4 mr-2" />
-            ) : (
-              <Copy className="h-4 w-4 mr-2" />
-            )}
-            {copied ? 'Copied!' : 'Copy Order'}
+          <Button
+            onClick={handleDownloadJSON}
+            variant="outline"
+            size="sm"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download JSON
           </Button>
         </div>
       </div>
 
-      {/* Entry Overview */}
+      {/* Preview Options */}
       <Card>
         <CardHeader>
-          <CardTitle>Entry Overview</CardTitle>
+          <CardTitle>Preview Options</CardTitle>
           <CardDescription>
-            Basic information about this entry
+            Configure what to include in the bundle preview
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h3 className="font-medium">Name</h3>
-              <p className="text-muted-foreground">{entry.name}</p>
-            </div>
-            <div>
-              <h3 className="font-medium">Status</h3>
-              <Badge className="bg-green-100 text-green-800">
-                {entry.status}
-              </Badge>
-            </div>
-            <div>
-              <h3 className="font-medium">World</h3>
-              <p className="text-muted-foreground">
-                {entry.world?.name || 'No world assigned'}
-              </p>
-            </div>
-            <div>
-              <h3 className="font-medium">Description</h3>
-              <p className="text-muted-foreground">
-                {entry.description || 'No description'}
-              </p>
+          <div className="flex items-center space-x-4">
+            <label className="flex items-center space-x-2">
+              <Checkbox
+                checked={previewOptions.includeDrafts}
+                onCheckedChange={(checked) => setPreviewOptions(prev => ({
+                  ...prev,
+                  includeDrafts: checked as boolean
+                }))}
+              />
+              <span className="text-sm">Include draft rulesets</span>
+            </label>
+            <div className="flex items-center space-x-2">
+              <label className="text-sm">Max size:</label>
+              <input
+                type="number"
+                value={previewOptions.maxSize}
+                onChange={(e) => setPreviewOptions(prev => ({
+                  ...prev,
+                  maxSize: parseInt(e.target.value) || 32000
+                }))}
+                className="w-20 px-2 py-1 border rounded text-sm"
+              />
+              <span className="text-sm text-gray-500">chars</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Assembly Order */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Prompt Assembly Order</CardTitle>
-          <CardDescription>
-            The order in which rulesets will be applied during prompt assembly
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Core Ruleset */}
-            <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-medium">
-                0
-              </div>
-              <div>
-                <h3 className="font-medium">Core Ruleset</h3>
-                <p className="text-sm text-muted-foreground">
-                  Base system rules (always applied first)
-                </p>
-              </div>
+      {/* Warnings */}
+      {bundlePreview?.metadata?.warnings && bundlePreview.metadata.warnings.length > 0 && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="space-y-1">
+              {bundlePreview.metadata.warnings.map((warning: string, index: number) => (
+                <div key={index}>• {warning}</div>
+              ))}
             </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
-            <Separator />
+      <Tabs defaultValue="assembly" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="assembly">Assembly Order</TabsTrigger>
+          <TabsTrigger value="bundle">Bundle Preview</TabsTrigger>
+          <TabsTrigger value="json">Runtime JSON</TabsTrigger>
+        </TabsList>
 
-            {/* Entry Rulesets */}
-            {entry.rulesets && entry.rulesets.length > 0 ? (
-              <div className="space-y-2">
-                <h3 className="font-medium">Entry Rulesets (in order)</h3>
-                {entry.rulesets.map((ruleset, index) => (
-                  <div key={ruleset.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-shrink-0 w-8 h-8 bg-gray-500 text-white rounded-full flex items-center justify-center text-sm font-medium">
-                      {index + 1}
+        {/* Assembly Order Tab */}
+        <TabsContent value="assembly" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Effective Ruleset Order</CardTitle>
+              <CardDescription>
+                The order in which rulesets will be applied for this entry
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <h3 className="font-medium mb-2">Assembly Order</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline">1</Badge>
+                      <span>Core system rules</span>
                     </div>
-                    <div>
-                      <h4 className="font-medium">{ruleset.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Sort order: {ruleset.sort_order}
-                      </p>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline">2</Badge>
+                      <span>World: {bundlePreview?.world?.name || 'No world'}</span>
+                    </div>
+                    {bundlePreview?.rulesets && bundlePreview.rulesets.length > 0 && (
+                      <>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline">3</Badge>
+                          <span>Entry-specific rulesets (in order):</span>
+                        </div>
+                        <div className="ml-6 space-y-1">
+                          {bundlePreview.rulesets.map((ruleset: any, index: number) => (
+                            <div key={ruleset.id} className="flex items-center space-x-2">
+                              <Badge variant="secondary">{index + 1}</Badge>
+                              <span>{ruleset.name}</span>
+                              <Badge variant="outline">v{ruleset.version_semver}</Badge>
+                              {ruleset.status === 'draft' && (
+                                <Badge variant="secondary">Draft</Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    onClick={handleCopyToClipboard}
+                    variant="outline"
+                    className="min-w-[120px]"
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy Order
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Bundle Preview Tab */}
+        <TabsContent value="bundle" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Bundle Preview</CardTitle>
+              <CardDescription>
+                Overview of all entities and associations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {bundlePreview && (
+                <div className="space-y-6">
+                  {/* Metadata */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold">{bundlePreview.metadata.total_rulesets}</div>
+                      <div className="text-sm text-gray-600">Rulesets</div>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold">{bundlePreview.metadata.total_npcs}</div>
+                      <div className="text-sm text-gray-600">NPCs</div>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold">{bundlePreview.metadata.total_npc_packs}</div>
+                      <div className="text-sm text-gray-600">NPC Packs</div>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold">{bundlePreview.metadata.total_members}</div>
+                      <div className="text-sm text-gray-600">Total Members</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No rulesets assigned to this entry</p>
-                <Button
-                  variant="outline"
-                  className="mt-4"
-                  onClick={() => navigate(`/admin/entries/${entry.id}/edit`)}
-                >
-                  Add Rulesets
-                </Button>
-              </div>
-            )}
 
-            <Separator />
-
-            {/* World Ruleset */}
-            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-              <div className="flex-shrink-0 w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-medium">
-                W
-              </div>
-              <div>
-                <h3 className="font-medium">World Ruleset</h3>
-                <p className="text-sm text-muted-foreground">
-                  {entry.world?.name || 'No world assigned'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* NPC Sources */}
-      <Card>
-        <CardHeader>
-          <CardTitle>NPC Sources</CardTitle>
-          <CardDescription>
-            NPCs and NPC packs available in this entry
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Individual NPCs */}
-            <div>
-              <h3 className="font-medium mb-3">Individual NPCs</h3>
-              {entry.npcs && entry.npcs.length > 0 ? (
-                <div className="space-y-2">
-                  {entry.npcs.map(npc => (
-                    <div key={npc.id} className="flex items-center space-x-2">
-                      <Badge variant="outline">{npc.name}</Badge>
+                  {/* Size Info */}
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Estimated Size</span>
+                      <span className="font-mono text-lg">
+                        {bundlePreview.metadata.estimated_size.toLocaleString()} chars
+                      </span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground">No individual NPCs assigned</p>
-              )}
-            </div>
+                    {bundlePreview.metadata.estimated_size > previewOptions.maxSize && (
+                      <div className="mt-2 text-sm text-red-600">
+                        ⚠️ Exceeds maximum size limit
+                      </div>
+                    )}
+                  </div>
 
-            {/* NPC Packs */}
-            <div>
-              <h3 className="font-medium mb-3">NPC Packs</h3>
-              {entry.npc_packs && entry.npc_packs.length > 0 ? (
-                <div className="space-y-2">
-                  {entry.npc_packs.map(pack => (
-                    <div key={pack.id} className="flex items-center space-x-2">
-                      <Badge variant="outline">{pack.name}</Badge>
+                  {/* Rulesets */}
+                  {bundlePreview.rulesets.length > 0 && (
+                    <div>
+                      <h3 className="font-medium mb-2">Rulesets</h3>
+                      <div className="space-y-2">
+                        {bundlePreview.rulesets.map((ruleset: any) => (
+                          <div key={ruleset.id} className="flex items-center justify-between p-2 border rounded">
+                            <div className="flex items-center space-x-2">
+                              <span>{ruleset.name}</span>
+                              <Badge variant="outline">v{ruleset.version_semver}</Badge>
+                              {ruleset.status === 'draft' && (
+                                <Badge variant="secondary">Draft</Badge>
+                              )}
+                            </div>
+                            <span className="text-sm text-gray-500">Order: {ruleset.sort_order}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground">No NPC packs assigned</p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                  )}
 
-      {/* Assembly Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Assembly Notes</CardTitle>
-          <CardDescription>
-            Important information for the prompt assembly team
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 text-sm">
-            <div className="p-3 bg-yellow-50 rounded-lg">
-              <h4 className="font-medium text-yellow-800">Order Matters</h4>
-              <p className="text-yellow-700">
-                Rulesets are applied in the order shown above. Later rulesets can override earlier ones.
-              </p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-800">Core Ruleset</h4>
-              <p className="text-blue-700">
-                The core ruleset is always applied first and provides the base system rules.
-              </p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-lg">
-              <h4 className="font-medium text-green-800">World Ruleset</h4>
-              <p className="text-green-700">
-                World-specific rules are applied last and can override all other rulesets.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                  {/* NPCs */}
+                  {bundlePreview.npcs.length > 0 && (
+                    <div>
+                      <h3 className="font-medium mb-2">NPCs</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {bundlePreview.npcs.map((npc: any) => (
+                          <div key={npc.id} className="p-2 border rounded text-sm">
+                            {npc.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* NPC Packs */}
+                  {bundlePreview.npc_packs.length > 0 && (
+                    <div>
+                      <h3 className="font-medium mb-2">NPC Packs</h3>
+                      <div className="space-y-2">
+                        {bundlePreview.npc_packs.map((pack: any) => (
+                          <div key={pack.id} className="p-2 border rounded">
+                            <div className="font-medium">{pack.name}</div>
+                            <div className="text-sm text-gray-600">
+                              {pack.members.length} members
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Runtime JSON Tab */}
+        <TabsContent value="json" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Runtime JSON</CardTitle>
+              <CardDescription>
+                The exact JSON structure that will be consumed by the runtime
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    onClick={handleCopyToClipboard}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy JSON
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleDownloadJSON}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </Button>
+                </div>
+
+                <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                  <pre className="text-sm">
+                    {bundlePreview ? JSON.stringify(bundlePreview, null, 2) : 'Loading...'}
+                  </pre>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
