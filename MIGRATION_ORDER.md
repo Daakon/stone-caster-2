@@ -6,14 +6,12 @@ The admin migrations assume certain table structures that don't exist or have in
 - `rulesets` table doesn't exist but admin migrations try to ALTER it
 - Foreign key constraints fail due to type mismatches
 
-## Solution: Run Migrations in This Order
+## Solution: Run Migrations in This Order (SAFE APPROACH)
 
-### 1. Fix Worlds Table UUID Issue
+### 1. Create Safe Worlds Mapping
 ```bash
-# Run this migration first to convert worlds.id from TEXT to UUID
-supabase db reset --db-url "your-db-url"
-# OR apply just this migration:
-psql "your-db-url" -f supabase/migrations/20250131_fix_worlds_uuid.sql
+# Run this migration first to create a safe mapping approach
+psql "your-db-url" -f supabase/migrations/20250131_fix_worlds_uuid_safe.sql
 ```
 
 ### 2. Create Missing Rulesets Table
@@ -22,10 +20,10 @@ psql "your-db-url" -f supabase/migrations/20250131_fix_worlds_uuid.sql
 psql "your-db-url" -f supabase/migrations/20250131_create_rulesets_table.sql
 ```
 
-### 3. Run Admin Phase B Migration
+### 3. Run Admin Phase B Migration (Safe Version)
 ```bash
-# Now run the admin associations migration
-psql "your-db-url" -f supabase/migrations/20250131_admin_associations_phase_b.sql
+# Now run the safe admin associations migration
+psql "your-db-url" -f supabase/migrations/20250131_admin_associations_phase_b_safe.sql
 ```
 
 ### 4. Run Admin Phase C Migration

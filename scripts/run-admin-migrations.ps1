@@ -8,11 +8,11 @@ param(
 
 Write-Host "Running Admin Migrations in Correct Order..." -ForegroundColor Green
 
-# Migration 1: Fix Worlds UUID Issue
-Write-Host "1. Fixing worlds table UUID issue..." -ForegroundColor Yellow
-psql $DatabaseUrl -f "supabase/migrations/20250131_fix_worlds_uuid.sql"
+# Migration 1: Create Safe Worlds Mapping
+Write-Host "1. Creating safe worlds mapping..." -ForegroundColor Yellow
+psql $DatabaseUrl -f "supabase/migrations/20250131_fix_worlds_uuid_safe.sql"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: Failed to fix worlds UUID" -ForegroundColor Red
+    Write-Host "Error: Failed to create worlds mapping" -ForegroundColor Red
     exit 1
 }
 
@@ -24,11 +24,11 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Migration 3: Admin Phase B
-Write-Host "3. Running admin associations (Phase B)..." -ForegroundColor Yellow
-psql $DatabaseUrl -f "supabase/migrations/20250131_admin_associations_phase_b.sql"
+# Migration 3: Admin Phase B (Safe Version)
+Write-Host "3. Running safe admin associations (Phase B)..." -ForegroundColor Yellow
+psql $DatabaseUrl -f "supabase/migrations/20250131_admin_associations_phase_b_safe.sql"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: Failed to run admin associations migration" -ForegroundColor Red
+    Write-Host "Error: Failed to run safe admin associations migration" -ForegroundColor Red
     exit 1
 }
 
