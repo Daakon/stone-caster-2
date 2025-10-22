@@ -1,6 +1,8 @@
 -- Admin Associations Phase B Migration (Safe Version)
 -- Works with existing TEXT-based worlds table using mapping approach
 
+BEGIN;
+
 -- ============================================================================
 -- CREATE ENTRIES TABLE (replaces entry_points with better naming)
 -- ============================================================================
@@ -213,3 +215,5 @@ INSERT INTO public.npc_packs (id, name, description, status) VALUES
   ('550e8400-e29b-41d4-a716-446655440002', 'Sci-Fi Crew', 'Space adventure crew members', 'active'),
   ('550e8400-e29b-41d4-a716-446655440003', 'Mystery Investigators', 'Detective and investigator NPCs', 'draft')
 ON CONFLICT (id) DO NOTHING;
+
+COMMIT;
