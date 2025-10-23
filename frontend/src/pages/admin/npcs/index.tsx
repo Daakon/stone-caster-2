@@ -80,7 +80,7 @@ export default function NPCsAdmin() {
         <div>
           <h1 className="text-3xl font-bold">NPCs</h1>
           <p className="text-muted-foreground">
-            Manage non-player characters and their relationships
+            Manage your NPCs and browse public characters
           </p>
         </div>
         {canEdit && (
@@ -99,7 +99,7 @@ export default function NPCsAdmin() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-2">
               <Label htmlFor="search">Search</Label>
               <div className="relative">
@@ -114,15 +114,14 @@ export default function NPCsAdmin() {
               </div>
             </div>
 
-
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <Select
-                value={filters.status || ''}
+                value={filters.status || 'all'}
                 onValueChange={(value) => 
                   setFilters(prev => ({ 
                     ...prev, 
-                    status: value as 'draft' | 'active' | 'archived' || undefined 
+                    status: value === 'all' ? undefined : value as 'draft' | 'active' | 'archived'
                   }))
                 }
               >
@@ -130,10 +129,55 @@ export default function NPCsAdmin() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="visibility">Visibility</Label>
+              <Select
+                value={filters.visibility || 'all'}
+                onValueChange={(value) => 
+                  setFilters(prev => ({ 
+                    ...prev, 
+                    visibility: value === 'all' ? undefined : value as 'private' | 'public'
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All visibility" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All visibility</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                  <SelectItem value="public">Public</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="author_type">Author Type</Label>
+              <Select
+                value={filters.author_type || 'all'}
+                onValueChange={(value) => 
+                  setFilters(prev => ({ 
+                    ...prev, 
+                    author_type: value === 'all' ? undefined : value as 'user' | 'system' | 'original'
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All authors" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All authors</SelectItem>
+                  <SelectItem value="user">Player Characters</SelectItem>
+                  <SelectItem value="original">Original Characters</SelectItem>
+                  <SelectItem value="system">System Characters</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -160,8 +204,9 @@ export default function NPCsAdmin() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Visibility</TableHead>
+                  <TableHead>Author</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Created</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -183,14 +228,24 @@ export default function NPCsAdmin() {
                       </Badge>
                     </TableCell>
                     <TableCell>
+                      <Badge 
+                        variant={npc.visibility === 'public' ? 'default' : 'secondary'}
+                      >
+                        {npc.visibility}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div className="font-medium">{npc.author_name || 'Unknown'}</div>
+                        <div className="text-muted-foreground">{npc.author_type}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <div className="max-w-xs truncate">
                         {npc.description || (
                           <span className="text-muted-foreground text-sm">No description</span>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(npc.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       {new Date(npc.updated_at).toLocaleDateString()}

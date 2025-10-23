@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,13 +27,16 @@ export default function WorldDetail() {
   const hasWriteAccess = isCreator || isModerator || isAdmin;
 
   useEffect(() => {
-    if (id && !rolesLoading) {
+    if (id && id !== 'new' && !rolesLoading) {
       loadWorld();
+    } else if (id === 'new') {
+      setLoading(false);
+      setIsEditing(true);
     }
   }, [id, rolesLoading]);
 
   const loadWorld = async () => {
-    if (!id) return;
+    if (!id || id === 'new') return;
     
     try {
       setLoading(true);
@@ -48,8 +51,19 @@ export default function WorldDetail() {
     }
   };
 
+  const handleCreate = async (data: any) => {
+    try {
+      const newWorld = await worldsService.createWorld(data);
+      toast.success('World created successfully');
+      navigate(`/admin/worlds/${newWorld.id}`);
+    } catch (error) {
+      console.error('Failed to create world:', error);
+      throw error;
+    }
+  };
+
   const handleUpdate = async (data: any) => {
-    if (!id) return;
+    if (!id || id === 'new') return;
     
     try {
       const updatedWorld = await worldsService.updateWorld(id, data);
@@ -116,10 +130,14 @@ export default function WorldDetail() {
           Back
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold text-gray-900">{world.name}</h1>
-          <p className="text-gray-600">World Management</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {id === 'new' ? 'Create World' : world?.name}
+          </h1>
+          <p className="text-gray-600">
+            {id === 'new' ? 'Add a new world' : 'World Management'}
+          </p>
         </div>
-        {!isEditing && (
+        {!isEditing && id !== 'new' && (
           <div className="flex gap-2">
             <Button onClick={() => setIsEditing(true)}>
               <Edit className="w-4 h-4 mr-2" />
@@ -139,9 +157,9 @@ export default function WorldDetail() {
 
       {isEditing ? (
         <WorldForm
-          world={world}
-          onSubmit={handleUpdate}
-          onCancel={() => setIsEditing(false)}
+          world={id === 'new' ? undefined : world}
+          onSubmit={id === 'new' ? handleCreate : handleUpdate}
+          onCancel={() => id === 'new' ? navigate('/admin/worlds') : setIsEditing(false)}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -170,8 +188,8 @@ export default function WorldDetail() {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Locale</label>
-                <p className="text-lg">{world.locale}</p>
+                <label className="text-sm font-medium text-gray-500">Description</label>
+                <p className="text-lg">{world.description || 'No description'}</p>
               </div>
             </CardContent>
           </Card>
@@ -181,8 +199,8 @@ export default function WorldDetail() {
               <CardTitle>Description</CardTitle>
             </CardHeader>
             <CardContent>
-              {world.synopsis ? (
-                <p className="text-gray-700 whitespace-pre-wrap">{world.synopsis}</p>
+              {world.description ? (
+                <p className="text-gray-700 whitespace-pre-wrap">{world.description}</p>
               ) : (
                 <p className="text-gray-500 italic">No description provided</p>
               )}
@@ -203,8 +221,8 @@ export default function WorldDetail() {
                 <p className="text-lg">{new Date(world.updated_at).toLocaleString()}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Owner</label>
-                <p className="text-lg">{world.owner_user_id}</p>
+                <label className="text-sm font-medium text-gray-500">Prompt</label>
+                <p className="text-lg">{world.prompt || 'No prompt provided'}</p>
               </div>
             </CardContent>
           </Card>

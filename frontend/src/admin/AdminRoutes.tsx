@@ -12,6 +12,9 @@ import EntryPointsAdmin from '@/pages/admin/entry-points/index';
 import EntryPointEditPage from '@/pages/admin/entry-points/id';
 import PromptSegmentsAdmin from '@/pages/admin/prompt-segments/index';
 import NPCsAdmin from '@/pages/admin/npcs/index';
+import CreateNPCPage from '@/pages/admin/npcs/new';
+import NPCDetailPage from '@/pages/admin/npcs/[id]';
+import EditNPCPage from '@/pages/admin/npcs/edit';
 import WorldsAdmin from '@/pages/admin/worlds/index';
 import WorldDetailPage from '@/pages/admin/worlds/[id]';
 import RulesetsAdmin from '@/pages/admin/rulesets/index';
@@ -38,6 +41,9 @@ export function AdminRoutes() {
       <Route path="/entry-points/:id" element={<EntryPointEditPage />} />
       <Route path="/prompt-segments" element={<PromptSegmentsAdmin />} />
       <Route path="/npcs" element={<NPCsAdmin />} />
+      <Route path="/npcs/new" element={<CreateNPCPage />} />
+      <Route path="/npcs/:id" element={<NPCDetailPage />} />
+      <Route path="/npcs/:id/edit" element={<EditNPCPage />} />
       
       {/* Entries routes (Creators: read; Mods/Admin: CRUD) */}
       <Route 
