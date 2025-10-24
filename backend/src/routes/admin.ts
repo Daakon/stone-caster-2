@@ -1298,16 +1298,15 @@ router.get('/awf/npcs', authenticateToken, requireAdminRole, async (req, res) =>
       .from('npcs')
       .select('*')
       .order('id', { ascending: true })
-      .order('version', { ascending: false });
+      .order('created_at', { ascending: false });
 
     // Apply filters
     if (id) {
       query = query.eq('id', id);
     }
     
-    if (tag) {
-      query = query.contains('doc->npc->tags', [tag]);
-    }
+    // Note: tag filtering removed since the current schema doesn't have doc->npc->tags
+    // If tag filtering is needed, it should be implemented based on the actual schema
 
     const { data, error } = await query;
 
@@ -1331,38 +1330,27 @@ router.get('/awf/npcs', authenticateToken, requireAdminRole, async (req, res) =>
 
 router.post('/awf/npcs', authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { id, version, doc } = req.body;
+    const { id, name, description, status, visibility, author_name, author_type, user_id } = req.body;
 
-    if (!id || !version || !doc) {
+    if (!id || !name) {
       return res.status(400).json({
         ok: false,
-        error: 'Missing required fields: id, version, doc'
+        error: 'Missing required fields: id, name'
       });
     }
-
-    // Validate document using NPCDocV1Schema
-    let validatedDoc;
-    try {
-      validatedDoc = NPCDocV1Schema.parse(doc);
-    } catch (validationError) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Document validation failed',
-        details: validationError instanceof Error ? validationError.message : 'Invalid document structure'
-      });
-    }
-
-    // Compute hash
-    const hash = computeDocumentHash(validatedDoc);
 
     const { data, error } = await supabase
       .from('npcs')
       .upsert({
         id,
-        version,
-        doc: validatedDoc,
-        hash
-      }, { onConflict: 'id,version' })
+        name,
+        description: description || null,
+        status: status || 'draft',
+        visibility: visibility || 'private',
+        author_name: author_name || null,
+        author_type: author_type || 'user',
+        user_id: user_id || null
+      }, { onConflict: 'id' })
       .select()
       .single();
 
@@ -1384,22 +1372,21 @@ router.post('/awf/npcs', authenticateToken, requireAdminRole, async (req, res) =
   }
 });
 
-router.delete('/awf/npcs/:id/:version', authenticateToken, requireAdminRole, async (req, res) => {
+router.delete('/awf/npcs/:id', authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { id, version } = req.params;
+    const { id } = req.params;
 
-    if (!id || !version) {
+    if (!id) {
       return res.status(400).json({
         ok: false,
-        error: 'Missing required parameters: id, version'
+        error: 'Missing required parameter: id'
       });
     }
 
     const { error } = await supabase
       .from('npcs')
       .delete()
-      .eq('id', id)
-      .eq('version', version);
+      .eq('id', id);
 
     if (error) {
       throw error;
