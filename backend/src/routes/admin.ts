@@ -1,3 +1,10 @@
+/**
+ * @swagger
+ * tags:
+ *   - name: Admin
+ *     description: Administrative API endpoints for content management
+ */
+
 import { Router } from 'express';
 import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
@@ -117,6 +124,128 @@ const PromptSchema = z.object({
 const UpdatePromptSchema = PromptSchema.partial();
 
 // Get all prompts with filtering
+/**
+ * @swagger
+ * /api/admin/prompts:
+ *   get:
+ *     summary: Get all prompts with filtering
+ *     description: Retrieves all prompts with optional filtering by layer, world, adventure, status, and search
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: layer
+ *         schema:
+ *           type: string
+ *           enum: [core, world, adventure, entry, npc]
+ *         description: Filter by prompt layer
+ *         example: world
+ *       - in: query
+ *         name: world_slug
+ *         schema:
+ *           type: string
+ *         description: Filter by world slug
+ *         example: mystika
+ *       - in: query
+ *         name: adventure_slug
+ *         schema:
+ *           type: string
+ *         description: Filter by adventure slug
+ *         example: the-crystal-quest
+ *       - in: query
+ *         name: active
+ *         schema:
+ *           type: boolean
+ *         description: Filter by active status
+ *         example: true
+ *       - in: query
+ *         name: locked
+ *         schema:
+ *           type: boolean
+ *         description: Filter by locked status
+ *         example: false
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in content, layer, and world_slug fields
+ *         example: crystal
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *         description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: List of prompts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/Success'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           layer:
+ *                             type: string
+ *                             enum: [core, world, adventure, entry, npc]
+ *                           content:
+ *                             type: string
+ *                           world_slug:
+ *                             type: string
+ *                             nullable: true
+ *                           adventure_slug:
+ *                             type: string
+ *                             nullable: true
+ *                           active:
+ *                             type: boolean
+ *                           locked:
+ *                             type: boolean
+ *                           sort_order:
+ *                             type: integer
+ *                           created_at:
+ *                             type: string
+ *                             format: date-time
+ *                           updated_at:
+ *                             type: string
+ *                             format: date-time
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - Admin role required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get('/prompts', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { 
@@ -190,6 +319,61 @@ router.get('/prompts', authenticateToken, requireAdminRole, async (req, res) => 
 });
 
 // Get prompt by ID
+/**
+ * @swagger
+ * /api/admin/prompts/{id}:
+ *   get:
+ *     summary: Get prompt by ID
+ *     description: Retrieves a specific prompt by its UUID
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The prompt UUID
+ *         example: 123e4567-e89b-12d3-a456-426614174000
+ *     responses:
+ *       200:
+ *         description: Prompt retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/Success'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/Prompt'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - Admin role required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Prompt not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.get(
   '/prompts/:id([0-9a-fA-F-]{36})',
   authenticateToken,
@@ -231,6 +415,125 @@ router.get(
 );
 
 // Create new prompt
+/**
+ * @swagger
+ * /api/admin/prompts:
+ *   post:
+ *     summary: Create a new prompt
+ *     description: Creates a new prompt with the specified content and metadata
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [layer, content]
+ *             properties:
+ *               layer:
+ *                 type: string
+ *                 enum: [core, world, adventure, entry, npc]
+ *                 description: The layer this prompt belongs to
+ *                 example: world
+ *               content:
+ *                 type: string
+ *                 description: The prompt content
+ *                 example: "You are a fantasy world with magical crystals..."
+ *               world_slug:
+ *                 type: string
+ *                 nullable: true
+ *                 description: World slug if this is a world-specific prompt
+ *                 example: mystika
+ *               adventure_slug:
+ *                 type: string
+ *                 nullable: true
+ *                 description: Adventure slug if this is an adventure-specific prompt
+ *                 example: the-crystal-quest
+ *               metadata:
+ *                 type: object
+ *                 description: Additional metadata for the prompt
+ *                 example: {"version": "1.0", "tags": ["magic", "crystals"]}
+ *               sort_order:
+ *                 type: integer
+ *                 description: Sort order for display
+ *                 example: 1
+ *               active:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Whether the prompt is active
+ *               locked:
+ *                 type: boolean
+ *                 default: false
+ *                 description: Whether the prompt is locked from editing
+ *     responses:
+ *       201:
+ *         description: Prompt created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/Success'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         layer:
+ *                           type: string
+ *                         content:
+ *                           type: string
+ *                         world_slug:
+ *                           type: string
+ *                           nullable: true
+ *                         adventure_slug:
+ *                           type: string
+ *                           nullable: true
+ *                         metadata:
+ *                           type: object
+ *                         sort_order:
+ *                           type: integer
+ *                         active:
+ *                           type: boolean
+ *                         locked:
+ *                           type: boolean
+ *                         tokenCount:
+ *                           type: integer
+ *                         created_at:
+ *                           type: string
+ *                           format: date-time
+ *                         updated_at:
+ *                           type: string
+ *                           format: date-time
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - Admin role required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/prompts', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const validatedData = PromptSchema.parse(req.body);

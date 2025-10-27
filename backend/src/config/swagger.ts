@@ -361,6 +361,109 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
+        Prompt: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid',
+              example: '123e4567-e89b-12d3-a456-426614174000',
+            },
+            layer: {
+              type: 'string',
+              enum: ['core', 'world', 'adventure', 'entry', 'npc'],
+              example: 'world',
+            },
+            content: {
+              type: 'string',
+              example: 'You are a fantasy world with magical crystals...',
+            },
+            world_slug: {
+              type: 'string',
+              nullable: true,
+              example: 'mystika',
+            },
+            adventure_slug: {
+              type: 'string',
+              nullable: true,
+              example: 'the-crystal-quest',
+            },
+            metadata: {
+              type: 'object',
+              additionalProperties: true,
+              example: { version: '1.0', tags: ['magic', 'crystals'] },
+            },
+            sort_order: {
+              type: 'integer',
+              example: 1,
+            },
+            active: {
+              type: 'boolean',
+              example: true,
+            },
+            locked: {
+              type: 'boolean',
+              example: false,
+            },
+            tokenCount: {
+              type: 'integer',
+              description: 'Estimated token count for the content',
+              example: 150,
+            },
+            created_at: {
+              type: 'string',
+              format: 'date-time',
+            },
+            updated_at: {
+              type: 'string',
+              format: 'date-time',
+            },
+          },
+        },
+        CreatePromptRequest: {
+          type: 'object',
+          required: ['layer', 'content'],
+          properties: {
+            layer: {
+              type: 'string',
+              enum: ['core', 'world', 'adventure', 'entry', 'npc'],
+              example: 'world',
+            },
+            content: {
+              type: 'string',
+              example: 'You are a fantasy world with magical crystals...',
+            },
+            world_slug: {
+              type: 'string',
+              nullable: true,
+              example: 'mystika',
+            },
+            adventure_slug: {
+              type: 'string',
+              nullable: true,
+              example: 'the-crystal-quest',
+            },
+            metadata: {
+              type: 'object',
+              additionalProperties: true,
+              example: { version: '1.0', tags: ['magic', 'crystals'] },
+            },
+            sort_order: {
+              type: 'integer',
+              example: 1,
+            },
+            active: {
+              type: 'boolean',
+              default: true,
+              example: true,
+            },
+            locked: {
+              type: 'boolean',
+              default: false,
+              example: false,
+            },
+          },
+        },
       },
     },
     security: [

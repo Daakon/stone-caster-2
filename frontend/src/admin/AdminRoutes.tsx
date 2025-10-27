@@ -17,6 +17,8 @@ import NPCDetailPage from '@/pages/admin/npcs/[id]';
 import EditNPCPage from '@/pages/admin/npcs/edit';
 import WorldsAdmin from '@/pages/admin/worlds/index';
 import WorldDetailPage from '@/pages/admin/worlds/[id]';
+import WorldNewPage from '@/pages/admin/worlds/new';
+import WorldEditPage from '@/pages/admin/worlds/edit';
 import RulesetsAdmin from '@/pages/admin/rulesets/index';
 import RulesetDetailPage from '@/pages/admin/rulesets/[id]';
 import EntriesAdmin from '@/pages/admin/entries/index';
@@ -89,10 +91,26 @@ export function AdminRoutes() {
         } 
       />
       <Route 
+        path="/worlds/new" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <WorldNewPage />
+          </Guarded>
+        } 
+      />
+      <Route 
         path="/worlds/:id" 
         element={
           <Guarded allow={['creator', 'moderator', 'admin']}>
             <WorldDetailPage />
+          </Guarded>
+        } 
+      />
+      <Route 
+        path="/worlds/:id/edit" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <WorldEditPage />
           </Guarded>
         } 
       />

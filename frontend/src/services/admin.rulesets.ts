@@ -10,7 +10,7 @@ export interface Ruleset {
   name: string;
   slug: string;
   description?: string;
-  prompt?: string;
+  prompt?: any; // JSONB - can be any structured data
   status: 'draft' | 'active' | 'archived';
   version_major: number;
   version_minor: number;
@@ -32,7 +32,7 @@ export interface CreateRulesetData {
   name: string;
   slug?: string; // Optional, will be auto-generated if not provided
   description?: string;
-  prompt?: string;
+  prompt?: any; // JSONB - can be any structured data
   status?: 'draft' | 'active' | 'archived';
 }
 
@@ -62,7 +62,7 @@ export class RulesetsService {
         query = query.neq('id', excludeId);
       }
 
-      const { data, error } = await query.single();
+      const { error } = await query.single();
 
       if (error && error.code === 'PGRST116') {
         // No existing slug found, we can use this one

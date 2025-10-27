@@ -14,14 +14,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { worldsService, type World, type CreateWorldData, type UpdateWorldData } from '@/services/admin.worlds';
+import { type World, type CreateWorldData, type UpdateWorldData } from '@/services/admin.worlds';
 
 const worldSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
   slug: z.string().min(1, 'Slug is required').max(50, 'Slug must be less than 50 characters')
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-  prompt: z.string().max(2000, 'Prompt must be less than 2000 characters').optional(),
+  prompt: z.any().optional(), // JSONB - no character limit
   status: z.enum(['draft', 'active', 'archived'])
 });
 
@@ -146,7 +146,7 @@ export function WorldForm({ world, onSubmit, onCancel, loading = false }: WorldF
                 className={errors.prompt ? 'border-red-500' : ''}
               />
               {errors.prompt && (
-                <p className="text-sm text-red-600 mt-1">{errors.prompt.message}</p>
+                <p className="text-sm text-red-600 mt-1">{errors.prompt.message as string}</p>
               )}
               <p className="text-sm text-gray-600 mt-1">
                 This prompt will be used by the AI to understand the world's context and setting.

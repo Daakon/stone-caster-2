@@ -11,7 +11,7 @@ export interface NPC {
   slug: string;
   status: 'draft' | 'active' | 'archived';
   description?: string;
-  prompt?: string;
+  prompt?: any; // JSONB - can be any structured data
   world_id?: string;
   user_id?: string;
   visibility: 'private' | 'public';
@@ -32,7 +32,7 @@ export interface CreateNPCData {
   name: string;
   description?: string;
   status?: 'draft' | 'active' | 'archived';
-  prompt?: string;
+  prompt?: any; // JSONB - can be any structured data
   world_id?: string;
   visibility?: 'private' | 'public';
   author_name?: string;

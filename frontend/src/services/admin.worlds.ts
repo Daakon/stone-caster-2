@@ -8,10 +8,15 @@ import { supabase } from '@/lib/supabase';
 export interface World {
   id: string;
   name: string;
-  slug: string;
+  slug?: string; // Not always present in API response
   status: 'draft' | 'active' | 'archived';
   description?: string;
-  prompt?: string;
+  prompt?: any; // JSONB - can be any structured data
+  doc?: {
+    prompt?: string; // The actual prompt data from the API
+    [key: string]: any;
+  };
+  version?: string;
   created_at: string;
   updated_at: string;
 }
@@ -24,7 +29,7 @@ export interface WorldFilters {
 export interface CreateWorldData {
   name: string;
   description?: string;
-  prompt?: string;
+  prompt?: any; // JSONB - can be any structured data
   status?: 'draft' | 'active' | 'archived';
 }
 
@@ -51,7 +56,7 @@ export class WorldsService {
     }
 
     let query = supabase
-      .from('worlds')
+      .from('worlds_admin')
       .select('*', { count: 'exact' })
       .order('updated_at', { ascending: false });
 
@@ -92,7 +97,7 @@ export class WorldsService {
     }
 
     const { data, error } = await supabase
-      .from('worlds')
+      .from('worlds_admin')
       .select('*')
       .eq('id', id)
       .single();
@@ -113,11 +118,27 @@ export class WorldsService {
       throw new Error('No authentication token available');
     }
 
+    // For create operations, we need to work with the worlds table directly
+    // and handle the UUID mapping
+    const worldId = crypto.randomUUID();
+    const uuidId = crypto.randomUUID();
+    
+    // Generate a slug from the name
+    const slug = data.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
     const { data: result, error } = await supabase
       .from('worlds')
       .insert({
-        ...data,
-        status: data.status ?? 'active'
+        id: worldId,
+        name: data.name,
+        slug: slug,
+        description: data.description,
+        status: data.status ?? 'active',
+        version: 1,
+        doc: data.prompt || {}
       })
       .select()
       .single();
@@ -126,7 +147,25 @@ export class WorldsService {
       throw new Error(`Failed to create world: ${error.message}`);
     }
 
-    return result;
+    // Create the mapping entry
+    const { error: mappingError } = await supabase
+      .from('world_id_mapping')
+      .insert({
+        text_id: worldId,
+        uuid_id: uuidId
+      });
+
+    if (mappingError) {
+      // If mapping creation fails, clean up the world
+      await supabase.from('worlds').delete().eq('id', worldId);
+      throw new Error(`Failed to create world mapping: ${mappingError.message}`);
+    }
+
+    // Return the result with the UUID ID
+    return {
+      ...result,
+      id: uuidId
+    };
   }
 
   /**
@@ -138,10 +177,37 @@ export class WorldsService {
       throw new Error('No authentication token available');
     }
 
+    // For update operations, we need to work with the worlds table directly
+    // First, get the current world to find the text ID
+    const { data: currentWorld, error: fetchError } = await supabase
+      .from('world_id_mapping')
+      .select('text_id')
+      .eq('uuid_id', id)
+      .single();
+
+    if (fetchError || !currentWorld) {
+      throw new Error('World not found');
+    }
+
+    // Generate a slug from the name if name is being updated
+    const updateData: any = {
+      description: data.description,
+      status: data.status,
+      doc: data.prompt || {}
+    };
+
+    if (data.name) {
+      updateData.name = data.name;
+      updateData.slug = data.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
     const { data: result, error } = await supabase
       .from('worlds')
-      .update(data)
-      .eq('id', id)
+      .update(updateData)
+      .eq('id', currentWorld.text_id)
       .select()
       .single();
 
@@ -161,10 +227,22 @@ export class WorldsService {
       throw new Error('No authentication token available');
     }
 
+    // For delete operations, we need to work with the worlds table directly
+    // First, get the current world to find the text ID
+    const { data: currentWorld, error: fetchError } = await supabase
+      .from('world_id_mapping')
+      .select('text_id')
+      .eq('uuid_id', id)
+      .single();
+
+    if (fetchError || !currentWorld) {
+      throw new Error('World not found');
+    }
+
     const { error } = await supabase
       .from('worlds')
       .delete()
-      .eq('id', id);
+      .eq('id', currentWorld.text_id);
 
     if (error) {
       throw new Error(`Failed to delete world: ${error.message}`);
@@ -181,7 +259,7 @@ export class WorldsService {
     }
 
     const { data, error } = await supabase
-      .from('worlds')
+      .from('worlds_admin')
       .select('*')
       .eq('status', 'active')
       .order('name', { ascending: true });

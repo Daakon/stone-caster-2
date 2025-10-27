@@ -102,12 +102,27 @@ app.use('/api/debug', debugRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/player', playerRouter);
 
-// Swagger API documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  explorer: true,
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'StoneCaster API Documentation',
-}));
+// Swagger API documentation (only in development/staging)
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+  // Serve Swagger JSON at a different path
+  app.get('/swagger.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+  
+  // Serve Swagger UI
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    explorer: true,
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'StoneCaster API Documentation',
+    swaggerOptions: {
+      url: '/swagger.json'
+    }
+  }));
+  
+  console.log(`📚 Swagger UI available at: http://localhost:${config.port}/api-docs`);
+  console.log(`📄 Swagger JSON available at: http://localhost:${config.port}/swagger.json`);
+}
 
 // Error handling
 // _next is intentionally unused (error handler signature). Disable unused var rule for this line.
