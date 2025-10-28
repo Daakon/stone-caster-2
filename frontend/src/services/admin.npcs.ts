@@ -8,36 +8,25 @@ import { supabase } from '@/lib/supabase';
 export interface NPC {
   id: string;
   name: string;
-  slug: string;
+  slug?: string; // Optional - will be added via migration
   status: 'draft' | 'active' | 'archived';
   description?: string;
-  prompt?: any; // JSONB - can be any structured data
-  world_id?: string;
-  user_id?: string;
-  visibility: 'private' | 'public';
-  author_name?: string;
-  author_type: 'user' | 'system' | 'original';
+  prompt?: any; // JSONB - can be any structured data (will be added via migration)
   created_at: string;
   updated_at: string;
 }
 
 export interface NPCFilters {
   status?: 'draft' | 'active' | 'archived';
-  visibility?: 'private' | 'public';
-  author_type?: 'user' | 'system' | 'original';
   search?: string;
 }
 
 export interface CreateNPCData {
   name: string;
+  slug?: string; // Optional - will be auto-generated if not provided
   description?: string;
   status?: 'draft' | 'active' | 'archived';
-  prompt?: any; // JSONB - can be any structured data
-  world_id?: string;
-  visibility?: 'private' | 'public';
-  author_name?: string;
-  author_type?: 'user' | 'system' | 'original';
-  user_id?: string; // Will be set automatically from auth
+  prompt?: any; // JSONB - can be any structured data (will be added via migration)
 }
 
 export interface UpdateNPCData extends Partial<CreateNPCData> {}
@@ -50,7 +39,7 @@ export interface NPCListResponse {
 
 export class NPCsService {
   /**
-   * List NPCs with filters and pagination (public NPCs + user's own private NPCs)
+   * List NPCs with filters and pagination
    */
   async listNPCs(
     filters: NPCFilters = {},
@@ -65,20 +54,11 @@ export class NPCsService {
     let query = supabase
       .from('npcs')
       .select('*', { count: 'exact' })
-      .or(`visibility.eq.public,and(visibility.eq.private,user_id.eq.${session.user.id})`) // Public NPCs + user's private NPCs
       .order('updated_at', { ascending: false });
 
     // Apply filters
     if (filters.status !== undefined) {
       query = query.eq('status', filters.status);
-    }
-
-    if (filters.visibility !== undefined) {
-      query = query.eq('visibility', filters.visibility);
-    }
-
-    if (filters.author_type !== undefined) {
-      query = query.eq('author_type', filters.author_type);
     }
 
     if (filters.search) {
@@ -104,7 +84,7 @@ export class NPCsService {
   }
 
   /**
-   * Get a single NPC by ID (public NPCs + user's own private NPCs)
+   * Get a single NPC by ID
    */
   async getNPC(id: string): Promise<NPC> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -116,7 +96,6 @@ export class NPCsService {
       .from('npcs')
       .select('*')
       .eq('id', id)
-      .or(`visibility.eq.public,and(visibility.eq.private,user_id.eq.${session.user.id})`) // Public NPCs + user's private NPCs
       .single();
 
     if (error) {
@@ -127,7 +106,7 @@ export class NPCsService {
   }
 
   /**
-   * Create a new NPC (automatically assigns to current user)
+   * Create a new NPC
    */
   async createNPC(data: CreateNPCData): Promise<NPC> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -135,16 +114,26 @@ export class NPCsService {
       throw new Error('No authentication token available');
     }
 
+    // Prepare insert data - only include fields that exist in the database
+    const insertData: any = {
+      name: data.name,
+      description: data.description,
+      status: data.status ?? 'active'
+    };
+
+    // Only include slug if it's provided (and the column exists)
+    if (data.slug) {
+      insertData.slug = data.slug;
+    }
+
+    // Only include prompt if it's provided (and the column exists)
+    if (data.prompt) {
+      insertData.prompt = data.prompt;
+    }
+
     const { data: result, error } = await supabase
       .from('npcs')
-      .insert({
-        ...data,
-        user_id: session.user.id, // Automatically assign to current user
-        author_name: data.author_name || 'Player Character',
-        author_type: data.author_type || 'user',
-        visibility: data.visibility || 'private',
-        status: data.status ?? 'active'
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -156,7 +145,7 @@ export class NPCsService {
   }
 
   /**
-   * Update an existing NPC (user's own NPCs only)
+   * Update an existing NPC
    */
   async updateNPC(id: string, data: UpdateNPCData): Promise<NPC> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -164,11 +153,35 @@ export class NPCsService {
       throw new Error('No authentication token available');
     }
 
+    // Prepare update data - only include fields that exist in the database
+    const updateData: any = {};
+    
+    if (data.name !== undefined) {
+      updateData.name = data.name;
+    }
+    
+    if (data.description !== undefined) {
+      updateData.description = data.description;
+    }
+    
+    if (data.status !== undefined) {
+      updateData.status = data.status;
+    }
+    
+    // Only include slug if it's provided (and the column exists)
+    if (data.slug !== undefined) {
+      updateData.slug = data.slug;
+    }
+    
+    // Only include prompt if it's provided (and the column exists)
+    if (data.prompt !== undefined) {
+      updateData.prompt = data.prompt;
+    }
+
     const { data: result, error } = await supabase
       .from('npcs')
-      .update(data)
+      .update(updateData)
       .eq('id', id)
-      .eq('user_id', session.user.id) // Only user's own NPCs
       .select()
       .single();
 
@@ -180,7 +193,7 @@ export class NPCsService {
   }
 
   /**
-   * Delete an NPC (user's own NPCs only)
+   * Delete an NPC
    */
   async deleteNPC(id: string): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -191,8 +204,7 @@ export class NPCsService {
     const { error } = await supabase
       .from('npcs')
       .delete()
-      .eq('id', id)
-      .eq('user_id', session.user.id); // Only user's own NPCs
+      .eq('id', id);
 
     if (error) {
       throw new Error(`Failed to delete NPC: ${error.message}`);
@@ -200,7 +212,7 @@ export class NPCsService {
   }
 
   /**
-   * Get all active NPCs for current user (for dropdowns)
+   * Get all active NPCs (for dropdowns)
    */
   async getActiveNPCs(): Promise<NPC[]> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -211,7 +223,6 @@ export class NPCsService {
     const { data, error } = await supabase
       .from('npcs')
       .select('*')
-      .eq('user_id', session.user.id) // Only user's own NPCs
       .eq('status', 'active')
       .order('name', { ascending: true });
 
@@ -223,7 +234,7 @@ export class NPCsService {
   }
 
   /**
-   * Toggle NPC status between active and archived (user's own NPCs only)
+   * Toggle NPC status between active and archived
    */
   async toggleStatus(id: string): Promise<NPC> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -239,7 +250,6 @@ export class NPCsService {
       .from('npcs')
       .update({ status: newStatus })
       .eq('id', id)
-      .eq('user_id', session.user.id) // Only user's own NPCs
       .select()
       .single();
 

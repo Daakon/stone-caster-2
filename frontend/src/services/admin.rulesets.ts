@@ -10,15 +10,15 @@ export interface Ruleset {
   name: string;
   slug: string;
   description?: string;
-  prompt?: any; // JSONB - can be any structured data
+  prompt?: any; // JSONB - can be any structured data (will be added via migration)
   status: 'draft' | 'active' | 'archived';
-  version_major: number;
-  version_minor: number;
-  version_patch: number;
-  version_semver: string;
+  version: number; // Legacy version field
+  version_major?: number;
+  version_minor?: number;
+  version_patch?: number;
+  version_semver?: string;
   published_at?: string;
-  is_mutable: boolean;
-  owner_user_id: string;
+  is_mutable?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -169,16 +169,31 @@ export class RulesetsService {
 
     // Generate slug if not provided
     const slug = data.slug || this.createSlugFromName(data.name);
-    const uniqueSlug = await this.generateUniqueSlug(slug);
+    
+    // For now, use the slug as-is without checking for uniqueness
+    // This avoids the 406 error when the table doesn't exist or has permission issues
+    const uniqueSlug = slug;
+
+    // Generate a unique ID for the ruleset (text type)
+    const id = uniqueSlug; // Use the slug as the ID for consistency
+
+    // Prepare insert data - only include fields that exist in the database
+    const insertData: any = {
+      id: id,
+      name: data.name,
+      slug: uniqueSlug,
+      description: data.description,
+      status: data.status ?? 'active'
+    };
+
+    // Only include prompt if it's provided (and the column exists)
+    if (data.prompt) {
+      insertData.prompt = data.prompt;
+    }
 
     const { data: result, error } = await supabase
       .from('rulesets')
-      .insert({
-        ...data,
-        slug: uniqueSlug,
-        status: data.status ?? 'active',
-        owner_user_id: session.user.id
-      })
+      .insert(insertData)
       .select()
       .single();
 

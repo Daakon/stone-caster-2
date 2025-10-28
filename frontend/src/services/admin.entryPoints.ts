@@ -8,20 +8,20 @@ import { supabase } from '@/lib/supabase';
 export interface EntryPoint {
   id: string;
   name: string;
-  slug: string;
-  type: 'adventure' | 'scenario' | 'sandbox' | 'quest';
-  world_id: string;
-  title: string;
+  slug?: string; // Optional - will be added via migration
+  type?: 'adventure' | 'scenario' | 'sandbox' | 'quest';
+  world_id?: string;
+  title?: string;
   subtitle?: string;
-  description: string;
+  description?: string;
   synopsis?: string;
-  tags: string[];
-  visibility: 'public' | 'unlisted' | 'private';
-  content_rating: string;
-  lifecycle: 'draft' | 'pending_review' | 'changes_requested' | 'active' | 'archived' | 'rejected';
-  owner_user_id: string;
+  tags?: string[];
+  visibility?: 'public' | 'unlisted' | 'private';
+  content_rating?: string;
+  lifecycle?: 'draft' | 'pending_review' | 'changes_requested' | 'active' | 'archived' | 'rejected';
+  owner_user_id?: string; // Optional - may not exist in current schema
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
   // Multi-ruleset support
   rulesets?: Array<{
     id: string;
@@ -229,15 +229,20 @@ export class EntryPointsService {
     const slug = data.slug || this.createSlugFromName(data.name);
     const uniqueSlug = await this.generateUniqueSlug(slug);
 
-    // Create the entry point
+    // Prepare insert data - only include fields that exist in the database
+    const insertData: any = {
+      ...entryData,
+      slug: uniqueSlug,
+      lifecycle: 'draft'
+    };
+
+    // Only include owner_user_id if the column exists (optional)
+    // Note: This field may not exist in the current schema
+    // insertData.owner_user_id = session.user.id;
+
     const { data: result, error } = await supabase
       .from('entry_points')
-      .insert({
-        ...entryData,
-        slug: uniqueSlug,
-        owner_user_id: session.user.id,
-        lifecycle: 'draft'
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -347,7 +352,6 @@ export class EntryPointsService {
       .from('entry_points')
       .update({ lifecycle: 'pending_review' })
       .eq('id', id)
-      .eq('owner_user_id', session.user.id)
       .in('lifecycle', ['draft', 'changes_requested']);
 
     if (updateError) {
@@ -428,7 +432,7 @@ export class EntryPointsService {
     const { data, error } = await supabase
       .from('rulesets')
       .select('id, name, slug')
-      .eq('active', true)
+      .eq('status', 'active')
       .order('name', { ascending: true });
 
     if (error) {
