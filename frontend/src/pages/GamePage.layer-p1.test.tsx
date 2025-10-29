@@ -8,7 +8,7 @@ import * as api from '../lib/api';
 // Mock the API functions
 vi.mock('../lib/api', () => ({
   getGame: vi.fn(),
-  getAdventureById: vi.fn(),
+  getStoryById: vi.fn(),
   getCharacter: vi.fn(),
   getWorldById: vi.fn(),
   getWallet: vi.fn(),
@@ -132,7 +132,7 @@ describe('GamePage - Layer P1 (Live Data)', () => {
 
   it('should render loading skeleton while fetching adventure, character, world, and wallet data', async () => {
     mockApi.getGame.mockResolvedValue({ ok: true, data: mockGameData });
-    mockApi.getAdventureById.mockImplementation(() => new Promise(() => {})); // Never resolves
+    mockApi.getStoryById.mockImplementation(() => new Promise(() => {})); // Never resolves
     mockApi.getCharacter.mockImplementation(() => new Promise(() => {})); // Never resolves
     mockApi.getWorldById.mockImplementation(() => new Promise(() => {})); // Never resolves
     mockApi.getWallet.mockImplementation(() => new Promise(() => {})); // Never resolves
@@ -146,7 +146,7 @@ describe('GamePage - Layer P1 (Live Data)', () => {
 
   it('should render game page with live data from APIs', async () => {
     mockApi.getGame.mockResolvedValue({ ok: true, data: mockGameData });
-    mockApi.getAdventureById.mockResolvedValue({ ok: true, data: mockAdventureData });
+    mockApi.getStoryById.mockResolvedValue({ ok: true, data: mockAdventureData });
     mockApi.getCharacter.mockResolvedValue({ ok: true, data: mockCharacterData });
     mockApi.getWorldById.mockResolvedValue({ ok: true, data: mockWorldData });
     mockApi.getWallet.mockResolvedValue({ ok: true, data: mockWalletData });
@@ -162,7 +162,7 @@ describe('GamePage - Layer P1 (Live Data)', () => {
 
     // Verify API calls were made
     expect(mockApi.getGame).toHaveBeenCalledWith('test-game-id');
-    expect(mockApi.getAdventureById).toHaveBeenCalledWith('adventure-1');
+    expect(mockApi.getStoryById).toHaveBeenCalledWith('adventure-1');
     expect(mockApi.getCharacter).toHaveBeenCalledWith('character-1');
     expect(mockApi.getWorldById).toHaveBeenCalledWith('world-1');
     expect(mockApi.getWallet).toHaveBeenCalled();
@@ -203,7 +203,7 @@ describe('GamePage - Layer P1 (Live Data)', () => {
 
   it('should handle turn submission with live data', async () => {
     mockApi.getGame.mockResolvedValue({ ok: true, data: mockGameData });
-    mockApi.getAdventureById.mockResolvedValue({ ok: true, data: mockAdventureData });
+    mockApi.getStoryById.mockResolvedValue({ ok: true, data: mockAdventureData });
     mockApi.getCharacter.mockResolvedValue({ ok: true, data: mockCharacterData });
     mockApi.getWorldById.mockResolvedValue({ ok: true, data: mockWorldData });
     mockApi.getWallet.mockResolvedValue({ ok: true, data: mockWalletData });
@@ -237,7 +237,7 @@ describe('GamePage - Layer P1 (Live Data)', () => {
 
   it('should handle insufficient stones error during turn submission', async () => {
     mockApi.getGame.mockResolvedValue({ ok: true, data: mockGameData });
-    mockApi.getAdventureById.mockResolvedValue({ ok: true, data: mockAdventureData });
+    mockApi.getStoryById.mockResolvedValue({ ok: true, data: mockAdventureData });
     mockApi.getCharacter.mockResolvedValue({ ok: true, data: mockCharacterData });
     mockApi.getWorldById.mockResolvedValue({ ok: true, data: mockWorldData });
     mockApi.getWallet.mockResolvedValue({ ok: true, data: mockWalletData });
@@ -259,7 +259,7 @@ describe('GamePage - Layer P1 (Live Data)', () => {
 
   it('should display world rules from live data', async () => {
     mockApi.getGame.mockResolvedValue({ ok: true, data: mockGameData });
-    mockApi.getAdventureById.mockResolvedValue({ ok: true, data: mockAdventureData });
+    mockApi.getStoryById.mockResolvedValue({ ok: true, data: mockAdventureData });
     mockApi.getCharacter.mockResolvedValue({ ok: true, data: mockCharacterData });
     mockApi.getWorldById.mockResolvedValue({ ok: true, data: mockWorldData });
     mockApi.getWallet.mockResolvedValue({ ok: true, data: mockWalletData });
@@ -280,7 +280,7 @@ describe('GamePage - Layer P1 (Live Data)', () => {
     };
 
     mockApi.getGame.mockResolvedValue({ ok: true, data: guestGameData });
-    mockApi.getAdventureById.mockResolvedValue({ ok: true, data: mockAdventureData });
+    mockApi.getStoryById.mockResolvedValue({ ok: true, data: mockAdventureData });
     mockApi.getWorldById.mockResolvedValue({ ok: true, data: mockWorldData });
     mockApi.getWallet.mockResolvedValue({ ok: true, data: mockWalletData });
 

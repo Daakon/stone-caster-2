@@ -11,17 +11,18 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthRouter } from './components/AuthRouter';
 import { GuestCookieService } from './services/guestCookie';
 import LandingPage from './pages/LandingPage';
-import AdventuresPage from './pages/AdventuresPage';
-import MyAdventuresPage from './pages/MyAdventuresPage';
-import AdventureDetailPage from './pages/AdventureDetailPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
+import WorldsPage from './pages/worlds/WorldsPage';
+import NPCsPage from './pages/npcs/NPCsPage';
+import RulesetsPage from './pages/rulesets/RulesetsPage';
 import CharacterCreationPage from './pages/CharacterSelectionPage';
 import CharacterSelectionPage from './pages/CharacterSelectionPage';
 import CharacterCreatorPage from './pages/CharacterCreatorPage';
 import PlayerV3CreationPage from './pages/PlayerV3CreationPage';
-import WorldsPage from './pages/WorldsPage';
-import WorldDetailPage from './pages/WorldDetailPage';
+import WorldDetailPage from './pages/worlds/WorldDetailPage';
+import NPCDetailPage from './pages/npcs/NPCDetailPage';
+import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
 import WalletPage from './pages/WalletPage';
 import PaymentsPage from './pages/PaymentsPage';
 import ProfilePage from './pages/ProfilePage';
@@ -117,19 +118,18 @@ function App() {
               <AdventureToStoryRedirect />
               <Routes>
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/adventures" element={<AdventuresPage />} />
                 <Route path="/stories" element={<StoriesPage />} />
-                <Route path="/my-adventures" element={<MyAdventuresPage />} />
-                <Route path="/adventures/:adventureId/characters" element={<CharacterSelectionPage />} />
-                <Route path="/adventures/:adventureId/create-character" element={<PlayerV3CreationPage />} />
-                <Route path="/adventures/:id" element={<AdventureDetailPage />} />
                 <Route path="/stories/:id" element={<StoryDetailPage />} />
                 <Route path="/stories/:storyId/characters" element={<CharacterSelectionPage />} />
                 <Route path="/stories/:storyId/create-character" element={<PlayerV3CreationPage />} />
+                <Route path="/worlds" element={<WorldsPage />} />
+                <Route path="/worlds/:slug" element={<WorldDetailPage />} />
+                <Route path="/npcs" element={<NPCsPage />} />
+                <Route path="/npcs/:id" element={<NPCDetailPage />} />
+                <Route path="/rulesets" element={<RulesetsPage />} />
+                <Route path="/rulesets/:id" element={<RulesetDetailPage />} />
                 <Route path="/character-creation" element={<CharacterCreationPage />} />
                 <Route path="/character-creator" element={<CharacterCreatorPage />} />
-                <Route path="/worlds" element={<WorldsPage />} />
-                <Route path="/worlds/:id" element={<WorldDetailPage />} />
                 <Route path="/wallet" element={
                   <ProtectedRoute>
                     <WalletPage />

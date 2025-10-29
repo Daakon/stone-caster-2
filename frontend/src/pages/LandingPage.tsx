@@ -75,9 +75,9 @@ export default function LandingPage() {
 
     // Load featured content
     const worldsData = mockDataService.getWorlds().slice(0, 3);
-    const adventuresData = mockDataService.getAdventures().slice(0, 6);
+    const storiesData = mockDataService.getStories().slice(0, 6);
     setWorlds(worldsData);
-    setAdventures(adventuresData);
+    setAdventures(storiesData);
 
     // Show drifter bubble after a delay
     const timer = setTimeout(() => {
@@ -104,11 +104,11 @@ export default function LandingPage() {
   };
 
   const handleAdventureStart = (adventureId: string) => {
-    navigate(`/adventures/${adventureId}`);
+    navigate(`/stories/${adventureId}`);
   };
 
   const handleAdventureViewDetails = (adventureId: string) => {
-    navigate(`/adventures/${adventureId}`);
+    navigate(`/stories/${adventureId}`);
   };
 
   const features = [
@@ -301,9 +301,9 @@ export default function LandingPage() {
               size="lg" 
               variant="outline" 
               className="border-white/20 text-white hover:bg-white/10"
-              onClick={() => navigate('/adventures')}
+              onClick={() => navigate('/stories')}
             >
-              Browse All Adventures
+              Browse All Stories
             </Button>
           </div>
         </div>

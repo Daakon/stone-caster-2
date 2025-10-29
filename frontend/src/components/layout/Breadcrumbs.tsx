@@ -17,9 +17,9 @@ export function Breadcrumbs({ variant = 'back', label, href }: BreadcrumbsProps)
     
     const pathname = location.pathname;
     
-    // Adventure detail
-    if (pathname.match(/^\/adventures\/[^\/]+$/)) {
-      return 'Back to Adventures';
+    // Story detail
+    if (pathname.match(/^\/stories\/[^\/]+$/)) {
+      return 'Back to Stories';
     }
     
     // World detail
@@ -27,14 +27,24 @@ export function Breadcrumbs({ variant = 'back', label, href }: BreadcrumbsProps)
       return 'Back to Worlds';
     }
     
+    // NPC detail
+    if (pathname.match(/^\/npcs\/[^\/]+$/)) {
+      return 'Back to NPCs';
+    }
+    
+    // Ruleset detail
+    if (pathname.match(/^\/rulesets\/[^\/]+$/)) {
+      return 'Back to Rulesets';
+    }
+    
     // Game
     if (pathname.startsWith('/game/') || pathname.startsWith('/play/')) {
-      return 'Back to My Adventures';
+      return 'Back to Stories';
     }
     
     // Character selection
     if (pathname.includes('/characters')) {
-      return 'Back to Adventure';
+      return 'Back to Story';
     }
     
     return 'Back';
@@ -45,9 +55,9 @@ export function Breadcrumbs({ variant = 'back', label, href }: BreadcrumbsProps)
     
     const pathname = location.pathname;
     
-    // Adventure detail
-    if (pathname.match(/^\/adventures\/[^\/]+$/)) {
-      return '/adventures';
+    // Story detail
+    if (pathname.match(/^\/stories\/[^\/]+$/)) {
+      return '/stories';
     }
     
     // World detail
@@ -55,15 +65,25 @@ export function Breadcrumbs({ variant = 'back', label, href }: BreadcrumbsProps)
       return '/worlds';
     }
     
+    // NPC detail
+    if (pathname.match(/^\/npcs\/[^\/]+$/)) {
+      return '/npcs';
+    }
+    
+    // Ruleset detail
+    if (pathname.match(/^\/rulesets\/[^\/]+$/)) {
+      return '/rulesets';
+    }
+    
     // Game
     if (pathname.startsWith('/game/') || pathname.startsWith('/play/')) {
-      return '/my-adventures';
+      return '/stories';
     }
     
     // Character selection
     if (pathname.includes('/characters')) {
-      const adventureId = pathname.split('/')[2];
-      return `/adventures/${adventureId}`;
+      const storyId = pathname.split('/')[2];
+      return `/stories/${storyId}`;
     }
     
     return '/';

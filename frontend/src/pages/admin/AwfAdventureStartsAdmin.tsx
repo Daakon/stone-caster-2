@@ -45,9 +45,9 @@ export default function AwfAdventureStartsAdmin() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [startsResponse, adventuresResponse] = await Promise.all([
+      const [startsResponse, storiesResponse] = await Promise.all([
         awfAdminService.getAdventureStarts(),
-        awfAdminService.getAdventures()
+        awfAdminService.getStories()
       ]);
 
       if (startsResponse.ok && startsResponse.data) {

@@ -181,7 +181,7 @@ describe('AWF Admin Service', () => {
         json: () => Promise.resolve(mockResponse)
       });
 
-      const result = await awfAdminService.getAdventures();
+      const result = await awfAdminService.getStories();
       expect(result).toEqual(mockResponse);
     });
 

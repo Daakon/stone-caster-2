@@ -1,13 +1,13 @@
-name = "stonecaster-frontend"
-main = "dist/index.js"
+name = "stonecaster-redirects"
+main = "workers/redirects.js"
 compatibility_date = "2024-01-01"
 
-[site]
-bucket = "./dist"
-
+# Route configuration for redirects
+# This should be deployed to handle redirects before the main app
 [[routes]]
-pattern = "/*"
-custom_domain = true
+pattern = "stonecaster.com/adventures*"
+zone_name = "stonecaster.com"
 
-[env.production]
-name = "stonecaster-frontend"
+# Environment variables
+[vars]
+ENVIRONMENT = "production"

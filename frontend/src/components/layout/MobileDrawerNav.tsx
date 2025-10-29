@@ -47,15 +47,27 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
       show: true
     },
     { 
+      name: 'Stories', 
+      href: '/stories', 
+      icon: Gamepad2,
+      show: true
+    },
+    { 
       name: 'Worlds', 
       href: '/worlds', 
       icon: Gamepad2,
       show: true
     },
     { 
-      name: 'Stories', 
-      href: '/adventures', 
-      icon: Gamepad2,
+      name: 'NPCs', 
+      href: '/npcs', 
+      icon: User,
+      show: true
+    },
+    { 
+      name: 'Rulesets', 
+      href: '/rulesets', 
+      icon: Gem,
       show: true
     },
     { 

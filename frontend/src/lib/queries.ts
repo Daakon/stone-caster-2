@@ -4,7 +4,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { listWorlds, listNPCs, listRulesets, listStories, getStory } from '@/lib/api';
+import { listWorlds, listNPCs, listRulesets, listStories, getStory, getWorld, getNPC, getRuleset } from '@/lib/api';
 import type { ID, StoryKind } from '@/types/domain';
 
 export const useWorldsQuery = (q?: string) =>
@@ -36,6 +36,28 @@ export const useStoryQuery = (idOrSlug: ID | string) =>
     queryKey: ['story', idOrSlug], 
     queryFn: () => getStory(idOrSlug), 
     enabled: !!idOrSlug 
+  });
+
+// Individual detail hooks
+export const useWorldQuery = (idOrSlug: ID | string) =>
+  useQuery({ 
+    queryKey: ['world', idOrSlug], 
+    queryFn: () => getWorld(idOrSlug), 
+    enabled: !!idOrSlug 
+  });
+
+export const useNPCQuery = (id: ID) =>
+  useQuery({ 
+    queryKey: ['npc', id], 
+    queryFn: () => getNPC(id), 
+    enabled: !!id 
+  });
+
+export const useRulesetQuery = (id: ID) =>
+  useQuery({ 
+    queryKey: ['ruleset', id], 
+    queryFn: () => getRuleset(id), 
+    enabled: !!id 
   });
 
 // ============================================================================

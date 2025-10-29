@@ -311,21 +311,21 @@ export async function getContentWorlds(): Promise<{ ok: true; data: any[] } | { 
   return apiGet('/api/content/worlds');
 }
 
-export async function getContentAdventures(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
-  return apiGet('/api/content/adventures');
+export async function getContentStories(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/content/stories');
 }
 
-// Adventures API - Layer P1
-export async function getAdventures(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
-  return apiGet('/api/adventures');
+// Stories API - Layer P1
+export async function getStories(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/stories');
 }
 
-export async function getAdventureById(id: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
-  return apiGet(`/api/adventures/${id}`);
+export async function getStoryById(id: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/stories/${id}`);
 }
 
-export async function getAdventureBySlug(slug: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
-  return apiGet(`/api/adventures/slug/${slug}`);
+export async function getStoryBySlug(slug: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/stories/slug/${slug}`);
 }
 
 // Worlds API - Layer P1
@@ -404,6 +404,11 @@ export const listRulesets = (p?: ListParamsBase) => httpGet<Ruleset[]>('/catalog
 // Stories (entries under the hood)
 export const listStories = (p?: ListStoriesParams) => httpGet<Story[]>('/catalog/stories', p);
 export const getStory = (idOrSlug: ID | string) => httpGet<StoryWithJoins>(`/catalog/stories/${idOrSlug}`);
+
+// Individual detail endpoints
+export const getWorld = (idOrSlug: ID | string) => httpGet<World>(`/catalog/worlds/${idOrSlug}`);
+export const getNPC = (id: ID) => httpGet<NPC>(`/catalog/npcs/${id}`);
+export const getRuleset = (id: ID) => httpGet<Ruleset>(`/catalog/rulesets/${id}`);
 
 // Entry aliases removed in Phase 1
 

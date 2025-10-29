@@ -1,12 +1,16 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Separator } from '../components/ui/separator';
-import { WorldRuleMeters } from '../components/gameplay/WorldRuleMeters';
-import { StoneCost } from '../components/gameplay/StoneCost';
-import { Breadcrumbs } from '../components/layout/Breadcrumbs';
-import { useStoryQuery } from '../lib/queries';
+import { useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { WorldRuleMeters } from '@/components/gameplay/WorldRuleMeters';
+import { StoneCost } from '@/components/gameplay/StoneCost';
+import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
+import { CatalogCard } from '@/components/catalog/CatalogCard';
+import { CatalogGrid } from '@/components/catalog/CatalogGrid';
+import { useStoryQuery } from '@/lib/queries';
+import { track } from '@/lib/analytics';
 import { 
   Gem, 
   Users, 
@@ -51,7 +55,8 @@ export default function StoryDetailPage() {
   }
 
   const handleStartStory = () => {
-    navigate(`/stories/${story.id}/characters`);
+    track('begin_story_click', { story_id: story.id });
+    navigate(`/play/start?story=${story.id}`);
   };
 
   const handleLearnAboutWorld = () => {
@@ -66,6 +71,68 @@ export default function StoryDetailPage() {
     npcAgency: Eye,
     worldRules: Zap
   };
+
+  // Track story view and update document head for SEO
+  useEffect(() => {
+    if (story) {
+      // Track story view
+      track('story_view', {
+        story_slug: story.slug || story.id,
+        world_id: story.world?.id,
+        ruleset_ids: story.rulesets?.map(r => r.id) || [],
+        tags: story.tags || []
+      });
+
+      // Update title
+      document.title = `${story.title} - StoneCaster`;
+      
+      // Update meta description
+      const metaDescription = document.querySelector('meta[name="description"]');
+      if (metaDescription) {
+        metaDescription.setAttribute('content', story.short_desc || story.description || '');
+      }
+      
+      // Add canonical link
+      let canonicalLink = document.querySelector('link[rel="canonical"]');
+      if (!canonicalLink) {
+        canonicalLink = document.createElement('link');
+        canonicalLink.setAttribute('rel', 'canonical');
+        document.head.appendChild(canonicalLink);
+      }
+      canonicalLink.setAttribute('href', `https://stonecaster.com/stories/${story.slug || story.id}`);
+      
+      // Add Open Graph tags
+      const ogTitle = document.querySelector('meta[property="og:title"]') || document.createElement('meta');
+      ogTitle.setAttribute('property', 'og:title');
+      ogTitle.setAttribute('content', story.title);
+      if (!document.querySelector('meta[property="og:title"]')) {
+        document.head.appendChild(ogTitle);
+      }
+      
+      const ogDescription = document.querySelector('meta[property="og:description"]') || document.createElement('meta');
+      ogDescription.setAttribute('property', 'og:description');
+      ogDescription.setAttribute('content', story.short_desc || story.description || '');
+      if (!document.querySelector('meta[property="og:description"]')) {
+        document.head.appendChild(ogDescription);
+      }
+      
+      const ogUrl = document.querySelector('meta[property="og:url"]') || document.createElement('meta');
+      ogUrl.setAttribute('property', 'og:url');
+      ogUrl.setAttribute('content', `https://stonecaster.com/stories/${story.slug || story.id}`);
+      if (!document.querySelector('meta[property="og:url"]')) {
+        document.head.appendChild(ogUrl);
+      }
+      
+      if (story.hero_url) {
+        const ogImage = document.querySelector('meta[property="og:image"]') || document.createElement('meta');
+        ogImage.setAttribute('property', 'og:image');
+        ogImage.setAttribute('content', story.hero_url);
+        if (!document.querySelector('meta[property="og:image"]')) {
+          document.head.appendChild(ogImage);
+        }
+      }
+    }
+  }, [story]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -111,12 +178,43 @@ export default function StoryDetailPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 mb-6">
-                {story.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary">
-                    {tag}
-                  </Badge>
-                ))}
+              {/* Chips Section */}
+              <div className="space-y-4 mb-6">
+                {/* World and Ruleset Chips */}
+                <div className="flex flex-wrap gap-2">
+                  {story.world && (
+                    <Badge 
+                      variant="secondary" 
+                      className="cursor-pointer hover:bg-secondary/80 transition-colors"
+                      onClick={() => navigate(`/worlds/${story.world.slug || story.world.id}`)}
+                      aria-label={`View world ${story.world.name}`}
+                    >
+                      {story.world.name}
+                    </Badge>
+                  )}
+                  {story.rulesets?.map((ruleset) => (
+                    <Badge 
+                      key={ruleset.id}
+                      variant="outline" 
+                      className="cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => navigate(`/rulesets/${ruleset.id}`)}
+                      aria-label={`View ruleset ${ruleset.name}`}
+                    >
+                      {ruleset.name}
+                    </Badge>
+                  ))}
+                </div>
+                
+                {/* Tags */}
+                {story.tags && story.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {story.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <p className="text-muted-foreground leading-relaxed">
@@ -158,6 +256,38 @@ export default function StoryDetailPage() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Featured NPCs */}
+          {story.featured_npcs && story.featured_npcs.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Featured NPCs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CatalogGrid>
+                  {story.featured_npcs.map((npc) => (
+                    <CatalogCard
+                      key={npc.id}
+                      entity="npc"
+                      idOrSlug={npc.id}
+                      href={`/npcs/${npc.id}`}
+                      imageUrl={npc.portrait_url}
+                      imageAlt={npc.name}
+                      title={npc.name}
+                      description={npc.short_desc}
+                      chips={[
+                        { label: story.world?.name || 'Unknown World', variant: 'secondary' }
+                      ]}
+                      onCardClick={(entity, idOrSlug) => track('catalog_card_click', { entity, id_or_slug: idOrSlug })}
+                    />
+                  ))}
+                </CatalogGrid>
               </CardContent>
             </Card>
           )}

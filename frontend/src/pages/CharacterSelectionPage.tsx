@@ -59,7 +59,7 @@ function CharacterSelectionPageContent() {
   
   // Support both legacy and new routing
   const currentAdventureId = adventureId || adventureSlug;
-  const adventure = currentAdventureId ? mockDataService.getAdventureById(currentAdventureId) : null;
+  const adventure = currentAdventureId ? mockDataService.getStoryById(currentAdventureId) : null;
   const world = adventure ? mockDataService.getWorldById(adventure.worldId) : null;
   const currentTier = mockDataService.getCurrentTier();
   const limits = mockDataService.getLimitsByTier(currentTier);
