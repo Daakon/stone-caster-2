@@ -3,13 +3,13 @@
  * CRUD operations for entries management
  */
 
-import { adminSupabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export interface Entry {
   id: string;
   name: string;
   slug: string;
-  world_id: string;
+  world_text_id: string;
   status: 'draft' | 'active' | 'archived';
   description?: string;
   prompt?: any; // JSONB - AI instructions for the adventure
@@ -45,7 +45,7 @@ export interface Entry {
 
 export interface EntryFilters {
   status?: 'draft' | 'active' | 'archived';
-  world_id?: string;
+  world_text_id?: string;
   search?: string;
   tags?: string[];
   difficulty?: 'easy' | 'medium' | 'hard';
@@ -54,7 +54,7 @@ export interface EntryFilters {
 
 export interface CreateEntryData {
   name: string;
-  world_id: string;
+  world_text_id: string;
   description?: string;
   prompt?: any; // JSONB - AI instructions
   tags?: string[];
@@ -80,12 +80,12 @@ export class EntriesService {
     page: number = 1,
     pageSize: number = 20
   ): Promise<EntryListResponse> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    let query = adminSupabase
+    let query = supabase
       .from('entries')
       .select(`
         *,
@@ -108,8 +108,8 @@ export class EntriesService {
       query = query.eq('status', filters.status);
     }
 
-    if (filters.world_id) {
-      query = query.eq('world_id', filters.world_id);
+    if (filters.world_text_id) {
+      query = query.eq('world_text_id', filters.world_text_id);
     }
 
     if (filters.search) {
@@ -138,12 +138,12 @@ export class EntriesService {
    * Get a single entry by ID
    */
   async getEntry(id: string): Promise<Entry> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    const { data, error } = await adminSupabase
+    const { data, error } = await supabase
       .from('entries')
       .select(`
         *,
@@ -173,12 +173,12 @@ export class EntriesService {
    * Create a new entry
    */
   async createEntry(data: CreateEntryData): Promise<Entry> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    const { data: result, error } = await adminSupabase
+    const { data: result, error } = await supabase
       .from('entries')
       .insert({
         ...data,
@@ -198,12 +198,12 @@ export class EntriesService {
    * Update an existing entry
    */
   async updateEntry(id: string, data: UpdateEntryData): Promise<Entry> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    const { data: result, error } = await adminSupabase
+    const { data: result, error } = await supabase
       .from('entries')
       .update(data)
       .eq('id', id)
@@ -221,12 +221,12 @@ export class EntriesService {
    * Delete an entry
    */
   async deleteEntry(id: string): Promise<void> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    const { error } = await adminSupabase
+    const { error } = await supabase
       .from('entries')
       .delete()
       .eq('id', id);
@@ -240,7 +240,7 @@ export class EntriesService {
    * Toggle entry status between active and archived
    */
   async toggleStatus(id: string): Promise<Entry> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
@@ -249,7 +249,7 @@ export class EntriesService {
     const current = await this.getEntry(id);
     const newStatus = current.status === 'active' ? 'archived' : 'active';
     
-    const { data: result, error } = await adminSupabase
+    const { data: result, error } = await supabase
       .from('entries')
       .update({ status: newStatus })
       .eq('id', id)
@@ -275,7 +275,7 @@ export class EntriesService {
     page = 1,
     pageSize = 20
   ): Promise<EntryListResponse> {
-    let query = adminSupabase
+    let query = supabase
       .from('entries')
       .select(`
         *,
@@ -287,8 +287,8 @@ export class EntriesService {
       .order('updated_at', { ascending: false });
 
     // Apply filters
-    if (filters.world_id) {
-      query = query.eq('world_id', filters.world_id);
+    if (filters.world_text_id) {
+      query = query.eq('world_text_id', filters.world_text_id);
     }
 
     if (filters.difficulty) {
@@ -340,7 +340,7 @@ export class EntriesService {
    * Get entry with entry point for starting an adventure
    */
   async getEntryForStarting(entryId: string): Promise<Entry> {
-    const { data, error } = await adminSupabase
+    const { data, error } = await supabase
       .from('entries')
       .select(`
         *,
@@ -367,7 +367,7 @@ export class EntriesService {
    * Get available tags for filtering
    */
   async getAvailableTags(): Promise<string[]> {
-    const { data, error } = await adminSupabase
+    const { data, error } = await supabase
       .from('entries')
       .select('tags')
       .eq('status', 'active')
@@ -386,7 +386,7 @@ export class EntriesService {
    * Get available difficulties for filtering
    */
   async getAvailableDifficulties(): Promise<string[]> {
-    const { data, error } = await adminSupabase
+    const { data, error } = await supabase
       .from('entries')
       .select('difficulty')
       .eq('status', 'active')

@@ -3,7 +3,7 @@
  * Phase 3: Full CRUD interface for entry points management
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,19 +25,17 @@ export default function EntryPointsAdmin() {
   const [search, setSearch] = useState('');
   const [worlds, setWorlds] = useState<Array<{ id: string; name: string }>>([]);
 
-  // Load data
-  useEffect(() => {
-    loadEntryPoints();
-    loadWorlds();
-  }, [filters]);
+  // Memoize filters to prevent unnecessary re-renders
+  const memoizedFilters = useMemo(() => ({
+    ...filters,
+    search: search || undefined
+  }), [filters.lifecycle, filters.visibility, filters.world_id, filters.type, search]);
 
-  const loadEntryPoints = async () => {
+  // Load entry points with useCallback to prevent recreation on each render
+  const loadEntryPoints = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await entryPointsService.listEntryPoints({
-        ...filters,
-        search: search || undefined
-      });
+      const response = await entryPointsService.listEntryPoints(memoizedFilters);
       setEntryPoints(response.data || []);
     } catch (error) {
       toast.error('Failed to load entry points');
@@ -46,16 +44,27 @@ export default function EntryPointsAdmin() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [memoizedFilters]);
 
-  const loadWorlds = async () => {
+  // Load worlds once on mount
+  const loadWorlds = useCallback(async () => {
     try {
       const worldsData = await entryPointsService.getWorlds();
       setWorlds(worldsData);
     } catch (error) {
       console.error('Error loading worlds:', error);
     }
-  };
+  }, []);
+
+  // Load data on mount and when filters change
+  useEffect(() => {
+    loadEntryPoints();
+  }, [loadEntryPoints]);
+
+  // Load worlds once on mount
+  useEffect(() => {
+    loadWorlds();
+  }, [loadWorlds]);
 
   const handleSubmitForReview = async (id: string, title: string) => {
     if (!confirm(`Submit '${title}' for moderation?`)) {

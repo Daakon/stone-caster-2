@@ -31,7 +31,7 @@ export default function EntriesAdmin() {
   // Filters
   const [filters, setFilters] = useState<EntryFilters>({
     status: undefined,
-    world_id: undefined,
+    world_text_id: undefined,
     search: undefined
   });
 
@@ -74,12 +74,12 @@ export default function EntriesAdmin() {
   };
 
   const handleStatusFilter = (status: string) => {
-    setFilters(prev => ({ ...prev, status: status as 'draft' | 'active' | 'archived' | undefined }));
+    setFilters(prev => ({ ...prev, status: status === 'all' ? undefined : status as 'draft' | 'active' | 'archived' | undefined }));
     setPage(1);
   };
 
   const handleWorldFilter = (worldId: string) => {
-    setFilters(prev => ({ ...prev, world_id: worldId || undefined }));
+    setFilters(prev => ({ ...prev, world_text_id: worldId === 'all' ? undefined : worldId }));
     setPage(1);
   };
 
@@ -181,7 +181,7 @@ export default function EntriesAdmin() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>
@@ -196,8 +196,8 @@ export default function EntriesAdmin() {
                   <SelectValue placeholder="All worlds" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All worlds</SelectItem>
-                  {worlds.map(world => (
+                  <SelectItem value="all">All worlds</SelectItem>
+                  {worlds?.map(world => (
                     <SelectItem key={world.id} value={world.id}>
                       {world.name}
                     </SelectItem>

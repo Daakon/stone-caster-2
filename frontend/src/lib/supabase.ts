@@ -15,8 +15,8 @@ if (!supabaseUrl || !supabaseKey) {
 // Create a single Supabase client instance for auth
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Create an admin client that uses the API base URL for data operations
-export const adminSupabase = createClient(`${API_BASE}/rest/v1`, supabaseKey, {
+// Create an admin client that uses the Supabase URL for data operations
+export const adminSupabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     // Use the same auth as the main client
     autoRefreshToken: true,

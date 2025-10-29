@@ -59,7 +59,11 @@ export class NPCsService {
     params.append('page', String(page));
     params.append('limit', String(pageSize));
 
-    const result = await apiGet<NPCListResponse>(`/api/admin/npcs?${params.toString()}`);
+    const result = await apiGet<{
+      data: NPC[];
+      count: number;
+      hasMore: boolean;
+    }>(`/api/admin/npcs?${params.toString()}`);
     
     if (!result.ok) {
       throw new Error(`Failed to fetch NPCs: ${result.error.message}`);

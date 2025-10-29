@@ -3,7 +3,7 @@
  * Lists and manages worlds with CRUD operations
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,17 +29,20 @@ export default function WorldsAdmin() {
 
   const hasWriteAccess = isCreator || isModerator || isAdmin;
 
-  useEffect(() => {
-    if (!rolesLoading) {
-      loadWorlds();
-    }
-  }, [rolesLoading, filters, page]);
+  // Memoize filters to prevent unnecessary re-renders
+  const memoizedFilters = useMemo(() => ({
+    ...filters,
+    search: search || undefined
+  }), [filters.status, search]);
 
-  const loadWorlds = async () => {
+  // Load worlds with useCallback to prevent recreation on each render
+  const loadWorlds = useCallback(async () => {
+    if (rolesLoading) return;
+    
     try {
       setLoading(true);
       const response = await worldsService.listWorlds(
-        { ...filters, search: search || undefined },
+        memoizedFilters,
         page,
         20
       );
@@ -51,7 +54,11 @@ export default function WorldsAdmin() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [rolesLoading, memoizedFilters, page]);
+
+  useEffect(() => {
+    loadWorlds();
+  }, [loadWorlds]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this world?')) {

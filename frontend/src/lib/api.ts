@@ -95,6 +95,11 @@ export async function apiFetch<T = unknown>(
       return { ok: false, error };
     }
 
+    // For paginated responses (have count/hasMore), return the full response object
+    // For simple responses, extract the data field
+    if (json && typeof json === 'object' && ('count' in json || 'hasMore' in json)) {
+      return { ok: true, data: json as T };
+    }
     return { ok: true, data: (json?.data ?? json ?? null) as T };
   } catch (e: any) {
     const error = toAppError(0, e?.message || 'Network error', 'network_error');

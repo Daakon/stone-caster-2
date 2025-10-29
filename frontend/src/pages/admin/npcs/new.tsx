@@ -14,6 +14,7 @@ import { worldsService, type World } from '@/services/admin.worlds';
 export default function CreateNPCPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [worldsLoading, setWorldsLoading] = useState(true);
   const [worlds, setWorlds] = useState<World[]>([]);
   const [formData, setFormData] = useState<CreateNPCData>({
     name: '',
@@ -32,11 +33,15 @@ export default function CreateNPCPage() {
 
   const loadWorlds = async () => {
     try {
+      setWorldsLoading(true);
       const response = await worldsService.listWorlds({ status: 'active' });
-      setWorlds(response.data);
+      setWorlds(response.data || []);
     } catch (error) {
       console.error('Failed to load worlds:', error);
       toast.error('Failed to load worlds');
+      setWorlds([]); // Ensure worlds is always an array
+    } finally {
+      setWorldsLoading(false);
     }
   };
 
@@ -69,6 +74,36 @@ export default function CreateNPCPage() {
   const handleChange = (field: keyof CreateNPCData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  if (worldsLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/admin/npcs')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Create NPC</h1>
+            <p className="text-muted-foreground">
+              Add a new non-player character
+            </p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+              <p>Loading worlds...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -139,7 +174,7 @@ export default function CreateNPCPage() {
                   <SelectValue placeholder="Select a world" />
                 </SelectTrigger>
                 <SelectContent>
-                  {worlds.map((world) => (
+                  {worlds?.map((world) => (
                     <SelectItem key={world.id} value={world.id}>
                       {world.name}
                     </SelectItem>

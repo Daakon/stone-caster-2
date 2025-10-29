@@ -3,7 +3,7 @@
  * Phase 6: NPC catalog with search, filters, and management
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,34 +21,40 @@ import { useAppRoles } from '@/admin/routeGuard';
 export default function NPCsAdmin() {
   const { isModerator, isAdmin } = useAppRoles();
   const [npcs, setNPCs] = useState<NPC[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<NPCFilters>({});
   const [search, setSearch] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [npcToDelete, setNPCToDelete] = useState<NPC | null>(null);
 
-  // Load NPCs
-  useEffect(() => {
-    loadNPCs();
-  }, [filters, search]);
+  // Memoize filters to prevent unnecessary re-renders
+  const memoizedFilters = useMemo(() => ({
+    ...filters,
+    search: search || undefined
+  }), [filters.status, search]);
 
-  const loadNPCs = async () => {
+  // Load NPCs with useCallback to prevent recreation on each render
+  const loadNPCs = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await npcsService.listNPCs({
-        ...filters,
-        search: search || undefined
-      });
+      const response = await npcsService.listNPCs(memoizedFilters);
       setNPCs(response.data || []);
-
+      setTotalCount(response.count || 0);
     } catch (error) {
       toast.error('Failed to load NPCs');
       console.error('Error loading NPCs:', error);
       setNPCs([]); // Reset to empty array on error
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [memoizedFilters]);
+
+  // Load NPCs on mount and when filters/search change
+  useEffect(() => {
+    loadNPCs();
+  }, [loadNPCs]);
 
 
 
@@ -144,7 +150,7 @@ export default function NPCsAdmin() {
       {/* NPCs Table */}
       <Card>
         <CardHeader>
-          <CardTitle>NPCs ({npcs.length})</CardTitle>
+          <CardTitle>NPCs ({totalCount})</CardTitle>
           <CardDescription>
             Manage non-player characters and their relationships
           </CardDescription>

@@ -3,7 +3,7 @@
  * List and manage rulesets
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -24,19 +24,17 @@ export default function RulesetsAdmin() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingRuleset, setEditingRuleset] = useState<Ruleset | null>(null);
 
-  useEffect(() => {
-    loadRulesets();
-  }, [searchQuery, activeFilter]);
+  // Memoize filters to prevent unnecessary re-renders
+  const memoizedFilters = useMemo<RulesetFilters>(() => ({
+    search: searchQuery || undefined,
+    status: activeFilter === 'all' ? undefined : (activeFilter === 'active' ? 'active' : 'draft')
+  }), [searchQuery, activeFilter]);
 
-  const loadRulesets = async () => {
+  // Load rulesets with useCallback to prevent recreation on each render
+  const loadRulesets = useCallback(async () => {
     try {
       setLoading(true);
-      const filters: RulesetFilters = {
-        search: searchQuery || undefined,
-        status: activeFilter === 'all' ? undefined : (activeFilter === 'active' ? 'active' : 'draft')
-      };
-      
-      const response = await rulesetsService.listRulesets(filters);
+      const response = await rulesetsService.listRulesets(memoizedFilters);
       setRulesets(response.data || []);
     } catch (error) {
       console.error('Failed to load rulesets:', error);
@@ -44,7 +42,11 @@ export default function RulesetsAdmin() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [memoizedFilters]);
+
+  useEffect(() => {
+    loadRulesets();
+  }, [loadRulesets]);
 
   const handleCreate = async (data: any) => {
     try {
