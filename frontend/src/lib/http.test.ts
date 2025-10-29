@@ -21,9 +21,19 @@ describe('http client', () => {
   });
 
   describe('buildURL', () => {
-    it('should add activeOnly=1 for catalog endpoints in public mode', () => {
+    it('should add activeOnly=1 for catalog list endpoints in public mode', () => {
       const url = buildURL('/catalog/worlds', { q: 'test' });
       expect(url).toBe('/catalog/worlds?activeOnly=1&q=test');
+    });
+
+    it('should NOT add activeOnly=1 for catalog detail endpoints', () => {
+      const url = buildURL('/catalog/stories/some-slug');
+      expect(url).toBe('/catalog/stories/some-slug');
+    });
+
+    it('should NOT add activeOnly=1 for catalog detail endpoints with UUID', () => {
+      const url = buildURL('/catalog/stories/123e4567-e89b-12d3-a456-426614174000');
+      expect(url).toBe('/catalog/stories/123e4567-e89b-12d3-a456-426614174000');
     });
 
     it('should not add activeOnly=1 for non-catalog endpoints', () => {

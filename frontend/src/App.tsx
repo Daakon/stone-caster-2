@@ -14,6 +14,8 @@ import LandingPage from './pages/LandingPage';
 import AdventuresPage from './pages/AdventuresPage';
 import MyAdventuresPage from './pages/MyAdventuresPage';
 import AdventureDetailPage from './pages/AdventureDetailPage';
+import StoriesPage from './pages/stories/StoriesPage';
+import StoryDetailPage from './pages/stories/StoryDetailPage';
 import CharacterCreationPage from './pages/CharacterSelectionPage';
 import CharacterSelectionPage from './pages/CharacterSelectionPage';
 import CharacterCreatorPage from './pages/CharacterCreatorPage';
@@ -31,6 +33,7 @@ import AuthSuccessPage from './pages/AuthSuccessPage';
 import ScenarioPicker from './pages/player/ScenarioPicker';
 import { AppAdminShell } from './admin/AppAdminShell';
 import NotFoundPage from './pages/NotFoundPage';
+import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -111,13 +114,18 @@ function App() {
               ]}
             />
             <AppLayout>
+              <AdventureToStoryRedirect />
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/adventures" element={<AdventuresPage />} />
+                <Route path="/stories" element={<StoriesPage />} />
                 <Route path="/my-adventures" element={<MyAdventuresPage />} />
                 <Route path="/adventures/:adventureId/characters" element={<CharacterSelectionPage />} />
                 <Route path="/adventures/:adventureId/create-character" element={<PlayerV3CreationPage />} />
                 <Route path="/adventures/:id" element={<AdventureDetailPage />} />
+                <Route path="/stories/:id" element={<StoryDetailPage />} />
+                <Route path="/stories/:storyId/characters" element={<CharacterSelectionPage />} />
+                <Route path="/stories/:storyId/create-character" element={<PlayerV3CreationPage />} />
                 <Route path="/character-creation" element={<CharacterCreationPage />} />
                 <Route path="/character-creator" element={<CharacterCreatorPage />} />
                 <Route path="/worlds" element={<WorldsPage />} />

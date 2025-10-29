@@ -6,15 +6,4 @@
 // Re-export domain types for backward compatibility
 export type { World, NPC, Ruleset, Story, StoryKind, StoryWithJoins, ID } from './domain';
 
-// TEMP compatibility aliases - remove in Phase 2
-export type EntryKind = 'scenario' | 'adventure';
-
-/**
- * @deprecated Use Story instead. This alias will be removed in Phase 2.
- */
-export type Entry = import('./domain').Story;
-
-/**
- * @deprecated Use StoryKind instead. This alias will be removed in Phase 2.
- */
-export type EntryType = import('./domain').StoryKind;
+// Entry aliases removed in Phase 1

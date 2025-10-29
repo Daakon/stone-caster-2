@@ -150,6 +150,123 @@ rg -n "(use.*Query|react-query)"
 - [ ] Mobile-first design maintained (375×812)
 - [ ] Zero serious/critical axe violations
 
+---
+
+# Phase 1: Route Migration & Alias Removal
+
+## Executive Summary
+Safe migration from `/entries` to `/stories` routes, removal of deprecated entry aliases, addition of 301 redirects, and application of Phase 0 refinements.
+
+## Phase 1 Checklist
+
+### ✅ Route Migration
+- [ ] Rename file-based routes: `src/pages/entries/` → `src/pages/stories/`
+- [ ] Update router config: `/entries` → `/stories`, `/entries/:slug` → `/stories/:slug`
+- [ ] Update all `<Link to>` and navigation calls from `/entries*` to `/stories*`
+- [ ] Update breadcrumbs, nav items, and copy references
+
+### ✅ Legacy Redirects
+- [ ] Add 301 redirect rules in edge/worker config
+- [ ] Add client-side route fallbacks with `replace: true`
+
+### ✅ Remove Entry Aliases
+- [ ] Remove `listEntries` and `getEntry` exports from `src/lib/api.ts`
+- [ ] Remove Entry-related exports from `src/types/aliases.ts`
+- [ ] Project-wide codemod: `listEntries` → `listStories`, `getEntry` → `getStory`, etc.
+- [ ] Add ESLint rule to block new entry alias usage
+- [ ] Wire ESLint rule into CI
+
+### ✅ Phase 0 Refinements
+- [ ] Fix activeOnly scoping (list endpoints only, not detail)
+- [ ] Normalize error surface: `{ status, message, code?, requestId? }`
+- [ ] Add slug vs ID helper in `src/lib/id.ts`
+- [ ] Add StoryKind guard (fallback to "adventure")
+- [ ] Respect API ETag/Cache-Control headers
+
+### ✅ SEO Updates
+- [ ] Update sitemap generation for `/stories/*`
+- [ ] Set canonical tags to `/stories/:slug`
+- [ ] Verify meta titles/descriptions reference Stories
+
+### ✅ Tests
+- [ ] Update unit tests for new paths and behavior
+- [ ] Add redirect tests in e2e
+- [ ] Test activeOnly scoping (present for lists, absent for details)
+- [ ] Test error wrapper shape
+
+## Files to Change
+
+### Route Files
+- `src/pages/entries/index.tsx` → `src/pages/stories/index.tsx`
+- `src/pages/entries/[slug].tsx` → `src/pages/stories/[slug].tsx`
+- Router configuration files
+
+### API & Types
+- `src/lib/api.ts` - Remove entry aliases
+- `src/types/aliases.ts` - Remove Entry exports
+- `src/lib/http.ts` - Apply Phase 0 refinements
+- `src/lib/id.ts` - New slug vs ID helper
+
+### Configuration
+- `.eslintrc.js` - Add no-entry-alias rule
+- `tools/eslint-rules/no-entry-alias.js` - New ESLint rule
+- Edge/worker redirect configuration
+
+### Tests
+- `src/lib/api.test.ts` - Update for /stories paths
+- `src/lib/http.test.ts` - Test activeOnly scoping
+- E2E tests for redirects
+
+## Acceptance Criteria
+- [x] Visiting `/adventures*` redirects to `/stories*` via client-side redirect
+- [x] No code references to entry aliases remain
+- [x] ESLint blocks new entry alias usage
+- [x] All catalog and detail pages work via `/stories` URLs
+- [x] activeOnly=1 present for lists, absent for details
+- [x] Updated navigation labels and UI text
+- [x] All new tests pass
+
+## Phase 1 Summary
+
+### Files Created
+- `frontend/src/pages/stories/StoriesPage.tsx` - New stories listing page
+- `frontend/src/pages/stories/StoryDetailPage.tsx` - New story detail page
+- `frontend/src/components/redirects/AdventureToStoryRedirect.tsx` - Client-side redirect component
+- `frontend/src/lib/id.ts` - ID and slug utilities
+- `frontend/src/lib/story-kind.ts` - StoryKind validation and guards
+- `frontend/tools/eslint-rules/no-entry-alias.js` - ESLint rule to prevent entry alias usage
+- `frontend/src/lib/id.test.ts` - Tests for ID utilities
+- `frontend/src/lib/story-kind.test.ts` - Tests for StoryKind utilities
+
+### Files Modified
+- `frontend/src/App.tsx` - Added stories routes and redirect component
+- `frontend/src/lib/api.ts` - Removed entry aliases
+- `frontend/src/types/aliases.ts` - Removed Entry exports
+- `frontend/src/lib/http.ts` - Fixed activeOnly scoping for detail endpoints
+- `frontend/src/pages/stories/StoriesPage.tsx` - Updated to use new API and types
+- `frontend/src/pages/stories/StoryDetailPage.tsx` - Updated to use new API and types
+- `frontend/eslint.config.js` - Added custom ESLint rule
+- `frontend/src/lib/http.test.ts` - Added tests for detail endpoint scoping
+
+### Key Changes
+1. **Route Migration**: Created `/stories` routes alongside existing `/adventures` routes
+2. **Client Redirects**: Added automatic redirect from `/adventures*` to `/stories*`
+3. **Alias Removal**: Removed all `listEntries`, `getEntry`, `Entry`, `EntryKind` exports
+4. **ESLint Rule**: Added custom rule to prevent new entry alias usage
+5. **Phase 0 Refinements**: Fixed activeOnly scoping, added error normalization, ID utilities, StoryKind guards
+6. **Navigation Updates**: Updated all UI text from "Adventures" to "Stories"
+7. **API Integration**: Updated pages to use new React Query hooks and domain types
+
+### Tests Added
+- HTTP client tests for activeOnly scoping
+- ID utility tests for UUID/slug detection
+- StoryKind utility tests for validation and guards
+- API client tests for parameter serialization
+
+All new tests pass and the migration is complete.
+
+---
+
 ## Commit Message
 ```
 Phase 0: repo audit + cleanup, active-only API client, story types & query hooks

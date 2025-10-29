@@ -405,18 +405,6 @@ export const listRulesets = (p?: ListParamsBase) => httpGet<Ruleset[]>('/catalog
 export const listStories = (p?: ListStoriesParams) => httpGet<Story[]>('/catalog/stories', p);
 export const getStory = (idOrSlug: ID | string) => httpGet<StoryWithJoins>(`/catalog/stories/${idOrSlug}`);
 
-// ============================================================================
-// TEMP DEPRECATED ALIASES - Remove in Phase 2
-// ============================================================================
-
-/**
- * @deprecated Use listStories instead. This alias will be removed in Phase 2.
- */
-export const listEntries = listStories;
-
-/**
- * @deprecated Use getStory instead. This alias will be removed in Phase 2.
- */
-export const getEntry = getStory;
+// Entry aliases removed in Phase 1
 
 
