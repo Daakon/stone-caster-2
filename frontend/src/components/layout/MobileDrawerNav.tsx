@@ -53,8 +53,8 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
       show: true
     },
     { 
-      name: 'My Adventures', 
-      href: '/my-adventures', 
+      name: 'Stories', 
+      href: '/adventures', 
       icon: Gamepad2,
       show: true
     },

@@ -381,4 +381,42 @@ export async function approvePrompt(
   });
 }
 
+// ============================================================================
+// CATALOG API - New Product Model (Stories, Worlds, NPCs, Rulesets)
+// ============================================================================
+
+import { httpGet } from './http';
+import type { World, NPC, Ruleset, Story, StoryWithJoins, ID, StoryKind } from '@/types/domain';
+
+export interface ListParamsBase { q?: string }
+export interface ListStoriesParams extends ListParamsBase { world?: ID; kind?: StoryKind; ruleset?: ID; tags?: string[] }
+export interface ListNPCsParams extends ListParamsBase { world?: ID }
+
+// Worlds
+export const listWorlds = (p?: ListParamsBase) => httpGet<World[]>('/catalog/worlds', p);
+
+// NPCs
+export const listNPCs = (p?: ListNPCsParams) => httpGet<NPC[]>('/catalog/npcs', p);
+
+// Rulesets
+export const listRulesets = (p?: ListParamsBase) => httpGet<Ruleset[]>('/catalog/rulesets', p);
+
+// Stories (entries under the hood)
+export const listStories = (p?: ListStoriesParams) => httpGet<Story[]>('/catalog/stories', p);
+export const getStory = (idOrSlug: ID | string) => httpGet<StoryWithJoins>(`/catalog/stories/${idOrSlug}`);
+
+// ============================================================================
+// TEMP DEPRECATED ALIASES - Remove in Phase 2
+// ============================================================================
+
+/**
+ * @deprecated Use listStories instead. This alias will be removed in Phase 2.
+ */
+export const listEntries = listStories;
+
+/**
+ * @deprecated Use getStory instead. This alias will be removed in Phase 2.
+ */
+export const getEntry = getStory;
+
 

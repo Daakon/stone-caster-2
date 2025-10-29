@@ -1,34 +1,14 @@
-import { useState, useEffect } from 'react';
-import { World } from '@/services/admin.worlds';
+/**
+ * @deprecated Use useWorldsQuery from @/lib/queries instead. This hook will be removed in Phase 2.
+ */
+import { useWorldsQuery as useWorldsQueryNew } from '@/lib/queries';
 
 export function useWorlds() {
-  const [worlds, setWorlds] = useState<World[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useWorldsQueryNew();
   
-  useEffect(() => {
-    const loadWorlds = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await fetch('/api/worlds');
-        
-        if (!response.ok) {
-          throw new Error('Failed to load worlds');
-        }
-        
-        const data = await response.json();
-        setWorlds(data.items || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadWorlds();
-  }, []);
-  
-  return { worlds, loading, error };
+  return { 
+    worlds: data?.data || [], 
+    loading: isLoading, 
+    error: error?.message || null 
+  };
 }
