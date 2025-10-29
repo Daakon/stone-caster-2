@@ -2154,4 +2154,1337 @@ router.post('/awf/bundle-diff', authenticateToken, requireAdminRole, async (req,
   }
 });
 
+// Simple CRUD endpoints for admin panel
+/**
+ * @swagger
+ * /api/admin/rulesets:
+ *   get:
+ *     summary: Get all rulesets
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [draft, active, archived]
+ *         description: Filter by status
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in name, slug, description
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: List of rulesets
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 count:
+ *                   type: integer
+ *                 hasMore:
+ *                   type: boolean
+ */
+router.get('/rulesets', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { status, search, page = 1, limit = 20 } = req.query;
+    
+    let query = supabase
+      .from('rulesets')
+      .select('*', { count: 'exact' })
+      .order('updated_at', { ascending: false });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const from = (Number(page) - 1) * Number(limit);
+    const to = from + Number(limit) - 1;
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || [],
+      count: count || 0,
+      hasMore: (count || 0) > Number(page) * Number(limit)
+    });
+  } catch (error) {
+    console.error('Error fetching rulesets:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch rulesets',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/rulesets:
+ *   post:
+ *     summary: Create a new ruleset
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [draft, active, archived]
+ *               prompt:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: Ruleset created successfully
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/rulesets', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { name, slug, description, status = 'draft', prompt } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Name is required'
+      });
+    }
+
+    // Generate slug if not provided
+    const finalSlug = slug || name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    const { data, error } = await supabase
+      .from('rulesets')
+      .insert({
+        id: finalSlug, // Use slug as ID for consistency
+        name,
+        slug: finalSlug,
+        description,
+        status,
+        prompt: prompt || {}
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to create ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/rulesets/{id}:
+ *   get:
+ *     summary: Get ruleset by ID
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Ruleset ID
+ *     responses:
+ *       200:
+ *         description: Ruleset retrieved successfully
+ *       404:
+ *         description: Ruleset not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/rulesets/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('rulesets')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'Ruleset not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/rulesets/{id}:
+ *   put:
+ *     summary: Update ruleset
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Ruleset ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [draft, active, archived]
+ *               prompt:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Ruleset updated successfully
+ *       404:
+ *         description: Ruleset not found
+ *       500:
+ *         description: Internal server error
+ */
+router.put('/rulesets/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    // Generate slug if name is updated
+    if (updateData.name && !updateData.slug) {
+      updateData.slug = updateData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    const { data, error } = await supabase
+      .from('rulesets')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'Ruleset not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error updating ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to update ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/rulesets/{id}:
+ *   delete:
+ *     summary: Delete ruleset
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Ruleset ID
+ *     responses:
+ *       200:
+ *         description: Ruleset deleted successfully
+ *       404:
+ *         description: Ruleset not found
+ *       500:
+ *         description: Internal server error
+ */
+router.delete('/rulesets/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { error } = await supabase
+      .from('rulesets')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'Ruleset deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting ruleset:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete ruleset',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Worlds CRUD endpoints for admin panel
+/**
+ * @swagger
+ * /api/admin/worlds:
+ *   get:
+ *     summary: Get all worlds
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [draft, active, archived]
+ *         description: Filter by status
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in name, slug, description
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: List of worlds
+ */
+router.get('/worlds', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { status, search, page = 1, limit = 20 } = req.query;
+    
+    let query = supabase
+      .from('worlds_admin')
+      .select('*', { count: 'exact' })
+      .order('updated_at', { ascending: false });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const from = (Number(page) - 1) * Number(limit);
+    const to = from + Number(limit) - 1;
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || [],
+      count: count || 0,
+      hasMore: (count || 0) > Number(page) * Number(limit)
+    });
+  } catch (error) {
+    console.error('Error fetching worlds:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch worlds',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/worlds:
+ *   post:
+ *     summary: Create a new world
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [draft, active, archived]
+ *               prompt:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: World created successfully
+ */
+router.post('/worlds', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { name, description, status = 'draft', prompt } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Name is required'
+      });
+    }
+
+    // Generate UUIDs
+    const worldId = crypto.randomUUID();
+    const uuidId = crypto.randomUUID();
+
+    // Generate a slug from the name
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    const { data: result, error } = await supabase
+      .from('worlds')
+      .insert({
+        id: worldId,
+        name: name,
+        slug: slug,
+        description: description,
+        status: status,
+        version: 1,
+        doc: prompt || {} // Store prompt directly as JSONB
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    // Create the mapping entry
+    const { error: mappingError } = await supabase
+      .from('world_id_mapping')
+      .insert({
+        text_id: worldId,
+        uuid_id: uuidId
+      });
+
+    if (mappingError) {
+      console.warn('Failed to create world mapping:', mappingError);
+    }
+
+    res.status(201).json({
+      ok: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error creating world:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to create world',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/worlds/{id}:
+ *   get:
+ *     summary: Get world by ID
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: World ID
+ *     responses:
+ *       200:
+ *         description: World retrieved successfully
+ *       404:
+ *         description: World not found
+ */
+router.get('/worlds/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('worlds_admin')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'World not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching world:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch world',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/worlds/{id}:
+ *   put:
+ *     summary: Update world
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: World ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [draft, active, archived]
+ *               prompt:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: World updated successfully
+ *       404:
+ *         description: World not found
+ */
+router.put('/worlds/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    // Get the text_id from mapping
+    const { data: mapping, error: mappingError } = await supabase
+      .from('world_id_mapping')
+      .select('text_id')
+      .eq('uuid_id', id)
+      .single();
+
+    if (mappingError) {
+      return res.status(404).json({
+        ok: false,
+        error: 'World not found'
+      });
+    }
+
+    // Generate slug if name is updated
+    if (updateData.name && !updateData.slug) {
+      updateData.slug = updateData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    // Store prompt in doc field
+    if (updateData.prompt) {
+      updateData.doc = updateData.prompt;
+      delete updateData.prompt;
+    }
+
+    const { data, error } = await supabase
+      .from('worlds')
+      .update(updateData)
+      .eq('id', mapping.text_id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'World not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error updating world:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to update world',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/worlds/{id}:
+ *   delete:
+ *     summary: Delete world
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: World ID
+ *     responses:
+ *       200:
+ *         description: World deleted successfully
+ *       404:
+ *         description: World not found
+ */
+router.delete('/worlds/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the text_id from mapping
+    const { data: mapping, error: mappingError } = await supabase
+      .from('world_id_mapping')
+      .select('text_id')
+      .eq('uuid_id', id)
+      .single();
+
+    if (mappingError) {
+      return res.status(404).json({
+        ok: false,
+        error: 'World not found'
+      });
+    }
+
+    const { error } = await supabase
+      .from('worlds')
+      .delete()
+      .eq('id', mapping.text_id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'World deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting world:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete world',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// User roles endpoint for admin panel
+/**
+ * @swagger
+ * /api/admin/user/roles:
+ *   get:
+ *     summary: Get current user's roles
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User roles retrieved successfully
+ */
+router.get('/user/roles', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Unauthorized'
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('app_roles')
+      .select('role')
+      .eq('user_id', userId);
+
+    if (error) {
+      throw error;
+    }
+
+    const roles = (data || []).map(row => row.role);
+    
+    res.json({
+      ok: true,
+      data: roles
+    });
+  } catch (error) {
+    console.error('Error fetching user roles:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch user roles',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// NPCs CRUD endpoints for admin panel
+/**
+ * @swagger
+ * /api/admin/npcs:
+ *   get:
+ *     summary: Get all NPCs
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [draft, active, archived]
+ *         description: Filter by status
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in name, slug, description
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: List of NPCs
+ */
+router.get('/npcs', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { status, search, page = 1, limit = 20 } = req.query;
+    
+    let query = supabase
+      .from('npcs')
+      .select('*', { count: 'exact' })
+      .order('updated_at', { ascending: false });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const from = (Number(page) - 1) * Number(limit);
+    const to = from + Number(limit) - 1;
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || [],
+      count: count || 0,
+      hasMore: (count || 0) > Number(page) * Number(limit)
+    });
+  } catch (error) {
+    console.error('Error fetching NPCs:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch NPCs',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/npcs:
+ *   post:
+ *     summary: Create a new NPC
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [draft, active, archived]
+ *               prompt:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: NPC created successfully
+ */
+router.post('/npcs', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { name, slug, description, status = 'draft', prompt } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Name is required'
+      });
+    }
+
+    // Generate slug if not provided
+    const finalSlug = slug || name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    const insertData: any = {
+      name,
+      description,
+      status
+    };
+
+    if (finalSlug) {
+      insertData.slug = finalSlug;
+    }
+
+    if (prompt) {
+      insertData.prompt = prompt;
+    }
+
+    const { data, error } = await supabase
+      .from('npcs')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating NPC:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to create NPC',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/npcs/{id}:
+ *   get:
+ *     summary: Get NPC by ID
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: NPC ID
+ *     responses:
+ *       200:
+ *         description: NPC retrieved successfully
+ *       404:
+ *         description: NPC not found
+ */
+router.get('/npcs/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('npcs')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'NPC not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching NPC:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch NPC',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/npcs/{id}:
+ *   put:
+ *     summary: Update NPC
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: NPC ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [draft, active, archived]
+ *               prompt:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: NPC updated successfully
+ *       404:
+ *         description: NPC not found
+ */
+router.put('/npcs/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    // Generate slug if name is updated
+    if (updateData.name && !updateData.slug) {
+      updateData.slug = updateData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    const { data, error } = await supabase
+      .from('npcs')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'NPC not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error updating NPC:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to update NPC',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/npcs/{id}:
+ *   delete:
+ *     summary: Delete NPC
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: NPC ID
+ *     responses:
+ *       200:
+ *         description: NPC deleted successfully
+ *       404:
+ *         description: NPC not found
+ */
+router.delete('/npcs/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { error } = await supabase
+      .from('npcs')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'NPC deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting NPC:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete NPC',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Entry Points endpoints for admin panel
+/**
+ * @swagger
+ * /api/admin/entry-points:
+ *   get:
+ *     summary: Get all entry points
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: lifecycle
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         description: Filter by lifecycle status
+ *       - in: query
+ *         name: visibility
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         description: Filter by visibility
+ *       - in: query
+ *         name: world_id
+ *         schema:
+ *           type: string
+ *         description: Filter by world ID
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *         description: Filter by type
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in name, slug, title, description
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: List of entry points
+ */
+router.get('/entry-points', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { lifecycle, visibility, world_id, type, search, page = 1, limit = 20 } = req.query;
+    
+    let query = supabase
+      .from('entry_points')
+      .select('*', { count: 'exact' })
+      .order('updated_at', { ascending: false });
+
+    if (lifecycle) {
+      const lifecycleArray = Array.isArray(lifecycle) ? lifecycle : [lifecycle];
+      query = query.in('lifecycle', lifecycleArray);
+    }
+
+    if (visibility) {
+      const visibilityArray = Array.isArray(visibility) ? visibility : [visibility];
+      query = query.in('visibility', visibilityArray);
+    }
+
+    if (world_id) {
+      query = query.eq('world_id', world_id);
+    }
+
+    if (type) {
+      const typeArray = Array.isArray(type) ? type : [type];
+      query = query.in('type', typeArray);
+    }
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,slug.ilike.%${search}%,title.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const from = (Number(page) - 1) * Number(limit);
+    const to = from + Number(limit) - 1;
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || [],
+      count: count || 0,
+      hasMore: (count || 0) > Number(page) * Number(limit)
+    });
+  } catch (error) {
+    console.error('Error fetching entry points:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch entry points',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/entry-points/{id}:
+ *   get:
+ *     summary: Get entry point by ID
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Entry point ID
+ *     responses:
+ *       200:
+ *         description: Entry point retrieved successfully
+ *       404:
+ *         description: Entry point not found
+ */
+router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('entry_points')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'Entry point not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching entry point:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch entry point',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

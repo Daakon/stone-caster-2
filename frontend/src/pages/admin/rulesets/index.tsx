@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -34,11 +33,11 @@ export default function RulesetsAdmin() {
       setLoading(true);
       const filters: RulesetFilters = {
         search: searchQuery || undefined,
-        active: activeFilter === 'all' ? undefined : activeFilter === 'active'
+        status: activeFilter === 'all' ? undefined : (activeFilter === 'active' ? 'active' : 'draft')
       };
       
       const response = await rulesetsService.listRulesets(filters);
-      setRulesets(response.data);
+      setRulesets(response.data || []);
     } catch (error) {
       console.error('Failed to load rulesets:', error);
       toast.error('Failed to load rulesets');
@@ -86,7 +85,7 @@ export default function RulesetsAdmin() {
 
   const handleToggleActive = async (id: string) => {
     try {
-      await rulesetsService.toggleActive(id);
+      await rulesetsService.toggleStatus(id);
       await loadRulesets();
       toast.success('Ruleset status updated');
     } catch (error) {
@@ -190,8 +189,8 @@ export default function RulesetsAdmin() {
                     <TableCell className="font-medium">{ruleset.name}</TableCell>
                     <TableCell className="text-gray-500">{ruleset.slug}</TableCell>
                     <TableCell>
-                      <Badge variant={ruleset.active ? 'default' : 'secondary'}>
-                        {ruleset.active ? 'Active' : 'Inactive'}
+                      <Badge variant={ruleset.status === 'active' ? 'default' : 'secondary'}>
+                        {ruleset.status === 'active' ? 'Active' : ruleset.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="max-w-xs truncate">
@@ -207,7 +206,7 @@ export default function RulesetsAdmin() {
                           size="sm"
                           onClick={() => handleToggleActive(ruleset.id)}
                         >
-                          {ruleset.active ? (
+                          {ruleset.status === 'active' ? (
                             <EyeOff className="h-4 w-4" />
                           ) : (
                             <Eye className="h-4 w-4" />

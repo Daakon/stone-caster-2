@@ -3,7 +3,7 @@
  * CRUD operations for entries management
  */
 
-import { supabase } from '@/lib/supabase';
+import { adminSupabase } from '@/lib/supabase';
 
 export interface Entry {
   id: string;
@@ -12,6 +12,11 @@ export interface Entry {
   world_id: string;
   status: 'draft' | 'active' | 'archived';
   description?: string;
+  prompt?: any; // JSONB - AI instructions for the adventure
+  tags?: string[]; // Array of tags for filtering and discovery
+  difficulty?: 'easy' | 'medium' | 'hard'; // Difficulty level
+  visibility?: 'public' | 'unlisted' | 'private'; // Visibility setting
+  entry_point_id?: string; // Reference to entry point JSON for initialization
   created_at: string;
   updated_at: string;
   // Related data
@@ -32,18 +37,29 @@ export interface Entry {
     id: string;
     name: string;
   }>;
+  entry_point?: {
+    id: string;
+    prompt: any; // JSONB - Turn 1 injection data
+  };
 }
 
 export interface EntryFilters {
   status?: 'draft' | 'active' | 'archived';
   world_id?: string;
   search?: string;
+  tags?: string[];
+  difficulty?: 'easy' | 'medium' | 'hard';
+  visibility?: 'public' | 'unlisted' | 'private';
 }
 
 export interface CreateEntryData {
   name: string;
   world_id: string;
   description?: string;
+  prompt?: any; // JSONB - AI instructions
+  tags?: string[];
+  difficulty?: 'easy' | 'medium' | 'hard';
+  visibility?: 'public' | 'unlisted' | 'private';
   status?: 'draft' | 'active' | 'archived';
 }
 
@@ -64,12 +80,12 @@ export class EntriesService {
     page: number = 1,
     pageSize: number = 20
   ): Promise<EntryListResponse> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await adminSupabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    let query = supabase
+    let query = adminSupabase
       .from('entries')
       .select(`
         *,
@@ -122,12 +138,12 @@ export class EntriesService {
    * Get a single entry by ID
    */
   async getEntry(id: string): Promise<Entry> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await adminSupabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('entries')
       .select(`
         *,
@@ -157,12 +173,12 @@ export class EntriesService {
    * Create a new entry
    */
   async createEntry(data: CreateEntryData): Promise<Entry> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await adminSupabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    const { data: result, error } = await supabase
+    const { data: result, error } = await adminSupabase
       .from('entries')
       .insert({
         ...data,
@@ -182,12 +198,12 @@ export class EntriesService {
    * Update an existing entry
    */
   async updateEntry(id: string, data: UpdateEntryData): Promise<Entry> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await adminSupabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    const { data: result, error } = await supabase
+    const { data: result, error } = await adminSupabase
       .from('entries')
       .update(data)
       .eq('id', id)
@@ -205,12 +221,12 @@ export class EntriesService {
    * Delete an entry
    */
   async deleteEntry(id: string): Promise<void> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await adminSupabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
 
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('entries')
       .delete()
       .eq('id', id);
@@ -224,7 +240,7 @@ export class EntriesService {
    * Toggle entry status between active and archived
    */
   async toggleStatus(id: string): Promise<Entry> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await adminSupabase.auth.getSession();
     if (!session?.access_token) {
       throw new Error('No authentication token available');
     }
@@ -233,7 +249,7 @@ export class EntriesService {
     const current = await this.getEntry(id);
     const newStatus = current.status === 'active' ? 'archived' : 'active';
     
-    const { data: result, error } = await supabase
+    const { data: result, error } = await adminSupabase
       .from('entries')
       .update({ status: newStatus })
       .eq('id', id)
@@ -245,6 +261,144 @@ export class EntriesService {
     }
 
     return result;
+  }
+
+  // ============================================================================
+  // PLAYER-FACING METHODS
+  // ============================================================================
+
+  /**
+   * Get public entries for player discovery (no auth required)
+   */
+  async getPublicEntries(
+    filters: EntryFilters = {},
+    page = 1,
+    pageSize = 20
+  ): Promise<EntryListResponse> {
+    let query = adminSupabase
+      .from('entries')
+      .select(`
+        *,
+        world:worlds(name),
+        entry_point:entry_points(id, prompt)
+      `, { count: 'exact' })
+      .eq('status', 'active')
+      .eq('visibility', 'public')
+      .order('updated_at', { ascending: false });
+
+    // Apply filters
+    if (filters.world_id) {
+      query = query.eq('world_id', filters.world_id);
+    }
+
+    if (filters.difficulty) {
+      query = query.eq('difficulty', filters.difficulty);
+    }
+
+    if (filters.tags && filters.tags.length > 0) {
+      query = query.overlaps('tags', filters.tags);
+    }
+
+    if (filters.search) {
+      query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+    }
+
+    // Apply pagination
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      throw new Error(`Failed to fetch public entries: ${error.message}`);
+    }
+
+    return {
+      data: data || [],
+      count: count || 0,
+      hasMore: (count || 0) > page * pageSize
+    };
+  }
+
+  /**
+   * Search entries for player discovery
+   */
+  async searchEntries(
+    searchQuery: string,
+    filters: EntryFilters = {},
+    page = 1,
+    pageSize = 20
+  ): Promise<EntryListResponse> {
+    return this.getPublicEntries({
+      ...filters,
+      search: searchQuery
+    }, page, pageSize);
+  }
+
+  /**
+   * Get entry with entry point for starting an adventure
+   */
+  async getEntryForStarting(entryId: string): Promise<Entry> {
+    const { data, error } = await adminSupabase
+      .from('entries')
+      .select(`
+        *,
+        world:worlds(name),
+        entry_point:entry_points(id, prompt)
+      `)
+      .eq('id', entryId)
+      .eq('status', 'active')
+      .eq('visibility', 'public')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to fetch entry for starting: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Entry not found or not available');
+    }
+
+    return data;
+  }
+
+  /**
+   * Get available tags for filtering
+   */
+  async getAvailableTags(): Promise<string[]> {
+    const { data, error } = await adminSupabase
+      .from('entries')
+      .select('tags')
+      .eq('status', 'active')
+      .eq('visibility', 'public');
+
+    if (error) {
+      throw new Error(`Failed to fetch tags: ${error.message}`);
+    }
+
+    // Flatten and deduplicate tags
+    const allTags = data?.flatMap(entry => entry.tags || []) || [];
+    return [...new Set(allTags)].sort();
+  }
+
+  /**
+   * Get available difficulties for filtering
+   */
+  async getAvailableDifficulties(): Promise<string[]> {
+    const { data, error } = await adminSupabase
+      .from('entries')
+      .select('difficulty')
+      .eq('status', 'active')
+      .eq('visibility', 'public');
+
+    if (error) {
+      throw new Error(`Failed to fetch difficulties: ${error.message}`);
+    }
+
+    // Get unique difficulties
+    const difficulties = [...new Set(data?.map(entry => entry.difficulty).filter(Boolean))];
+    return difficulties.sort();
   }
 }
 

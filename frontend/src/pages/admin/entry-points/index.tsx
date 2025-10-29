@@ -38,10 +38,11 @@ export default function EntryPointsAdmin() {
         ...filters,
         search: search || undefined
       });
-      setEntryPoints(response.data);
+      setEntryPoints(response.data || []);
     } catch (error) {
       toast.error('Failed to load entry points');
       console.error('Error loading entry points:', error);
+      setEntryPoints([]); // Reset to empty array on error
     } finally {
       setLoading(false);
     }

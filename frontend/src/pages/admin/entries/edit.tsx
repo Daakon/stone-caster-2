@@ -24,14 +24,19 @@ import { rulesetsService, type Ruleset } from '@/services/admin.rulesets';
 import { npcsService, type NPC } from '@/services/admin.npcs';
 import { npcPacksService, type NPCPack } from '@/services/admin.npcPacks';
 import { entryLinksService } from '@/services/admin.entryLinks';
-import { NamedSinglePicker, type NamedEntity } from '@/admin/components/NamedSinglePicker';
+import { NamedSinglePicker } from '@/admin/components/NamedSinglePicker';
 import { NamedMultiPicker } from '@/admin/components/NamedMultiPicker';
 
 const entrySchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
   status: z.enum(['draft', 'active', 'archived']),
-  world_id: z.string().min(1, 'World is required')
+  world_id: z.string().min(1, 'World is required'),
+  prompt: z.any().optional(), // JSONB - AI instructions
+  tags: z.array(z.string()).optional(),
+  difficulty: z.enum(['easy', 'medium', 'hard']).optional(),
+  visibility: z.enum(['public', 'unlisted', 'private']).optional(),
+  entry_point_id: z.string().optional()
 });
 
 type EntryFormData = z.infer<typeof entrySchema>;

@@ -3,7 +3,11 @@
  * Phase 4: Lookup helpers for ref ID pickers
  */
 
-import { supabase } from '@/lib/supabase';
+import { apiGet } from '@/lib/api';
+import { worldsService } from './admin.worlds';
+import { rulesetsService } from './admin.rulesets';
+import { entryPointsService } from './admin.entryPoints';
+import { npcsService } from './admin.npcs';
 
 export interface RefItem {
   id: string;
@@ -23,226 +27,141 @@ export class RefsService {
    * Search worlds for picker
    */
   async searchWorlds(options: SearchOptions = {}): Promise<RefItem[]> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    try {
+      const response = await worldsService.listWorlds(
+        { search: options.q },
+        1,
+        options.limit || 100
+      );
+      
+      return (response.data || []).map(world => ({
+        id: world.id,
+        name: world.name,
+        type: 'world'
+      }));
+    } catch (error) {
+      console.error('Error searching worlds:', error);
+      return [];
     }
-
-    let query = supabase
-      .from('worlds')
-      .select('id, doc')
-      .order('created_at', { ascending: false });
-
-    if (options.q) {
-      query = query.or(`doc->>name.ilike.%${options.q}%,id.ilike.%${options.q}%`);
-    }
-
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to search worlds: ${error.message}`);
-    }
-
-    return (data || []).map(world => ({
-      id: world.id,
-      name: world.doc?.name || world.id,
-      type: 'world'
-    }));
   }
 
   /**
    * Search rulesets for picker
    */
   async searchRulesets(options: SearchOptions = {}): Promise<RefItem[]> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    try {
+      const response = await rulesetsService.listRulesets(
+        { search: options.q },
+        1,
+        options.limit || 100
+      );
+      
+      return (response.data || []).map(ruleset => ({
+        id: ruleset.id,
+        name: ruleset.name,
+        type: 'ruleset'
+      }));
+    } catch (error) {
+      console.error('Error searching rulesets:', error);
+      return [];
     }
-
-    let query = supabase
-      .from('core_rulesets')
-      .select('id, doc')
-      .order('created_at', { ascending: false });
-
-    if (options.q) {
-      query = query.or(`doc->>name.ilike.%${options.q}%,id.ilike.%${options.q}%`);
-    }
-
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to search rulesets: ${error.message}`);
-    }
-
-    return (data || []).map(ruleset => ({
-      id: ruleset.id,
-      name: ruleset.doc?.name || ruleset.id,
-      type: 'ruleset'
-    }));
   }
 
   /**
    * Search entry points for picker
    */
   async searchEntryPoints(options: SearchOptions = {}): Promise<RefItem[]> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    try {
+      const response = await entryPointsService.listEntryPoints(
+        { 
+          world_id: options.world_id,
+          search: options.q 
+        },
+        1,
+        options.limit || 100
+      );
+      
+      return (response.data || []).map(entry => ({
+        id: entry.id,
+        name: entry.title || entry.name || entry.id,
+        type: entry.type,
+        world_id: entry.world_id
+      }));
+    } catch (error) {
+      console.error('Error searching entry points:', error);
+      return [];
     }
-
-    let query = supabase
-      .from('entry_points')
-      .select('id, title, type, world_id')
-      .order('updated_at', { ascending: false });
-
-    if (options.q) {
-      query = query.or(`title.ilike.%${options.q}%,id.ilike.%${options.q}%`);
-    }
-
-    if (options.world_id) {
-      query = query.eq('world_id', options.world_id);
-    }
-
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to search entry points: ${error.message}`);
-    }
-
-    return (data || []).map(entry => ({
-      id: entry.id,
-      name: `${entry.title} (${entry.type})`,
-      type: entry.type,
-      world_id: entry.world_id
-    }));
   }
 
   /**
    * Search NPCs for picker
    */
   async searchNPCs(options: SearchOptions = {}): Promise<RefItem[]> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    try {
+      const response = await npcsService.listNPCs(
+        { search: options.q },
+        1,
+        options.limit || 100
+      );
+      
+      // Filter by world_id if provided (client-side filter since API doesn't support it yet)
+      let npcs = response.data || [];
+      if (options.world_id) {
+        // Note: NPCs don't have world_id in current schema, so we can't filter by it
+        // This will return all NPCs until we add world_id to NPCs table
+      }
+      
+      return npcs.map(npc => ({
+        id: npc.id,
+        name: npc.name || npc.id,
+        type: 'npc'
+      }));
+    } catch (error) {
+      console.error('Error searching NPCs:', error);
+      return [];
     }
-
-    let query = supabase
-      .from('npcs')
-      .select('id, doc')
-      .order('created_at', { ascending: false });
-
-    if (options.q) {
-      query = query.or(`doc->>npc->>name.ilike.%${options.q}%,id.ilike.%${options.q}%`);
-    }
-
-    if (options.world_id) {
-      query = query.eq('doc->>npc->>world_id', options.world_id);
-    }
-
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to search NPCs: ${error.message}`);
-    }
-
-    return (data || []).map(npc => ({
-      id: npc.id,
-      name: npc.doc?.npc?.name || npc.id,
-      type: 'npc',
-      world_id: npc.doc?.npc?.world_id
-    }));
   }
 
   /**
    * Get ref item by ID and type
    */
   async getRefItem(id: string, type: 'world' | 'ruleset' | 'entry' | 'npc'): Promise<RefItem | null> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
     try {
       switch (type) {
         case 'world': {
-          const { data, error } = await supabase
-            .from('worlds')
-            .select('id, doc')
-            .eq('id', id)
-            .single();
-
-          if (error) return null;
-
+          const world = await worldsService.getWorld(id);
           return {
-            id: data.id,
-            name: data.doc?.name || data.id,
+            id: world.id,
+            name: world.name,
             type: 'world'
           };
         }
 
         case 'ruleset': {
-          const { data, error } = await supabase
-            .from('core_rulesets')
-            .select('id, doc')
-            .eq('id', id)
-            .single();
-
-          if (error) return null;
-
+          const ruleset = await rulesetsService.getRuleset(id);
           return {
-            id: data.id,
-            name: data.doc?.name || data.id,
+            id: ruleset.id,
+            name: ruleset.name,
             type: 'ruleset'
           };
         }
 
         case 'entry': {
-          const { data, error } = await supabase
-            .from('entry_points')
-            .select('id, title, type, world_id')
-            .eq('id', id)
-            .single();
-
-          if (error) return null;
-
+          const entry = await entryPointsService.getEntryPoint(id);
           return {
-            id: data.id,
-            name: `${data.title} (${data.type})`,
-            type: data.type,
-            world_id: data.world_id
+            id: entry.id,
+            name: entry.title || entry.name || entry.id,
+            type: entry.type,
+            world_id: entry.world_id
           };
         }
 
         case 'npc': {
-          const { data, error } = await supabase
-            .from('npcs')
-            .select('id, doc')
-            .eq('id', id)
-            .single();
-
-          if (error) return null;
-
+          const npc = await npcsService.getNPC(id);
           return {
-            id: data.id,
-            name: data.doc?.npc?.name || data.id,
-            type: 'npc',
-            world_id: data.doc?.npc?.world_id
+            id: npc.id,
+            name: npc.name || npc.id,
+            type: 'npc'
           };
         }
 

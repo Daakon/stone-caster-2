@@ -3,7 +3,7 @@
  * CRUD operations for rulesets management
  */
 
-import { supabase } from '@/lib/supabase';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
 
 export interface Ruleset {
   id: string;
@@ -45,51 +45,6 @@ export interface RulesetListResponse {
 }
 
 export class RulesetsService {
-  /**
-   * Generate a unique slug from a name
-   */
-  private async generateUniqueSlug(baseSlug: string, excludeId?: string): Promise<string> {
-    let slug = baseSlug;
-    let counter = 1;
-
-    while (true) {
-      let query = supabase
-        .from('rulesets')
-        .select('id')
-        .eq('slug', slug);
-
-      if (excludeId) {
-        query = query.neq('id', excludeId);
-      }
-
-      const { error } = await query.single();
-
-      if (error && error.code === 'PGRST116') {
-        // No existing slug found, we can use this one
-        break;
-      }
-
-      if (error) {
-        throw new Error(`Failed to check slug uniqueness: ${error.message}`);
-      }
-
-      // Slug exists, try with counter
-      slug = `${baseSlug}-${counter}`;
-      counter++;
-    }
-
-    return slug;
-  }
-
-  /**
-   * Create slug from name
-   */
-  private createSlugFromName(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  }
 
   /**
    * List rulesets with filters and pagination
@@ -99,159 +54,75 @@ export class RulesetsService {
     page: number = 1,
     pageSize: number = 20
   ): Promise<RulesetListResponse> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    let query = supabase
-      .from('rulesets')
-      .select('*', { count: 'exact' })
-      .order('updated_at', { ascending: false });
-
-    // Apply filters
+    const params = new URLSearchParams();
+    
     if (filters.status !== undefined) {
-      query = query.eq('status', filters.status);
+      params.append('status', filters.status);
     }
-
+    
     if (filters.search) {
-      query = query.or(`name.ilike.%${filters.search}%,slug.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      params.append('search', filters.search);
     }
-
-    // Apply pagination
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    query = query.range(from, to);
-
-    const { data, error, count } = await query;
-
-    if (error) {
-      throw new Error(`Failed to fetch rulesets: ${error.message}`);
+    
+    params.append('page', page.toString());
+    params.append('limit', pageSize.toString());
+    
+    const result = await apiGet<RulesetListResponse>(`/api/admin/rulesets?${params.toString()}`);
+    
+    if (!result.ok) {
+      throw new Error(`Failed to fetch rulesets: ${result.error.message}`);
     }
-
-    return {
-      data: data || [],
-      count: count || 0,
-      hasMore: (count || 0) > page * pageSize
-    };
+    
+    return result.data;
   }
 
   /**
    * Get a single ruleset by ID
    */
   async getRuleset(id: string): Promise<Ruleset> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    const result = await apiGet<Ruleset>(`/api/admin/rulesets/${id}`);
+    
+    if (!result.ok) {
+      throw new Error(`Failed to fetch ruleset: ${result.error.message}`);
     }
-
-    const { data, error } = await supabase
-      .from('rulesets')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to fetch ruleset: ${error.message}`);
-    }
-
-    return data;
+    
+    return result.data;
   }
 
   /**
    * Create a new ruleset
    */
   async createRuleset(data: CreateRulesetData): Promise<Ruleset> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    // Generate slug if not provided
-    const slug = data.slug || this.createSlugFromName(data.name);
+    const result = await apiPost<Ruleset>('/api/admin/rulesets', data);
     
-    // For now, use the slug as-is without checking for uniqueness
-    // This avoids the 406 error when the table doesn't exist or has permission issues
-    const uniqueSlug = slug;
-
-    // Generate a unique ID for the ruleset (text type)
-    const id = uniqueSlug; // Use the slug as the ID for consistency
-
-    // Prepare insert data - only include fields that exist in the database
-    const insertData: any = {
-      id: id,
-      name: data.name,
-      slug: uniqueSlug,
-      description: data.description,
-      status: data.status ?? 'active'
-    };
-
-    // Only include prompt if it's provided (and the column exists)
-    if (data.prompt) {
-      insertData.prompt = data.prompt;
+    if (!result.ok) {
+      throw new Error(`Failed to create ruleset: ${result.error.message}`);
     }
-
-    const { data: result, error } = await supabase
-      .from('rulesets')
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to create ruleset: ${error.message}`);
-    }
-
-    return result;
+    
+    return result.data;
   }
 
   /**
    * Update an existing ruleset
    */
   async updateRuleset(id: string, data: UpdateRulesetData): Promise<Ruleset> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    const result = await apiPut<Ruleset>(`/api/admin/rulesets/${id}`, data);
+    
+    if (!result.ok) {
+      throw new Error(`Failed to update ruleset: ${result.error.message}`);
     }
-
-    // Handle slug updates
-    let updateData = { ...data };
-    if (data.slug || data.name) {
-      const slug = data.slug || (data.name ? this.createSlugFromName(data.name) : undefined);
-      if (slug) {
-        updateData.slug = await this.generateUniqueSlug(slug, id);
-      }
-    }
-
-    const { data: result, error } = await supabase
-      .from('rulesets')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to update ruleset: ${error.message}`);
-    }
-
-    return result;
+    
+    return result.data;
   }
 
   /**
    * Delete a ruleset
    */
   async deleteRuleset(id: string): Promise<void> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    const { error } = await supabase
-      .from('rulesets')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      throw new Error(`Failed to delete ruleset: ${error.message}`);
+    const result = await apiDelete(`/api/admin/rulesets/${id}`);
+    
+    if (!result.ok) {
+      throw new Error(`Failed to delete ruleset: ${result.error.message}`);
     }
   }
 
@@ -259,137 +130,57 @@ export class RulesetsService {
    * Get all active rulesets (for dropdowns)
    */
   async getActiveRulesets(): Promise<Ruleset[]> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    const result = await apiGet<RulesetListResponse>('/api/admin/rulesets?status=active&limit=100');
+    
+    if (!result.ok) {
+      throw new Error(`Failed to fetch active rulesets: ${result.error.message}`);
     }
-
-    const { data, error } = await supabase
-      .from('rulesets')
-      .select('*')
-      .eq('status', 'active')
-      .order('name', { ascending: true });
-
-    if (error) {
-      throw new Error(`Failed to fetch active rulesets: ${error.message}`);
-    }
-
-    return data || [];
+    
+    return result.data.data;
   }
 
   /**
    * Toggle ruleset status between active and archived
    */
   async toggleStatus(id: string): Promise<Ruleset> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
     // Get current status
     const current = await this.getRuleset(id);
     const newStatus = current.status === 'active' ? 'archived' : 'active';
     
-    const { data: result, error } = await supabase
-      .from('rulesets')
-      .update({ status: newStatus })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to toggle ruleset status: ${error.message}`);
+    const result = await apiPut<Ruleset>(`/api/admin/rulesets/${id}`, { status: newStatus });
+    
+    if (!result.ok) {
+      throw new Error(`Failed to toggle ruleset status: ${result.error.message}`);
     }
-
-    return result;
+    
+    return result.data;
   }
 
   /**
    * Publish a draft ruleset to active status
    */
   async publishRuleset(id: string): Promise<{ success: boolean; ruleset?: Ruleset; error?: string }> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    try {
+      const result = await apiPut<Ruleset>(`/api/admin/rulesets/${id}`, { status: 'active' });
+      
+      if (!result.ok) {
+        return { success: false, error: result.error.message };
+      }
+      
+      return { success: true, ruleset: result.data };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
     }
-
-    const { data, error } = await supabase.rpc('publish_ruleset', { ruleset_id: id });
-
-    if (error) {
-      throw new Error(`Failed to publish ruleset: ${error.message}`);
-    }
-
-    if (!data.success) {
-      return { success: false, error: data.error };
-    }
-
-    // Get the updated ruleset
-    const updatedRuleset = await this.getRuleset(id);
-    return { success: true, ruleset: updatedRuleset };
-  }
-
-  /**
-   * Clone a ruleset with version bump
-   */
-  async cloneRuleset(
-    id: string, 
-    bumpType: 'major' | 'minor' | 'patch' = 'minor'
-  ): Promise<{ success: boolean; newRuleset?: Ruleset; error?: string }> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    const { data, error } = await supabase.rpc('clone_ruleset', { 
-      ruleset_id: id, 
-      bump_type: bumpType 
-    });
-
-    if (error) {
-      throw new Error(`Failed to clone ruleset: ${error.message}`);
-    }
-
-    if (!data.success) {
-      return { success: false, error: data.error };
-    }
-
-    // Get the new ruleset
-    const newRuleset = await this.getRuleset(data.new_id);
-    return { success: true, newRuleset };
-  }
-
-  /**
-   * Get ruleset revision history
-   */
-  async getRulesetRevisions(rulesetId: string): Promise<Array<{
-    id: string;
-    snapshot: any;
-    created_at: string;
-    actor?: string;
-  }>> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    const { data, error } = await supabase
-      .from('ruleset_revisions')
-      .select('*')
-      .eq('ruleset_id', rulesetId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      throw new Error(`Failed to fetch ruleset revisions: ${error.message}`);
-    }
-
-    return data || [];
   }
 
   /**
    * Check if ruleset can be edited (only drafts are mutable)
    */
   canEdit(ruleset: Ruleset): boolean {
-    return ruleset.is_mutable && ruleset.status === 'draft';
+    return ruleset.is_mutable === true && ruleset.status === 'draft';
   }
 }
 

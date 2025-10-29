@@ -175,3 +175,4 @@ INSERT INTO public.npc_packs (id, name, slug, description, status) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 COMMIT;
+

@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, Search, Filter, Edit, Trash2, Eye } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2 } from 'lucide-react';
 
 import { entriesService, type Entry, type EntryFilters } from '@/services/admin.entries';
 import { worldsService, type World } from '@/services/admin.worlds';
@@ -237,6 +237,9 @@ export default function EntriesAdmin() {
                 <TableHead>Name</TableHead>
                 <TableHead>World</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Difficulty</TableHead>
+                <TableHead>Visibility</TableHead>
+                <TableHead>Tags</TableHead>
                 <TableHead>Rulesets</TableHead>
                 <TableHead>NPCs</TableHead>
                 <TableHead>Updated</TableHead>
@@ -267,6 +270,30 @@ export default function EntriesAdmin() {
                     <Badge className={getStatusColor(entry.status)}>
                       {entry.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {entry.difficulty || 'medium'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={entry.visibility === 'public' ? 'default' : 'secondary'}>
+                      {entry.visibility || 'public'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {entry.tags?.slice(0, 3).map((tag, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {entry.tags && entry.tags.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{entry.tags.length - 3}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <span className="text-sm">

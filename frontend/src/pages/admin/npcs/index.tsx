@@ -39,11 +39,12 @@ export default function NPCsAdmin() {
         ...filters,
         search: search || undefined
       });
-      setNPCs(response.data);
+      setNPCs(response.data || []);
 
     } catch (error) {
       toast.error('Failed to load NPCs');
       console.error('Error loading NPCs:', error);
+      setNPCs([]); // Reset to empty array on error
     } finally {
       setLoading(false);
     }
@@ -136,51 +137,6 @@ export default function NPCsAdmin() {
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="visibility">Visibility</Label>
-              <Select
-                value={filters.visibility || 'all'}
-                onValueChange={(value) => 
-                  setFilters(prev => ({ 
-                    ...prev, 
-                    visibility: value === 'all' ? undefined : value as 'private' | 'public'
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All visibility" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All visibility</SelectItem>
-                  <SelectItem value="private">Private</SelectItem>
-                  <SelectItem value="public">Public</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="author_type">Author Type</Label>
-              <Select
-                value={filters.author_type || 'all'}
-                onValueChange={(value) => 
-                  setFilters(prev => ({ 
-                    ...prev, 
-                    author_type: value === 'all' ? undefined : value as 'user' | 'system' | 'original'
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All authors" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All authors</SelectItem>
-                  <SelectItem value="user">Player Characters</SelectItem>
-                  <SelectItem value="original">Original Characters</SelectItem>
-                  <SelectItem value="system">System Characters</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -204,8 +160,6 @@ export default function NPCsAdmin() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Visibility</TableHead>
-                  <TableHead>Author</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead>Actions</TableHead>
@@ -226,19 +180,6 @@ export default function NPCsAdmin() {
                       >
                         {npc.status}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={npc.visibility === 'public' ? 'default' : 'secondary'}
-                      >
-                        {npc.visibility}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div className="font-medium">{npc.author_name || 'Unknown'}</div>
-                        <div className="text-muted-foreground">{npc.author_type}</div>
-                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="max-w-xs truncate">

@@ -56,3 +56,4 @@ console.log('   Check if npcs table has: id, name, visibility, user_id, author_n
 console.log('');
 console.log('📁 Migration files are in: supabase/migrations/');
 console.log('   Use the FIXED V5 version for migration #3');
+

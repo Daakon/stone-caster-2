@@ -73,3 +73,4 @@ if (fs.existsSync(firstMigrationPath)) {
   console.log('');
   console.log('🔄 After the first migration completes, run this script again to see the next one.');
 }
+

@@ -58,3 +58,4 @@ BEGIN
     CREATE INDEX npcs_status_idx ON public.npcs(status);
   END IF;
 END $$;
+

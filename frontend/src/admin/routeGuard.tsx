@@ -4,7 +4,7 @@
  */
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
+import { apiGet } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,16 +53,13 @@ export function AppRolesProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         setError(null);
 
-        const { data, error: fetchError } = await supabase
-          .from('app_roles')
-          .select('role')
-          .eq('user_id', user.id);
-
-        if (fetchError) {
-          throw new Error(`Failed to fetch roles: ${fetchError.message}`);
+        const result = await apiGet<string[]>('/api/admin/user/roles');
+        
+        if (!result.ok) {
+          throw new Error(`Failed to fetch roles: ${result.error.message}`);
         }
 
-        const userRoles = (data || []).map(row => row.role as AppRole);
+        const userRoles = (result.data || []).map(role => role as AppRole);
         setRoles(userRoles);
       } catch (err) {
         console.error('Error fetching app roles:', err);

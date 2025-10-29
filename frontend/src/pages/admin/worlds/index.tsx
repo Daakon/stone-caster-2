@@ -25,7 +25,6 @@ export default function WorldsAdmin() {
   const [filters, setFilters] = useState<WorldFilters>({});
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
   const hasWriteAccess = isCreator || isModerator || isAdmin;
@@ -44,8 +43,7 @@ export default function WorldsAdmin() {
         page,
         20
       );
-      setWorlds(response.data);
-      setHasMore(response.hasMore);
+      setWorlds(response.data || []);
       setTotalCount(response.count);
     } catch (error) {
       console.error('Failed to load worlds:', error);
@@ -78,7 +76,7 @@ export default function WorldsAdmin() {
   const handleFilterChange = (key: keyof WorldFilters, value: string) => {
     setFilters(prev => ({
       ...prev,
-      [key]: value === 'all' ? undefined : [value]
+      [key]: value === 'all' || value === '' ? undefined : (value as any)
     }));
     setPage(1);
   };
@@ -133,7 +131,7 @@ export default function WorldsAdmin() {
             
             <div>
               <label className="block text-sm font-medium mb-2">Status</label>
-              <Select value={filters.status?.[0] || 'all'} onValueChange={(value) => handleFilterChange('status', value)}>
+              <Select value={filters.status || 'all'} onValueChange={(value) => handleFilterChange('status', value === 'all' ? '' : value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -142,21 +140,6 @@ export default function WorldsAdmin() {
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Locale</label>
-              <Select value={filters.locale?.[0] || 'all'} onValueChange={(value) => handleFilterChange('locale', value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All locales</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="es">Spanish</SelectItem>
-                  <SelectItem value="fr">French</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -186,7 +169,6 @@ export default function WorldsAdmin() {
                   <TableHead>Name</TableHead>
                   <TableHead>Slug</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Locale</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -204,7 +186,6 @@ export default function WorldsAdmin() {
                         {world.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{world.locale}</TableCell>
                     <TableCell className="text-gray-500">
                       {new Date(world.updated_at).toLocaleDateString()}
                     </TableCell>

@@ -103,3 +103,4 @@ COMMIT;`;
 fs.writeFileSync('complete-migration.sql', completeSQL);
 console.log('💾 Complete migration SQL saved to: complete-migration.sql');
 console.log('   You can also copy from this file if needed');
+

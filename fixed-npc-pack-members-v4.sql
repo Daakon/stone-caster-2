@@ -37,3 +37,4 @@ BEGIN
     RAISE NOTICE 'npc_pack_members table already exists';
   END IF;
 END $$;
+

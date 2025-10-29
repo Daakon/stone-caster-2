@@ -40,3 +40,4 @@ INSERT INTO public.rulesets (id, name, description, status) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 COMMIT;
+
