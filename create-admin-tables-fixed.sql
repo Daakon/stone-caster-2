@@ -214,3 +214,10 @@ WHERE table_name = 'entries'
   AND table_schema = 'public'
 ORDER BY ordinal_position;
 
+
+
+
+
+
+
+

@@ -49,3 +49,10 @@ console.log('');
 console.log('📁 Migration files are in: supabase/migrations/');
 console.log('   Run them in the exact order shown above');
 
+
+
+
+
+
+
+

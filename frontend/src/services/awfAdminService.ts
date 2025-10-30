@@ -147,9 +147,14 @@ export class AwfAdminService {
     });
   }
 
-  // Adventures
+  // Adventures (deprecated - use getStories instead)
   async getAdventures(): Promise<AwfDocumentResponse> {
     return this.makeRequest<AwfDocumentResponse>('/awf/adventures');
+  }
+
+  // Stories (new)
+  async getStories(): Promise<AwfDocumentResponse> {
+    return this.makeRequest<AwfDocumentResponse>('/awf/stories');
   }
 
   async createAdventure(data: {

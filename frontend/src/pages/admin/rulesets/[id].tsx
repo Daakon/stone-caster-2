@@ -205,3 +205,10 @@ export default function RulesetDetailPage() {
 
 
 
+
+
+
+
+
+
+

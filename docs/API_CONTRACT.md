@@ -733,6 +733,164 @@ interface WorldDetailDTO extends WorldDTO {
 }
 ```
 
+### Catalog
+
+The catalog endpoints provide public access to curated content from the Supabase database. These endpoints are read-only and do not require authentication.
+
+#### GET /api/catalog/worlds
+
+List all worlds from the catalog. Supports filtering by status.
+
+**Authentication**: None required
+
+**Query Parameters**:
+- `activeOnly` (optional): Filter to only active worlds. Accepts `1`, `true` for active-only, or `0`, `false` for all worlds.
+
+**Response** (200):
+```typescript
+interface CatalogWorld {
+  id: string;           // World identifier
+  name: string;         // World name
+  slug: string;         // URL-friendly slug
+  tagline: string;      // Short tagline
+  short_desc: string;   // Brief description
+  hero_quote: string;   // Featured quote
+  status: 'draft' | 'active' | 'archived'; // Publication status
+  created_at: string;   // ISO 8601 timestamp
+  updated_at: string;   // ISO 8601 timestamp
+}
+
+// Response envelope
+interface CatalogWorldsResponse {
+  ok: true;
+  data: CatalogWorld[];
+  meta: {
+    traceId: string;
+    timestamp: string;
+  };
+}
+```
+
+**Examples**:
+- `/api/catalog/worlds` - Returns all worlds
+- `/api/catalog/worlds?activeOnly=1` - Returns only active worlds
+- `/api/catalog/worlds?activeOnly=0` - Returns all worlds (explicit)
+
+**Error Responses**:
+- `400 VALIDATION_ERROR` - Invalid query parameter value
+- `500 INTERNAL_ERROR` - Database query failed
+
+#### GET /api/catalog/worlds/:idOrSlug
+
+Get a specific world by ID or slug.
+
+**Authentication**: None required
+
+**Path Parameters**:
+- `idOrSlug`: The world's ID or slug
+
+**Response** (200):
+```typescript
+interface CatalogWorldDetail {
+  id: string;
+  name: string;
+  slug: string;
+  tagline: string;
+  short_desc: string;
+  hero_quote: string;
+  status: 'draft' | 'active' | 'archived';
+  created_at: string;
+  updated_at: string;
+}
+```
+
+**Error Responses**:
+- `404 NOT_FOUND` - World not found
+- `500 INTERNAL_ERROR` - Database query failed
+
+#### GET /api/catalog/stories
+
+List all stories (adventures) from the catalog. Supports filtering by status.
+
+**Authentication**: None required
+
+**Query Parameters**:
+- `activeOnly` (optional): Filter to only active stories. Accepts `1`, `true` for active-only, or `0`, `false` for all stories.
+
+**Response** (200):
+```typescript
+interface CatalogStory {
+  id: string;                 // Adventure identifier
+  name: string;               // Adventure name
+  slug: string;               // URL-friendly slug
+  tagline: string;            // Short tagline
+  short_desc: string;         // Brief description
+  hero_quote: string;         // Featured quote
+  world_id: string | null;    // Foreign key to worlds table
+  status: 'draft' | 'active' | 'archived'; // Publication status
+  created_at: string;         // ISO 8601 timestamp
+  updated_at: string;         // ISO 8601 timestamp
+}
+
+// Response envelope
+interface CatalogStoriesResponse {
+  ok: true;
+  data: CatalogStory[];
+  meta: {
+    traceId: string;
+    timestamp: string;
+  };
+}
+```
+
+**Examples**:
+- `/api/catalog/stories` - Returns all stories
+- `/api/catalog/stories?activeOnly=1` - Returns only active stories
+- `/api/catalog/stories?activeOnly=0` - Returns all stories (explicit)
+
+**Error Responses**:
+- `400 VALIDATION_FAILED` - Invalid query parameter value
+- `500 INTERNAL_ERROR` - Database query failed
+
+**Note**: Story data is sourced from the `adventures` table. All content fields (name, slug, tagline, etc.) are stored in the `doc` JSONB field and extracted during query transformation.
+
+#### GET /api/catalog/stories/:idOrSlug
+
+Get a specific story by ID or slug.
+
+**Authentication**: None required
+
+**Path Parameters**:
+- `idOrSlug`: The story's ID or slug
+
+**Response** (200):
+```typescript
+interface CatalogStoryDetail {
+  id: string;
+  name: string;
+  slug: string;
+  tagline: string;
+  short_desc: string;
+  hero_quote: string;
+  world_id: string | null;
+  status: 'draft' | 'active' | 'archived';
+  created_at: string;
+  updated_at: string;
+}
+```
+
+**Error Responses**:
+- `404 NOT_FOUND` - Story not found
+- `500 INTERNAL_ERROR` - Database query failed
+
+#### GET /api/catalog/npcs
+
+List all NPCs from the catalog. *(Currently returns empty array - placeholder)*
+
+#### GET /api/catalog/rulesets
+
+List all rulesets from the catalog. *(Currently returns empty array - placeholder)*
+
 ### Wallet/Stones
 
 #### GET /api/stones/wallet

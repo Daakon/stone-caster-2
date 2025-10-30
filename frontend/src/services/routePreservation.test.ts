@@ -56,8 +56,8 @@ describe('RoutePreservationService', () => {
       expect(sessionStorage.getItem('stonecaster_intended_route')).toBeNull();
     });
 
-    it('should skip adventures routes', () => {
-      RoutePreservationService.setIntendedRoute('/adventures');
+    it('should skip stories routes', () => {
+      RoutePreservationService.setIntendedRoute('/stories');
       
       expect(sessionStorage.getItem('stonecaster_intended_route')).toBeNull();
     });
@@ -122,9 +122,9 @@ describe('RoutePreservationService', () => {
   describe('isSafeRoute', () => {
     it('should return true for safe routes', () => {
       expect(RoutePreservationService.isSafeRoute('/')).toBe(true);
-      expect(RoutePreservationService.isSafeRoute('/adventures')).toBe(true);
+      expect(RoutePreservationService.isSafeRoute('/stories')).toBe(true);
       expect(RoutePreservationService.isSafeRoute('/worlds')).toBe(true);
-      expect(RoutePreservationService.isSafeRoute('/adventures/mystika-tutorial')).toBe(true);
+      expect(RoutePreservationService.isSafeRoute('/stories/mystika-tutorial')).toBe(true);
       expect(RoutePreservationService.isSafeRoute('/worlds/mystika')).toBe(true);
     });
 
@@ -137,9 +137,9 @@ describe('RoutePreservationService', () => {
 
   describe('getSafeSignoutRoute', () => {
     it('should return current route if it is safe', () => {
-      const route = RoutePreservationService.getSafeSignoutRoute('/adventures');
+      const route = RoutePreservationService.getSafeSignoutRoute('/stories');
       
-      expect(route).toBe('/adventures');
+      expect(route).toBe('/stories');
     });
 
     it('should return landing page for unsafe routes', () => {

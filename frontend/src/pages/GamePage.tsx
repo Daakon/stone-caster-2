@@ -11,7 +11,7 @@ import { TurnInput } from '../components/gameplay/TurnInput';
 import { HistoryFeed } from '../components/gameplay/HistoryFeed';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, Settings, Save } from 'lucide-react';
-import { submitTurn, getGame, getAdventureById, getCharacter, getWorldById, getWallet, getGameTurns, autoInitializeGame } from '../lib/api';
+import { submitTurn, getGame, getStoryById, getCharacter, getWorldById, getWallet, getGameTurns, autoInitializeGame } from '../lib/api';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useDebugPanel } from '../hooks/useDebugPanel';
@@ -117,7 +117,7 @@ export default function GamePage() {
     queryKey: ['adventure', gameData?.adventureId],
     queryFn: async () => {
       if (!gameData?.adventureId) throw new Error('No adventure ID provided');
-      const result = await getAdventureById(gameData.adventureId);
+      const result = await getStoryById(gameData.adventureId);
       if (!result.ok) {
         throw new Error(result.error.message || 'Failed to load adventure');
       }

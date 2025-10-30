@@ -20,10 +20,11 @@ import { entryPointsService, type EntryPoint, type CreateEntryPointData, type Up
 import { useAppRoles } from '@/admin/routeGuard';
 
 const entryPointSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
   slug: z.string().min(1, 'Slug is required').regex(/^[a-z0-9_-]+$/, 'Slug must contain only lowercase letters, numbers, hyphens, and underscores'),
   type: z.enum(['adventure', 'scenario', 'sandbox', 'quest']),
   world_id: z.string().min(1, 'World is required'),
-  ruleset_id: z.string().min(1, 'Ruleset is required'),
+  rulesetIds: z.array(z.string()).min(1, 'At least one ruleset is required'),
   title: z.string().min(1, 'Title is required'),
   subtitle: z.string().optional(),
   description: z.string().min(1, 'Description is required'),
@@ -59,17 +60,18 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
   } = useForm<EntryPointFormData>({
     resolver: zodResolver(entryPointSchema),
     defaultValues: {
+      name: entryPoint?.name || '',
       slug: entryPoint?.slug || '',
       type: entryPoint?.type || 'adventure',
       world_id: entryPoint?.world_id || '',
-      ruleset_id: entryPoint?.ruleset_id || '',
+      rulesetIds: entryPoint?.rulesets?.map(r => r.id) || [],
       title: entryPoint?.title || '',
       subtitle: entryPoint?.subtitle || '',
       description: entryPoint?.description || '',
       synopsis: entryPoint?.synopsis || '',
       tags: entryPoint?.tags || [],
       visibility: entryPoint?.visibility || 'private',
-      content_rating: entryPoint?.content_rating || 'general',
+      content_rating: entryPoint?.content_rating || 'safe',
       lifecycle: entryPoint?.lifecycle || 'draft'
     }
   });
@@ -163,6 +165,21 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Internal Name *</Label>
+            <Input
+              id="name"
+              {...register('name')}
+              placeholder="Internal identifier (e.g., test-entry-point-1)"
+            />
+            {errors.name && (
+              <p className="text-sm text-red-500">{errors.name.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Internal database identifier. Use lowercase letters, numbers, hyphens, and underscores.
+            </p>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="title">Title *</Label>
@@ -278,10 +295,10 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ruleset_id">Ruleset *</Label>
+            <Label htmlFor="rulesetIds">Ruleset *</Label>
             <Select
-              value={watch('ruleset_id')}
-              onValueChange={(value) => setValue('ruleset_id', value)}
+              value={watch('rulesetIds')?.[0] || ''}
+              onValueChange={(value) => setValue('rulesetIds', [value])}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select ruleset" />
@@ -294,9 +311,12 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
                 ))}
               </SelectContent>
             </Select>
-            {errors.ruleset_id && (
-              <p className="text-sm text-red-500">{errors.ruleset_id.message}</p>
+            {errors.rulesetIds && (
+              <p className="text-sm text-red-500">{errors.rulesetIds.message}</p>
             )}
+            <p className="text-xs text-muted-foreground">
+              Multi-ruleset support coming soon. Currently, only one ruleset can be selected.
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -387,9 +407,9 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
                   <SelectValue placeholder="Select rating" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="general">General</SelectItem>
-                  <SelectItem value="teen">Teen</SelectItem>
+                  <SelectItem value="safe">Safe</SelectItem>
                   <SelectItem value="mature">Mature</SelectItem>
+                  <SelectItem value="explicit">Explicit</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -439,6 +459,12 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
     </form>
   );
 }
+
+
+
+
+
+
 
 
 

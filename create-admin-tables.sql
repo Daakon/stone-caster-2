@@ -274,3 +274,10 @@ WHERE table_schema = 'public'
   AND table_name IN ('entries', 'entry_points', 'rulesets', 'npcs', 'npc_packs')
 ORDER BY table_name;
 
+
+
+
+
+
+
+

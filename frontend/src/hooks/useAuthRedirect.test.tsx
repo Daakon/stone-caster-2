@@ -70,18 +70,18 @@ describe('useAuthRedirect', () => {
       initialize: vi.fn(),
     });
 
-    mockRoutePreservationService.getAndClearIntendedRoute.mockReturnValue('/adventures/mystika-tutorial/characters');
+    mockRoutePreservationService.getAndClearIntendedRoute.mockReturnValue('/stories/mystika-tutorial/characters');
 
     renderHook(() => useAuthRedirect(), {
       wrapper: ({ children }) => <BrowserRouter>{children}</BrowserRouter>,
     });
 
     expect(mockRoutePreservationService.getAndClearIntendedRoute).toHaveBeenCalled();
-    expect(mockNavigate).toHaveBeenCalledWith('/adventures/mystika-tutorial/characters', { replace: true });
+    expect(mockNavigate).toHaveBeenCalledWith('/stories/mystika-tutorial/characters', { replace: true });
   });
 
   it('should not redirect authenticated user from non-auth pages', () => {
-    mockLocation.pathname = '/adventures';
+    mockLocation.pathname = '/stories';
 
     const mockUser = {
       state: AuthState.AUTHENTICATED,

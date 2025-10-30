@@ -13,7 +13,7 @@ export default function PlayerV3CreationPage() {
     queryKey: ['adventure', adventureId],
     queryFn: async () => {
       if (!adventureId) return null;
-      return mockDataService.getAdventureById(adventureId);
+      return mockDataService.getStoryById(adventureId);
     },
     enabled: !!adventureId,
   });

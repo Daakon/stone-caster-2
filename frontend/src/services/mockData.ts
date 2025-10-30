@@ -132,7 +132,7 @@ class MockDataService {
     return this.worlds.filter(world => world.tags.includes(tag));
   }
 
-  // Adventures
+  // Adventures (deprecated - use getStories instead)
   getAdventures(): Adventure[] {
     return this.adventures;
   }
@@ -146,6 +146,23 @@ class MockDataService {
   }
 
   getAdventuresByTag(tag: string): Adventure[] {
+    return this.adventures.filter(adventure => adventure.tags.includes(tag));
+  }
+
+  // Stories (new)
+  getStories(): Adventure[] {
+    return this.adventures; // For now, stories are the same as adventures
+  }
+
+  getStoryById(id: string): Adventure | undefined {
+    return this.adventures.find(adventure => adventure.id === id);
+  }
+
+  getStoriesByWorld(worldId: string): Adventure[] {
+    return this.adventures.filter(adventure => adventure.worldId === worldId);
+  }
+
+  getStoriesByTag(tag: string): Adventure[] {
     return this.adventures.filter(adventure => adventure.tags.includes(tag));
   }
 

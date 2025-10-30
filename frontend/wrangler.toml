@@ -1,13 +1,11 @@
-name = "stonecaster-frontend"
-main = "dist/index.js"
-compatibility_date = "2024-01-01"
+name = "stonecaster-og"
+main = "workers/og.ts"
+compatibility_date = "2023-10-01"
 
-[site]
-bucket = "./dist"
+[routes]
+pattern = "/og/*"
+zone_name = "${PUBLIC_SITE_DOMAIN}"
 
-[[routes]]
-pattern = "/*"
-custom_domain = true
-
-[env.production]
-name = "stonecaster-frontend"
+# Environment variables
+[vars]
+ENVIRONMENT = "production"

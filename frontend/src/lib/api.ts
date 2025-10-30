@@ -202,7 +202,7 @@ export async function getCharacters(
 }
 
 // Create character (supports both new and legacy formats)
-export async function createCharacter(
+export async function createCharacterLegacy(
   characterData: any,
 ): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
   return apiPost('/api/characters', characterData);
@@ -311,21 +311,21 @@ export async function getContentWorlds(): Promise<{ ok: true; data: any[] } | { 
   return apiGet('/api/content/worlds');
 }
 
-export async function getContentAdventures(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
-  return apiGet('/api/content/adventures');
+export async function getContentStories(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/content/stories');
 }
 
-// Adventures API - Layer P1
-export async function getAdventures(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
-  return apiGet('/api/adventures');
+// Stories API - Layer P1
+export async function getStories(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
+  return apiGet('/api/stories');
 }
 
-export async function getAdventureById(id: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
-  return apiGet(`/api/adventures/${id}`);
+export async function getStoryById(id: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/stories/${id}`);
 }
 
-export async function getAdventureBySlug(slug: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
-  return apiGet(`/api/adventures/slug/${slug}`);
+export async function getStoryBySlug(slug: string): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
+  return apiGet(`/api/stories/slug/${slug}`);
 }
 
 // Worlds API - Layer P1
@@ -380,5 +380,66 @@ export async function approvePrompt(
     approved,
   });
 }
+
+// ============================================================================
+// CATALOG API - New Product Model (Stories, Worlds, NPCs, Rulesets)
+// ============================================================================
+
+import { httpGet } from './http';
+import type { World, NPC, Ruleset, Story, StoryWithJoins, ID, StoryKind } from '@/types/domain';
+
+export interface ListParamsBase { q?: string }
+export interface ListStoriesParams extends ListParamsBase { world?: ID; kind?: StoryKind; ruleset?: ID; tags?: string[] }
+export interface ListNPCsParams extends ListParamsBase { world?: ID }
+
+// Worlds
+export const listWorlds = (p?: ListParamsBase) => httpGet<World[]>('/api/catalog/worlds', p);
+
+// NPCs
+export const listNPCs = (p?: ListNPCsParams) => httpGet<NPC[]>('/api/catalog/npcs', p);
+
+// Rulesets
+export const listRulesets = (p?: ListParamsBase) => httpGet<Ruleset[]>('/api/catalog/rulesets', p);
+
+// Stories (entries under the hood)
+export const listStories = (p?: ListStoriesParams) => httpGet<Story[]>('/api/catalog/stories', p);
+export const getStory = (idOrSlug: ID | string) => httpGet<StoryWithJoins>(`/api/catalog/stories/${idOrSlug}`);
+
+// Individual detail endpoints
+export const getWorld = (idOrSlug: ID | string) => httpGet<World>(`/api/catalog/worlds/${idOrSlug}`);
+export const getNPC = (id: ID) => httpGet<NPC>(`/api/catalog/npcs/${id}`);
+export const getRuleset = (id: ID) => httpGet<Ruleset>(`/api/catalog/rulesets/${id}`);
+
+// Entry aliases removed in Phase 1
+
+// ============================================================================
+// CHARACTERS & SESSIONS API - Start Story Flow
+// ============================================================================
+
+import type { Character, Session } from '@/types/domain';
+
+// Characters
+export const listCharacters = () => httpGet<Character[]>('/me/characters');
+
+export const createCharacter = (body: { name: string; portrait_seed?: string }) =>
+  httpPost<Character>('/me/characters', body);
+
+// Sessions
+export const findExistingSession = (storyId: ID, characterId: ID) =>
+	httpGet<{ id: ID } | null>(`/sessions`, { params: { story_id: storyId, character_id: characterId } as any });
+
+export const getSession = (sessionId: ID) => httpGet<Session>(`/sessions/${sessionId}`);
+
+export const getSessionMessages = (sessionId: ID, limit: number = 20) =>
+	httpGet<{ id: string; content: string; role: 'user'|'assistant'; created_at: string }[]>(`/sessions/${sessionId}/messages`, { params: { limit } as any });
+
+export const createSession = (
+	body: { story_id: ID; character_id: ID },
+	opts?: { headers?: Record<string, string> }
+) => httpPost<Session>('/sessions', body, opts);
+
+// Guest authentication
+export const createGuestToken = () =>
+  httpPost<{ token: string }>('/auth/guest', {});
 
 

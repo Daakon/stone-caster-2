@@ -6,3 +6,10 @@ FROM pg_constraint
 WHERE conrelid = 'public.entry_points'::regclass
   AND contype = 'c';
 
+
+
+
+
+
+
+

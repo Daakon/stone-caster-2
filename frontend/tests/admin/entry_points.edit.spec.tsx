@@ -53,17 +53,19 @@ vi.mock('react-router-dom', async () => {
 
 const mockEntryPoint = {
   id: 'entry-1',
+  name: 'test-entry-point-1',
   slug: 'test-adventure',
   type: 'adventure',
   world_id: 'world-1',
-  ruleset_id: 'ruleset-1',
+  rulesets: [{ id: 'ruleset-1', name: 'Standard Rules', sort_order: 0 }],
   title: 'Test Adventure',
   description: 'A test adventure',
   tags: ['fantasy', 'adventure'],
   visibility: 'private',
-  content_rating: 'general',
+  content_rating: 'safe',
   lifecycle: 'draft',
-  owner_user_id: 'user-1'
+  owner_user_id: 'user-1',
+  created_at: '2025-01-01T00:00:00Z'
 };
 
 const mockWorlds = [
@@ -310,6 +312,12 @@ describe('Entry Point Edit', () => {
     });
   });
 });
+
+
+
+
+
+
 
 
 

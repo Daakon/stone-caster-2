@@ -4,3 +4,10 @@ FROM public.entry_points
 GROUP BY content_rating
 ORDER BY content_rating;
 
+
+
+
+
+
+
+

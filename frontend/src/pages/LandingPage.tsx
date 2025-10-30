@@ -2,25 +2,30 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { mockDataService } from '../services/mockData';
-import type { World, Adventure } from '../services/mockData';
-import { WorldCard } from '../components/cards/WorldCard';
-import { AdventureCard } from '../components/cards/AdventureCard';
-import { CardGrid } from '../components/cards/CardGrid';
+import { CatalogGrid } from '@/components/catalog/CatalogGrid';
+import { CatalogCard } from '@/components/catalog/CatalogCard';
+import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
 import { DrifterBubble } from '../components/guidance/DrifterBubble';
 import { Gem, Users, Zap, Shield, Brain, Globe } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
+import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
+import { useWorldsQuery, useStoriesQuery } from '@/lib/queries';
+import { trackCatalogCardClick } from '@/lib/analytics';
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { initialize } = useAuthStore();
-  const [worlds, setWorlds] = useState<World[]>([]);
-  const [adventures, setAdventures] = useState<Adventure[]>([]);
   const [email, setEmail] = useState('');
   const [showDrifter, setShowDrifter] = useState(false);
-  const [isInvited] = useState(mockDataService.getInviteStatus().invited);
+  
+  // Load featured worlds and stories from live API
+  const worldsQ = useWorldsQuery(undefined);
+  const storiesQ = useStoriesQuery({ limit: 6 });
+  
+  const worlds = (worldsQ.data || []).slice(0, 3);
+  const stories = (storiesQ.data || []).slice(0, 6);
 
   const handleOAuthCallback = useCallback(async () => {
     try {
@@ -73,19 +78,27 @@ export default function LandingPage() {
       console.log('[LandingPage] No OAuth callback detected, loading normal content');
     }
 
-    // Load featured content
-    const worldsData = mockDataService.getWorlds().slice(0, 3);
-    const adventuresData = mockDataService.getAdventures().slice(0, 6);
-    setWorlds(worldsData);
-    setAdventures(adventuresData);
-
     // Show drifter bubble after a delay
     const timer = setTimeout(() => {
       setShowDrifter(true);
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [searchParams, navigate, handleOAuthCallback]); // Added handleOAuthCallback to dependencies
+  }, [searchParams, navigate, handleOAuthCallback]);
+
+  useEffect(() => {
+    const title = makeTitle(['StoneCaster — Cast your stone and begin a story']);
+    const desc = makeDescription('Discover interactive stories, choose your character, and begin your adventure on StoneCaster.');
+    const url = absoluteUrl('/');
+    const image = absoluteUrl('/og/home');
+    document.title = title;
+    upsertMeta('description', desc);
+    upsertLink('canonical', url);
+    const og = ogTags({ title, description: desc, url, image });
+    Object.entries(og).forEach(([k, v]) => upsertProperty(k, v));
+    const tw = twitterTags({ title, description: desc, url, image });
+    Object.entries(tw).forEach(([k, v]) => upsertMeta(k, v));
+  }, []);
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,20 +108,12 @@ export default function LandingPage() {
     }
   };
 
-  const handleWorldViewDetails = (worldId: string) => {
-    navigate(`/worlds/${worldId}`);
+  const handleWorldCardClick = (entity: string, idOrSlug: string) => {
+    trackCatalogCardClick('worlds', idOrSlug);
   };
 
-  const handleWorldLearnMore = (worldId: string) => {
-    navigate(`/worlds/${worldId}`);
-  };
-
-  const handleAdventureStart = (adventureId: string) => {
-    navigate(`/adventures/${adventureId}`);
-  };
-
-  const handleAdventureViewDetails = (adventureId: string) => {
-    navigate(`/adventures/${adventureId}`);
+  const handleStoryCardClick = (entity: string, idOrSlug: string) => {
+    trackCatalogCardClick('stories', idOrSlug);
   };
 
   const features = [
@@ -248,16 +253,28 @@ export default function LandingPage() {
             </p>
           </div>
           
-          <CardGrid>
-            {worlds.map((world) => (
-              <WorldCard 
-                key={world.id} 
-                world={world} 
-                onViewDetails={handleWorldViewDetails}
-                onLearnMore={handleWorldLearnMore}
-              />
-            ))}
-          </CardGrid>
+          {worldsQ.isLoading ? (
+            <CatalogGrid>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <CatalogSkeleton key={i} />
+              ))}
+            </CatalogGrid>
+          ) : (
+            <CatalogGrid>
+              {worlds.map((world) => (
+                <CatalogCard
+                  key={world.id}
+                  entity="world"
+                  idOrSlug={world.slug || world.id}
+                  title={world.name}
+                  description={world.description}
+                  imageUrl={world.cover_url}
+                  href={`/worlds/${world.slug || world.id}`}
+                  onCardClick={handleWorldCardClick}
+                />
+              ))}
+            </CatalogGrid>
+          )}
           
           <div className="text-center mt-12">
             <Button 
@@ -284,26 +301,38 @@ export default function LandingPage() {
             </p>
           </div>
           
-          <CardGrid>
-            {adventures.map((adventure) => (
-              <AdventureCard 
-                key={adventure.id} 
-                adventure={adventure} 
-                onStart={handleAdventureStart}
-                onViewDetails={handleAdventureViewDetails}
-                isInvited={isInvited}
-              />
-            ))}
-          </CardGrid>
+          {storiesQ.isLoading ? (
+            <CatalogGrid>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <CatalogSkeleton key={i} />
+              ))}
+            </CatalogGrid>
+          ) : (
+            <CatalogGrid>
+              {stories.map((story) => (
+                <CatalogCard
+                  key={story.id}
+                  entity="story"
+                  idOrSlug={story.slug || story.id}
+                  title={story.title}
+                  description={story.short_desc}
+                  imageUrl={story.hero_url}
+                  href={`/stories/${story.slug || story.id}`}
+                  chips={story.world?.name ? [{ label: story.world.name, variant: 'secondary' as const }] : undefined}
+                  onCardClick={handleStoryCardClick}
+                />
+              ))}
+            </CatalogGrid>
+          )}
           
           <div className="text-center mt-12">
             <Button 
               size="lg" 
               variant="outline" 
               className="border-white/20 text-white hover:bg-white/10"
-              onClick={() => navigate('/adventures')}
+              onClick={() => navigate('/stories')}
             >
-              Browse All Adventures
+              Browse All Stories
             </Button>
           </div>
         </div>

@@ -20,9 +20,10 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
 
   // Base navigation items available to all users
   const baseNavigation = [
-    { name: 'Adventures', href: '/adventures' },
-    { name: 'My Adventures', href: '/my-adventures' },
-    { name: 'Scenarios', href: '/scenarios' },
+    { name: 'Stories', href: '/stories' },
+    { name: 'Worlds', href: '/worlds' },
+    { name: 'NPCs', href: '/npcs' },
+    { name: 'Rulesets', href: '/rulesets' },
   ];
 
   // Authenticated-only navigation items

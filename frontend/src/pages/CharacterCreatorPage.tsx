@@ -14,7 +14,7 @@ export default function CharacterCreatorPage() {
   const [isCreatingGame, setIsCreatingGame] = useState(false);
   const [gameCreationError, setGameCreationError] = useState<string | null>(null);
   
-  const adventure = id ? mockDataService.getAdventureById(id) : null;
+  const adventure = id ? mockDataService.getStoryById(id) : null;
   const world = adventure ? mockDataService.getWorldById(adventure.worldId) : null;
   
   if (!adventure || !world) {

@@ -1,34 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Ruleset } from '@/services/admin.rulesets';
+/**
+ * @deprecated Use useRulesetsQuery from @/lib/queries instead. This hook will be removed in Phase 2.
+ */
+import { useRulesetsQuery as useRulesetsQueryNew } from '@/lib/queries';
 
 export function useRulesets() {
-  const [rulesets, setRulesets] = useState<Ruleset[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useRulesetsQueryNew();
   
-  useEffect(() => {
-    const loadRulesets = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await fetch('/api/rulesets');
-        
-        if (!response.ok) {
-          throw new Error('Failed to load rulesets');
-        }
-        
-        const data = await response.json();
-        setRulesets(data.items || []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadRulesets();
-  }, []);
-  
-  return { rulesets, loading, error };
+  return { 
+    rulesets: data?.data || [], 
+    loading: isLoading, 
+    error: error?.message || null 
+  };
 }

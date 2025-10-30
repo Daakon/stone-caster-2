@@ -9,3 +9,10 @@ WHERE table_name = 'entry_points'
   AND table_schema = 'public'
 ORDER BY ordinal_position;
 
+
+
+
+
+
+
+

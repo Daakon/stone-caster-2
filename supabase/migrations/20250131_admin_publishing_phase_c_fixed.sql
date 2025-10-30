@@ -282,3 +282,10 @@ COMMENT ON TABLE public.content_import_jobs IS 'Tracks import/export operations'
 COMMENT ON FUNCTION public.publish_ruleset IS 'Publishes a draft ruleset to active status';
 COMMENT ON FUNCTION public.clone_ruleset IS 'Clones a ruleset with version bump';
 
+
+
+
+
+
+
+

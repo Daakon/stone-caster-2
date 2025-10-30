@@ -166,3 +166,10 @@ SELECT
   'Migration completed successfully!' as status,
   'Entries and Entry Points tables updated with missing columns' as message;
 
+
+
+
+
+
+
+

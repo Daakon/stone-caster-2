@@ -1,16 +1,16 @@
 /**
  * Entry Points Admin Service
  * Phase 3: CRUD operations for entry points management
+ * 
+ * Refactored to use backend API instead of direct Supabase calls
  */
 
-import { apiGet } from '@/lib/api';
-import { adminSupabase } from '@/lib/supabase';
-import { worldsService } from './admin.worlds';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
 
 export interface EntryPoint {
   id: string;
   name: string;
-  slug?: string; // Optional - will be added via migration
+  slug?: string;
   type?: 'adventure' | 'scenario' | 'sandbox' | 'quest';
   world_id?: string;
   title?: string;
@@ -21,7 +21,7 @@ export interface EntryPoint {
   visibility?: 'public' | 'unlisted' | 'private';
   content_rating?: string;
   lifecycle?: 'draft' | 'pending_review' | 'changes_requested' | 'active' | 'archived' | 'rejected';
-  owner_user_id?: string; // Optional - may not exist in current schema
+  owner_user_id?: string;
   prompt?: any; // JSONB - Turn 1 injection JSON data
   entry_id?: string; // Reference to the entry this point initializes
   created_at: string;
@@ -73,66 +73,21 @@ export interface EntryPointListResponse {
 
 export class EntryPointsService {
   /**
-   * Generate a unique slug from a name
-   */
-  private async generateUniqueSlug(baseSlug: string, excludeId?: string): Promise<string> {
-    let slug = baseSlug;
-    let counter = 1;
-
-    while (true) {
-      let query = adminSupabase
-        .from('entry_points')
-        .select('id')
-        .eq('slug', slug);
-
-      if (excludeId) {
-        query = query.neq('id', excludeId);
-      }
-
-      const { error } = await query.single();
-
-      if (error && error.code === 'PGRST116') {
-        // No existing slug found, we can use this one
-        break;
-      }
-
-      if (error) {
-        throw new Error(`Failed to check slug uniqueness: ${error.message}`);
-      }
-
-      // Slug exists, try with counter
-      slug = `${baseSlug}-${counter}`;
-      counter++;
-    }
-
-    return slug;
-  }
-
-  /**
-   * Create slug from name
-   */
-  private createSlugFromName(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  }
-  /**
    * List entry points with filters and pagination
    */
   async listEntryPoints(
     filters: EntryPointFilters = {},
-    page = 1,
-    pageSize = 20
+    page: number = 1,
+    pageSize: number = 20
   ): Promise<EntryPointListResponse> {
     const params = new URLSearchParams();
     
     if (filters.lifecycle && filters.lifecycle.length > 0) {
-      filters.lifecycle.forEach(l => params.append('lifecycle', l));
+      filters.lifecycle.forEach(lifecycle => params.append('lifecycle', lifecycle));
     }
     
     if (filters.visibility && filters.visibility.length > 0) {
-      filters.visibility.forEach(v => params.append('visibility', v));
+      filters.visibility.forEach(visibility => params.append('visibility', visibility));
     }
     
     if (filters.world_id) {
@@ -140,16 +95,16 @@ export class EntryPointsService {
     }
     
     if (filters.type && filters.type.length > 0) {
-      filters.type.forEach(t => params.append('type', t));
+      filters.type.forEach(type => params.append('type', type));
     }
     
     if (filters.search) {
       params.append('search', filters.search);
     }
     
-    params.append('page', String(page));
-    params.append('limit', String(pageSize));
-
+    params.append('page', page.toString());
+    params.append('limit', pageSize.toString());
+    
     const result = await apiGet<EntryPointListResponse>(`/api/admin/entry-points?${params.toString()}`);
     
     if (!result.ok) {
@@ -163,404 +118,138 @@ export class EntryPointsService {
    * Get a single entry point by ID
    */
   async getEntryPoint(id: string): Promise<EntryPoint> {
+    // Fetch the entry point
     const result = await apiGet<EntryPoint>(`/api/admin/entry-points/${id}`);
     
     if (!result.ok) {
       throw new Error(`Failed to fetch entry point: ${result.error.message}`);
     }
     
+    // Note: The backend endpoint returns the entry point without rulesets joined
+    // We'll need to fetch those separately if needed, or update the backend endpoint
+    // For now, return what we get
     return result.data;
-  }
-
-  // Legacy method - keeping for compatibility but may need updating
-  async getEntryPointWithRulesets(id: string): Promise<EntryPoint> {
-    const entryPoint = await this.getEntryPoint(id);
-    
-    // TODO: Fetch rulesets separately if needed
-    // For now, return entry point without rulesets
-    return entryPoint;
-  }
-
-  // Old implementation kept for reference - remove after migration complete
-  private async _getEntryPointLegacy(id: string): Promise<EntryPoint> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    const { data, error } = await adminSupabase
-      .from('entry_points')
-      .select(`
-        *,
-        rulesets:entry_point_rulesets (
-          sort_order,
-          ruleset:ruleset_id (
-            id,
-            name
-          )
-        )
-      `)
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to fetch entry point: ${error.message}`);
-    }
-
-    // Transform the rulesets data
-    const rulesets = (data.rulesets || []).map((item: any) => ({
-      id: item.ruleset.id,
-      name: item.ruleset.name,
-      sort_order: item.sort_order
-    }));
-
-    return {
-      ...data,
-      rulesets
-    };
   }
 
   /**
    * Create a new entry point
    */
   async createEntryPoint(data: CreateEntryPointData): Promise<EntryPoint> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    const result = await apiPost<EntryPoint>('/api/admin/entry-points', data);
+    
+    if (!result.ok) {
+      throw new Error(`Failed to create entry point: ${result.error.message}`);
     }
-
-    // Extract ruleset data
-    const { rulesetIds, rulesetOrder, ...entryData } = data;
-
-    // Generate slug if not provided
-    const slug = data.slug || this.createSlugFromName(data.name);
-    const uniqueSlug = await this.generateUniqueSlug(slug);
-
-    // Prepare insert data - only include fields that exist in the database
-    const insertData: any = {
-      ...entryData,
-      slug: uniqueSlug,
-      lifecycle: 'draft'
-    };
-
-    // Only include owner_user_id if the column exists (optional)
-    // Note: This field may not exist in the current schema
-    // insertData.owner_user_id = session.user.id;
-
-    const { data: result, error } = await adminSupabase
-      .from('entry_points')
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to create entry point: ${error.message}`);
-    }
-
-    // Create ruleset associations
-    if (rulesetIds && rulesetIds.length > 0) {
-      const rulesetAssociations = rulesetIds.map((rulesetId, index) => ({
-        entry_point_id: result.id,
-        ruleset_id: rulesetId,
-        sort_order: rulesetOrder ? rulesetOrder.indexOf(rulesetId) : index
-      }));
-
-      const { error: rulesetError } = await adminSupabase
-        .from('entry_point_rulesets')
-        .insert(rulesetAssociations);
-
-      if (rulesetError) {
-        // Clean up the entry point if ruleset association fails
-        await adminSupabase.from('entry_points').delete().eq('id', result.id);
-        throw new Error(`Failed to create ruleset associations: ${rulesetError.message}`);
-      }
-    }
-
-    return result;
+    
+    return result.data;
   }
 
   /**
    * Update an entry point
    */
   async updateEntryPoint(id: string, data: UpdateEntryPointData): Promise<EntryPoint> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
+    const result = await apiPut<EntryPoint>(`/api/admin/entry-points/${id}`, data);
+    
+    if (!result.ok) {
+      throw new Error(`Failed to update entry point: ${result.error.message}`);
     }
-
-    // Extract ruleset data if present
-    const { rulesetIds, rulesetOrder, ...entryData } = data;
-
-    // Handle slug updates
-    let updateData = { ...entryData };
-    if (data.slug || data.name) {
-      const slug = data.slug || (data.name ? this.createSlugFromName(data.name) : undefined);
-      if (slug) {
-        updateData.slug = await this.generateUniqueSlug(slug, id);
-      }
-    }
-
-    // Update the entry point
-    const { data: result, error } = await adminSupabase
-      .from('entry_points')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to update entry point: ${error.message}`);
-    }
-
-    // Update ruleset associations if provided
-    if (rulesetIds !== undefined) {
-      // Delete existing associations
-      const { error: deleteError } = await adminSupabase
-        .from('entry_point_rulesets')
-        .delete()
-        .eq('entry_point_id', id);
-
-      if (deleteError) {
-        throw new Error(`Failed to remove existing ruleset associations: ${deleteError.message}`);
-      }
-
-      // Create new associations
-      if (rulesetIds.length > 0) {
-        const rulesetAssociations = rulesetIds.map((rulesetId, index) => ({
-          entry_point_id: id,
-          ruleset_id: rulesetId,
-          sort_order: rulesetOrder ? rulesetOrder.indexOf(rulesetId) : index
-        }));
-
-        const { error: rulesetError } = await adminSupabase
-          .from('entry_point_rulesets')
-          .insert(rulesetAssociations);
-
-        if (rulesetError) {
-          throw new Error(`Failed to create ruleset associations: ${rulesetError.message}`);
-        }
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Submit entry point for review
-   */
-  async submitForReview(id: string, note?: string): Promise<void> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    // Update lifecycle to pending_review
-    const { error: updateError } = await adminSupabase
-      .from('entry_points')
-      .update({ lifecycle: 'pending_review' })
-      .eq('id', id)
-      .in('lifecycle', ['draft', 'changes_requested']);
-
-    if (updateError) {
-      throw new Error(`Failed to update lifecycle: ${updateError.message}`);
-    }
-
-    // Create content review (idempotent)
-    const { error: reviewError } = await adminSupabase
-      .from('content_reviews')
-      .upsert({
-        target_type: 'entry_point',
-        target_id: id,
-        submitted_by: session.user.id,
-        state: 'open',
-        notes: note || null
-      }, {
-        onConflict: 'target_type,target_id,state'
-      });
-
-    if (reviewError) {
-      throw new Error(`Failed to create review: ${reviewError.message}`);
-    }
+    
+    return result.data;
   }
 
   /**
    * Delete an entry point
    */
   async deleteEntryPoint(id: string): Promise<void> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    const { error } = await adminSupabase
-      .from('entry_points')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      throw new Error(`Failed to delete entry point: ${error.message}`);
+    const result = await apiDelete<{ message: string }>(`/api/admin/entry-points/${id}`);
+    
+    if (!result.ok) {
+      throw new Error(`Failed to delete entry point: ${result.error.message}`);
     }
   }
 
   /**
-   * Get worlds for typeahead
+   * Submit entry point for review (lifecycle transition)
    */
-  async getWorlds(): Promise<Array<{ id: string; name: string; slug: string }>> {
-    try {
-      const response = await worldsService.listWorlds({}, 1, 1000);
-      return (response.data || []).map(world => ({
-        id: world.id,
-        name: world.name,
-        slug: world.slug || ''
-      }));
-    } catch (error) {
-      console.error('Error fetching worlds:', error);
-      throw new Error(`Failed to fetch worlds: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+  async submitForReview(id: string, note?: string): Promise<void> {
+    await this.updateEntryPoint(id, {
+      lifecycle: 'pending_review'
+    });
   }
 
   /**
-   * Get rulesets for typeahead
+   * Approve entry point (moderator/admin action)
    */
-  async getRulesets(): Promise<Array<{ id: string; name: string; slug: string }>> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    const { data, error } = await adminSupabase
-      .from('rulesets')
-      .select('id, name, slug')
-      .eq('status', 'active')
-      .order('name', { ascending: true });
-
-    if (error) {
-      throw new Error(`Failed to fetch rulesets: ${error.message}`);
-    }
-
-    return (data || []).map(ruleset => ({
-      id: ruleset.id,
-      name: ruleset.name,
-      slug: ruleset.slug
-    }));
-  }
-
-  // ============================================================================
-  // JSON CONFIGURATION METHODS
-  // ============================================================================
-
-  /**
-   * Get entry point JSON for turn 1 injection
-   */
-  async getEntryPointJSON(entryPointId: string): Promise<any> {
-    const { data, error } = await adminSupabase
-      .from('entry_points')
-      .select('prompt')
-      .eq('id', entryPointId)
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to fetch entry point JSON: ${error.message}`);
-    }
-
-    return data?.prompt || {};
+  async approveEntryPoint(id: string): Promise<EntryPoint> {
+    return this.updateEntryPoint(id, {
+      lifecycle: 'active'
+    });
   }
 
   /**
-   * Get entry point JSON by entry ID
+   * Request changes to entry point (moderator/admin action)
    */
-  async getEntryPointJSONByEntryId(entryId: string): Promise<any> {
-    const { data, error } = await adminSupabase
-      .from('entry_points')
-      .select('prompt')
-      .eq('entry_id', entryId)
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to fetch entry point JSON by entry ID: ${error.message}`);
-    }
-
-    return data?.prompt || {};
+  async requestChanges(id: string, note: string): Promise<EntryPoint> {
+    return this.updateEntryPoint(id, {
+      lifecycle: 'changes_requested'
+    });
   }
 
   /**
-   * Update entry point JSON configuration
+   * Reject entry point (moderator/admin action)
    */
-  async updateEntryPointJSON(entryPointId: string, jsonData: any): Promise<void> {
-    const { data: { session } } = await adminSupabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('No authentication token available');
-    }
-
-    const { error } = await adminSupabase
-      .from('entry_points')
-      .update({ prompt: jsonData })
-      .eq('id', entryPointId);
-
-    if (error) {
-      throw new Error(`Failed to update entry point JSON: ${error.message}`);
-    }
+  async rejectEntryPoint(id: string, reason: string): Promise<EntryPoint> {
+    return this.updateEntryPoint(id, {
+      lifecycle: 'rejected'
+    });
   }
 
   /**
-   * Validate JSON configuration
+   * Archive entry point
    */
-  validateJSONConfiguration(jsonData: any): { valid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    if (!jsonData || typeof jsonData !== 'object') {
-      errors.push('JSON data must be an object');
-      return { valid: false, errors };
-    }
-
-    // Add specific validation rules for turn 1 injection JSON
-    if (!jsonData.scenario && !jsonData.context) {
-      errors.push('JSON must contain either "scenario" or "context" field');
-    }
-
-    if (jsonData.npcs && !Array.isArray(jsonData.npcs)) {
-      errors.push('"npcs" field must be an array if present');
-    }
-
-    if (jsonData.environment && typeof jsonData.environment !== 'string') {
-      errors.push('"environment" field must be a string if present');
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors
-    };
+  async archiveEntryPoint(id: string): Promise<EntryPoint> {
+    return this.updateEntryPoint(id, {
+      lifecycle: 'archived'
+    });
   }
 
   /**
-   * Get JSON template for new entry points
+   * Get available worlds for entry point creation
    */
-  getJSONTemplate(): any {
-    return {
-      scenario: "You find yourself in a mysterious location...",
-      context: {
-        location: "Unknown",
-        time: "Present",
-        mood: "Mysterious"
-      },
-      npcs: [
-        {
-          name: "Guide",
-          description: "A helpful character",
-          role: "assistant"
-        }
-      ],
-      environment: {
-        setting: "Fantasy",
-        atmosphere: "Mysterious",
-        weather: "Clear"
-      },
-      starting_state: {
-        player_health: 100,
-        inventory: [],
-        objectives: []
-      }
-    };
+  async getWorlds(): Promise<Array<{ id: string; name: string }>> {
+    const result = await apiGet<{ data: Array<{ id: string; name: string }> }>('/api/admin/worlds?limit=100');
+    
+    if (!result.ok) {
+      throw new Error(`Failed to fetch worlds: ${result.error.message}`);
+    }
+    
+    return result.data.data;
+  }
+
+  /**
+   * Get available rulesets for entry point creation
+   */
+  async getRulesets(): Promise<Array<{ id: string; name: string }>> {
+    const result = await apiGet<{ data: Array<{ id: string; name: string }> }>('/api/admin/rulesets?limit=100');
+    
+    if (!result.ok) {
+      throw new Error(`Failed to fetch rulesets: ${result.error.message}`);
+    }
+    
+    return result.data.data;
+  }
+
+  /**
+   * Get available entries for linking
+   */
+  async getEntries(): Promise<Array<{ id: string; name: string }>> {
+    const result = await apiGet<{ data: Array<{ id: string; name: string }> }>('/api/admin/entries?limit=100');
+    
+    if (!result.ok) {
+      throw new Error(`Failed to fetch entries: ${result.error.message}`);
+    }
+    
+    return result.data.data;
   }
 }
 

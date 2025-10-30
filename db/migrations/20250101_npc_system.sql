@@ -1,47 +1,52 @@
 -- NPC System Migration
 -- Creates NPC catalog, entry point bindings, and relationship tracking
+-- NOTE: NPCs table is created by create-admin-tables.sql
+-- Run 20250101_npc_system_add_world_id.sql first to add missing columns
 
 -- ============================================================================
 -- NPC CATALOG TABLE
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS npcs (
-    id text PRIMARY KEY,
-    world_id text NOT NULL REFERENCES worlds(id) ON DELETE RESTRICT,
-    name text NOT NULL,
-    archetype text,
-    role_tags text[] NOT NULL DEFAULT '{}',
-    portrait_url text,
-    doc jsonb NOT NULL DEFAULT '{}',
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
-);
+-- NPCs table is created by create-admin-tables.sql (with UUID id)
+-- To add missing columns (world_id, archetype, role_tags, etc.):
+-- Run: db/migrations/20250101_npc_system_add_world_id.sql
 
--- Index for world-based queries
-CREATE INDEX IF NOT EXISTS idx_npcs_world ON npcs(world_id);
+-- Verify npcs table exists
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'npcs') THEN
+    RAISE EXCEPTION 'npcs table does not exist. Run create-admin-tables.sql first.';
+  END IF;
+END $$;
 
 -- ============================================================================
 -- ENTRY POINT NPC BINDINGS
 -- ============================================================================
 
+-- Note: entry_points.id is TEXT, npcs.id is UUID (from create-admin-tables.sql)
 CREATE TABLE IF NOT EXISTS entry_point_npcs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     entry_point_id text NOT NULL REFERENCES entry_points(id) ON DELETE CASCADE,
-    npc_id text NOT NULL REFERENCES npcs(id) ON DELETE CASCADE,
+    npc_id uuid NOT NULL REFERENCES npcs(id) ON DELETE CASCADE,
     role_hint text,
     weight int NOT NULL DEFAULT 1,
-    PRIMARY KEY (entry_point_id, npc_id)
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (entry_point_id, npc_id)
 );
 
 -- Index for entry point queries
 CREATE INDEX IF NOT EXISTS idx_ep_npcs_ep ON entry_point_npcs(entry_point_id);
+CREATE INDEX IF NOT EXISTS idx_ep_npcs_npc ON entry_point_npcs(npc_id);
 
 -- ============================================================================
 -- NPC RELATIONSHIPS (Game-specific)
 -- ============================================================================
 
+-- Note: npcs.id is UUID (from create-admin-tables.sql)
 CREATE TABLE IF NOT EXISTS npc_relationships (
     game_id uuid NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-    npc_id text NOT NULL REFERENCES npcs(id) ON DELETE CASCADE,
+    npc_id uuid NOT NULL REFERENCES npcs(id) ON DELETE CASCADE,
     trust int NOT NULL DEFAULT 0,
     warmth int NOT NULL DEFAULT 0,
     respect int NOT NULL DEFAULT 0,
@@ -50,12 +55,14 @@ CREATE TABLE IF NOT EXISTS npc_relationships (
     fear int NOT NULL DEFAULT 0,
     desire int NOT NULL DEFAULT 0,
     flags jsonb NOT NULL DEFAULT '{}',
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (game_id, npc_id)
 );
 
 -- Index for game-based queries
 CREATE INDEX IF NOT EXISTS idx_rel_game ON npc_relationships(game_id);
+CREATE INDEX IF NOT EXISTS idx_rel_npc ON npc_relationships(npc_id);
 
 -- ============================================================================
 -- HELPER FUNCTIONS (Optional)
@@ -98,21 +105,17 @@ $$ LANGUAGE plpgsql;
 -- COMMENTS
 -- ============================================================================
 
-COMMENT ON TABLE npcs IS 'NPC catalog with world association and metadata';
 COMMENT ON TABLE entry_point_npcs IS 'Binding between entry points and NPCs with role hints';
 COMMENT ON TABLE npc_relationships IS 'Game-specific relationship tracking for NPCs';
 
-COMMENT ON COLUMN npcs.id IS 'Unique NPC identifier (e.g., npc.mystika.kiera)';
-COMMENT ON COLUMN npcs.world_id IS 'World this NPC belongs to';
-COMMENT ON COLUMN npcs.name IS 'Display name of the NPC';
-COMMENT ON COLUMN npcs.archetype IS 'NPC archetype (e.g., Warden, Scholar, Warrior)';
-COMMENT ON COLUMN npcs.role_tags IS 'Array of role tags (e.g., companion, guide, merchant)';
-COMMENT ON COLUMN npcs.portrait_url IS 'Optional portrait image URL';
-COMMENT ON COLUMN npcs.doc IS 'Additional NPC metadata and characteristics';
-
+COMMENT ON COLUMN entry_point_npcs.id IS 'Unique binding identifier';
+COMMENT ON COLUMN entry_point_npcs.entry_point_id IS 'Entry point this binding belongs to (TEXT)';
+COMMENT ON COLUMN entry_point_npcs.npc_id IS 'NPC identifier (UUID from npcs table)';
 COMMENT ON COLUMN entry_point_npcs.role_hint IS 'Suggested role for this NPC in the entry point';
 COMMENT ON COLUMN entry_point_npcs.weight IS 'Priority weight for NPC selection (higher = more important)';
 
+COMMENT ON COLUMN npc_relationships.game_id IS 'Game this relationship belongs to';
+COMMENT ON COLUMN npc_relationships.npc_id IS 'NPC identifier (UUID from npcs table)';
 COMMENT ON COLUMN npc_relationships.trust IS 'Trust level (-100 to 100)';
 COMMENT ON COLUMN npc_relationships.warmth IS 'Warmth/affection level (-100 to 100)';
 COMMENT ON COLUMN npc_relationships.respect IS 'Respect level (-100 to 100)';

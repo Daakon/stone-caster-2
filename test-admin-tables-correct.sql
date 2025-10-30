@@ -81,3 +81,10 @@ SELECT 'Entries:', COUNT(*) FROM public.entries
 UNION ALL
 SELECT 'Entry Points:', COUNT(*) FROM public.entry_points;
 
+
+
+
+
+
+
+

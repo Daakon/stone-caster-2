@@ -14,6 +14,7 @@ import configRouter from './routes/config.js';
 import meRouter from './routes/me.js';
 import profileRouter from './routes/profile.js';
 import adventuresRouter from './routes/adventures.js';
+import catalogRouter from './routes/catalog.js';
 import searchRouter from './routes/search.js';
 import stonesRouter from './routes/stones.js';
 import subscriptionRouter from './routes/subscription.js';
@@ -87,6 +88,8 @@ app.use('/api/players-v3', playersV3Router);
 app.use('/api/premades', premadeCharactersRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);
+// Catalog routes (includes both legacy and new unified entry-points)
+app.use('/api/catalog', catalogRouter);
 app.use('/api/content', contentRouter);
 app.use('/api/adventures', adventuresRouter);
 app.use('/api/search', searchRouter);

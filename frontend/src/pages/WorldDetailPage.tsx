@@ -22,7 +22,7 @@ export default function WorldDetailPage() {
   const [isInvited] = useState(mockDataService.getInviteStatus().invited);
   
   const world = id ? mockDataService.getWorldById(id) : null;
-  const adventures = world ? mockDataService.getAdventuresByWorld(world.id) : [];
+  const adventures = world ? mockDataService.getStoriesByWorld(world.id) : [];
   
   if (!world) {
     return (
