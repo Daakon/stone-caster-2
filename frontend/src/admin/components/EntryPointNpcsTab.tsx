@@ -48,7 +48,7 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
 
   const loadNPCs = async () => {
     try {
-      const data = await npcBindingsService.getNPCsForWorld(worldId);
+      const data = await npcBindingsService.getAvailableNPCs(entryPointId);
       setNpcs(data);
     } catch (error) {
       toast.error('Failed to load NPCs');
@@ -63,16 +63,13 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
         entry_point_id: entryPointId
       });
       
-      // Get NPC name for display
-      const npc = npcs.find(n => n.id === data.npc_id);
-      const bindingWithName = {
-        ...newBinding,
-        npc_name: npc?.name || data.npc_id
-      };
-      
-      setBindings(prev => [...prev, bindingWithName]);
+      // NPC name is already included in the response from the backend
+      setBindings(prev => [...prev, newBinding]);
       toast.success('NPC binding created successfully');
       setIsDialogOpen(false);
+      
+      // Reload available NPCs list since this NPC is no longer available
+      await loadNPCs();
     } catch (error) {
       toast.error('Failed to create NPC binding');
       console.error('Error creating binding:', error);
@@ -81,18 +78,15 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
 
   const handleUpdateBinding = async (id: string, data: UpdateBindingData) => {
     try {
-      const updatedBinding = await npcBindingsService.updateBinding(id, data);
+      const updatedBinding = await npcBindingsService.updateBinding(id, entryPointId, data);
       
-      // Get NPC name for display
-      const npc = npcs.find(n => n.id === data.npc_id || updatedBinding.npc_id);
-      const bindingWithName = {
-        ...updatedBinding,
-        npc_name: npc?.name || updatedBinding.npc_id
-      };
-      
-      setBindings(prev => prev.map(b => b.id === id ? bindingWithName : b));
+      // Get NPC name for display (it's already included in the response)
+      setBindings(prev => prev.map(b => b.id === id ? updatedBinding : b));
       toast.success('NPC binding updated successfully');
       setIsDialogOpen(false);
+      
+      // Reload available NPCs list since one might have become available
+      await loadNPCs();
     } catch (error) {
       toast.error('Failed to update NPC binding');
       console.error('Error updating binding:', error);
@@ -105,9 +99,12 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
     }
 
     try {
-      await npcBindingsService.deleteBinding(id);
+      await npcBindingsService.deleteBinding(id, entryPointId);
       setBindings(prev => prev.filter(b => b.id !== id));
       toast.success('NPC binding deleted successfully');
+      
+      // Reload available NPCs list since this NPC is now available again
+      await loadNPCs();
     } catch (error) {
       toast.error('Failed to delete NPC binding');
       console.error('Error deleting binding:', error);

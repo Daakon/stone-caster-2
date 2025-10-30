@@ -3317,6 +3317,376 @@ router.delete('/npcs/:id', authenticateToken, requireAdminRole, async (req, res)
   }
 });
 
+// NPC Bindings endpoints for admin panel
+/**
+ * @swagger
+ * /api/admin/entry-points/{entryPointId}/npcs:
+ *   get:
+ *     summary: Get NPC bindings for an entry point
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: entryPointId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Entry Point ID
+ *     responses:
+ *       200:
+ *         description: List of NPC bindings
+ */
+router.get('/entry-points/:entryPointId/npcs', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { entryPointId } = req.params;
+    
+    const { data, error } = await supabase
+      .from('entry_point_npcs')
+      .select(`
+        *,
+        npc:npc_id (
+          id,
+          name,
+          description,
+          status
+        )
+      `)
+      .eq('entry_point_id', entryPointId)
+      .order('weight', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    // Transform data to include npc_name for display
+    const bindings = (data || []).map(binding => ({
+      ...binding,
+      npc_name: binding.npc?.name || 'Unknown'
+    }));
+
+    res.json({
+      ok: true,
+      data: bindings
+    });
+  } catch (error) {
+    console.error('Error fetching NPC bindings:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch NPC bindings',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/entry-points/{entryPointId}/npcs/available:
+ *   get:
+ *     summary: Get available NPCs for binding to an entry point
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: entryPointId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Entry Point ID
+ *     responses:
+ *       200:
+ *         description: List of available NPCs
+ */
+router.get('/entry-points/:entryPointId/npcs/available', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { entryPointId } = req.params;
+    
+    // Get all NPCs (without world filtering for now, since schema is inconsistent)
+    const { data: npcs, error: npcsError } = await supabase
+      .from('npcs')
+      .select('id, name, description, status')
+      .eq('status', 'active')
+      .order('name');
+
+    if (npcsError) {
+      throw npcsError;
+    }
+
+    // Get already bound NPCs for this entry point
+    const { data: bindings, error: bindingsError } = await supabase
+      .from('entry_point_npcs')
+      .select('npc_id')
+      .eq('entry_point_id', entryPointId);
+
+    if (bindingsError) {
+      throw bindingsError;
+    }
+
+    const boundNpcIds = new Set((bindings || []).map(b => b.npc_id));
+    
+    // Filter out already bound NPCs
+    const availableNpcs = (npcs || []).filter(npc => !boundNpcIds.has(npc.id));
+
+    res.json({
+      ok: true,
+      data: availableNpcs
+    });
+  } catch (error) {
+    console.error('Error fetching available NPCs:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch available NPCs',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/entry-points/{entryPointId}/npcs:
+ *   post:
+ *     summary: Create NPC binding
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: entryPointId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Entry Point ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [npc_id, role_hint]
+ *             properties:
+ *               npc_id:
+ *                 type: string
+ *               role_hint:
+ *                 type: string
+ *               weight:
+ *                 type: integer
+ *                 default: 1
+ *     responses:
+ *       201:
+ *         description: NPC binding created successfully
+ */
+router.post('/entry-points/:entryPointId/npcs', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { entryPointId } = req.params;
+    const { npc_id, role_hint, weight = 1 } = req.body;
+    
+    if (!npc_id || !role_hint) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: npc_id, role_hint'
+      });
+    }
+
+    // Check for duplicate binding
+    const { data: existing, error: checkError } = await supabase
+      .from('entry_point_npcs')
+      .select('id')
+      .eq('entry_point_id', entryPointId)
+      .eq('npc_id', npc_id)
+      .limit(1);
+
+    if (checkError) {
+      throw checkError;
+    }
+
+    if (existing && existing.length > 0) {
+      return res.status(409).json({
+        ok: false,
+        error: 'NPC is already bound to this entry point'
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('entry_point_npcs')
+      .insert({
+        entry_point_id: entryPointId,
+        npc_id,
+        role_hint,
+        weight
+      })
+      .select(`
+        *,
+        npc:npc_id (
+          id,
+          name,
+          description,
+          status
+        )
+      `)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json({
+      ok: true,
+      data: {
+        ...data,
+        npc_name: data.npc?.name || 'Unknown'
+      }
+    });
+  } catch (error) {
+    console.error('Error creating NPC binding:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to create NPC binding',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/entry-points/{entryPointId}/npcs/{bindingId}:
+ *   put:
+ *     summary: Update NPC binding
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: entryPointId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Entry Point ID
+ *       - in: path
+ *         name: bindingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Binding ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               role_hint:
+ *                 type: string
+ *               weight:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: NPC binding updated successfully
+ */
+router.put('/entry-points/:entryPointId/npcs/:bindingId', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { entryPointId, bindingId } = req.params;
+    const updateData = req.body;
+    
+    const { data, error } = await supabase
+      .from('entry_point_npcs')
+      .update({
+        ...updateData,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', bindingId)
+      .eq('entry_point_id', entryPointId)
+      .select(`
+        *,
+        npc:npc_id (
+          id,
+          name,
+          description,
+          status
+        )
+      `)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'NPC binding not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        ...data,
+        npc_name: data.npc?.name || 'Unknown'
+      }
+    });
+  } catch (error) {
+    console.error('Error updating NPC binding:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to update NPC binding',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/entry-points/{entryPointId}/npcs/{bindingId}:
+ *   delete:
+ *     summary: Delete NPC binding
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: entryPointId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Entry Point ID
+ *       - in: path
+ *         name: bindingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Binding ID
+ *     responses:
+ *       200:
+ *         description: NPC binding deleted successfully
+ */
+router.delete('/entry-points/:entryPointId/npcs/:bindingId', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { entryPointId, bindingId } = req.params;
+    
+    const { error } = await supabase
+      .from('entry_point_npcs')
+      .delete()
+      .eq('id', bindingId)
+      .eq('entry_point_id', entryPointId);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'NPC binding deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting NPC binding:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete NPC binding',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Entry Points endpoints for admin panel
 /**
  * @swagger
@@ -3482,6 +3852,352 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
     res.status(500).json({
       ok: false,
       error: 'Failed to fetch entry point',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/entry-points:
+ *   post:
+ *     summary: Create a new entry point
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, type, world_id, rulesetIds, title, description, tags, visibility, content_rating]
+ *             properties:
+ *               name:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [adventure, scenario, sandbox, quest]
+ *               world_id:
+ *                 type: string
+ *               rulesetIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               title:
+ *                 type: string
+ *               subtitle:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               synopsis:
+ *                 type: string
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               visibility:
+ *                 type: string
+ *                 enum: [public, unlisted, private]
+ *               content_rating:
+ *                 type: string
+ *               prompt:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: Entry point created successfully
+ */
+router.post('/entry-points', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { name, slug, type, world_id, rulesetIds, title, subtitle, description, synopsis, tags, visibility, content_rating, prompt, entry_id } = req.body;
+    
+    if (!name || !type || !world_id || !rulesetIds || !title || !description || !tags || !visibility || !content_rating) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    // Resolve world_id: if it's a UUID, get the text_id from mapping
+    let resolvedWorldId = world_id;
+    if (world_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      const { data: mapping, error: mappingError } = await supabase
+        .from('world_id_mapping')
+        .select('text_id')
+        .eq('uuid_id', world_id)
+        .single();
+
+      if (mappingError || !mapping) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Invalid world_id: World not found in mapping'
+        });
+      }
+      
+      resolvedWorldId = mapping.text_id;
+    }
+
+    // Generate slug if not provided
+    const finalSlug = slug || name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    // Insert the entry point
+    const { data, error } = await supabase
+      .from('entry_points')
+      .insert({
+        id: name, // Use name as ID
+        name,
+        slug: finalSlug,
+        type,
+        world_id: resolvedWorldId, // Use resolved TEXT ID
+        title,
+        subtitle,
+        description,
+        synopsis,
+        tags,
+        visibility,
+        content_rating,
+        lifecycle: 'draft',
+        prompt,
+        entry_id
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    // Create ruleset associations
+    if (rulesetIds && rulesetIds.length > 0) {
+      const rulesetAssociations = rulesetIds.map((rulesetId: string, index: number) => ({
+        entry_point_id: data.id,
+        ruleset_id: rulesetId,
+        sort_order: index
+      }));
+
+      const { error: rulesetError } = await supabase
+        .from('entry_point_rulesets')
+        .insert(rulesetAssociations);
+
+      if (rulesetError) {
+        // Clean up the entry point if ruleset association fails
+        await supabase.from('entry_points').delete().eq('id', data.id);
+        throw new Error(`Failed to create ruleset associations: ${rulesetError.message}`);
+      }
+    }
+
+    res.status(201).json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error creating entry point:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to create entry point',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/entry-points/{id}:
+ *   put:
+ *     summary: Update entry point
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *               world_id:
+ *                 type: string
+ *               rulesetIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               title:
+ *                 type: string
+ *               subtitle:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               synopsis:
+ *                 type: string
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               visibility:
+ *                 type: string
+ *               content_rating:
+ *                 type: string
+ *               lifecycle:
+ *                 type: string
+ *               prompt:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Entry point updated successfully
+ */
+router.put('/entry-points/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rulesetIds, world_id, ...updateData } = req.body;
+    
+    // Resolve world_id if provided and is a UUID
+    if (world_id) {
+      if (world_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        const { data: mapping, error: mappingError } = await supabase
+          .from('world_id_mapping')
+          .select('text_id')
+          .eq('uuid_id', world_id)
+          .single();
+
+        if (mappingError || !mapping) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Invalid world_id: World not found in mapping'
+          });
+        }
+        
+        updateData.world_id = mapping.text_id;
+      } else {
+        updateData.world_id = world_id;
+      }
+    }
+    
+    // Update the entry point
+    const { data, error } = await supabase
+      .from('entry_points')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'Entry point not found'
+        });
+      }
+      throw error;
+    }
+
+    // Update ruleset associations if provided
+    if (rulesetIds !== undefined) {
+      // Delete existing associations
+      const { error: deleteError } = await supabase
+        .from('entry_point_rulesets')
+        .delete()
+        .eq('entry_point_id', id);
+
+      if (deleteError) {
+        throw new Error(`Failed to remove existing ruleset associations: ${deleteError.message}`);
+      }
+
+      // Create new associations
+      if (rulesetIds.length > 0) {
+        const rulesetAssociations = rulesetIds.map((rulesetId: string, index: number) => ({
+          entry_point_id: id,
+          ruleset_id: rulesetId,
+          sort_order: index
+        }));
+
+        const { error: rulesetError } = await supabase
+          .from('entry_point_rulesets')
+          .insert(rulesetAssociations);
+
+        if (rulesetError) {
+          throw new Error(`Failed to create ruleset associations: ${rulesetError.message}`);
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error updating entry point:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to update entry point',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/entry-points/{id}:
+ *   delete:
+ *     summary: Delete entry point
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Entry point deleted successfully
+ */
+router.delete('/entry-points/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete ruleset associations first (if they exist)
+    await supabase
+      .from('entry_point_rulesets')
+      .delete()
+      .eq('entry_point_id', id);
+    
+    // Delete the entry point
+    const { error } = await supabase
+      .from('entry_points')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      message: 'Entry point deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting entry point:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to delete entry point',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

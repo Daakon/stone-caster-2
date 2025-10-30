@@ -186,15 +186,16 @@ describe('Entry Points Service', () => {
     it('creates a new entry point', async () => {
       const mockEntryPoint = { id: 'entry-1', title: 'Test Adventure' };
       const createData = {
+        name: 'test-adventure-1',
         slug: 'test-adventure',
         type: 'adventure' as const,
         world_id: 'world-1',
-        ruleset_id: 'ruleset-1',
+        rulesetIds: ['ruleset-1'],
         title: 'Test Adventure',
         description: 'A test adventure',
         tags: ['fantasy'],
         visibility: 'private' as const,
-        content_rating: 'general'
+        content_rating: 'safe'
       };
 
       mockSupabase.from.mockReturnValue({
@@ -216,15 +217,16 @@ describe('Entry Points Service', () => {
 
     it('handles creation errors', async () => {
       const createData = {
+        name: 'test-adventure-1',
         slug: 'test-adventure',
         type: 'adventure' as const,
         world_id: 'world-1',
-        ruleset_id: 'ruleset-1',
+        rulesetIds: ['ruleset-1'],
         title: 'Test Adventure',
         description: 'A test adventure',
         tags: ['fantasy'],
         visibility: 'private' as const,
-        content_rating: 'general'
+        content_rating: 'safe'
       };
 
       mockSupabase.from.mockReturnValue({

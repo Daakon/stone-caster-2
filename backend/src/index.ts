@@ -88,6 +88,7 @@ app.use('/api/players-v3', playersV3Router);
 app.use('/api/premades', premadeCharactersRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);
+// Catalog routes (includes both legacy and new unified entry-points)
 app.use('/api/catalog', catalogRouter);
 app.use('/api/content', contentRouter);
 app.use('/api/adventures', adventuresRouter);
