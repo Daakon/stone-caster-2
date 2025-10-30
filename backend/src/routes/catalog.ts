@@ -112,101 +112,215 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/catalog/stories (maps adventures)
+// GET /api/catalog/stories (unified - mirrors entry-points)
 router.get('/stories', async (req: Request, res: Response) => {
   try {
-    // Validate query parameters
-    const queryValidation = StoriesQuerySchema.safeParse(req.query);
+    // Use the same validation schema as entry-points
+    const queryValidation = ListQuerySchema.safeParse(req.query);
     if (!queryValidation.success) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Invalid query parameters',
-        req
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid query parameters',
+        details: queryValidation.error.errors
+      });
+    }
+    
+    const filters = queryValidation.data;
+    
+    // Query entry_points table (admin source of truth)
+    let query = supabase
+      .from('entry_points')
+      .select(`
+        id,
+        slug,
+        type,
+        title,
+        subtitle,
+        description,
+        synopsis,
+        tags,
+        world_id,
+        worlds:world_id (name),
+        content_rating,
+        lifecycle,
+        visibility,
+        prompt,
+        entry_id,
+        created_at,
+        updated_at
+      `, { count: 'exact' });
+    
+    // Apply filters (same as entry-points)
+    if (filters.activeOnly) {
+      query = query.eq('lifecycle', 'active');
+    }
+    
+    if (filters.visibility) {
+      query = query.in('visibility', filters.visibility);
+    } else {
+      query = query.eq('visibility', 'public');
+    }
+    
+    if (filters.world) {
+      query = query.eq('world_id', filters.world);
+    }
+    
+    if (filters.tags && filters.tags.length > 0) {
+      query = query.contains('tags', filters.tags);
+    }
+    
+    if (filters.rating && filters.rating.length > 0) {
+      query = query.in('content_rating', filters.rating);
+    }
+    
+    if (filters.q) {
+      query = query.or(
+        `title.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
       );
     }
-
-    const { activeOnly } = queryValidation.data;
-
-    // Query Supabase adventures table
-    let query = supabase
-      .from('adventures')
-      .select('id, world_ref, version, doc, created_at, updated_at')
-      .order('created_at', { ascending: false });
-
-    // Filter by status if activeOnly is true (check doc.status field)
-    if (activeOnly) {
-      query = query.eq('doc->>status', 'active');
-    }
-
-    const { data: adventuresData, error } = await query;
-
+    
+    const sortConfig = buildSortClause(filters.sort);
+    query = query.order(sortConfig.column, { ascending: sortConfig.ascending });
+    
+    const from = filters.offset;
+    const to = from + filters.limit - 1;
+    query = query.range(from, to);
+    
+    const { data, error, count } = await query;
+    
     if (error) {
       console.error('Supabase query error:', error);
       throw error;
     }
-
-    // Transform to public catalog DTO
-    const data = (adventuresData || []).map((a: any) => ({
-      id: a.id,
-      name: a.doc?.name || a.id,
-      slug: a.doc?.slug || a.id,
-      tagline: a.doc?.tagline || '',
-      short_desc: a.doc?.short_desc || a.doc?.description || '',
-      hero_quote: a.doc?.hero_quote || '',
-      world_id: a.world_ref,
-      status: a.doc?.status || 'draft',
-      created_at: a.created_at,
-      updated_at: a.updated_at,
-    }));
-
-    sendSuccess(res, data, req);
+    
+    // Transform using unified DTO mapper
+    let items = (data || []).map((row: any) => {
+      const { worlds, ...restRow } = row;
+      const flatRow = {
+        ...restRow,
+        world_name: (worlds as any)?.[0]?.name || null
+      };
+      
+      return transformToCatalogDTO(flatRow, false);
+    });
+    
+    // Post-filter by playableOnly
+    if (filters.playableOnly) {
+      items = items.filter(item => item.is_playable);
+    }
+    
+    // Return unified response format
+    res.json({
+      ok: true,
+      data: items,
+      meta: {
+        total: count || 0,
+        limit: filters.limit,
+        offset: filters.offset,
+        filters: {
+          world: filters.world,
+          q: filters.q,
+          tags: filters.tags,
+          rating: filters.rating,
+          visibility: filters.visibility,
+          activeOnly: filters.activeOnly,
+          playableOnly: filters.playableOnly
+        },
+        sort: filters.sort
+      }
+    });
   } catch (error) {
-    console.error('catalog.stories error', error);
-    sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch stories', req);
+    console.error('catalog.stories error:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch stories',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
-// GET /api/catalog/stories/:idOrSlug
+// GET /api/catalog/stories/:idOrSlug (unified - mirrors entry-points)
 router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
-
-    // Query by id or slug (check both id field and doc.slug)
-    const { data: adventuresData, error } = await supabase
-      .from('adventures')
-      .select('id, world_ref, version, doc, created_at, updated_at')
-      .or(`id.eq.${idOrSlug},doc->>slug.eq.${idOrSlug}`)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
+    
+    // Query entry_points table (admin source of truth)
+    const { data, error } = await supabase
+      .from('entry_points')
+      .select(`
+        id,
+        slug,
+        type,
+        title,
+        subtitle,
+        description,
+        synopsis,
+        tags,
+        world_id,
+        worlds:world_id (name),
+        content_rating,
+        lifecycle,
+        visibility,
+        prompt,
+        entry_id,
+        created_at,
+        updated_at
+      `)
+      .or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`)
+      .limit(1)
+      .single();
+    
+    if (error && error.code === 'PGRST116') {
+      return res.status(404).json({
+        ok: false,
+        error: 'Story not found'
+      });
+    }
+    
     if (error) {
       console.error('Supabase query error:', error);
       throw error;
     }
-
-    if (!adventuresData || adventuresData.length === 0) {
-      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Story not found', req);
+    
+    // Fetch rulesets for this entry point
+    const { data: rulesetsData, error: rulesetsError } = await supabase
+      .from('entry_point_rulesets')
+      .select(`
+        rulesets:ruleset_id (id, name),
+        sort_order
+      `)
+      .eq('entry_point_id', data.id)
+      .order('sort_order');
+    
+    if (rulesetsError) {
+      console.error('Rulesets query error:', rulesetsError);
     }
-
-    const adventure = adventuresData[0];
-    const data = {
-      id: adventure.id,
-      name: adventure.doc?.name || adventure.id,
-      slug: adventure.doc?.slug || adventure.id,
-      tagline: adventure.doc?.tagline || '',
-      short_desc: adventure.doc?.short_desc || adventure.doc?.description || '',
-      hero_quote: adventure.doc?.hero_quote || '',
-      world_id: adventure.world_ref,
-      status: adventure.doc?.status || 'draft',
-      created_at: adventure.created_at,
-      updated_at: adventure.updated_at,
+    
+    // Transform using unified DTO mapper
+    const { worlds, ...restData } = data;
+    const flatRow = {
+      ...restData,
+      world_name: (worlds as any)?.[0]?.name || null,
+      rulesets: (rulesetsData || []).map((r: any) => ({
+        id: r.rulesets?.id,
+        name: r.rulesets?.name,
+        sort_order: r.sort_order
+      }))
     };
-
-    sendSuccess(res, data, req);
+    
+    const dto = transformToCatalogDTO(flatRow, true);
+    
+    res.json({
+      ok: true,
+      data: dto
+    });
   } catch (error) {
-    console.error('catalog.story detail error', error);
-    sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch story', req);
+    console.error('catalog.story detail error:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch story',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
@@ -309,19 +423,21 @@ function transformToCatalogDTO(row: any, includeDetail = false): any {
   return dto;
 }
 
-function buildSortClause(sort: string): string {
+function buildSortClause(sort: string): { column: string; ascending: boolean } {
   switch (sort) {
     case '-created':
-      return 'created_at DESC';
+      return { column: 'created_at', ascending: false };
     case '-popularity':
-      return 'popularity_score DESC, updated_at DESC';
+      // Note: popularity_score doesn't exist yet in schema
+      return { column: 'updated_at', ascending: false };
     case 'alpha':
-      return 'title ASC';
+      return { column: 'title', ascending: true };
     case 'custom':
-      return 'sort_weight DESC, updated_at DESC';
+      // Note: sort_weight doesn't exist yet in schema
+      return { column: 'updated_at', ascending: false };
     case '-updated':
     default:
-      return 'updated_at DESC';
+      return { column: 'updated_at', ascending: false };
   }
 }
 
@@ -389,8 +505,8 @@ router.get('/entry-points', async (req: Request, res: Response) => {
       );
     }
     
-    const sortColumn = buildSortClause(filters.sort);
-    query = query.order(sortColumn);
+    const sortConfig = buildSortClause(filters.sort);
+    query = query.order(sortConfig.column, { ascending: sortConfig.ascending });
     
     const from = filters.offset;
     const to = from + filters.limit - 1;

@@ -30,6 +30,36 @@ export default function StoryDetailPage() {
   
   const { data: storyData, isLoading, error } = useStoryQuery(id || '');
   const story = storyData?.data;
+
+  // Track story view and update document head for SEO
+  // MUST be called before any early returns to satisfy Rules of Hooks
+  useEffect(() => {
+    if (!storyData || !('data' in storyData) || !storyData.data) return;
+    const storyDetail = storyData.data;
+    const title = makeTitle([storyDetail.title, storyDetail.world_name ?? storyDetail.world ?? 'World', 'StoneCaster']);
+    const desc = makeDescription(storyDetail.short_desc || storyDetail.description || 'Play an interactive story on StoneCaster.');
+    const url = absoluteUrl(`/stories/${storyDetail.slug}`);
+    const image = absoluteUrl(`/og/story/${storyDetail.slug}`);
+
+    document.title = title;
+    upsertMeta('description', desc);
+    upsertLink('canonical', url);
+
+    const og = ogTags({ title, description: desc, url, image });
+    Object.entries(og).forEach(([k, v]) => upsertProperty(k, v));
+    const tw = twitterTags({ title, description: desc, url, image });
+    Object.entries(tw).forEach(([k, v]) => upsertMeta(k, v));
+
+    injectJSONLD({
+      '@context': 'https://schema.org',
+      '@type': 'CreativeWork',
+      name: storyDetail.title,
+      author: 'StoneCaster',
+      genre: 'Interactive Story',
+      isPartOf: { '@type': 'CreativeWorkSeries', name: storyDetail.world_name ?? storyDetail.world ?? 'World' },
+      url,
+    });
+  }, [storyData]);
   
   if (isLoading) {
     return (
@@ -73,35 +103,6 @@ export default function StoryDetailPage() {
     npcAgency: Eye,
     worldRules: Zap
   };
-
-  // Track story view and update document head for SEO
-  useEffect(() => {
-    if (!storyRes || !('data' in storyRes) || !storyRes.data) return;
-    const story = storyRes.data;
-    const title = makeTitle([story.title, story.world_name ?? story.world ?? 'World', 'StoneCaster']);
-    const desc = makeDescription(story.short_desc || story.description || 'Play an interactive story on StoneCaster.');
-    const url = absoluteUrl(`/stories/${story.slug}`);
-    const image = absoluteUrl(`/og/story/${story.slug}`);
-
-    document.title = title;
-    upsertMeta('description', desc);
-    upsertLink('canonical', url);
-
-    const og = ogTags({ title, description: desc, url, image });
-    Object.entries(og).forEach(([k, v]) => upsertProperty(k, v));
-    const tw = twitterTags({ title, description: desc, url, image });
-    Object.entries(tw).forEach(([k, v]) => upsertMeta(k, v));
-
-    injectJSONLD({
-      '@context': 'https://schema.org',
-      '@type': 'CreativeWork',
-      name: story.title,
-      author: 'StoneCaster',
-      genre: 'Interactive Story',
-      isPartOf: { '@type': 'CreativeWorkSeries', name: story.world_name ?? story.world ?? 'World' },
-      url,
-    });
-  }, [storyRes]);
 
   return (
     <div className="container mx-auto px-4 py-8">
