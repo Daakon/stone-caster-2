@@ -28,7 +28,7 @@ export function buildURL(path: string, params?: Record<string, any>): string {
   const url = new URL(path, window.location.origin);
 
   // Add activeOnly=1 for catalog list endpoints only (not detail endpoints) in public mode
-  if (PUBLIC_API_MODE && path.includes('/catalog/') && !path.match(/\/catalog\/\w+\/[^/]+$/)) {
+  if (PUBLIC_API_MODE && path.includes('/api/catalog/') && !path.match(/\/api\/catalog\/\w+\/[^/]+$/)) {
     url.searchParams.set('activeOnly', '1');
   }
   

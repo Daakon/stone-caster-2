@@ -3,27 +3,21 @@ import { Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { useURLFilters } from '@/lib/useURLFilters';
 import { trackFilterChange } from '@/lib/analytics';
-
-interface WorldsFilterBarProps {
-  onFiltersChange?: (filters: any) => void;
-}
+import type { FilterValue } from '@/lib/useURLFilters';
 
 interface WorldFilters {
   q: string;
+  [key: string]: FilterValue;
 }
 
-export function WorldsFilterBar({ onFiltersChange }: WorldsFilterBarProps) {
-  const { filters, updateFilters, reset } = useURLFilters<WorldFilters>({
-    q: ''
-  });
+interface WorldsFilterBarProps {
+  filters: WorldFilters;
+  updateFilters: (patch: Partial<WorldFilters>) => void;
+  reset: () => void;
+}
 
-  // Notify parent of filter changes
-  React.useEffect(() => {
-    onFiltersChange?.(filters);
-  }, [filters, onFiltersChange]);
-
+export function WorldsFilterBar({ filters, updateFilters, reset }: WorldsFilterBarProps) {
   // Track filter changes for analytics
   React.useEffect(() => {
     trackFilterChange('worlds', filters);

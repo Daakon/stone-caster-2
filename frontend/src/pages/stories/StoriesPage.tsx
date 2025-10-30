@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useStoriesQuery } from '@/lib/queries';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
@@ -6,6 +6,9 @@ import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
 import { EmptyState } from '@/components/catalog/EmptyState';
 import { StoriesFilterBar } from '@/components/filters/StoriesFilterBar';
 import { trackCatalogView, trackCatalogCardClick } from '@/lib/analytics';
+import { useURLFilters } from '@/lib/useURLFilters';
+import type { FilterValue } from '@/lib/useURLFilters';
+import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
 
 interface StoryFilters {
   q: string;
@@ -13,10 +16,11 @@ interface StoryFilters {
   kind: string | undefined;
   ruleset: string | undefined;
   tags: string[];
+  [key: string]: FilterValue;
 }
 
 export default function StoriesPage() {
-  const [filters, setFilters] = useState<StoryFilters>({
+  const { filters, updateFilters, reset } = useURLFilters<StoryFilters>({
     q: '',
     world: undefined,
     kind: undefined,
@@ -25,24 +29,37 @@ export default function StoriesPage() {
   });
 
   // Load stories with current filters
-  const { data: storiesData, isLoading, error } = useStoriesQuery({
+  const storiesQ: any = useStoriesQuery({
     q: filters.q || undefined,
     world: filters.world,
     kind: filters.kind as any,
     ruleset: filters.ruleset,
     tags: filters.tags.length > 0 ? filters.tags : undefined,
   });
-
-  const stories = storiesData || [];
+  const isLoading = storiesQ.isLoading;
+  const error = storiesQ.error;
+  const stories = Array.isArray(storiesQ?.data)
+    ? storiesQ.data
+    : (storiesQ?.data?.data ?? []);
 
   // Track catalog view on mount
   useEffect(() => {
     trackCatalogView('stories');
   }, []);
 
-  const handleFiltersChange = (newFilters: StoryFilters) => {
-    setFilters(newFilters);
-  };
+  useEffect(() => {
+    const title = makeTitle(['Browse Stories', 'StoneCaster']);
+    const desc = makeDescription('Explore active stories and begin your next adventure.');
+    const url = absoluteUrl('/stories');
+    const image = absoluteUrl('/og/story/browse');
+    document.title = title;
+    upsertMeta('description', desc);
+    upsertLink('canonical', url);
+    const og = ogTags({ title, description: desc, url, image });
+    Object.entries(og).forEach(([k, v]) => upsertProperty(k, v));
+    const tw = twitterTags({ title, description: desc, url, image });
+    Object.entries(tw).forEach(([k, v]) => upsertMeta(k, v));
+  }, []);
 
   const handleCardClick = (storyId: string) => {
     trackCatalogCardClick('stories', storyId);
@@ -59,7 +76,7 @@ export default function StoriesPage() {
             </p>
           </div>
           
-          <StoriesFilterBar onFiltersChange={handleFiltersChange} />
+          <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
           
           <CatalogGrid>
             {Array.from({ length: 6 }).map((_, index) => (
@@ -82,7 +99,7 @@ export default function StoriesPage() {
             </p>
           </div>
           
-          <StoriesFilterBar onFiltersChange={handleFiltersChange} />
+          <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
           
           <EmptyState
             title="Error loading stories"
@@ -106,7 +123,7 @@ export default function StoriesPage() {
             </p>
           </div>
           
-          <StoriesFilterBar onFiltersChange={handleFiltersChange} />
+          <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
           
           <EmptyState
             title="No stories found"
@@ -118,13 +135,7 @@ export default function StoriesPage() {
                 : "No stories are available at the moment. Check back later for new adventures."
             }
             actionLabel="Clear filters"
-            onAction={() => setFilters({
-              q: '',
-              world: undefined,
-              kind: undefined,
-              ruleset: undefined,
-              tags: []
-            })}
+            onAction={reset}
           />
         </div>
       </div>
@@ -141,7 +152,7 @@ export default function StoriesPage() {
           </p>
         </div>
         
-        <StoriesFilterBar onFiltersChange={handleFiltersChange} />
+        <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
         
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
@@ -154,15 +165,16 @@ export default function StoriesPage() {
             <CatalogCard
               key={story.id}
               entity="story"
+              idOrSlug={story.slug || story.id}
               title={story.title}
-              description={story.short_desc || story.description}
+              description={story.short_desc}
               imageUrl={story.hero_url}
               href={`/stories/${story.slug || story.id}`}
-              chips={[
+              chips={story.world?.name || story.rulesets?.length ? [
                 story.world?.name,
-                ...(story.rulesets?.map(r => r.name) || [])
-              ].filter(Boolean)}
-              onClick={() => handleCardClick(story.slug || story.id)}
+                ...(story.rulesets?.map(r => ({ label: r.name, variant: 'outline' as const })) || [])
+              ].filter(Boolean) : undefined}
+              onCardClick={() => handleCardClick(story.slug || story.id)}
             />
           ))}
         </CatalogGrid>

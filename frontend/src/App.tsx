@@ -13,6 +13,7 @@ import { GuestCookieService } from './services/guestCookie';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
+import StartStoryPage from './pages/play/StartStoryPage';
 import WorldsPage from './pages/worlds/WorldsPage';
 import NPCsPage from './pages/npcs/NPCsPage';
 import RulesetsPage from './pages/rulesets/RulesetsPage';
@@ -35,6 +36,7 @@ import ScenarioPicker from './pages/player/ScenarioPicker';
 import { AppAdminShell } from './admin/AppAdminShell';
 import NotFoundPage from './pages/NotFoundPage';
 import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
+import SessionPage from './pages/play/SessionPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -120,6 +122,8 @@ function App() {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/stories" element={<StoriesPage />} />
                 <Route path="/stories/:id" element={<StoryDetailPage />} />
+                <Route path="/play/start" element={<StartStoryPage />} />
+                <Route path="/play/session/:id" element={<SessionPage />} />
                 <Route path="/stories/:storyId/characters" element={<CharacterSelectionPage />} />
                 <Route path="/stories/:storyId/create-character" element={<PlayerV3CreationPage />} />
                 <Route path="/worlds" element={<WorldsPage />} />

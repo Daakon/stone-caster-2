@@ -1,8 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { track, trackCatalogView, trackCatalogCardClick, trackFilterChange } from './analytics';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { track, trackCatalogView, trackCatalogCardClick, trackFilterChange, trackFunnelStage, startSessionHeartbeat, stopSessionHeartbeat } from './analytics';
+import * as analytics from './analytics';
 
 // Mock console.log to avoid noise in tests
 const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+beforeEach(() => {
+	vi.useFakeTimers();
+});
+
+afterEach(() => {
+	stopSessionHeartbeat();
+	vi.useRealTimers();
+});
 
 describe('analytics', () => {
   beforeEach(() => {
@@ -126,4 +136,23 @@ describe('analytics', () => {
       );
     });
   });
+
+	it('emits funnel_stage payload', () => {
+		const spy = vi.spyOn(analytics as any, 'track').mockImplementation(() => {});
+		trackFunnelStage({ stage: 'view', ms_since_prev: 0, session_id: 's1' } as any);
+		expect(spy).toHaveBeenCalledWith('funnel_stage', expect.objectContaining({ stage: 'view', ms_since_prev: 0, session_id: 's1' }));
+		spy.mockRestore();
+	});
+
+	it('heartbeat sends while visible and pauses when hidden', () => {
+		const spy = vi.spyOn(analytics as any, 'track').mockImplementation(() => {});
+		Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+		startSessionHeartbeat('s1');
+		vi.advanceTimersByTime(30_000);
+		expect(spy).toHaveBeenCalledWith('session_heartbeat', expect.any(Object));
+		spy.mockClear();
+		Object.defineProperty(document, 'visibilityState', { value: 'hidden' });
+		vi.advanceTimersByTime(30_000);
+		expect(spy).not.toHaveBeenCalled();
+	});
 });

@@ -371,3 +371,9 @@ function BindingDialog({ isOpen, onClose, binding, npcs, onSave }: BindingDialog
 
 
 
+
+
+
+
+
+

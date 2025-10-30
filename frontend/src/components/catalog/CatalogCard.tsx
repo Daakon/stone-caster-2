@@ -6,13 +6,16 @@ import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
 import { usePrefetch } from '@/lib/usePrefetch';
 
+/**
+ * Normalized catalog card props - live data contract only.
+ * No mock-era props (teaser, differentiators, spotlight_quote) allowed.
+ */
 interface CatalogCardProps {
   entity: 'world' | 'story' | 'npc' | 'ruleset';
   idOrSlug: string;
   title: string;
   description?: string;
   imageUrl?: string;
-  imageAlt?: string;
   href: string;
   chips?: Array<{ label: string; variant?: 'default' | 'secondary' | 'outline' }>;
   onCardClick?: (entity: string, idOrSlug: string) => void;
@@ -20,7 +23,7 @@ interface CatalogCardProps {
 }
 
 export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
-  ({ entity, idOrSlug, title, description, imageUrl, imageAlt, href, chips, onCardClick, className }, ref) => {
+  ({ entity, idOrSlug, title, description, imageUrl, href, chips, onCardClick, className }, ref) => {
     const { prefetchWorld, prefetchNPC, prefetchRuleset, prefetchStory } = usePrefetch();
 
     const handleClick = () => {
@@ -61,7 +64,7 @@ export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
             <div className="aspect-video overflow-hidden rounded-t-lg bg-muted">
               <img
                 src={imageUrl}
-                alt={imageAlt || title}
+                alt={title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                 loading="lazy"
                 decoding="async"

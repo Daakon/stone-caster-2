@@ -47,7 +47,7 @@ export function useURLFilters<T extends Record<string, FilterValue>>(
     }
     
     return { ...defaults, ...parsed } as T;
-  }, [location.search, defaults]);
+  }, [location.search]);
   
   // Initialize filters from URL
   const [filters, setFilters] = useState<T>(parseURLParams);
@@ -87,41 +87,51 @@ export function useURLFilters<T extends Record<string, FilterValue>>(
   
   // Update filters with optional debouncing for search queries
   const updateFilters = useCallback((patch: Partial<T>) => {
-    const newFilters = { ...filters, ...patch };
-    setFilters(newFilters);
-    
-    // Check if this is a search query update that needs debouncing
-    const hasSearchUpdate = 'q' in patch && patch.q !== filters.q;
-    
-    if (hasSearchUpdate && debounceMs > 0) {
-      // Clear existing timer
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
+    setFilters(prevFilters => {
+      const newFilters = { ...prevFilters, ...patch };
+      
+      // Check if this is a search query update that needs debouncing
+      const hasSearchUpdate = 'q' in patch && patch.q !== prevFilters.q;
+      
+      if (hasSearchUpdate && debounceMs > 0) {
+        // Clear existing timer
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        
+        // Set new debounced timer
+        const timer = setTimeout(() => {
+          updateURL(newFilters);
+        }, debounceMs);
+        
+        setDebounceTimer(timer);
+      } else {
+        // Update immediately for non-search changes
+        updateURL(newFilters);
       }
       
-      // Set new debounced timer
-      const timer = setTimeout(() => {
-        updateURL(newFilters);
-      }, debounceMs);
-      
-      setDebounceTimer(timer);
-    } else {
-      // Update immediately for non-search changes
-      updateURL(newFilters);
-    }
-  }, [filters, debounceMs, debounceTimer, updateURL]);
+      return newFilters;
+    });
+  }, [debounceMs, debounceTimer, updateURL]);
   
   // Reset filters to defaults
   const reset = useCallback(() => {
     setFilters(defaults);
     updateURL(defaults);
-  }, [defaults, updateURL]);
+  }, [updateURL]);
   
   // Update filters when URL changes (e.g., browser back/forward)
   useEffect(() => {
     const newFilters = parseURLParams();
-    setFilters(newFilters);
-  }, [parseURLParams]);
+    setFilters(prevFilters => {
+      // Only update if the filters have actually changed
+      const hasChanged = Object.keys(newFilters).some(key => 
+        JSON.stringify(prevFilters[key as keyof T]) !== JSON.stringify(newFilters[key as keyof T])
+      );
+      
+      return hasChanged ? newFilters : prevFilters;
+    });
+  }, [location.search]);
   
   // Cleanup debounce timer on unmount
   useEffect(() => {

@@ -78,3 +78,9 @@ CREATE POLICY "World mapping: Authenticated users can manage" ON public.world_id
 
 COMMIT;
 
+
+
+
+
+
+

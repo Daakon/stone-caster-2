@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useRulesetsQuery } from '@/lib/queries';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
@@ -6,29 +6,46 @@ import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
 import { EmptyState } from '@/components/catalog/EmptyState';
 import { RulesetsFilterBar } from '@/components/filters/RulesetsFilterBar';
 import { trackCatalogView, trackCatalogCardClick } from '@/lib/analytics';
+import { useURLFilters } from '@/lib/useURLFilters';
+import type { FilterValue } from '@/lib/useURLFilters';
+import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
 
 interface RulesetFilters {
   q: string;
+  [key: string]: FilterValue;
 }
 
 export default function RulesetsPage() {
-  const [filters, setFilters] = useState<RulesetFilters>({
+  const { filters, updateFilters, reset } = useURLFilters<RulesetFilters>({
     q: ''
   });
 
   // Load rulesets with current filters
-  const { data: rulesetsData, isLoading, error } = useRulesetsQuery(filters.q || undefined);
-
-  const rulesets = rulesetsData || [];
+  const rulesetsQ: any = useRulesetsQuery(filters.q || undefined);
+  const isLoading = rulesetsQ.isLoading;
+  const error = rulesetsQ.error;
+  const rulesets = Array.isArray(rulesetsQ?.data)
+    ? rulesetsQ.data
+    : (rulesetsQ?.data?.data ?? []);
 
   // Track catalog view on mount
   useEffect(() => {
     trackCatalogView('rulesets');
   }, []);
 
-  const handleFiltersChange = (newFilters: RulesetFilters) => {
-    setFilters(newFilters);
-  };
+  useEffect(() => {
+    const title = makeTitle(['Browse Rulesets', 'StoneCaster']);
+    const desc = makeDescription('Explore rulesets that power stories on StoneCaster.');
+    const url = absoluteUrl('/rulesets');
+    const image = absoluteUrl('/og/ruleset/browse');
+    document.title = title;
+    upsertMeta('description', desc);
+    upsertLink('canonical', url);
+    const og = ogTags({ title, description: desc, url, image });
+    Object.entries(og).forEach(([k, v]) => upsertProperty(k, v));
+    const tw = twitterTags({ title, description: desc, url, image });
+    Object.entries(tw).forEach(([k, v]) => upsertMeta(k, v));
+  }, []);
 
   const handleCardClick = (rulesetId: string) => {
     trackCatalogCardClick('rulesets', rulesetId);
@@ -45,7 +62,7 @@ export default function RulesetsPage() {
             </p>
           </div>
           
-          <RulesetsFilterBar onFiltersChange={handleFiltersChange} />
+          <RulesetsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
           
           <CatalogGrid>
             {Array.from({ length: 6 }).map((_, index) => (
@@ -68,7 +85,7 @@ export default function RulesetsPage() {
             </p>
           </div>
           
-          <RulesetsFilterBar onFiltersChange={handleFiltersChange} />
+          <RulesetsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
           
           <EmptyState
             title="Error loading rulesets"
@@ -92,7 +109,7 @@ export default function RulesetsPage() {
             </p>
           </div>
           
-          <RulesetsFilterBar onFiltersChange={handleFiltersChange} />
+          <RulesetsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
           
           <EmptyState
             title="No rulesets found"
@@ -102,7 +119,7 @@ export default function RulesetsPage() {
                 : "No rulesets are available at the moment. Check back later for new systems."
             }
             actionLabel="Clear filters"
-            onAction={() => setFilters({ q: '' })}
+            onAction={reset}
           />
         </div>
       </div>
@@ -119,7 +136,7 @@ export default function RulesetsPage() {
           </p>
         </div>
         
-        <RulesetsFilterBar onFiltersChange={handleFiltersChange} />
+        <RulesetsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
         
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
@@ -132,10 +149,11 @@ export default function RulesetsPage() {
             <CatalogCard
               key={ruleset.id}
               entity="ruleset"
+              idOrSlug={ruleset.slug || ruleset.id}
               title={ruleset.name}
               description={ruleset.description}
-              href={`/rulesets/${ruleset.id}`}
-              onClick={() => handleCardClick(ruleset.id)}
+              href={`/rulesets/${ruleset.slug || ruleset.id}`}
+              onCardClick={() => handleCardClick(ruleset.slug || ruleset.id)}
             />
           ))}
         </CatalogGrid>

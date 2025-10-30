@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/catalog/EmptyState';
 import { useRulesetQuery, useStoriesQuery } from '@/lib/queries';
 import { track } from '@/lib/analytics';
 import { ArrowLeft, BookOpen, Zap } from 'lucide-react';
+import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty, injectJSONLD } from '@/lib/meta';
 
 export default function RulesetDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +32,32 @@ export default function RulesetDetailPage() {
       track('ruleset_view', { ruleset_id: ruleset.id });
     }
   }, [ruleset]);
+
+  useEffect(() => {
+    if (!rulesetData || !('data' in rulesetData) || !rulesetData.data) return;
+    const ruleset = rulesetData.data;
+    const title = makeTitle([ruleset.name, 'StoneCaster']);
+    const desc = makeDescription(ruleset.short_desc || 'Rules and mechanics for StoneCaster stories.');
+    const url = absoluteUrl(`/rulesets/${ruleset.id}`);
+    const image = absoluteUrl(`/og/ruleset/${ruleset.id}`);
+
+    document.title = title;
+    upsertMeta('description', desc);
+    upsertLink('canonical', url);
+
+    const og = ogTags({ title, description: desc, url, image });
+    Object.entries(og).forEach(([k, v]) => upsertProperty(k, v));
+    const tw = twitterTags({ title, description: desc, url, image });
+    Object.entries(tw).forEach(([k, v]) => upsertMeta(k, v));
+
+    injectJSONLD({
+      '@context': 'https://schema.org',
+      '@type': 'CreativeWork',
+      name: ruleset.name,
+      description: desc,
+      url,
+    });
+  }, [rulesetData]);
 
   const handleCardClick = (entity: string, idOrSlug: string) => {
     track('catalog_card_click', { entity, id_or_slug: idOrSlug });
@@ -116,14 +143,13 @@ export default function RulesetDetailPage() {
                 idOrSlug={story.slug || story.id}
                 href={`/stories/${story.slug || story.id}`}
                 imageUrl={story.hero_url}
-                imageAlt={story.title}
                 title={story.title}
                 description={story.short_desc}
                 chips={[
-                  { label: story.world?.name || 'Unknown World', variant: 'secondary' },
+                  { label: story.world?.name || 'Unknown World', variant: 'secondary' as const },
                   ...(story.rulesets?.filter(r => r.id !== ruleset.id).map(r => ({ 
                     label: r.name, 
-                    variant: 'outline' 
+                    variant: 'outline' as const 
                   })) || [])
                 ]}
                 onCardClick={handleCardClick}

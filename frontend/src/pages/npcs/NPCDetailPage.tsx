@@ -7,6 +7,7 @@ import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { useNPCQuery } from '@/lib/queries';
 import { track } from '@/lib/analytics';
 import { ExternalLink, Users, ArrowLeft } from 'lucide-react';
+import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty, injectJSONLD } from '@/lib/meta';
 
 export default function NPCDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,33 @@ export default function NPCDetailPage() {
       track('npc_view', { npc_id: npc.id, world_id: npc.world_id });
     }
   }, [npc]);
+
+  useEffect(() => {
+    if (!npcData || !('data' in npcData) || !npcData.data) return;
+    const npc = npcData.data;
+    const title = makeTitle([`${npc.name} of ${npc.world_name ?? 'World'}`, 'StoneCaster']);
+    const desc = makeDescription(npc.short_desc || npc.bio || 'Meet a character from StoneCaster.');
+    const url = absoluteUrl(`/npcs/${npc.id}`);
+    const image = absoluteUrl(`/og/npc/${npc.id}`);
+
+    document.title = title;
+    upsertMeta('description', desc);
+    upsertLink('canonical', url);
+
+    const og = ogTags({ title, description: desc, url, image });
+    Object.entries(og).forEach(([k, v]) => upsertProperty(k, v));
+    const tw = twitterTags({ title, description: desc, url, image });
+    Object.entries(tw).forEach(([k, v]) => upsertMeta(k, v));
+
+    injectJSONLD({
+      '@context': 'https://schema.org',
+      '@type': 'Person',
+      name: npc.name,
+      description: desc,
+      url,
+      isPartOf: npc.world_name ? { '@type': 'CreativeWorkSeries', name: npc.world_name } : undefined,
+    });
+  }, [npcData]);
 
   const handleViewStories = () => {
     if (npc) {

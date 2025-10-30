@@ -3,27 +3,21 @@ import { Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { useURLFilters } from '@/lib/useURLFilters';
 import { trackFilterChange } from '@/lib/analytics';
-
-interface RulesetsFilterBarProps {
-  onFiltersChange?: (filters: any) => void;
-}
+import type { FilterValue } from '@/lib/useURLFilters';
 
 interface RulesetFilters {
   q: string;
+  [key: string]: FilterValue;
 }
 
-export function RulesetsFilterBar({ onFiltersChange }: RulesetsFilterBarProps) {
-  const { filters, updateFilters, reset } = useURLFilters<RulesetFilters>({
-    q: ''
-  });
+interface RulesetsFilterBarProps {
+  filters: RulesetFilters;
+  updateFilters: (patch: Partial<RulesetFilters>) => void;
+  reset: () => void;
+}
 
-  // Notify parent of filter changes
-  React.useEffect(() => {
-    onFiltersChange?.(filters);
-  }, [filters, onFiltersChange]);
-
+export function RulesetsFilterBar({ filters, updateFilters, reset }: RulesetsFilterBarProps) {
   // Track filter changes for analytics
   React.useEffect(() => {
     trackFilterChange('rulesets', filters);

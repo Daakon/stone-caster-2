@@ -13,12 +13,8 @@ import {
 } from '@/components/ui/select';
 import { useWorldsQuery } from '@/lib/queries';
 import { useRulesetsQuery } from '@/lib/queries';
-import { useURLFilters } from '@/lib/useURLFilters';
 import { trackFilterChange } from '@/lib/analytics';
-
-interface StoriesFilterBarProps {
-  onFiltersChange?: (filters: any) => void;
-}
+import type { FilterValue } from '@/lib/useURLFilters';
 
 interface StoryFilters {
   q: string;
@@ -26,6 +22,13 @@ interface StoryFilters {
   kind: string | undefined;
   ruleset: string | undefined;
   tags: string[];
+  [key: string]: FilterValue;
+}
+
+interface StoriesFilterBarProps {
+  filters: StoryFilters;
+  updateFilters: (patch: Partial<StoryFilters>) => void;
+  reset: () => void;
 }
 
 const STORY_KINDS = [
@@ -34,26 +37,20 @@ const STORY_KINDS = [
   { value: 'scenario', label: 'Scenario' },
 ];
 
-export function StoriesFilterBar({ onFiltersChange }: StoriesFilterBarProps) {
+export function StoriesFilterBar({ filters, updateFilters, reset }: StoriesFilterBarProps) {
   const [tagInput, setTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
-  
-  const { filters, updateFilters, reset } = useURLFilters<StoryFilters>({
-    q: '',
-    world: undefined,
-    kind: undefined,
-    ruleset: undefined,
-    tags: []
-  });
 
   // Load options for dropdowns
-  const { data: worlds = [] } = useWorldsQuery();
-  const { data: rulesets = [] } = useRulesetsQuery();
+  const worldsQ: any = useWorldsQuery();
+  const rulesetsQ: any = useRulesetsQuery();
+  const worlds = Array.isArray(worldsQ?.data)
+    ? worldsQ.data
+    : (worldsQ?.data?.data ?? []);
+  const rulesets = Array.isArray(rulesetsQ?.data)
+    ? rulesetsQ.data
+    : (rulesetsQ?.data?.data ?? []);
 
-  // Notify parent of filter changes
-  useEffect(() => {
-    onFiltersChange?.(filters);
-  }, [filters, onFiltersChange]);
 
   // Track filter changes for analytics
   useEffect(() => {

@@ -51,3 +51,9 @@ console.log('');
 console.log('📁 Migration files are in: supabase/migrations/');
 console.log('   Use the FIXED version for migration #1');
 
+
+
+
+
+
+

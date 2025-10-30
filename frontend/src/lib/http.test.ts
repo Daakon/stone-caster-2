@@ -22,18 +22,18 @@ describe('http client', () => {
 
   describe('buildURL', () => {
     it('should add activeOnly=1 for catalog list endpoints in public mode', () => {
-      const url = buildURL('/catalog/worlds', { q: 'test' });
-      expect(url).toBe('/catalog/worlds?activeOnly=1&q=test');
+      const url = buildURL('/api/catalog/worlds', { q: 'test' });
+      expect(url).toBe('/api/catalog/worlds?activeOnly=1&q=test');
     });
 
     it('should NOT add activeOnly=1 for catalog detail endpoints', () => {
-      const url = buildURL('/catalog/stories/some-slug');
-      expect(url).toBe('/catalog/stories/some-slug');
+      const url = buildURL('/api/catalog/stories/some-slug');
+      expect(url).toBe('/api/catalog/stories/some-slug');
     });
 
     it('should NOT add activeOnly=1 for catalog detail endpoints with UUID', () => {
-      const url = buildURL('/catalog/stories/123e4567-e89b-12d3-a456-426614174000');
-      expect(url).toBe('/catalog/stories/123e4567-e89b-12d3-a456-426614174000');
+      const url = buildURL('/api/catalog/stories/123e4567-e89b-12d3-a456-426614174000');
+      expect(url).toBe('/api/catalog/stories/123e4567-e89b-12d3-a456-426614174000');
     });
 
     it('should not add activeOnly=1 for non-catalog endpoints', () => {
@@ -42,23 +42,23 @@ describe('http client', () => {
     });
 
     it('should handle array parameters correctly', () => {
-      const url = buildURL('/catalog/stories', { tags: ['fantasy', 'adventure'] });
-      expect(url).toBe('/catalog/stories?activeOnly=1&tags=fantasy&tags=adventure');
+      const url = buildURL('/api/catalog/stories', { tags: ['fantasy', 'adventure'] });
+      expect(url).toBe('/api/catalog/stories?activeOnly=1&tags=fantasy&tags=adventure');
     });
 
     it('should filter out undefined and null values', () => {
-      const url = buildURL('/catalog/worlds', { 
+      const url = buildURL('/api/catalog/worlds', { 
         q: 'test', 
         world: undefined, 
         kind: null,
         tags: []
       });
-      expect(url).toBe('/catalog/worlds?activeOnly=1&q=test');
+      expect(url).toBe('/api/catalog/worlds?activeOnly=1&q=test');
     });
 
     it('should handle empty parameters object', () => {
-      const url = buildURL('/catalog/worlds');
-      expect(url).toBe('/catalog/worlds?activeOnly=1');
+      const url = buildURL('/api/catalog/worlds');
+      expect(url).toBe('/api/catalog/worlds?activeOnly=1');
     });
   });
 
@@ -67,9 +67,9 @@ describe('http client', () => {
       const mockApiGet = vi.mocked(await import('./api')).apiGet;
       mockApiGet.mockResolvedValue({ ok: true, data: [] });
 
-      await httpGet('/catalog/worlds', { q: 'test' });
+      await httpGet('/api/catalog/worlds', { q: 'test' });
 
-      expect(mockApiGet).toHaveBeenCalledWith('/catalog/worlds?activeOnly=1&q=test');
+      expect(mockApiGet).toHaveBeenCalledWith('/api/catalog/worlds?activeOnly=1&q=test');
     });
   });
 });

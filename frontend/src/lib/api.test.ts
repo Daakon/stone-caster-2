@@ -28,7 +28,7 @@ describe('API client', () => {
         tags: ['fantasy', 'adventure']
       });
 
-      expect(mockHttpGet).toHaveBeenCalledWith('/catalog/stories', {
+      expect(mockHttpGet).toHaveBeenCalledWith('/api/catalog/stories', {
         q: 'fantasy',
         world: 'world-123',
         kind: 'adventure',
@@ -43,7 +43,7 @@ describe('API client', () => {
 
       await listStories();
 
-      expect(mockHttpGet).toHaveBeenCalledWith('/catalog/stories', undefined);
+      expect(mockHttpGet).toHaveBeenCalledWith('/api/catalog/stories', undefined);
     });
   });
 
@@ -54,7 +54,7 @@ describe('API client', () => {
 
       await listWorlds({ q: 'mystika' });
 
-      expect(mockHttpGet).toHaveBeenCalledWith('/catalog/worlds', { q: 'mystika' });
+      expect(mockHttpGet).toHaveBeenCalledWith('/api/catalog/worlds', { q: 'mystika' });
     });
   });
 
@@ -65,7 +65,7 @@ describe('API client', () => {
 
       await listNPCs({ q: 'wizard', world: 'world-123' });
 
-      expect(mockHttpGet).toHaveBeenCalledWith('/catalog/npcs', { 
+      expect(mockHttpGet).toHaveBeenCalledWith('/api/catalog/npcs', { 
         q: 'wizard', 
         world: 'world-123' 
       });
@@ -79,7 +79,7 @@ describe('API client', () => {
 
       await listRulesets({ q: 'dnd' });
 
-      expect(mockHttpGet).toHaveBeenCalledWith('/catalog/rulesets', { q: 'dnd' });
+      expect(mockHttpGet).toHaveBeenCalledWith('/api/catalog/rulesets', { q: 'dnd' });
     });
   });
 
@@ -90,7 +90,7 @@ describe('API client', () => {
 
       await getStory('story-123');
 
-      expect(mockHttpGet).toHaveBeenCalledWith('/catalog/stories/story-123');
+      expect(mockHttpGet).toHaveBeenCalledWith('/api/catalog/stories/story-123');
     });
 
     it('should call httpGet with story slug', async () => {
@@ -99,7 +99,7 @@ describe('API client', () => {
 
       await getStory('mystika-tutorial');
 
-      expect(mockHttpGet).toHaveBeenCalledWith('/catalog/stories/mystika-tutorial');
+      expect(mockHttpGet).toHaveBeenCalledWith('/api/catalog/stories/mystika-tutorial');
     });
   });
 });

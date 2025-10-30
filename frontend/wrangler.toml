@@ -1,12 +1,10 @@
-name = "stonecaster-redirects"
-main = "workers/redirects.js"
-compatibility_date = "2024-01-01"
+name = "stonecaster-og"
+main = "workers/og.ts"
+compatibility_date = "2023-10-01"
 
-# Route configuration for redirects
-# This should be deployed to handle redirects before the main app
-[[routes]]
-pattern = "stonecaster.com/adventures*"
-zone_name = "stonecaster.com"
+[routes]
+pattern = "/og/*"
+zone_name = "${PUBLIC_SITE_DOMAIN}"
 
 # Environment variables
 [vars]

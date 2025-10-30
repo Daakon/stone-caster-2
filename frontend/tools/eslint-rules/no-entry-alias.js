@@ -3,7 +3,7 @@
  * This rule blocks any imports or usage of listEntries, getEntry, Entry, EntryKind
  */
 
-module.exports = {
+export default {
   meta: {
     type: 'problem',
     docs: {

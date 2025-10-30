@@ -12,6 +12,7 @@ import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { useWorldQuery, useStoriesQuery, useNPCsQuery } from '@/lib/queries';
 import { track } from '@/lib/analytics';
 import { ExternalLink, Users, BookOpen } from 'lucide-react';
+import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty, injectJSONLD } from '@/lib/meta';
 
 export default function WorldDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -145,12 +146,11 @@ export default function WorldDetailPage() {
                     idOrSlug={story.slug || story.id}
                     href={`/stories/${story.slug || story.id}`}
                     imageUrl={story.hero_url}
-                    imageAlt={story.title}
                     title={story.title}
                     description={story.short_desc}
                     chips={[
                       { label: story.world?.name || 'Unknown World', variant: 'secondary' },
-                      ...(story.rulesets?.map(r => ({ label: r.name, variant: 'outline' })) || [])
+                      ...(story.rulesets?.map(r => ({ label: r.name, variant: 'outline' as const })) || [])
                     ]}
                     onCardClick={handleCardClick}
                   />

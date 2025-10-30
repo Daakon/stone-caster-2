@@ -466,6 +466,139 @@ const options: swaggerJsdoc.Options = {
         },
       },
     },
+    paths: {
+      '/api/catalog/worlds': {
+        get: {
+          summary: 'List worlds (active only)',
+          tags: ['Catalog'],
+          parameters: [
+            { in: 'query', name: 'q', schema: { type: 'string' } },
+            { in: 'query', name: 'activeOnly', schema: { type: 'integer', enum: [0, 1] }, example: 1 },
+          ],
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+      '/api/catalog/stories': {
+        get: {
+          summary: 'List stories (active only)',
+          tags: ['Catalog'],
+          parameters: [
+            { in: 'query', name: 'q', schema: { type: 'string' } },
+            { in: 'query', name: 'world', schema: { type: 'string' } },
+            { in: 'query', name: 'kind', schema: { type: 'string', enum: ['scenario', 'adventure'] } },
+            { in: 'query', name: 'ruleset', schema: { type: 'string' } },
+            { in: 'query', name: 'tags', schema: { type: 'array', items: { type: 'string' } } },
+            { in: 'query', name: 'activeOnly', schema: { type: 'integer', enum: [0, 1] }, example: 1 },
+          ],
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+      '/api/catalog/npcs': {
+        get: {
+          summary: 'List NPCs (active only)',
+          tags: ['Catalog'],
+          parameters: [
+            { in: 'query', name: 'q', schema: { type: 'string' } },
+            { in: 'query', name: 'world', schema: { type: 'string' } },
+            { in: 'query', name: 'activeOnly', schema: { type: 'integer', enum: [0, 1] }, example: 1 },
+          ],
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+      '/api/catalog/rulesets': {
+        get: {
+          summary: 'List rulesets (active only)',
+          tags: ['Catalog'],
+          parameters: [
+            { in: 'query', name: 'q', schema: { type: 'string' } },
+            { in: 'query', name: 'activeOnly', schema: { type: 'integer', enum: [0, 1] }, example: 1 },
+          ],
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+      '/api/catalog/worlds/{idOrSlug}': {
+        get: {
+          summary: 'Get world by id or slug',
+          tags: ['Catalog'],
+          parameters: [{ in: 'path', name: 'idOrSlug', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'OK' }, '404': { description: 'Not Found' } },
+        },
+      },
+      '/api/catalog/stories/{idOrSlug}': {
+        get: {
+          summary: 'Get story by id or slug',
+          tags: ['Catalog'],
+          parameters: [{ in: 'path', name: 'idOrSlug', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'OK' }, '404': { description: 'Not Found' } },
+        },
+      },
+      '/api/catalog/npcs/{id}': {
+        get: {
+          summary: 'Get NPC by id',
+          tags: ['Catalog'],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': { description: 'OK' }, '404': { description: 'Not Found' } },
+        },
+      },
+      '/api/catalog/rulesets/{id}': {
+        get: {
+          summary: 'Get ruleset by id',
+          tags: ['Catalog'],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': { description: 'OK' }, '404': { description: 'Not Found' } },
+        },
+      },
+      '/api/auth/guest': {
+        post: {
+          summary: 'Create/refresh guest token',
+          tags: ['Auth'],
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+      '/api/me/characters': {
+        get: { summary: 'List my characters', tags: ['Characters'], security: [{ BearerAuth: [] }], responses: { '200': { description: 'OK' } } },
+        post: { summary: 'Create character', tags: ['Characters'], security: [{ BearerAuth: [] }], requestBody: { required: true }, responses: { '201': { description: 'Created' } } },
+      },
+      '/api/sessions': {
+        get: {
+          summary: 'Find existing session (resume)',
+          tags: ['Sessions'],
+          parameters: [
+            { in: 'query', name: 'story_id', schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'character_id', schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: { '200': { description: 'OK' } },
+        },
+        post: {
+          summary: 'Create session (idempotent)',
+          tags: ['Sessions'],
+          parameters: [
+            { in: 'header', name: 'Idempotency-Key', required: false, schema: { type: 'string' } },
+          ],
+          requestBody: { required: true },
+          responses: { '201': { description: 'Created' }, '409': { description: 'Conflict (existing session)' } },
+        },
+      },
+      '/api/sessions/{id}': {
+        get: {
+          summary: 'Get session by id',
+          tags: ['Sessions'],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': { description: 'OK' }, '404': { description: 'Not Found' } },
+        },
+      },
+      '/api/sessions/{id}/messages': {
+        get: {
+          summary: 'List session messages',
+          tags: ['Sessions'],
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } },
+            { in: 'query', name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 100 }, example: 20 },
+          ],
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+    },
     security: [
       {
         BearerAuth: [],

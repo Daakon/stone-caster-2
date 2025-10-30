@@ -11,31 +11,27 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useWorldsQuery } from '@/lib/queries';
-import { useURLFilters } from '@/lib/useURLFilters';
 import { trackFilterChange } from '@/lib/analytics';
-
-interface NPCsFilterBarProps {
-  onFiltersChange?: (filters: any) => void;
-}
+import type { FilterValue } from '@/lib/useURLFilters';
 
 interface NPCFilters {
   q: string;
   world: string | undefined;
+  [key: string]: FilterValue;
 }
 
-export function NPCsFilterBar({ onFiltersChange }: NPCsFilterBarProps) {
-  const { filters, updateFilters, reset } = useURLFilters<NPCFilters>({
-    q: '',
-    world: undefined
-  });
+interface NPCsFilterBarProps {
+  filters: NPCFilters;
+  updateFilters: (patch: Partial<NPCFilters>) => void;
+  reset: () => void;
+}
 
+export function NPCsFilterBar({ filters, updateFilters, reset }: NPCsFilterBarProps) {
   // Load worlds for dropdown
-  const { data: worlds = [] } = useWorldsQuery();
-
-  // Notify parent of filter changes
-  React.useEffect(() => {
-    onFiltersChange?.(filters);
-  }, [filters, onFiltersChange]);
+  const worldsQ: any = useWorldsQuery();
+  const worlds = Array.isArray(worldsQ?.data)
+    ? worldsQ.data
+    : (worldsQ?.data?.data ?? []);
 
   // Track filter changes for analytics
   React.useEffect(() => {

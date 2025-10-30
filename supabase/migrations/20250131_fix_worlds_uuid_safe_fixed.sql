@@ -81,3 +81,9 @@ CREATE POLICY "World mapping: Admin can manage" ON public.world_id_mapping
 
 COMMIT;
 
+
+
+
+
+
+

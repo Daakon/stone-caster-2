@@ -679,3 +679,68 @@ Phase 4 is complete and ready for Phase 5 (Gameplay Integration). The detail pag
 - All components follow mobile-first design principles
 - Accessibility features ensure the site is usable by all users
 - Error states are handled gracefully with proper user feedback
+
+---
+
+# API Wiring Cleanup
+
+Audit date: [auto]
+
+Mock usage:
+
+```bash
+rg -n "src/mock|mock/.*\\.json" frontend/src
+```
+
+Findings:
+- `frontend/src/services/mockData.ts`: imports multiple JSON files under `src/mock/*`
+- `frontend/src/components/character/CharacterCreator.tsx`: dynamic import of `../../mock/schemas/<id>.json`
+
+```bash
+rg -n "import .*\\.json" frontend/src
+```
+
+Findings:
+- `frontend/src/services/mockData.ts`: direct JSON imports (worlds, adventures, characters, wallet, limits, invite)
+
+Non-API fetches:
+
+```bash
+rg -n "fetch\\(['\"](?!/api)" frontend/src
+```
+
+Findings:
+- None
+
+```bash
+rg -n "httpGet\\(['\"]/catalog" frontend/src
+```
+
+Findings (tests only; production code uses /api/** now):
+- `frontend/src/lib/http.test.ts`
+
+Stray catalog paths (missing /api prefix):
+
+```bash
+rg -n "/catalog/(worlds|stories|npcs|rulesets)" frontend/src
+```
+
+Findings (tests only; updated to /api/catalog/**):
+- `frontend/src/lib/http.test.ts`
+- `frontend/src/lib/api.test.ts`
+
+Files updated in this cleanup:
+- `frontend/src/lib/api.ts`: all catalog endpoints now `/api/catalog/**`; sessions/characters remain under `/api/**`
+- `frontend/src/lib/http.test.ts`: assertions updated to `/api/catalog/**`
+- `frontend/src/lib/api.test.ts`: assertions updated to `/api/catalog/**`
+- `frontend/eslint.config.js`: added `stone/no-runtime-mock-imports` rule and allow-list for seeds/tests
+- `frontend/tools/eslint-rules/no-runtime-mock-imports.js`: new custom rule
+- `frontend/vite.config.ts`: build-time alias guard for `src/mock/*` unless `VITE_ALLOW_RUNTIME_MOCKS=1`
+
+Notes:
+- We retained all `frontend/src/mock/*.json` files. JSON cannot carry comments; instead we documented the policy here and enforce via ESLint and Vite.
+- Workers: `frontend/workers/og.ts` currently renders static SVG and does not fetch; if data fetching is added later, use absolute URLs built from `PUBLIC_SITE_URL` targeting `/api/**`.
+
+Seed scripts/tests plan:
+- Create `scripts/seed/seed-db.ts` to read `src/mock/*.json` and POST to admin ingest endpoints (or Supabase). Run via: `pnpm tsx scripts/seed/seed-db.ts`.
+- Tests should mock fetch or read from `test/fixtures/**`; avoid importing `src/mock/*` directly (ESLint-enforced).

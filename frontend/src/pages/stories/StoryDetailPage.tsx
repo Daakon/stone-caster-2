@@ -20,7 +20,9 @@ import {
   Clock,
   Shield,
   Eye,
+  Play,
 } from 'lucide-react';
+import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty, injectJSONLD } from '@/lib/meta';
 
 export default function StoryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -74,65 +76,32 @@ export default function StoryDetailPage() {
 
   // Track story view and update document head for SEO
   useEffect(() => {
-    if (story) {
-      // Track story view
-      track('story_view', {
-        story_slug: story.slug || story.id,
-        world_id: story.world?.id,
-        ruleset_ids: story.rulesets?.map(r => r.id) || [],
-        tags: story.tags || []
-      });
+    if (!storyRes || !('data' in storyRes) || !storyRes.data) return;
+    const story = storyRes.data;
+    const title = makeTitle([story.title, story.world_name ?? story.world ?? 'World', 'StoneCaster']);
+    const desc = makeDescription(story.short_desc || story.description || 'Play an interactive story on StoneCaster.');
+    const url = absoluteUrl(`/stories/${story.slug}`);
+    const image = absoluteUrl(`/og/story/${story.slug}`);
 
-      // Update title
-      document.title = `${story.title} - StoneCaster`;
-      
-      // Update meta description
-      const metaDescription = document.querySelector('meta[name="description"]');
-      if (metaDescription) {
-        metaDescription.setAttribute('content', story.short_desc || story.description || '');
-      }
-      
-      // Add canonical link
-      let canonicalLink = document.querySelector('link[rel="canonical"]');
-      if (!canonicalLink) {
-        canonicalLink = document.createElement('link');
-        canonicalLink.setAttribute('rel', 'canonical');
-        document.head.appendChild(canonicalLink);
-      }
-      canonicalLink.setAttribute('href', `https://stonecaster.com/stories/${story.slug || story.id}`);
-      
-      // Add Open Graph tags
-      const ogTitle = document.querySelector('meta[property="og:title"]') || document.createElement('meta');
-      ogTitle.setAttribute('property', 'og:title');
-      ogTitle.setAttribute('content', story.title);
-      if (!document.querySelector('meta[property="og:title"]')) {
-        document.head.appendChild(ogTitle);
-      }
-      
-      const ogDescription = document.querySelector('meta[property="og:description"]') || document.createElement('meta');
-      ogDescription.setAttribute('property', 'og:description');
-      ogDescription.setAttribute('content', story.short_desc || story.description || '');
-      if (!document.querySelector('meta[property="og:description"]')) {
-        document.head.appendChild(ogDescription);
-      }
-      
-      const ogUrl = document.querySelector('meta[property="og:url"]') || document.createElement('meta');
-      ogUrl.setAttribute('property', 'og:url');
-      ogUrl.setAttribute('content', `https://stonecaster.com/stories/${story.slug || story.id}`);
-      if (!document.querySelector('meta[property="og:url"]')) {
-        document.head.appendChild(ogUrl);
-      }
-      
-      if (story.hero_url) {
-        const ogImage = document.querySelector('meta[property="og:image"]') || document.createElement('meta');
-        ogImage.setAttribute('property', 'og:image');
-        ogImage.setAttribute('content', story.hero_url);
-        if (!document.querySelector('meta[property="og:image"]')) {
-          document.head.appendChild(ogImage);
-        }
-      }
-    }
-  }, [story]);
+    document.title = title;
+    upsertMeta('description', desc);
+    upsertLink('canonical', url);
+
+    const og = ogTags({ title, description: desc, url, image });
+    Object.entries(og).forEach(([k, v]) => upsertProperty(k, v));
+    const tw = twitterTags({ title, description: desc, url, image });
+    Object.entries(tw).forEach(([k, v]) => upsertMeta(k, v));
+
+    injectJSONLD({
+      '@context': 'https://schema.org',
+      '@type': 'CreativeWork',
+      name: story.title,
+      author: 'StoneCaster',
+      genre: 'Interactive Story',
+      isPartOf: { '@type': 'CreativeWorkSeries', name: story.world_name ?? story.world ?? 'World' },
+      url,
+    });
+  }, [storyRes]);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -220,6 +189,18 @@ export default function StoryDetailPage() {
               <p className="text-muted-foreground leading-relaxed">
                 {story.short_desc}
               </p>
+
+              {/* Start Story Button */}
+              <div className="mt-6 pt-6 border-t">
+                <Button
+                  onClick={() => navigate(`/play/start?story=${story.id}`)}
+                  size="lg"
+                  className="w-full"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Start Story
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -278,11 +259,10 @@ export default function StoryDetailPage() {
                       idOrSlug={npc.id}
                       href={`/npcs/${npc.id}`}
                       imageUrl={npc.portrait_url}
-                      imageAlt={npc.name}
                       title={npc.name}
                       description={npc.short_desc}
                       chips={[
-                        { label: story.world?.name || 'Unknown World', variant: 'secondary' }
+                        { label: story.world?.name || 'Unknown World', variant: 'secondary' as const }
                       ]}
                       onCardClick={(entity, idOrSlug) => track('catalog_card_click', { entity, id_or_slug: idOrSlug })}
                     />

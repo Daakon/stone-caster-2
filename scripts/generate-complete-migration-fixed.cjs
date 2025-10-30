@@ -108,3 +108,9 @@ fs.writeFileSync('complete-migration-fixed.sql', completeSQL);
 console.log('💾 Complete migration SQL saved to: complete-migration-fixed.sql');
 console.log('   You can also copy from this file if needed');
 
+
+
+
+
+
+
