@@ -113,7 +113,7 @@ export function applyTruncationPolicy(
   meta: TruncationMeta;
 } {
   let currentPrompt = prompt;
-  let currentMeta = { ...meta };
+  let currentMeta = { ...meta, policyWarnings: meta.policyWarnings || [] };
   const currentTokens = estimateTokens(currentPrompt);
   
   if (currentTokens <= config.tokenBudget) {
@@ -263,6 +263,28 @@ export function calculateBudgetUtilization(
     utilizationPercent,
     overBudget
   };
+}
+
+/**
+ * Calculates per-scope token counts from assembled prompt
+ * Phase 1: Used for audit trail
+ * @param prompt The assembled prompt with scope delimiters
+ * @returns Token counts per scope
+ */
+export function calculatePerScopeTokens(prompt: string): Record<string, number> {
+  const scopeTokens: Record<string, number> = {};
+  
+  // Match all scope blocks: === SCOPE_BEGIN === ... === SCOPE_END ===
+  const scopeRegex = /=== ([A-Z_]+)_BEGIN ===\n(.*?)\n=== \1_END ===/gs;
+  let match;
+  
+  while ((match = scopeRegex.exec(prompt)) !== null) {
+    const scopeName = match[1].toLowerCase();
+    const scopeContent = match[2];
+    scopeTokens[scopeName] = estimateTokens(scopeContent);
+  }
+  
+  return scopeTokens;
 }
 
 /**

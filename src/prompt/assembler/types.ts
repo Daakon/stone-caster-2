@@ -4,7 +4,7 @@
 export type Scope =
   | 'core' 
   | 'ruleset' 
-  | 'world' 
+  | 'world'
   | 'entry' 
   | 'entry_start'
   | 'npc'  
@@ -47,6 +47,28 @@ export type AssembleArgs = {
   locale?: string;                     // future selection of localized segments
 };
 
+// Phase 1: Audit scope details
+export type AuditScopeDetail = {
+  scope: Scope;
+  segmentCount: number;
+  tokensBeforeTruncation: number;
+  tokensAfterTruncation: number;
+  dropped: boolean;
+};
+
+// Structured assembly audit
+export type AssemblyAudit = {
+  assembledAt: string;
+  context: {
+    isFirstTurn: boolean;
+    worldSlug?: string;
+    entryPointId?: string;
+  };
+  scopes: AuditScopeDetail[];
+  policyNotes: string[];
+  summary: string; // Human-readable summary
+};
+
 export type AssembleResult = {
   prompt: string;
   meta: {
@@ -58,7 +80,8 @@ export type AssembleResult = {
       npcDroppedTiers?: Array<{ npcId: string; fromTier: number; toTier: number }>;
       inputTrimmed?: { fromChars: number; toChars: number };
       gameStateCompressed?: boolean;
-    }
+    };
+    audit?: AssemblyAudit;  // Structured audit trail
   };
 };
 
@@ -81,6 +104,7 @@ export type TruncationMeta = {
   npcDroppedTiers?: NpcTierDrop[];
   inputTrimmed?: { fromChars: number; toChars: number };
   gameStateCompressed?: boolean;
+  policyWarnings?: string[];           // Policy warnings for undecided truncation behavior
 };
 
 // NPC block result

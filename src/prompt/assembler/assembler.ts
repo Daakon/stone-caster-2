@@ -1,9 +1,9 @@
 // Prompt Assembler Core
 // Main assembly function that orchestrates the prompt building process
 
-import type { AssembleArgs, AssembleResult, Scope, DbAdapter } from './types';
+import type { AssembleArgs, AssembleResult, Scope, DbAdapter, AssemblyAudit, TruncationMeta, AuditScopeDetail } from './types';
 import { block } from './markdown';
-import { estimateTokens, applyTruncationPolicy, createBudgetConfig } from './budget';
+import { estimateTokens, applyTruncationPolicy, createBudgetConfig, calculatePerScopeTokens } from './budget';
 import { buildNpcBlock } from './npc';
 import { buildStateBlocks } from './state';
 
@@ -91,6 +91,9 @@ export async function assemblePrompt(
     tokensEstimated: estimateTokens(prompt)
   };
 
+  // Calculate per-scope tokens before truncation
+  const tokensBeforeTruncation = calculatePerScopeTokens(prompt);
+
   // Apply budget constraints
   const budgetConfig = createBudgetConfig(args.tokenBudget, args.npcTokenBudget);
   const { prompt: finalPrompt, meta: finalMeta } = applyTruncationPolicy(
@@ -99,12 +102,93 @@ export async function assemblePrompt(
     meta.truncated || {}
   );
 
+  // Calculate per-scope tokens after truncation
+  const tokensAfterTruncation = calculatePerScopeTokens(finalPrompt);
+
+  // Build assembly audit (Phase 1)
+  const audit = buildAssemblyAudit(
+    args,
+    segmentIds,
+    tokensBeforeTruncation,
+    tokensAfterTruncation,
+    finalMeta
+  );
+
   return {
     prompt: finalPrompt,
     meta: {
       ...meta,
-      truncated: finalMeta
+      tokensEstimated: estimateTokens(finalPrompt), // Update with post-truncation count
+      truncated: finalMeta,
+      audit
     }
+  };
+}
+
+/**
+ * Builds structured assembly audit
+ * @param args Assembly arguments
+ * @param segmentIds Segment IDs by scope
+ * @param tokensBeforeTruncation Per-scope tokens before truncation
+ * @param tokensAfterTruncation Per-scope tokens after truncation
+ * @param truncationMeta Truncation metadata
+ * @returns Assembly audit
+ */
+function buildAssemblyAudit(
+  args: AssembleArgs,
+  segmentIds: Record<Scope, number[]>,
+  tokensBeforeTruncation: Record<string, number>,
+  tokensAfterTruncation: Record<string, number>,
+  truncationMeta: TruncationMeta
+): AssemblyAudit {
+  const assembledAt = new Date().toISOString();
+  const droppedScopes = truncationMeta.droppedScopes || [];
+  const policyWarnings = truncationMeta.policyWarnings || [];
+
+  // Build scope details for all included scopes
+  const scopes: AuditScopeDetail[] = [...STATIC_ORDER, ...DYNAMIC_ORDER]
+    .map(scope => {
+      const scopeKey = scope.replace(/_/g, '_').toLowerCase(); // Normalize key
+      const segmentCount = segmentIds[scope]?.length || 0;
+      const tokensBefore = tokensBeforeTruncation[scopeKey] || 0;
+      const tokensAfter = tokensAfterTruncation[scopeKey] || 0;
+      const dropped = droppedScopes.includes(scope);
+
+      return {
+        scope,
+        segmentCount,
+        tokensBeforeTruncation: tokensBefore,
+        tokensAfterTruncation: tokensAfter,
+        dropped
+      };
+    })
+    .filter(detail => detail.segmentCount > 0 || detail.tokensBeforeTruncation > 0);
+
+  // Build human-readable summary
+  const totalTokensBefore = Object.values(tokensBeforeTruncation).reduce((sum, val) => sum + val, 0);
+  const totalTokensAfter = Object.values(tokensAfterTruncation).reduce((sum, val) => sum + val, 0);
+  const truncated = totalTokensAfter < totalTokensBefore;
+  const truncationPercent = truncated ? (((totalTokensBefore - totalTokensAfter) / totalTokensBefore) * 100).toFixed(1) : '0';
+
+  let summary = `Assembled prompt with ${scopes.length} scopes. `;
+  summary += `Total tokens: ${totalTokensAfter}`;
+  if (truncated) {
+    summary += ` (${truncationPercent}% reduction from ${totalTokensBefore})`;
+  }
+  if (droppedScopes.length > 0) {
+    summary += `. Dropped scopes: ${droppedScopes.join(', ')}`;
+  }
+
+  return {
+    assembledAt,
+    context: {
+      isFirstTurn: args.isFirstTurn || false,
+      worldSlug: args.worldId,
+      entryPointId: args.entryPointId
+    },
+    scopes,
+    policyNotes: policyWarnings,
+    summary
   };
 }
 
@@ -304,7 +388,7 @@ export function createMinimalResult(
   return {
     prompt,
     meta: {
-      order: ORDER,
+      order: [...STATIC_ORDER, ...DYNAMIC_ORDER],
       segmentIdsByScope: segmentIds,
       tokensEstimated: estimateTokens(prompt)
     }

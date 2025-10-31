@@ -107,7 +107,8 @@ const LayerSchema = z.string()
   .transform((value) => value.toLowerCase());
 
 // Schema for prompt creation/update
-const PromptSchema = z.object({
+// Note: This is for the legacy prompting.prompts table (see docs/prompt-system/LEGACY_SYSTEMS.md)
+const PromptSchemaBase = z.object({
   layer: LayerSchema,
   world_slug: z.string().nullable().optional(),
   adventure_slug: z.string().nullable().optional(),
@@ -121,7 +122,8 @@ const PromptSchema = z.object({
   locked: z.boolean().default(false)
 });
 
-const UpdatePromptSchema = PromptSchema.partial();
+const PromptSchema = PromptSchemaBase;
+const UpdatePromptSchema = PromptSchemaBase.partial();
 
 // Get all prompts with filtering
 /**
