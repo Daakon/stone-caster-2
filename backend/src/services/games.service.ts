@@ -62,7 +62,7 @@ export class GamesService {
         };
       }
 
-      const adventureWorldSlug = adventure.worldSlug;
+      const adventureWorldId = adventure.worldId; // UUID
 
       // If character is specified, validate it exists and is available
       if (characterId) {
@@ -85,12 +85,26 @@ export class GamesService {
           };
         }
 
-        // Check character and adventure are from the same world
-        if (character.worldSlug !== adventureWorldSlug) {
+        // Check character and adventure are from the same world (UUID comparison)
+        console.log('[WORLD_VALIDATION]', {
+          character: {
+            id: character.id,
+            worldId: character.worldId,
+            worldSlug: character.worldSlug,
+          },
+          adventure: {
+            id: adventure.id,
+            slug: adventure.slug,
+            worldId: adventureWorldId,
+            worldSlug: adventure.worldSlug,
+          },
+        });
+        
+        if (character.worldId !== adventureWorldId) {
           return {
             success: false,
             error: ApiErrorCode.VALIDATION_FAILED,
-            message: 'Character and adventure must be from the same world',
+            message: `Character and adventure must be from the same world (char.worldId="${character.worldId}", adv.worldId="${adventureWorldId}")`,
           };
         }
       }

@@ -2,11 +2,10 @@ import { type AppError, toAppError } from './errors';
 import { supabase } from './supabase';
 import { GuestCookieService } from '../services/guestCookie';
 import type { GameListDTO } from '@shared';
+import { API_BASE } from './apiBase';
 
-const BASE = (import.meta.env.VITE_API_BASE_URL ?? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai')).replace(
-  /\/+$/,
-  '',
-);
+// Use centralized API_BASE from apiBase.ts
+const BASE = API_BASE;
 
 export async function apiFetch<T = unknown>(
   path: string,
@@ -419,24 +418,24 @@ export const getRuleset = (id: ID) => httpGet<Ruleset>(`/api/catalog/rulesets/${
 import type { Character, Session } from '@/types/domain';
 
 // Characters
-export const listCharacters = () => httpGet<Character[]>('/me/characters');
+export const listCharacters = () => httpGet<Character[]>('/api/characters');
 
 export const createCharacter = (body: { name: string; portrait_seed?: string }) =>
-  httpPost<Character>('/me/characters', body);
+  httpPost<Character>('/api/characters', body);
 
 // Sessions
 export const findExistingSession = (storyId: ID, characterId: ID) =>
-	httpGet<{ id: ID } | null>(`/sessions`, { params: { story_id: storyId, character_id: characterId } as any });
+	httpGet<{ id: ID } | null>(`/api/sessions`, { params: { story_id: storyId, character_id: characterId } as any });
 
-export const getSession = (sessionId: ID) => httpGet<Session>(`/sessions/${sessionId}`);
+export const getSession = (sessionId: ID) => httpGet<Session>(`/api/sessions/${sessionId}`);
 
 export const getSessionMessages = (sessionId: ID, limit: number = 20) =>
-	httpGet<{ id: string; content: string; role: 'user'|'assistant'; created_at: string }[]>(`/sessions/${sessionId}/messages`, { params: { limit } as any });
+	httpGet<{ id: string; content: string; role: 'user'|'assistant'; created_at: string }[]>(`/api/sessions/${sessionId}/messages`, { params: { limit } as any });
 
 export const createSession = (
 	body: { story_id: ID; character_id: ID },
 	opts?: { headers?: Record<string, string> }
-) => httpPost<Session>('/sessions', body, opts);
+) => httpPost<Session>('/api/sessions', body, opts);
 
 // Guest authentication
 export const createGuestToken = () =>

@@ -59,37 +59,48 @@ export class PremadeCharactersService {
 
   /**
    * Get all active premade characters for a specific world
-   * @param worldSlug - World identifier
+   * @param worldIdentifier - World identifier (UUID or slug)
    * @returns Array of premade character DTOs
    */
-  static async getPremadeCharactersByWorld(worldSlug: string): Promise<PremadeCharacterDTO[]> {
+  static async getPremadeCharactersByWorld(worldIdentifier: string): Promise<PremadeCharacterDTO[]> {
     try {
-      const { data, error } = await supabaseAdmin
+      // Check if worldIdentifier is a UUID (has dashes) or a slug
+      const isUUID = worldIdentifier.includes('-') && worldIdentifier.length === 36;
+      
+      let query = supabaseAdmin
         .from('premade_characters')
         .select('*')
-        .eq('world_slug', worldSlug)
         .eq('is_active', true)
         .order('display_name');
+
+      // Query by world_id (UUID) or world_slug (text)
+      if (isUUID) {
+        query = query.eq('world_id', worldIdentifier);
+      } else {
+        query = query.eq('world_slug', worldIdentifier);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching premade characters from database:', error);
         // Fall back to mock data
-        return this.getMockPremadeCharactersByWorld(worldSlug);
+        return this.getMockPremadeCharactersByWorld(worldIdentifier);
       }
 
       const dbCharacters = (data || []).map(this.mapToDTO);
       
       // If no characters found in database, try mock data
       if (dbCharacters.length === 0) {
-        console.log(`No premade characters found in database for world '${worldSlug}', trying mock data`);
-        return this.getMockPremadeCharactersByWorld(worldSlug);
+        console.log(`No premade characters found in database for world '${worldIdentifier}', trying mock data`);
+        return this.getMockPremadeCharactersByWorld(worldIdentifier);
       }
 
       return dbCharacters;
     } catch (error) {
       console.error('Unexpected error in getPremadeCharactersByWorld:', error);
       // Fall back to mock data
-      return this.getMockPremadeCharactersByWorld(worldSlug);
+      return this.getMockPremadeCharactersByWorld(worldIdentifier);
     }
   }
 
@@ -152,36 +163,47 @@ export class PremadeCharactersService {
   }
 
   /**
-   * Validate that a world slug is supported
-   * @param worldSlug - World identifier to validate
+   * Validate that a world identifier (UUID or slug) is supported
+   * @param worldIdentifier - World identifier to validate (UUID or slug)
    * @returns True if valid, false otherwise
    */
-  static async validateWorldSlug(worldSlug: string): Promise<boolean> {
+  static async validateWorldSlug(worldIdentifier: string): Promise<boolean> {
     try {
-      const { data, error } = await supabaseAdmin
+      // Check if worldIdentifier is a UUID (has dashes) or a slug
+      const isUUID = worldIdentifier.includes('-') && worldIdentifier.length === 36;
+      
+      let query = supabaseAdmin
         .from('premade_characters')
         .select('world_slug')
-        .eq('world_slug', worldSlug)
         .limit(1);
 
+      // Query by world_id (UUID) or world_slug (text)
+      if (isUUID) {
+        query = query.eq('world_id', worldIdentifier);
+      } else {
+        query = query.eq('world_slug', worldIdentifier);
+      }
+
+      const { data, error } = await query;
+
       if (error) {
-        console.error('Error validating world slug from database:', error);
+        console.error('Error validating world from database:', error);
         // Fall back to mock data validation
-        return this.validateWorldSlugFromMock(worldSlug);
+        return this.validateWorldSlugFromMock(worldIdentifier);
       }
 
       const hasDbCharacters = (data || []).length > 0;
       
       // If no characters in database, check mock data
       if (!hasDbCharacters) {
-        return this.validateWorldSlugFromMock(worldSlug);
+        return this.validateWorldSlugFromMock(worldIdentifier);
       }
 
       return hasDbCharacters;
     } catch (error) {
       console.error('Unexpected error in validateWorldSlug:', error);
       // Fall back to mock data validation
-      return this.validateWorldSlugFromMock(worldSlug);
+      return this.validateWorldSlugFromMock(worldIdentifier);
     }
   }
 

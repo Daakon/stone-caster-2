@@ -37,6 +37,7 @@ export interface Story {
   title: string;
   slug: string;
   world_id: ID;
+  world_slug?: string;  // World slug for premade characters query
   kind: StoryKind;
   ruleset_ids: ID[];
   tags: string[];

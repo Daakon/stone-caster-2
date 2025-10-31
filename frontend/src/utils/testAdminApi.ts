@@ -1,7 +1,8 @@
 // Test utility to verify admin API connectivity
+import { API_BASE } from '../lib/apiBase';
+
 export async function testAdminApi() {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai');
-  const testUrl = `${baseUrl}/api/admin/prompts`;
+  const testUrl = `${API_BASE}/api/admin/prompts`;
   
   console.log('Testing admin API at:', testUrl);
   

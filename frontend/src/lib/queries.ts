@@ -83,7 +83,9 @@ export const useRulesetQuery = (id: ID) =>
 export const useCharactersQuery = () =>
   useQuery({ 
     queryKey: ['characters'], 
-    queryFn: () => listCharacters() 
+    queryFn: () => listCharacters(),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
 export const useCreateCharacter = () => {

@@ -9,6 +9,7 @@ import { ErrorBanner } from '../components/ui/error-banner';
 import { mockDataService } from '../services/mockData';
 import type { Character } from '../services/mockData';
 import { getCharacters, getPremadeCharacters } from '../lib/api';
+import { useStoryQuery } from '../lib/queries';
 import { useStartAdventure } from '../hooks/useStartAdventure';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { ApiErrorCode } from '@shared';
@@ -41,10 +42,11 @@ import {
 import { CharacterSkills } from '../components/character/CharacterSkills';
 
 function CharacterSelectionPageContent() {
-  const { adventureId, worldSlug, adventureSlug } = useParams<{ 
+  const { adventureId, worldSlug, adventureSlug, storyId } = useParams<{ 
     adventureId?: string; 
     worldSlug?: string; 
-    adventureSlug?: string; 
+    adventureSlug?: string;
+    storyId?: string;
   }>();
   const navigate = useNavigate();
   const [selectedCharacter, setSelectedCharacter] = useState<Character | PremadeCharacter | null>(null);
@@ -57,44 +59,50 @@ function CharacterSelectionPageContent() {
   const { startAdventure, isStarting } = useStartAdventure();
   const telemetry = useAdventureTelemetry();
   
-  // Support both legacy and new routing
-  const currentAdventureId = adventureId || adventureSlug;
-  const adventure = currentAdventureId ? mockDataService.getStoryById(currentAdventureId) : null;
-  const world = adventure ? mockDataService.getWorldById(adventure.worldId) : null;
+  // Support both legacy and new routing (storyId is the current route param)
+  const currentAdventureId = storyId || adventureId || adventureSlug;
+  
+  // Fetch story from API instead of mock data
+  const { data: storyData, isLoading: isLoadingStory } = useStoryQuery(currentAdventureId || '');
+  const adventure = storyData?.data;
+  const world = adventure?.world;
   const currentTier = mockDataService.getCurrentTier();
   const limits = mockDataService.getLimitsByTier(currentTier);
 
   // Use React Query to load characters (prevents duplicate calls in StrictMode)
-  const currentWorldSlug = worldSlug || world?.id;
+  // Use world_id UUID directly - premade_characters table now supports both UUID and slug
+  const currentWorldId = worldSlug || adventure?.world_id || world?.id;
   
   const { data: userCharactersData, isLoading: isLoadingUserCharacters } = useQuery({
-    queryKey: ['characters', currentWorldSlug],
+    queryKey: ['characters', currentWorldId],
     queryFn: async () => {
-      if (!currentWorldSlug) return [];
-      console.log(`[CharacterSelectionPage] React Query: Loading user characters for world: ${currentWorldSlug}`);
-      const result = await getCharacters(currentWorldSlug);
+      if (!currentWorldId) return [];
+      console.log(`[CharacterSelectionPage] React Query: Loading user characters for world: ${currentWorldId}`);
+      const result = await getCharacters(currentWorldId);
       if (!result.ok) {
         throw new Error(result.error.message);
       }
       return result.data;
     },
-    enabled: !!currentWorldSlug && !!adventure,
+    enabled: !!currentWorldId && !!adventure,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const { data: premadeCharactersData, isLoading: isLoadingPremades } = useQuery({
-    queryKey: ['premades', currentWorldSlug],
+    queryKey: ['premades', currentWorldId],
     queryFn: async () => {
-      if (!currentWorldSlug) return [];
-      console.log(`[CharacterSelectionPage] React Query: Loading premade characters for world: ${currentWorldSlug}`);
-      const result = await getPremadeCharacters(currentWorldSlug);
+      if (!currentWorldId) return [];
+      console.log(`[CharacterSelectionPage] React Query: Loading premade characters for world: ${currentWorldId}`);
+      const result = await getPremadeCharacters(currentWorldId);
       if (!result.ok) {
-        throw new Error(result.error.message);
+        console.warn('[CharacterSelectionPage] Premade characters not available:', result.error.message);
+        return []; // Return empty array if endpoint doesn't exist (404)
       }
       return result.data;
     },
-    enabled: !!currentWorldSlug && !!adventure,
+    enabled: !!currentWorldId && !!adventure,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: false, // Don't retry if endpoint doesn't exist
   });
 
   // Update state when data changes
@@ -119,14 +127,49 @@ function CharacterSelectionPageContent() {
     }
   }, [adventure, isLoadingCharacters, telemetry]);
   
-  if (!adventure || !world) {
+  // Show loading state
+  if (isLoadingStory) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Breadcrumbs />
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Adventure Not Found</h1>
-          <Button onClick={() => navigate('/adventures')}>
-            Back to Adventures
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <h1 className="text-2xl font-bold">Loading Story...</h1>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show error if story not found
+  if (!adventure) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Breadcrumbs />
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Story Not Found</h1>
+          <p className="text-muted-foreground mb-4">
+            Story ID: {currentAdventureId}
+          </p>
+          <Button onClick={() => navigate('/stories')}>
+            Back to Stories
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show error if world data is missing
+  if (!currentWorldId) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Breadcrumbs />
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">World Information Missing</h1>
+          <p className="text-muted-foreground mb-4">
+            Story: {adventure.title}
+          </p>
+          <Button onClick={() => navigate('/stories')}>
+            Back to Stories
           </Button>
         </div>
       </div>
@@ -200,17 +243,19 @@ function CharacterSelectionPageContent() {
         <Card className="mb-8">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <img
-                src={adventure.cover}
-                alt={adventure.title}
-                className="w-16 h-16 object-cover rounded-lg"
-              />
+              {adventure.hero_url && (
+                <img
+                  src={adventure.hero_url}
+                  alt={adventure.title}
+                  className="w-16 h-16 object-cover rounded-lg"
+                />
+              )}
               <div>
                 <h3 className="font-semibold">{adventure.title}</h3>
-                <p className="text-sm text-muted-foreground">{adventure.excerpt}</p>
+                <p className="text-sm text-muted-foreground">{adventure.short_desc}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline">{world.title}</Badge>
-                  <Badge variant="secondary">{adventure.difficulty}</Badge>
+                  <Badge variant="outline">{world?.name || 'World'}</Badge>
+                  {adventure.kind && <Badge variant="secondary">{adventure.kind}</Badge>}
                 </div>
               </div>
             </div>

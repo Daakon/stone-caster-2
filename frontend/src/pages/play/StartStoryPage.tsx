@@ -36,13 +36,15 @@ export default function StartStoryPage() {
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [isCharacterModalOpen, setIsCharacterModalOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [beginDisabled, setBeginDisabled] = useState(false);
+  const [lastStageTs, setLastStageTs] = useState<number>(Date.now());
 
   const queryClient = useQueryClient();
   const prefetchSessionBundle = usePrefetchSessionBundle();
   const { lookup } = useFindExistingSession();
-  const [lastStageTs, setLastStageTs] = useState<number>(Date.now());
 
   // stage helpers
   const emitStage = (stage: 'view'|'auth'|'character'|'confirm'|'created', extras?: { story_id?: string; character_id?: string; session_id?: string }) => {
@@ -61,15 +63,17 @@ export default function StartStoryPage() {
   const story = storyData?.data;
   const characters = charactersData?.data || [];
 
-  // Check authentication status
+  // Check authentication status (runs once on mount)
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         setIsAuthenticated(!!user);
+        setUserEmail(user?.email || null);
       } catch (error) {
         console.error('Failed to check auth status:', error);
         setIsAuthenticated(false);
+        setUserEmail(null);
       }
     };
 
@@ -184,7 +188,6 @@ export default function StartStoryPage() {
     return null;
   };
 
-  const [beginDisabled, setBeginDisabled] = useState(false);
   const handleBeginStory = async () => {
     if (!selectedCharacter || !story) return;
     if (beginDisabled) return; // double-click guard
@@ -242,7 +245,7 @@ export default function StartStoryPage() {
   const prefetchAndNavigate = async (sessionId: string) => {
     const timeout = new Promise<void>(resolve => setTimeout(resolve, 500));
     await Promise.race([prefetchSessionBundle(sessionId), timeout]);
-    navigate(`/play/session/${sessionId}`);
+    navigate(`/play/${sessionId}`);
   };
 
   // Render intro step
@@ -325,7 +328,7 @@ export default function StartStoryPage() {
                 className="w-full"
               >
                 <User className="w-4 h-4 mr-2" />
-                Continue as {supabase.auth.getUser().then(({ data: { user } }) => user?.email) || 'User'}
+                Continue as {userEmail || 'User'}
               </Button>
             ) : (
               <Button

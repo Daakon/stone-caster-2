@@ -257,7 +257,7 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
         synopsis,
         tags,
         world_id,
-        worlds:world_id (name),
+        worlds:world_id (name, doc),
         content_rating,
         lifecycle,
         visibility,
@@ -298,9 +298,11 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
     
     // Transform using unified DTO mapper
     const { worlds, ...restData } = data;
+    const worldData = (worlds as any)?.[0];
     const flatRow = {
       ...restData,
-      world_name: (worlds as any)?.[0]?.name || null,
+      world_name: worldData?.name || null,
+      world_slug: worldData?.doc?.slug || null, // Optional: for backward compatibility
       rulesets: (rulesetsData || []).map((r: any) => ({
         id: r.rulesets?.id,
         name: r.rulesets?.name,
@@ -408,6 +410,7 @@ function transformToCatalogDTO(row: any, includeDetail = false): any {
     tags: row.tags || [],
     world_id: row.world_id || null,
     world_name: row.world_name || null,
+    world_slug: row.world_slug || null,
     content_rating: row.content_rating,
     is_playable: computeIsPlayable(row),
     has_prompt: computeHasPrompt(row),

@@ -104,7 +104,7 @@ export class CharactersService {
       const characterData = {
         id: uuidv4(),
         name: input.name,
-        world_slug: input.worldSlug,
+        world_slug: input.worldSlug, // TEXT identifier matching worlds.id
         world_data: input.worldData ?? {},
         // Legacy fields for backward compatibility
         race: input.race,
@@ -243,7 +243,7 @@ export class CharactersService {
         inventory: [],
         current_health: this.calculateMaxHealth(skills.constitution || 10),
         max_health: this.calculateMaxHealth(skills.constitution || 10),
-        world_slug: input.worldSlug,
+        world_slug: input.worldSlug, // TEXT identifier matching worlds.id
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         // Set owner based on user type
@@ -348,6 +348,13 @@ export class CharactersService {
         console.error('Error fetching character:', error);
         throw new Error(`Failed to fetch character: ${error.message}`);
       }
+
+      console.log('[CHARACTER_DB_RAW]', {
+        id: data.id,
+        name: data.name,
+        world_slug: data.world_slug,
+        world_id: data.world_id,
+      });
 
       return this.mapCharacterFromDb(data);
     } catch (error) {
@@ -524,7 +531,8 @@ export class CharactersService {
       userId: dbRow.user_id || undefined,
       cookieId: dbRow.cookie_id || undefined,
       name: dbRow.name,
-      worldSlug: dbRow.world_slug,
+      worldSlug: dbRow.world_slug || undefined, // TEXT slug for display only
+      worldId: dbRow.world_id, // UUID (FK to world_id_mapping) - source of truth
       activeGameId: dbRow.active_game_id || undefined,
       createdAt: dbRow.created_at,
       updatedAt: dbRow.updated_at,

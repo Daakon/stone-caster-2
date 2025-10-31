@@ -1,5 +1,6 @@
 import { v5 as uuidv5, validate as uuidValidate } from 'uuid';
 import { ContentService, type AdventureData } from '../services/content.service.js';
+import { supabaseAdmin } from '../services/supabase.js';
 
 /**
  * Namespace UUID for deterministic adventure IDs.
@@ -13,7 +14,8 @@ export interface ResolvedAdventureIdentity {
   slug: string;
   title: string;
   description?: string;
-  worldSlug: string;
+  worldId: string; // World UUID (FK to world_id_mapping.uuid_id)
+  worldSlug?: string; // World text slug (for display only, optional)
   tags: string[];
   scenarios: string[];
 }
@@ -52,20 +54,23 @@ function normaliseScenarios(input: AdventureData['scenarios']): string[] {
 function mapAdventureData(adventure: AdventureData): ResolvedAdventureIdentity {
   const slug = adventure.slug ?? adventure.id;
   const title = adventure.title ?? adventure.name ?? slug;
+  const worldIdentifier = adventure.worldId ?? (adventure as any).world_slug ?? (adventure as any).worldSlug ?? 'unknown';
 
   return {
     id: computeAdventureId(slug),
     slug,
     title,
     description: adventure.description ?? undefined,
-    worldSlug: adventure.worldId ?? (adventure as any).world_slug ?? (adventure as any).worldSlug ?? 'unknown',
+    worldId: worldIdentifier, // For static content, this might be TEXT (needs mapping lookup)
+    worldSlug: worldIdentifier, // Keep for display
     tags: Array.isArray(adventure.tags) ? adventure.tags : [],
     scenarios: normaliseScenarios(adventure.scenarios),
   };
 }
 
 /**
- * Resolve an adventure by either slug or deterministic UUID.
+ * Resolve an adventure/entry_point by either slug or deterministic UUID.
+ * First checks the database entry_points table, then falls back to static content.
  * Returns null when the identifier cannot be matched against known content.
  */
 export async function resolveAdventureByIdentifier(identifier: string | undefined | null): Promise<ResolvedAdventureIdentity | null> {
@@ -73,6 +78,41 @@ export async function resolveAdventureByIdentifier(identifier: string | undefine
     return null;
   }
 
+  // First, try to find in entry_points table (database)
+  try {
+    const { data: entryPoint, error } = await supabaseAdmin
+      .from('entry_points')
+      .select('id, slug, title, description, synopsis, world_id, tags')
+      .or(`id.eq.${identifier},slug.eq.${identifier}`)
+      .eq('lifecycle', 'active')
+      .limit(1)
+      .single();
+
+    if (!error && entryPoint) {
+      // entry_points.world_id is UUID (FK to world_id_mapping.uuid_id)
+      console.log('[ENTRY_POINT_DB_RAW]', {
+        id: entryPoint.id,
+        slug: entryPoint.slug,
+        world_id: entryPoint.world_id,
+      });
+      
+      // Map entry_point to ResolvedAdventureIdentity format
+      return {
+        id: entryPoint.id,
+        slug: entryPoint.slug || entryPoint.id,
+        title: entryPoint.title,
+        description: entryPoint.description || entryPoint.synopsis || undefined,
+        worldId: entryPoint.world_id, // UUID (FK to world_id_mapping)
+        tags: Array.isArray(entryPoint.tags) ? entryPoint.tags : [],
+        scenarios: [], // entry_points don't have scenarios array
+      };
+    }
+  } catch (dbError) {
+    console.error('Error querying entry_points:', dbError);
+    // Continue to fallback
+  }
+
+  // Fallback to static content (legacy adventures)
   const adventures = await ContentService.getAdventures();
 
   if (!uuidValidate(identifier)) {

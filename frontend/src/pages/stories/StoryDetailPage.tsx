@@ -88,7 +88,7 @@ export default function StoryDetailPage() {
 
   const handleStartStory = () => {
     track('begin_story_click', { story_id: story.id });
-    navigate(`/play/start?story=${story.id}`);
+    navigate(`/stories/${story.id}/characters`);
   };
 
   const handleLearnAboutWorld = () => {
@@ -194,7 +194,7 @@ export default function StoryDetailPage() {
               {/* Start Story Button */}
               <div className="mt-6 pt-6 border-t">
                 <Button
-                  onClick={() => navigate(`/play/start?story=${story.id}`)}
+                  onClick={handleStartStory}
                   size="lg"
                   className="w-full"
                 >
