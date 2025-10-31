@@ -388,7 +388,7 @@ export async function approvePrompt(
 import { httpGet } from './http';
 import type { World, NPC, Ruleset, Story, StoryWithJoins, ID, StoryKind } from '@/types/domain';
 
-export interface ListParamsBase { q?: string }
+export interface ListParamsBase { q?: string; limit?: number }
 export interface ListStoriesParams extends ListParamsBase { world?: ID; kind?: StoryKind; ruleset?: ID; tags?: string[] }
 export interface ListNPCsParams extends ListParamsBase { world?: ID }
 

@@ -10,32 +10,42 @@ import type { ID, StoryKind } from '@/types/domain';
 export const useWorldsQuery = (q?: string) =>
   useQuery({ 
     queryKey: ['worlds', { q }], 
-    queryFn: () => listWorlds({ q }) 
+    queryFn: () => listWorlds({ q }),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,   // 10 minutes (formerly cacheTime)
   });
 
 export const useNPCsQuery = (p: { q?: string; world?: ID }) =>
   useQuery({ 
     queryKey: ['npcs', p], 
-    queryFn: () => listNPCs(p) 
+    queryFn: () => listNPCs(p),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
 export const useRulesetsQuery = (q?: string) =>
   useQuery({ 
     queryKey: ['rulesets', { q }], 
-    queryFn: () => listRulesets({ q }) 
+    queryFn: () => listRulesets({ q }),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
-export const useStoriesQuery = (p: { q?: string; world?: ID; kind?: StoryKind; ruleset?: ID; tags?: string[] }) =>
+export const useStoriesQuery = (p: { q?: string; world?: ID; kind?: StoryKind; ruleset?: ID; tags?: string[]; limit?: number }) =>
   useQuery({ 
     queryKey: ['stories', p], 
-    queryFn: () => listStories(p) 
+    queryFn: () => listStories(p),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
 export const useStoryQuery = (idOrSlug: ID | string) =>
   useQuery({ 
     queryKey: ['story', idOrSlug], 
     queryFn: () => getStory(idOrSlug), 
-    enabled: !!idOrSlug 
+    enabled: !!idOrSlug,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
 // Individual detail hooks
@@ -43,21 +53,27 @@ export const useWorldQuery = (idOrSlug: ID | string) =>
   useQuery({ 
     queryKey: ['world', idOrSlug], 
     queryFn: () => getWorld(idOrSlug), 
-    enabled: !!idOrSlug 
+    enabled: !!idOrSlug,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
 export const useNPCQuery = (id: ID) =>
   useQuery({ 
     queryKey: ['npc', id], 
     queryFn: () => getNPC(id), 
-    enabled: !!id 
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
 export const useRulesetQuery = (id: ID) =>
   useQuery({ 
     queryKey: ['ruleset', id], 
     queryFn: () => getRuleset(id), 
-    enabled: !!id 
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
 // ============================================================================
