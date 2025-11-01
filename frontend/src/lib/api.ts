@@ -295,16 +295,30 @@ export async function sendTurn(
     idempotencyKey?: string;
     model?: string;
     temperature?: number;
+    debug?: boolean;
+    debugDepth?: 'safe' | 'full';
   }
-): Promise<{ ok: true; data: { turn: { turn_number: number; role: string; content: string; meta: any; created_at: string } } } | { ok: false; error: AppError }> {
+): Promise<{ ok: true; data: { turn: { turn_number: number; role: string; content: string; meta: any; created_at: string }; debug?: any } } | { ok: false; error: AppError }> {
   const headers: Record<string, string> = {};
   
   if (options?.idempotencyKey) {
     headers['Idempotency-Key'] = options.idempotencyKey;
   }
 
-  return apiFetch<{ turn: { turn_number: number; role: string; content: string; meta: any; created_at: string } }>(
-    `/api/games/${gameId}/send-turn`,
+  // Handle debug parameter
+  let url = `/api/games/${gameId}/send-turn`;
+  if (options?.debug !== undefined) {
+    if (options.debug) {
+      url += `?debug=1&debugDepth=${options.debugDepth || 'safe'}`;
+      headers['X-Debug-Response'] = '1';
+    } else {
+      url += `?debug=0`;
+      headers['X-Debug-Response'] = '0';
+    }
+  }
+
+  return apiFetch<{ turn: { turn_number: number; role: string; content: string; meta: any; created_at: string }; debug?: any }>(
+    url,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -466,8 +480,10 @@ export async function postCreateGame(
   opts?: {
     idempotencyKey?: string;
     testRollback?: boolean;
+    debug?: boolean;
+    debugDepth?: 'safe' | 'full';
   }
-): Promise<{ ok: true; data: { game_id: string; first_turn: any } } | { ok: false; error: AppError }> {
+): Promise<{ ok: true; data: { game_id: string; first_turn: any; debug?: any } } | { ok: false; error: AppError }> {
   const headers: Record<string, string> = {};
   
   if (opts?.idempotencyKey) {
@@ -477,8 +493,20 @@ export async function postCreateGame(
   if (opts?.testRollback && import.meta.env.VITE_TEST_TX_HEADER_ENABLED === 'true') {
     headers['X-Test-Rollback'] = '1';
   }
+
+  // Handle debug parameter
+  let url = `/api/games`;
+  if (opts?.debug !== undefined) {
+    if (opts.debug) {
+      url += `?debug=1&debugDepth=${opts.debugDepth || 'safe'}`;
+      headers['X-Debug-Response'] = '1';
+    } else {
+      url += `?debug=0`;
+      headers['X-Debug-Response'] = '0';
+    }
+  }
   
-  return apiFetch(`/api/games`, {
+  return apiFetch(url, {
     method: 'POST',
     body: JSON.stringify(body),
     headers,

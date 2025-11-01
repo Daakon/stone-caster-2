@@ -118,6 +118,12 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       // Extract idempotency key from header or body
       const idempotencyKey = req.headers['idempotency-key'] as string || validatedData.idempotency_key;
 
+      // Check if debug response is allowed
+      const { isDebugEnabledForUser, getUserRole, buildDebugPayload } = await import('../utils/debugResponse.js');
+      const userRole = await getUserRole(req);
+      const debugAllowed = userRole ? isDebugEnabledForUser(req, userRole) : false;
+      const assembleStartTime = Date.now();
+
       // Use new Phase 3 spawn method
       const spawnResult = await gamesService.spawnV3({
         entry_point_id: validatedData.entry_point_id,
@@ -131,7 +137,10 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
         isGuest: isGuest || false,
         idempotency_key: idempotencyKey,
         req, // Pass request for test transaction access
+        includeAssemblerMetadata: debugAllowed, // Include assembler metadata if debug allowed
       });
+
+      const assembleEndTime = Date.now();
 
       if (!spawnResult.success) {
         // Map error codes to standardized codes
@@ -157,8 +166,8 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
         });
       }
 
-      // Return Phase 3 response format (exact spec)
-      return res.status(201).json({
+      // Build response
+      const response: any = {
         ok: true,
         data: {
           game_id: spawnResult.game_id,
@@ -167,7 +176,45 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
         meta: {
           traceId: getTraceId(req),
         },
-      });
+      };
+
+      // Add debug payload if allowed and assembler metadata is available
+      if (debugAllowed && spawnResult.assemblerMetadata) {
+        // Determine debugId from first_turn
+        const debugId = spawnResult.first_turn?.id 
+          ? `${spawnResult.game_id}:${spawnResult.first_turn.turn_number || 1}`
+          : `${spawnResult.game_id}:1`;
+
+        // Check if full mode is requested (via debugDepth query param)
+        const debugDepth = req.query.debugDepth === 'full';
+
+        const debugPayload = buildDebugPayload({
+          debugId,
+          phase: 'start',
+          assembler: spawnResult.assemblerMetadata,
+          timings: {
+            assembleMs: assembleEndTime - assembleStartTime,
+          },
+          includeAiRaw: debugDepth, // Only include AI raw if debugDepth=full
+        });
+
+        response.debug = debugPayload;
+
+        // Log debug response
+        console.log(JSON.stringify({
+          event: 'debug.response',
+          phase: 'start',
+          gameId: spawnResult.game_id,
+          tokenPct: spawnResult.assemblerMetadata.meta.tokenEst?.pct || 0,
+          policy: spawnResult.assemblerMetadata.meta.policy || [],
+        }));
+
+        // Set Cache-Control: no-store when debug is present
+        res.setHeader('Cache-Control', 'no-store');
+      }
+
+      // Return Phase 3 response format (exact spec)
+      return res.status(201).json(response);
     }
 
     // Legacy: fallback to old spawn method
@@ -545,6 +592,11 @@ router.post('/:id/send-turn', optionalAuth, rateLimitSendTurn, async (req: Reque
     const { v4: uuidv4 } = await import('uuid');
     const optionId = uuidv4(); // Text turn doesn't use a real option
 
+    // Check if debug response is allowed
+    const { isDebugEnabledForUser, getUserRole, buildDebugPayload } = await import('../utils/debugResponse.js');
+    const userRole = await getUserRole(req);
+    const debugAllowed = userRole ? isDebugEnabledForUser(req, userRole) : false;
+
     // Execute the turn with message as userInput
     const turnResult = await turnsService.runBufferedTurn({
       gameId,
@@ -554,6 +606,7 @@ router.post('/:id/send-turn', optionalAuth, rateLimitSendTurn, async (req: Reque
       isGuest: ownership.isGuestOwner,
       userInput: message,
       userInputType: 'text',
+      includeDebugMetadata: debugAllowed, // Include debug metadata if debug allowed
     });
 
     if (!turnResult.success) {
@@ -645,7 +698,8 @@ router.post('/:id/send-turn', optionalAuth, rateLimitSendTurn, async (req: Reque
       turnNumber: standardizedTurn.turn_number,
     }));
 
-    return res.json({
+    // Build response
+    const response: any = {
       ok: true,
       data: {
         turn: standardizedTurn,
@@ -653,7 +707,45 @@ router.post('/:id/send-turn', optionalAuth, rateLimitSendTurn, async (req: Reque
       meta: {
         traceId: getTraceId(req),
       },
-    });
+    };
+
+    // Add debug payload if allowed and debug metadata is available
+    if (debugAllowed && turnResult.debugMetadata) {
+      // Determine debugId from latest turn
+      const latestTurn = await gamesService.getGameTurns(gameId, { limit: 1 });
+      const narratorTurn = latestTurn.turns?.find(t => t.role === 'narrator') || latestTurn.turns?.[latestTurn.turns.length - 1];
+      const debugId = narratorTurn?.id 
+        ? `${gameId}:${narratorTurn.turn_number || standardizedTurn.turn_number}`
+        : `${gameId}:${standardizedTurn.turn_number}`;
+
+      // Check if full mode is requested (via debugDepth query param)
+      const debugDepth = req.query.debugDepth === 'full';
+
+      const debugPayload = buildDebugPayload({
+        debugId,
+        phase: 'turn',
+        assembler: turnResult.debugMetadata.assembler,
+        ai: turnResult.debugMetadata.ai,
+        timings: turnResult.debugMetadata.timings,
+        includeAiRaw: debugDepth, // Only include AI raw if debugDepth=full
+      });
+
+      response.debug = debugPayload;
+
+      // Log debug response
+      console.log(JSON.stringify({
+        event: 'debug.response',
+        phase: 'turn',
+        gameId,
+        tokenPct: turnResult.debugMetadata.assembler.meta.tokenEst?.pct || 0,
+        policy: turnResult.debugMetadata.assembler.meta.policy || [],
+      }));
+
+      // Set Cache-Control: no-store when debug is present
+      res.setHeader('Cache-Control', 'no-store');
+    }
+
+    return res.json(response);
   } catch (error) {
     console.error('Error in send-turn:', error);
     return res.status(500).json({

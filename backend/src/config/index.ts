@@ -39,6 +39,9 @@ export const config = {
   debug: {
     routesEnabled: env.debugRoutesEnabled,
     routesToken: env.debugRoutesToken,
+    responseEnabled: env.debugResponseEnabled,
+    responseMaxChars: env.debugResponseMaxChars,
+    includeAiRaw: env.debugResponseIncludeAiRaw,
   },
   testTx: {
     enabled: process.env.TEST_TX_ENABLED === 'true',

@@ -71,6 +71,9 @@ interface EnvConfig {
   debugRoutesToken: string | null; // DEBUG_ROUTES_TOKEN
   legacyPromptsEnabled: boolean; // LEGACY_PROMPTS_ENABLED
   legacyPromptsSunset: string | null; // LEGACY_PROMPTS_SUNSET (ISO date string)
+  debugResponseEnabled: boolean; // DEBUG_RESPONSE_ENABLED
+  debugResponseMaxChars: number; // DEBUG_RESPONSE_MAX_CHARS
+  debugResponseIncludeAiRaw: boolean; // DEBUG_RESPONSE_INCLUDE_AI_RAW (default false)
 }
 
 interface ConfigSnapshot {
@@ -235,6 +238,9 @@ class ConfigServiceImpl implements ConfigService {
     const debugRoutesToken = source.DEBUG_ROUTES_TOKEN || null;
     const legacyPromptsEnabled = source.LEGACY_PROMPTS_ENABLED === 'true';
     const legacyPromptsSunset = source.LEGACY_PROMPTS_SUNSET || null;
+    const debugResponseEnabled = source.DEBUG_RESPONSE_ENABLED === 'true';
+    const debugResponseMaxChars = Number.parseInt(source.DEBUG_RESPONSE_MAX_CHARS ?? '50000', 10);
+    const debugResponseIncludeAiRaw = source.DEBUG_RESPONSE_INCLUDE_AI_RAW === 'true';
     
     // Only throw error for truly required variables in production
     if (source.NODE_ENV === 'production') {
@@ -278,6 +284,9 @@ class ConfigServiceImpl implements ConfigService {
       debugRoutesToken,
       legacyPromptsEnabled,
       legacyPromptsSunset,
+      debugResponseEnabled,
+      debugResponseMaxChars,
+      debugResponseIncludeAiRaw,
     };
   }
 

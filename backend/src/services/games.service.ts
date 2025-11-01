@@ -46,6 +46,7 @@ export interface SpawnRequestV3 {
   isGuest: boolean;
   idempotency_key?: string; // Optional idempotency key
   req?: any; // Optional request object for test transaction access
+  includeAssemblerMetadata?: boolean; // Optional flag to include assembler metadata for debug
 }
 
 export interface SpawnResult {
@@ -69,6 +70,11 @@ export interface SpawnResultV3 {
   error?: ApiErrorCode;
   message?: string;
   code?: string;
+  assemblerMetadata?: {
+    prompt: string;
+    pieces: Array<{ scope: string; slug: string; version?: string; tokens?: number }>;
+    meta: any;
+  };
 }
 
 export class GamesService {
@@ -337,11 +343,13 @@ export class GamesService {
 
         if (existingIdempotency?.response_data) {
           // Return cached response (idempotent - same request returns same result)
-          return {
+          const cachedResult: SpawnResultV3 = {
             success: true,
             game_id: existingIdempotency.response_data.game_id,
             first_turn: existingIdempotency.response_data.first_turn,
           };
+          // Note: cached responses don't include assembler metadata
+          return cachedResult;
         }
       }
 
@@ -899,7 +907,7 @@ export class GamesService {
         testTx: testTxActive,
       });
 
-      return {
+      const result: SpawnResultV3 = {
         success: true,
         game_id: createdGameId,
         first_turn: {
@@ -910,6 +918,17 @@ export class GamesService {
           created_at: createdTurn.created_at,
         },
       };
+
+      // Include assembler metadata if requested (for debug)
+      if (request.includeAssemblerMetadata) {
+        result.assemblerMetadata = {
+          prompt: assembleResult.prompt,
+          pieces: assembleResult.pieces,
+          meta: assembleResult.meta,
+        };
+      }
+
+      return result;
     } catch (error) {
       console.error('[SPAWN_V3] Unexpected error:', error);
       

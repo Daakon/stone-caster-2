@@ -22,6 +22,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Switch } from '../ui/switch';
 import { postCreateGame } from '../../lib/api';
+import { useDebugResponses } from '../../lib/debug';
+import { debugStore } from '../../lib/debugStore';
 import { generateIdempotencyKeyV4 } from '../../lib/idempotency';
 import { ApiErrorCode } from '@shared/types/api';
 import { Loader2, AlertCircle } from 'lucide-react';
@@ -141,6 +143,8 @@ export function CreateGameForm({
         {
           idempotencyKey,
           testRollback: testRollback && import.meta.env.DEV && import.meta.env.VITE_TEST_TX_HEADER_ENABLED === 'true',
+          debug: debugResponses.enabled,
+          debugDepth: 'safe',
         }
       );
 
@@ -223,6 +227,15 @@ export function CreateGameForm({
       // Success - navigate to game
       const gameId = result.data.game_id;
       
+      // Capture debug data from response if available
+      if (result.data.debug && debugResponses.enabled) {
+        const debug = result.data.debug;
+        // Extract turn number from debugId or use first_turn
+        const firstTurnNumber = result.data.first_turn?.turn_number || 1;
+        const turnKey = `${gameId}:${firstTurnNumber}`;
+        debugStore.addDebug(turnKey, debug);
+      }
+      
       if (onSuccess) {
         onSuccess(gameId);
       } else {
@@ -283,9 +296,7 @@ export function CreateGameForm({
                   setValue('entry_start_slug', ep.entry_start_slug || '');
                   setValue('scenario_slug', ep.scenario_slug || null);
                   setValue('ruleset_slug', ep.ruleset_slug || 'default');
-                  if (ep.world_id) {
-                    setValue('world_id', ep.world_id);
-                  }
+                  // Note: world_id may be passed separately if needed
                 }
               }}
             >
@@ -462,15 +473,16 @@ export function CreateGameForm({
               setValue('entry_start_slug', firstEntryPoint.entry_start_slug || '');
               setValue('scenario_slug', firstEntryPoint.scenario_slug || null);
               setValue('ruleset_slug', firstEntryPoint.ruleset_slug || 'default');
-              if (firstEntryPoint.world_id) {
-                setValue('world_id', firstEntryPoint.world_id);
+              // Use initialWorldId if provided
+              if (initialWorldId) {
+                setValue('world_id', initialWorldId);
               }
               
               // Auto-submit after a brief delay
               setTimeout(() => {
                 const formData = {
                   entry_point_id: firstEntryPoint.id,
-                  world_id: firstEntryPoint.world_id || initialWorldId || '',
+                  world_id: initialWorldId || '',
                   entry_start_slug: firstEntryPoint.entry_start_slug || '',
                   scenario_slug: firstEntryPoint.scenario_slug || null,
                   ruleset_slug: firstEntryPoint.ruleset_slug || 'default',

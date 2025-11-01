@@ -13,13 +13,13 @@ import { z } from 'zod';
 const router = express.Router();
 
 // Guard middleware: checks if debug routes are enabled and token is valid
-const requireDebugAccess = (req: Request, res: Response, next: express.NextFunction): void => {
+export const requireDebugAccess = (req: Request, res: Response, next: express.NextFunction): void => {
   const debugEnabled = config.debug.routesEnabled;
   const debugToken = config.debug.routesToken;
   const providedToken = req.headers['x-debug-token'] as string;
 
   if (!debugEnabled) {
-    return res.status(403).json({
+    res.status(403).json({
       ok: false,
       error: {
         code: 'FORBIDDEN',
@@ -29,10 +29,11 @@ const requireDebugAccess = (req: Request, res: Response, next: express.NextFunct
         traceId: getTraceId(req),
       },
     });
+    return;
   }
 
   if (!debugToken) {
-    return res.status(403).json({
+    res.status(403).json({
       ok: false,
       error: {
         code: 'FORBIDDEN',
@@ -42,10 +43,11 @@ const requireDebugAccess = (req: Request, res: Response, next: express.NextFunct
         traceId: getTraceId(req),
       },
     });
+    return;
   }
 
   if (providedToken !== debugToken) {
-    return res.status(401).json({
+    res.status(401).json({
       ok: false,
       error: {
         code: 'UNAUTHORIZED',
@@ -55,6 +57,7 @@ const requireDebugAccess = (req: Request, res: Response, next: express.NextFunct
         traceId: getTraceId(req),
       },
     });
+    return;
   }
 
   next();

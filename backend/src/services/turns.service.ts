@@ -21,6 +21,7 @@ export interface TurnRequest {
   isGuest: boolean;
   userInput?: string;
   userInputType?: 'choice' | 'text' | 'action';
+  includeDebugMetadata?: boolean; // Optional flag to include debug metadata
 }
 
 export interface TurnResult {
@@ -37,6 +38,23 @@ export interface TurnResult {
     timestamp?: string;
     cached?: boolean;
   };
+  debugMetadata?: {
+    assembler: {
+      prompt: string;
+      pieces: Array<{ scope: string; slug: string; version?: string; tokens?: number }>;
+      meta: any;
+    };
+    ai?: {
+      request?: any;
+      rawResponse?: any;
+      transformed?: any;
+    };
+    timings?: {
+      assembleMs?: number;
+      aiMs?: number;
+      totalMs?: number;
+    };
+  };
 }
 
 export class TurnsService {
@@ -48,13 +66,20 @@ export class TurnsService {
   async runBufferedTurn(request: TurnRequest): Promise<TurnResult> {
     const { gameId, optionId, owner, idempotencyKey, isGuest, userInput, userInputType } = request;
     
-    // Declare variables at method level for error handling
+      // Declare variables at method level for error handling
     let gameContext: any = null;
     let aiResponseText: string | null = null;
     const turnStartTime = Date.now();
     let promptData: any = null;
     let promptMetadata: any = null;
     let aiResponseMetadata: any = null;
+    let assembleStartTime: number | null = null;
+    let assembleEndTime: number | null = null;
+    let aiStartTime: number | null = null;
+    let aiEndTime: number | null = null;
+    let assemblerResult: any = null;
+    let aiRequestData: any = null;
+    let aiRawResponse: any = null;
 
     try {
       // Check idempotency first
@@ -194,7 +219,7 @@ export class TurnsService {
 
       // Generate AI response using new wrapper system
       let aiResult: any = null;
-      const aiStartTime = Date.now();
+      aiStartTime = Date.now();
       
       // Build game context for new AI service
       gameContext = {
@@ -270,12 +295,34 @@ export class TurnsService {
 
           try {
             // Phase 4.2: Use V2 assembler for ongoing turns
+            assembleStartTime = Date.now();
             const assembleResult = await this.buildPromptV2(game, optionId);
+            assembleEndTime = Date.now();
+            
+            // Capture assembler result for debug if requested
+            if (request.includeDebugMetadata) {
+              assemblerResult = {
+                prompt: assembleResult.prompt,
+                pieces: assembleResult.pieces,
+                meta: assembleResult.meta,
+              };
+            }
             
             // Use AI service with the assembled prompt
+            aiStartTime = Date.now();
             const openaiService = (await import('./ai.js')).default;
             const openaiInstance = openaiService.getOpenAIService();
             const aiResponseObj = await openaiInstance.generateBufferedResponse(assembleResult.prompt);
+            aiEndTime = Date.now();
+            
+            // Capture AI request/response for debug if requested
+            if (request.includeDebugMetadata) {
+              aiRequestData = {
+                model: assembleResult.meta.model,
+                messages: [{ role: 'system', content: assembleResult.prompt }], // Simplified
+              };
+              aiRawResponse = aiResponseObj;
+            }
             
             // Parse AI response
             const parsed = JSON.parse(aiResponseObj.content);
@@ -292,7 +339,7 @@ export class TurnsService {
             
             aiResponseMetadata = {
               model: assembleResult.meta.model,
-              responseTime: Date.now() - aiStartTime,
+              responseTime: aiEndTime - (aiStartTime || Date.now()),
               tokenCount: aiResponseObj.usage?.total_tokens || null,
               promptId: `prompt-v2-${Date.now()}`,
               validationPassed: true,
@@ -551,7 +598,7 @@ export class TurnsService {
       );
 
 
-      return {
+      const result: TurnResult = {
         success: true,
         turnDTO,
         details: {
@@ -561,6 +608,37 @@ export class TurnsService {
           timestamp: new Date().toISOString()
         }
       };
+
+      // Add debug metadata if requested
+      if (request.includeDebugMetadata && assemblerResult) {
+        result.debugMetadata = {
+          assembler: assemblerResult,
+          timings: {
+            assembleMs: assembleStartTime && assembleEndTime ? assembleEndTime - assembleStartTime : undefined,
+            aiMs: aiStartTime && aiEndTime ? aiEndTime - aiStartTime : undefined,
+            totalMs: Date.now() - turnStartTime,
+          },
+        };
+
+        // Add AI data if available
+        if (aiRequestData || aiRawResponse || aiResponse) {
+          result.debugMetadata.ai = {
+            request: aiRequestData,
+            rawResponse: aiRawResponse ? {
+              content: aiRawResponse.content,
+              usage: aiRawResponse.usage,
+              model: aiRawResponse.model,
+            } : undefined,
+            transformed: aiResponse ? {
+              narrative: aiResponse.narrative,
+              emotion: aiResponse.emotion,
+              choices: aiResponse.choices,
+            } : undefined,
+          };
+        }
+      }
+
+      return result;
     } catch (error) {
       console.error('Unexpected error in runBufferedTurn:', error);
       return {

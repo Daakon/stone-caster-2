@@ -5,11 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
+import { Switch } from '../components/ui/switch';
+import { Label } from '../components/ui/label';
 import { StoneCost } from '../components/gameplay/StoneCost';
 import { WorldRuleMeters } from '../components/gameplay/WorldRuleMeters';
 import { TurnInput } from '../components/gameplay/TurnInput';
 import { HistoryFeed } from '../components/gameplay/HistoryFeed';
 import { TurnsList } from '../components/gameplay/TurnsList'; // Phase 5: Paginated turns
+import { DebugDrawer } from '../components/debug/DebugDrawer';
+import { debugStore } from '../lib/debugStore';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, Settings, Save } from 'lucide-react';
 import { submitTurn, sendTurn, getGame, getStoryById, getCharacter, getWorldById, getWallet, getGameTurns, autoInitializeGame } from '../lib/api';
@@ -18,6 +22,7 @@ import { generateIdempotencyKeyV4 } from '../lib/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useDebugPanel } from '../hooks/useDebugPanel';
 import { DebugPanel } from '../components/debug/DebugPanel';
+import { useDebugResponses } from '../lib/debug';
 // PromptApprovalModal removed - not needed with new backend system
 import type { TurnDTO, GameDTO } from '@shared';
 import type { Turn } from '../lib/types';
@@ -69,6 +74,8 @@ export default function GamePage() {
   
   const telemetry = useAdventureTelemetry();
   const debugPanel = useDebugPanel();
+  const debugResponses = useDebugResponses();
+  const [debugDrawerOpen, setDebugDrawerOpen] = useState(false);
   const [gameErrorState, setGameErrorState] = useState<string | null>(null);
   const { toast } = useToast(); // Phase 8: Toast notifications
   
@@ -328,8 +335,26 @@ export default function GamePage() {
     setOptimisticTurns([tempPlayerTurn]); // Show immediately
 
     try {
-      // Phase 8: Use simple send-turn endpoint
-      const result = await sendTurn(gameId, action, { idempotencyKey });
+      // Phase 8: Use simple send-turn endpoint with debug parameter
+      const result = await sendTurn(gameId, action, { 
+        idempotencyKey,
+        debug: debugResponses.enabled,
+        debugDepth: 'safe',
+      });
+
+      // Capture debug data from response and store in debugStore
+      if (result.ok && result.data.debug && debugResponses.enabled) {
+        const debug = result.data.debug;
+        // Extract turn number from debugId or use turn_number from response
+        const turnNumber = standardizedTurn.turn_number;
+        const turnKey = `${gameId}:${turnNumber}`;
+        debugStore.addDebug(turnKey, debug);
+        
+        // Auto-open drawer on first debug capture
+        if (!debugDrawerOpen) {
+          setDebugDrawerOpen(true);
+        }
+      }
 
       if (!result.ok) {
         // Phase 8: Roll back optimistic turn on error
@@ -622,6 +647,18 @@ export default function GamePage() {
             </div>
             
             <div className="flex items-center gap-4">
+              {debugResponses.visible && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="debug-responses"
+                    checked={debugResponses.enabled}
+                    onCheckedChange={debugResponses.setEnabled}
+                  />
+                  <Label htmlFor="debug-responses" className="text-sm cursor-pointer">
+                    Debug responses
+                  </Label>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Gem className="h-4 w-4 text-primary" />
                 <span className="font-medium">{wallet?.balance || 0}</span>
@@ -685,6 +722,9 @@ export default function GamePage() {
                   disabled={(wallet?.balance || 0) < 1 || isSubmittingTurn}
                   placeholder={isSubmittingTurn ? "Processing your turn..." : "Describe your action..."}
                 />
+                {debugResponses.visible && lastDebug && (
+                  <DebugMiniPanel debug={lastDebug} />
+                )}
               </CardContent>
             </Card>
 
@@ -773,6 +813,15 @@ export default function GamePage() {
         isVisible={debugPanel.isVisible} 
         onToggle={debugPanel.toggle} 
       />
+      
+      {/* Debug Drawer */}
+      {debugResponses.visible && gameId && (
+        <DebugDrawer
+          gameId={gameId}
+          open={debugDrawerOpen}
+          onOpenChange={setDebugDrawerOpen}
+        />
+      )}
       
       {/* Prompt Approval Modal removed - not needed with new backend system */}
     </div>
