@@ -13,7 +13,8 @@ import {
 
 export interface Game {
   id: string;
-  adventure_id: string;
+  entry_point_id: string; // TEXT reference to entry_points.id (legacy: was adventure_id)
+  entry_point_type: string; // Denormalized type from entry_points.type ('adventure', 'scenario', 'sandbox', 'quest')
   character_id?: string;
   user_id?: string;
   cookie_group_id?: string;
@@ -63,10 +64,54 @@ export class GamesService {
       }
 
       const adventureWorldId = adventure.worldId; // UUID
-
+      
+      // Fetch entry_point to get its type
+      let entryPointType: string = 'adventure'; // default fallback
+      if (adventure.id) {
+        const { data: entryPoint } = await supabaseAdmin
+          .from('entry_points')
+          .select('type')
+          .eq('id', adventure.id)
+          .single();
+        
+        if (entryPoint?.type) {
+          entryPointType = entryPoint.type;
+        }
+      }
+      
+      // Fetch primary ruleset from entry_point_rulesets junction table
+      // Get the first one ordered by sort_order (primary ruleset)
+      let rulesetId: string | undefined;
+      if (adventure.id) {
+        const { data: rulesets } = await supabaseAdmin
+          .from('entry_point_rulesets')
+          .select('ruleset_id')
+          .eq('entry_point_id', adventure.id)
+          .order('sort_order', { ascending: true })
+          .limit(1);
+        
+        if (rulesets && rulesets.length > 0) {
+          rulesetId = rulesets[0].ruleset_id;
+        }
+      }
+      
+      // If ruleset_id is still missing, we can't create the game
+      if (!rulesetId) {
+        return {
+          success: false,
+          error: ApiErrorCode.VALIDATION_FAILED,
+          message: `Entry point '${adventure.id}' does not have any associated rulesets in entry_point_rulesets table`,
+        };
+      }
+      
+      // Resolve worldSlug from worldId (for games table)
+      // First try to get from adventure, then from character, then resolve from world_id_mapping
+      let worldSlug: string | undefined = adventure.worldSlug;
+      
       // If character is specified, validate it exists and is available
+      let character: any = null;
       if (characterId) {
-        const character = await CharactersService.getCharacterById(characterId, ownerId, isGuest);
+        character = await CharactersService.getCharacterById(characterId, ownerId, isGuest);
         if (!character) {
           return {
             success: false,
@@ -83,6 +128,11 @@ export class GamesService {
             message: 'Character is already active in another game',
             existingGameId: character.activeGameId,
           };
+        }
+
+        // Use character's worldSlug if adventure doesn't have it
+        if (!worldSlug && character.worldSlug) {
+          worldSlug = character.worldSlug;
         }
 
         // Check character and adventure are from the same world (UUID comparison)
@@ -108,6 +158,25 @@ export class GamesService {
           };
         }
       }
+      
+      // If still no worldSlug, resolve from world_id_mapping
+      if (!worldSlug && adventureWorldId) {
+        const { data: worldMapping } = await supabaseAdmin
+          .from('world_id_mapping')
+          .select('text_id')
+          .eq('uuid_id', adventureWorldId)
+          .single();
+        
+        if (worldMapping) {
+          worldSlug = worldMapping.text_id;
+        }
+      }
+      
+      // Fallback to 'unknown' if we still don't have it
+      if (!worldSlug) {
+        console.warn('[GAME_SPAWN] Could not resolve worldSlug for worldId:', adventureWorldId);
+        worldSlug = 'unknown';
+      }
 
       // For guest users, ensure they have a cookie group
       if (isGuest) {
@@ -119,9 +188,12 @@ export class GamesService {
 
       // Create new game
       const newGame = {
-        adventure_id: adventure.id,
+        entry_point_id: adventure.id, // entry_points.id is TEXT (e.g., 'test-entry-point-1')
+        entry_point_type: entryPointType, // Denormalized type from entry_points.type
+        world_id: adventureWorldId, // UUID reference to world_id_mapping.uuid_id
+        ruleset_id: rulesetId, // Ruleset ID from entry_points.ruleset_id
         character_id: characterId || null,
-        world_slug: adventureWorldSlug,
+        world_slug: worldSlug, // TEXT slug for display/filtering (denormalized)
         state_snapshot: {
           metadata: {
             adventureSlug: adventure.slug,

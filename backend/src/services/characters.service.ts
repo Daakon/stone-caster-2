@@ -101,10 +101,22 @@ export class CharactersService {
       const currentHealth = input.currentHealth ?? input.maxHealth ?? (input.attributes?.constitution ? this.calculateMaxHealth(input.attributes.constitution) : 100);
       const maxHealth = input.maxHealth ?? (input.attributes?.constitution ? this.calculateMaxHealth(input.attributes.constitution) : 100);
 
+      // Resolve world_id UUID from world_slug
+      const { data: worldMapping, error: mappingError } = await supabaseAdmin
+        .from('world_id_mapping')
+        .select('uuid_id')
+        .eq('text_id', input.worldSlug)
+        .single();
+      
+      if (mappingError || !worldMapping) {
+        throw new Error(`World '${input.worldSlug}' not found in world_id_mapping`);
+      }
+
       const characterData = {
         id: uuidv4(),
         name: input.name,
-        world_slug: input.worldSlug, // TEXT identifier matching worlds.id
+        world_slug: input.worldSlug, // TEXT identifier for display
+        world_id: worldMapping.uuid_id, // UUID (source of truth)
         world_data: input.worldData ?? {},
         // Legacy fields for backward compatibility
         race: input.race,
@@ -123,6 +135,11 @@ export class CharactersService {
         ...(isGuest ? { cookie_id: ownerId } : { user_id: ownerId })
       };
 
+      console.log('[CHARACTER_CREATE_DATA]', {
+        ...characterData,
+        world_data: '[REDACTED]',
+      });
+
       const { data, error } = await supabaseAdmin
         .from('characters')
         .insert([characterData])
@@ -133,6 +150,13 @@ export class CharactersService {
         console.error('Error creating character:', error);
         throw new Error(`Failed to create character: ${error.message}`);
       }
+
+      console.log('[CHARACTER_CREATED_DB_ROW]', {
+        id: data.id,
+        world_slug: data.world_slug,
+        world_id: data.world_id,
+        world_id_type: typeof data.world_id,
+      });
 
       return this.mapCharacterFromDb(data);
     } catch (error) {
@@ -223,6 +247,17 @@ export class CharactersService {
       // Use provided name or fall back to premade display name
       const characterName = input.name || premadeCharacter.displayName;
 
+      // Resolve world_id UUID from world_slug
+      const { data: worldMapping, error: mappingError } = await supabaseAdmin
+        .from('world_id_mapping')
+        .select('uuid_id')
+        .eq('text_id', input.worldSlug)
+        .single();
+      
+      if (mappingError || !worldMapping) {
+        throw new Error(`World '${input.worldSlug}' not found in world_id_mapping`);
+      }
+
       // Create character data from premade template
       const characterData = {
         id: uuidv4(),
@@ -243,7 +278,8 @@ export class CharactersService {
         inventory: [],
         current_health: this.calculateMaxHealth(skills.constitution || 10),
         max_health: this.calculateMaxHealth(skills.constitution || 10),
-        world_slug: input.worldSlug, // TEXT identifier matching worlds.id
+        world_slug: input.worldSlug, // TEXT identifier for display
+        world_id: worldMapping.uuid_id, // UUID (source of truth)
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         // Set owner based on user type
@@ -349,14 +385,24 @@ export class CharactersService {
         throw new Error(`Failed to fetch character: ${error.message}`);
       }
 
+      console.log('[CHARACTER_DB_RAW_FULL]', JSON.stringify(data, null, 2));
       console.log('[CHARACTER_DB_RAW]', {
         id: data.id,
         name: data.name,
         world_slug: data.world_slug,
         world_id: data.world_id,
+        world_id_type: typeof data.world_id,
       });
 
-      return this.mapCharacterFromDb(data);
+      const mapped = this.mapCharacterFromDb(data);
+      console.log('[CHARACTER_MAPPED]', {
+        id: mapped.id,
+        worldSlug: mapped.worldSlug,
+        worldId: mapped.worldId,
+        worldId_type: typeof mapped.worldId,
+      });
+
+      return mapped;
     } catch (error) {
       console.error('CharactersService.getCharacterById error:', error);
       throw error;

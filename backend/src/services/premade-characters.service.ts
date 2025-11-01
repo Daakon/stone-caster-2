@@ -14,6 +14,7 @@ import { ApiErrorCode } from '@shared';
 export interface PremadeCharacterDTO {
   id: string;
   worldSlug: string;
+  worldId: string; // UUID from world_id_mapping
   archetypeKey: string;
   displayName: string;
   summary: string;
@@ -304,6 +305,7 @@ export class PremadeCharactersService {
     return {
       id: record.id,
       worldSlug: record.world_slug,
+      worldId: record.world_id, // UUID from world_id_mapping
       archetypeKey: record.archetype_key,
       displayName: record.display_name,
       summary: record.summary,

@@ -18,6 +18,7 @@ import { ApiErrorCode } from '@shared';
 interface PremadeCharacter {
   id: string;
   worldSlug: string;
+  worldId: string; // UUID from world_id_mapping
   archetypeKey: string;
   displayName: string;
   summary: string;
@@ -200,6 +201,7 @@ function CharacterSelectionPageContent() {
       characterId: selectedPath === 'existing' ? selectedCharacter.id : undefined,
       premadeData: selectedPath === 'premade' && 'archetypeKey' in selectedCharacter ? {
         worldSlug: selectedCharacter.worldSlug,
+        worldId: selectedCharacter.worldId, // Pass UUID for proper validation
         archetypeKey: selectedCharacter.archetypeKey,
         displayName: selectedCharacter.displayName,
       } : undefined,

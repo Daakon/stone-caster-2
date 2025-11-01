@@ -3829,9 +3829,20 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
   try {
     const { id } = req.params;
     
+    // Fetch entry point with joined rulesets
     const { data, error } = await supabase
       .from('entry_points')
-      .select('*')
+      .select(`
+        *,
+        entry_point_rulesets:entry_point_rulesets(
+          sort_order,
+          ruleset_id,
+          rulesets:ruleset_id(
+            id,
+            name
+          )
+        )
+      `)
       .eq('id', id)
       .single();
 
@@ -3845,9 +3856,24 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
       throw error;
     }
 
+    // Transform rulesets to match frontend format
+    const rulesets = (data.entry_point_rulesets || [])
+      .sort((a: any, b: any) => a.sort_order - b.sort_order)
+      .map((epr: any) => ({
+        id: epr.rulesets?.id || epr.ruleset_id,
+        name: epr.rulesets?.name || epr.ruleset_id,
+        sort_order: epr.sort_order
+      }));
+
+    // Remove the nested entry_point_rulesets from response
+    const { entry_point_rulesets, ...entryPointData } = data;
+
     res.json({
       ok: true,
-      data
+      data: {
+        ...entryPointData,
+        rulesets
+      }
     });
   } catch (error) {
     console.error('Error fetching entry point:', error);
