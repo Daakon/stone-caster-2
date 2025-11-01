@@ -1,6 +1,23 @@
 import { type PromptSegment, PromptRepository } from '../repositories/prompt.repository.js';
 import { replaceTemplateVariables, validateTemplateVariables, ALLOWLISTED_VARIABLES } from './variables.js';
 import type { PromptAssemblyResult, PromptAuditEntry, PromptContext } from './schemas.js';
+import type { Scope, AssemblePiece, PolicyAction } from './assembler-types.js';
+import {
+  SCOPE_PRIORITY,
+  PROTECTED_SCOPES,
+  POLICY_ACTIONS,
+} from './assembler-types.js';
+import {
+  roughTokenCount,
+  mapLayerToScope,
+  getEnvNumber,
+  getEnvPercentage,
+  formatPieceId,
+} from './assembler-utils.js';
+
+// Environment configuration with fallbacks
+const PROMPT_TOKEN_BUDGET_DEFAULT = getEnvNumber('PROMPT_TOKEN_BUDGET_DEFAULT', 8_000);
+const PROMPT_BUDGET_WARN_PCT = getEnvPercentage('PROMPT_BUDGET_WARN_PCT', 0.9);
 
 /**
  * Standardized error types for DB-only prompt assembly
@@ -30,8 +47,19 @@ export interface DatabasePromptResult {
     totalVariables: number;
     loadOrder: string[];
     warnings?: string[];
+    // Phase 2 additions
+    included?: string[]; // Format: "scope:slug@version"
+    dropped?: string[]; // Same format
+    policy?: string[]; // Policy actions taken
+    tokenEst?: {
+      input: number;
+      budget: number;
+      pct: number;
+    };
   };
   audit: PromptAuditEntry;
+  // Phase 2: Pieces for metadata
+  pieces?: AssemblePiece[];
 }
 
 /**
@@ -42,6 +70,12 @@ export interface DatabasePromptParams {
   adventureSlug: string;
   startingSceneId: string;
   includeEnhancements?: boolean;
+  // Phase 2 additions
+  scenarioSlug?: string | null;
+  rulesetSlug?: string;
+  npcHints?: string[];
+  model?: string;
+  budgetTokens?: number;
 }
 
 /**
@@ -50,6 +84,90 @@ export interface DatabasePromptParams {
  */
 export class DatabasePromptAssembler {
   constructor(private readonly promptRepository: PromptRepository) {}
+
+  /**
+   * Phase 3: Assemble prompt using Phase 2 input format (worldId UUID, entryStartSlug, etc.)
+   * Adapts Phase 2 AssembleInput to internal DatabasePromptParams format
+   */
+  async assemblePromptV2(input: {
+    worldId: string; // UUID
+    rulesetSlug?: string;
+    scenarioSlug?: string | null;
+    entryStartSlug: string;
+    npcHints?: string[];
+    model?: string;
+    budgetTokens?: number;
+    entryPointSlug?: string; // Entry point slug (for adventure_slug in RPC)
+  }): Promise<{
+    prompt: string;
+    pieces: AssemblePiece[];
+    meta: {
+      included: string[];
+      dropped: string[];
+      policy?: string[];
+      model: string;
+      worldId: string;
+      rulesetSlug: string;
+      scenarioSlug?: string | null;
+      entryStartSlug: string;
+      tokenEst: {
+        input: number;
+        budget: number;
+        pct: number;
+      };
+    };
+  }> {
+    // Resolve worldId UUID to worldSlug for assembler
+    const { supabaseAdmin } = await import('../services/supabase.js');
+    const { data: worldMapping } = await supabaseAdmin
+      .from('world_id_mapping')
+      .select('text_id')
+      .eq('uuid_id', input.worldId)
+      .single();
+
+    if (!worldMapping) {
+      throw new DatabasePromptError(
+        'DB_PROMPTS_UNAVAILABLE',
+        `World UUID '${input.worldId}' not found in world_id_mapping`,
+        {}
+      );
+    }
+
+    const worldSlug = worldMapping.text_id;
+
+    // Call the existing assemblePrompt with adapted params
+    const result = await this.assemblePrompt({
+      worldSlug,
+      adventureSlug: input.entryPointSlug || input.entryStartSlug, // Fallback to entry_start_slug if no entryPointSlug
+      startingSceneId: input.entryStartSlug,
+      rulesetSlug: input.rulesetSlug,
+      scenarioSlug: input.scenarioSlug,
+      npcHints: input.npcHints,
+      model: input.model,
+      budgetTokens: input.budgetTokens,
+    });
+
+    // Transform result to Phase 2 AssembleOutput format
+    return {
+      prompt: result.promptText,
+      pieces: result.pieces || [],
+      meta: {
+        included: result.metadata.included || [],
+        dropped: result.metadata.dropped || [],
+        policy: result.metadata.policy,
+        model: input.model || process.env.PROMPT_MODEL_DEFAULT || 'gpt-4o-mini',
+        worldId: input.worldId,
+        rulesetSlug: input.rulesetSlug || 'default',
+        scenarioSlug: input.scenarioSlug,
+        entryStartSlug: input.entryStartSlug,
+        tokenEst: result.metadata.tokenEst || {
+          input: 0,
+          budget: input.budgetTokens || PROMPT_TOKEN_BUDGET_DEFAULT,
+          pct: 0,
+        },
+      },
+    };
+  }
 
   /**
    * Assemble a complete prompt using database segments only.
@@ -62,9 +180,9 @@ export class DatabasePromptAssembler {
 
     try {
       // Fetch segments from database
-      const segments = await this.getPromptSegments(params);
+      const allSegments = await this.getPromptSegments(params);
       
-      if (segments.length === 0) {
+      if (allSegments.length === 0) {
         throw new DatabasePromptError(
           'DB_PROMPTS_EMPTY',
           `No prompt segments found for world: ${params.worldSlug}, adventure: ${params.adventureSlug}, scene: ${params.startingSceneId}. Run npm run ingest:prompts for these slugs and retry.`,
@@ -76,17 +194,31 @@ export class DatabasePromptAssembler {
         );
       }
 
+      // Phase 2: Order segments by strict scope priority
+      const orderedSegments = this.orderSegmentsByScope(allSegments, params);
+      
       // Build context object for variable replacement
       const variableContext = this.buildContextObject(params);
       
-      // Process segments
+      // Phase 2: Process segments with token estimation
+      const processedPieces: AssemblePiece[] = [];
       const assembledSegments: string[] = [];
       const segmentIds: string[] = [];
       const warnings: string[] = [];
 
-      for (const segment of segments) {
+      for (const { segment, scope } of orderedSegments) {
         try {
           const processed = await this.processSegment(segment, variableContext);
+          const tokens = roughTokenCount(processed);
+          const slug = segment.metadata?.slug || segment.metadata?.ref_id || segment.layer || segment.id;
+          
+          processedPieces.push({
+            scope,
+            slug,
+            version: segment.version,
+            tokens,
+          });
+          
           assembledSegments.push(processed);
           segmentIds.push(segment.id);
         } catch (error) {
@@ -96,23 +228,55 @@ export class DatabasePromptAssembler {
         }
       }
 
-      // Create final prompt
-      const promptText = this.createFinalPrompt(assembledSegments, params);
-      const audit = await this.buildAuditEntry(segmentIds, segments, params, promptText);
+      // Phase 2: Apply budget policy
+      const budget = params.budgetTokens || PROMPT_TOKEN_BUDGET_DEFAULT;
+      const { finalPieces, dropped, policy, finalSegments, finalSegmentIds } = 
+        await this.applyBudgetPolicy(processedPieces, assembledSegments, segmentIds, budget);
+      
+      // Create final prompt from final segments
+      const promptText = this.createFinalPrompt(finalSegments, params);
+      const audit = await this.buildAuditEntry(finalSegmentIds, allSegments.filter(s => finalSegmentIds.includes(s.id)), params, promptText);
+
+      const inputTokens = roughTokenCount(promptText);
+      const tokenPct = inputTokens / budget;
+
+      // Phase 2: Enhanced metadata
+      const metadata = {
+        totalSegments: finalPieces.length,
+        totalVariables: this.countVariables(variableContext),
+        loadOrder: finalSegmentIds,
+        warnings: warnings.length > 0 ? warnings : undefined,
+        included: finalPieces.map(p => formatPieceId(p.scope, p.slug, p.version)),
+        dropped: dropped.map(p => formatPieceId(p.scope, p.slug, p.version)),
+        policy: policy.length > 0 ? policy : undefined,
+        tokenEst: {
+          input: inputTokens,
+          budget,
+          pct: tokenPct,
+        },
+      };
 
       console.log(
-        `[DB_ASSEMBLER] Assembled prompt with ${assembledSegments.length} segments, ${this.estimateTokenCount(promptText)} tokens`
+        `[DB_ASSEMBLER] Assembled prompt with ${finalPieces.length} segments (${dropped.length} dropped), ${inputTokens} tokens (${Math.round(tokenPct * 100)}% of budget)`
       );
+
+      // Phase 2: Structured logging
+      console.log('[DB_ASSEMBLER] Assembly metadata:', {
+        worldId: params.worldSlug,
+        rulesetSlug: params.rulesetSlug || 'default',
+        scenarioSlug: params.scenarioSlug,
+        entryStartSlug: params.adventureSlug,
+        includedCount: finalPieces.length,
+        droppedCount: dropped.length,
+        tokenPct: Math.round(tokenPct * 100) / 100,
+        policy: policy || [],
+      });
 
       return {
         promptText,
-        metadata: {
-          totalSegments: assembledSegments.length,
-          totalVariables: this.countVariables(variableContext),
-          loadOrder: segmentIds,
-          warnings: warnings.length > 0 ? warnings : undefined,
-        },
+        metadata,
         audit,
+        pieces: finalPieces,
       };
     } catch (error) {
       if (error instanceof DatabasePromptError) {
@@ -205,6 +369,11 @@ export class DatabasePromptAssembler {
       world_name: params.worldSlug,
       adventure_name: params.adventureSlug,
       scene_name: params.startingSceneId,
+      
+      // Phase 2 additions
+      'ruleset.slug': params.rulesetSlug || 'default',
+      'scenario.slug': params.scenarioSlug || '',
+      'entry.slug': params.adventureSlug,
       
       // Game state (minimal for new games)
       game_state_json: JSON.stringify({
@@ -351,5 +520,200 @@ export class DatabasePromptAssembler {
     return Array.from(ALLOWLISTED_VARIABLES.values()).filter(
       (key) => contextMap[key] !== undefined && contextMap[key] !== null
     ).length;
+  }
+
+  /**
+   * Phase 2: Order segments by strict scope priority
+   * Order: core → ruleset → world → scenario? → entry → npc
+   */
+  private orderSegmentsByScope(
+    segments: PromptSegment[],
+    params: DatabasePromptParams
+  ): Array<{ segment: PromptSegment; scope: Scope }> {
+    // Map segments to scope using layer field
+    const mapped = segments.map(segment => {
+      let scope: Scope = 'core';
+      
+      // Check metadata for scope first
+      if (segment.metadata?.scope && 
+          ['core', 'ruleset', 'world', 'scenario', 'entry', 'npc'].includes(segment.metadata.scope)) {
+        scope = segment.metadata.scope as Scope;
+      } else {
+        // Map layer to scope
+        scope = mapLayerToScope(segment.layer || 'core');
+      }
+      
+      return { segment, scope };
+    });
+
+    // Filter based on input requirements
+    const filtered = mapped.filter(({ scope }) => {
+      // Always include core, ruleset, world
+      if (scope === 'core' || scope === 'ruleset' || scope === 'world') {
+        return true;
+      }
+      
+      // Include scenario only if scenarioSlug provided
+      if (scope === 'scenario') {
+        return params.scenarioSlug !== undefined && params.scenarioSlug !== null;
+      }
+      
+      // Always include entry (required)
+      if (scope === 'entry') {
+        return true;
+      }
+      
+      // Include npc if hints provided
+      if (scope === 'npc') {
+        return params.npcHints && params.npcHints.length > 0;
+      }
+      
+      return false;
+    });
+
+    // Sort by scope priority, then sort_order within scope
+    filtered.sort((a, b) => {
+      const priorityA = SCOPE_PRIORITY[a.scope];
+      const priorityB = SCOPE_PRIORITY[b.scope];
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      return (a.segment.sort_order || 0) - (b.segment.sort_order || 0);
+    });
+
+    // Deduplicate NPCs
+    return this.deduplicateNpcs(filtered);
+  }
+
+  /**
+   * Phase 2: Deduplicate NPC segments by slug
+   */
+  private deduplicateNpcs(
+    ordered: Array<{ segment: PromptSegment; scope: Scope }>
+  ): Array<{ segment: PromptSegment; scope: Scope }> {
+    const seen = new Set<string>();
+    const result: Array<{ segment: PromptSegment; scope: Scope }> = [];
+    
+    for (const item of ordered) {
+      if (item.scope === 'npc') {
+        const slug = item.segment.metadata?.slug || 
+                    item.segment.metadata?.ref_id ||
+                    item.segment.layer || 
+                    'unknown';
+        
+        if (seen.has(slug)) {
+          continue;
+        }
+        
+        seen.add(slug);
+      }
+      
+      result.push(item);
+    }
+    
+    // Sort NPCs by slug for deterministic order
+    const npcStartIndex = result.findIndex(item => item.scope === 'npc');
+    if (npcStartIndex >= 0) {
+      const nonNpcs = result.slice(0, npcStartIndex);
+      const npcs = result.slice(npcStartIndex);
+      npcs.sort((a, b) => {
+        const slugA = a.segment.metadata?.slug || a.segment.metadata?.ref_id || a.segment.layer || '';
+        const slugB = b.segment.metadata?.slug || b.segment.metadata?.ref_id || b.segment.layer || '';
+        return slugA.localeCompare(slugB);
+      });
+      return [...nonNpcs, ...npcs];
+    }
+    
+    return result;
+  }
+
+  /**
+   * Phase 2: Apply budget policy with warn threshold and drop logic
+   */
+  private async applyBudgetPolicy(
+    pieces: AssemblePiece[],
+    segments: string[],
+    segmentIds: string[],
+    budget: number
+  ): Promise<{
+    finalPieces: AssemblePiece[];
+    dropped: AssemblePiece[];
+    policy: PolicyAction[];
+    finalSegments: string[];
+    finalSegmentIds: string[];
+  }> {
+    const policy: PolicyAction[] = [];
+    
+    // Combine pieces with segments and ids for synchronized removal
+    const combined = pieces.map((piece, idx) => ({
+      piece,
+      segment: segments[idx] || '',
+      segmentId: segmentIds[idx] || '',
+      index: idx,
+    }));
+    
+    let current = [...combined];
+    let currentTokens = current.reduce((sum, item) => sum + item.piece.tokens, 0);
+    
+    // Check warn threshold
+    const pct = currentTokens / budget;
+    if (pct >= PROMPT_BUDGET_WARN_PCT) {
+      policy.push(POLICY_ACTIONS.SCENARIO_POLICY_UNDECIDED);
+    }
+    
+    // If over budget, drop in order: scenario first, then npcs
+    if (currentTokens > budget) {
+      // Drop scenario if present
+      const scenarioIndex = current.findIndex(item => item.piece.scope === 'scenario');
+      if (scenarioIndex >= 0) {
+        const dropped = current.splice(scenarioIndex, 1)[0];
+        policy.push(POLICY_ACTIONS.SCENARIO_DROPPED);
+        currentTokens -= dropped.piece.tokens;
+      }
+      
+      // If still over budget, drop NPCs (from end, lowest priority)
+      while (currentTokens > budget && current.length > 0) {
+        let lastNpcIndex = -1;
+        for (let i = current.length - 1; i >= 0; i--) {
+          if (current[i].piece.scope === 'npc' && !PROTECTED_SCOPES.has(current[i].piece.scope as Scope)) {
+            lastNpcIndex = i;
+            break;
+          }
+        }
+        
+        if (lastNpcIndex >= 0) {
+          const dropped = current.splice(lastNpcIndex, 1)[0];
+          policy.push(POLICY_ACTIONS.NPC_DROPPED);
+          currentTokens -= dropped.piece.tokens;
+        } else {
+          // No more droppable segments, but still over budget
+          // Core/ruleset/world are protected, so we log warning
+          console.warn(
+            `[DB_ASSEMBLER] Still over budget (${currentTokens}/${budget}) after dropping all scenario/npc, but core/ruleset/world are protected`
+          );
+          break;
+        }
+      }
+    }
+    
+    // Split back into separate arrays
+    const finalPieces = current.map(item => item.piece);
+    const finalSegments = current.map(item => item.segment);
+    const finalSegmentIds = current.map(item => item.segmentId);
+    
+    // Calculate dropped pieces
+    const dropped: AssemblePiece[] = pieces.filter(p => 
+      !finalPieces.some(cp => cp.slug === p.slug && cp.scope === p.scope)
+    );
+    
+    return {
+      finalPieces,
+      dropped,
+      policy,
+      finalSegments,
+      finalSegmentIds,
+    };
   }
 }

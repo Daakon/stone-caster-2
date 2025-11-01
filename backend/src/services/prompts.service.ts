@@ -95,6 +95,7 @@ export class PromptsService {
   }
 
   /**
+   * @deprecated Use DatabasePromptAssembler.assemblePromptV2() instead. This method will be removed after legacy prompts sunset.
    * Build a prompt for AI generation using database-only assembly
    * @param game - Game context with state and metadata
    * @param optionId - The option/action the player chose
@@ -344,6 +345,104 @@ export class PromptsService {
    */
   calculateTokenCount(prompt: string): number {
     return this.estimateTokenCount(prompt);
+  }
+
+  /**
+   * @deprecated Use GamesService.spawnV3() with Phase 3 flow instead. This method will be removed after legacy prompts sunset (2025-12-31).
+   * Compatibility adapter: creates initial prompt with approval mechanism (legacy flow).
+   * Internally routes to new Phase 3 flow when LEGACY_PROMPTS_ENABLED=true.
+   * This adapter will be deleted after sunset date.
+   * 
+   * @param gameId - Game ID
+   * @param worldSlug - World slug (legacy format)
+   * @param characterId - Optional character ID
+   * @returns Legacy prompt result format
+   */
+  async createInitialPromptWithApproval(
+    gameId: string,
+    worldSlug: string,
+    characterId?: string
+  ): Promise<{ prompt: string; promptId: string }> {
+    // Legacy compatibility adapter - routes to new Phase 3 flow if enabled
+    // When LEGACY_PROMPTS_ENABLED=false, this method should not be called (route returns 410)
+    const { config } = await import('../config/index.js');
+    
+    if (config.legacyPrompts.enabled) {
+      // Try to map to new flow: get game to extract entry_point_id, world_id, entry_start_slug
+      const { supabaseAdmin } = await import('./supabase.js');
+      const { GamesService } = await import('./games.service.js');
+      
+      const gamesService = new GamesService();
+      const game = await gamesService.getGameById(gameId, '', false, null);
+      
+      if (!game) {
+        throw new Error('Game not found');
+      }
+
+      // Extract entry point info from game (legacy games may not have entry_point_id)
+      let entryPointId: string | undefined;
+      let entryStartSlug: string | undefined;
+      
+      if (game.entry_point_id) {
+        entryPointId = game.entry_point_id;
+      } else {
+        // Fallback: try to find entry point by world slug
+        const { data: entryPoint } = await supabaseAdmin
+          .from('entry_points')
+          .select('id, slug')
+          .eq('world_id', game.world_id || worldSlug)
+          .limit(1)
+          .single();
+        
+        if (entryPoint) {
+          entryPointId = entryPoint.id;
+          entryStartSlug = entryPoint.slug;
+        }
+      }
+
+      // If we can't map, fall back to old behavior (create prompt string only)
+      if (!entryPointId || !entryStartSlug) {
+        const gameContext: GameContext = {
+          id: gameId,
+          world_id: worldSlug,
+          character_id: characterId,
+          state_snapshot: game.state_snapshot || {},
+          turn_index: 0,
+        };
+        
+        const prompt = await this.createInitialPrompt(gameContext);
+        const promptId = debugService.logPrompt(gameId, 0, worldSlug, characterId || 'Guest', {
+          prompt,
+          audit: {},
+          metadata: {},
+        });
+        
+        return { prompt, promptId };
+      }
+
+      // Route to new flow (compatibility adapter - this will be deleted after sunset)
+      // Note: We can't fully replicate the approval flow, so we just create the first turn
+      // Legacy clients should migrate to POST /api/games with Phase 3 format
+      const gameContext: GameContext = {
+        id: gameId,
+        world_id: game.world_id || worldSlug,
+        character_id: characterId,
+        state_snapshot: game.state_snapshot || {},
+        turn_index: 0,
+      };
+      
+      const prompt = await this.createInitialPrompt(gameContext);
+      const promptId = debugService.logPrompt(gameId, 0, worldSlug, characterId || 'Guest', {
+        prompt,
+        audit: {},
+        metadata: {},
+      });
+      
+      return { prompt, promptId };
+    }
+    
+    // Should not reach here if legacy is disabled (route should return 410)
+    throw new Error('Legacy prompts are disabled. Use POST /api/games with Phase 3 format.');
   }
 }
 

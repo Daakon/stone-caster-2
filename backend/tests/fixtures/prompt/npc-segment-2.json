@@ -1,0 +1,13 @@
+{
+  "id": "npc-002",
+  "content": "NPC: Mysterious Merchant\n\nThe merchant sells rare items and provides quest opportunities. They appear in towns and can offer valuable information about the world.",
+  "layer": "npc",
+  "sort_order": 2,
+  "version": "1.0.0",
+  "metadata": {
+    "scope": "npc",
+    "slug": "mysterious-merchant",
+    "ref_id": "npc-mysterious-merchant"
+  }
+}
+

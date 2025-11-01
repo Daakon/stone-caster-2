@@ -79,7 +79,8 @@ describe('Turn Persistence System', () => {
     }));
 
     // Test the getGameTurns method
-    const turns = await gamesService.getGameTurns('test-game-id');
+    const result = await gamesService.getGameTurns('test-game-id');
+    const turns = result.turns;
     expect(turns).toEqual(mockTurns);
   });
 

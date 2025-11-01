@@ -266,41 +266,78 @@ export class TurnsService {
         }
         
         if (!awfEnabled) {
-          console.log(`[TURNS] Legacy markdown path in use for game ${gameId}`);
+          console.log(`[TURNS] Using V2 prompt assembler for ongoing turn ${game.turn_count + 1}`);
 
           try {
-            aiResult = await Promise.race([
-          aiService.generateTurnResponse(gameContext, optionId, choices, includeDebug),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('AI timeout')), 30000) // 30 second timeout
-          )
-        ]);
-        
-        aiResponseText = aiResult.response;
-        
-        // Capture prompt data and metadata for comprehensive turn recording
-        promptData = aiResult.promptData || null;
-        promptMetadata = aiResult.promptMetadata || null;
-        aiResponseMetadata = {
-          model: aiResult.model || 'unknown',
-          responseTime: Date.now() - aiStartTime,
-          tokenCount: aiResult.tokenCount || null,
-          promptId: aiResult.promptId || null,
-          validationPassed: true,
-          timestamp: new Date().toISOString()
-        };
-        
-        // Log AI response to debug service
-        debugService.logAiResponse(
-          gameId,
-          game.turn_count,
-          'prompt-id', // TODO: Get actual prompt ID from prompt assembly
-          aiResponseText,
-          Date.now() - aiStartTime
-        );
-          } catch (legacyError) {
-            console.error('AI service error:', legacyError);
-            if (legacyError instanceof Error && legacyError.message === 'AI timeout') {
+            // Phase 4.2: Use V2 assembler for ongoing turns
+            const assembleResult = await this.buildPromptV2(game, optionId);
+            
+            // Use AI service with the assembled prompt
+            const openaiService = (await import('./ai.js')).default;
+            const openaiInstance = openaiService.getOpenAIService();
+            const aiResponseObj = await openaiInstance.generateBufferedResponse(assembleResult.prompt);
+            
+            // Parse AI response
+            const parsed = JSON.parse(aiResponseObj.content);
+            aiResponseText = JSON.stringify(parsed);
+            
+            // Capture V2 prompt metadata
+            promptData = assembleResult.prompt;
+            promptMetadata = {
+              phase: 'turn',
+              pieces: assembleResult.pieces,
+              meta: assembleResult.meta,
+              assembledAt: new Date().toISOString(),
+            };
+            
+            aiResponseMetadata = {
+              model: assembleResult.meta.model,
+              responseTime: Date.now() - aiStartTime,
+              tokenCount: aiResponseObj.usage?.total_tokens || null,
+              promptId: `prompt-v2-${Date.now()}`,
+              validationPassed: true,
+              timestamp: new Date().toISOString(),
+            };
+            
+            // Increment V2 usage metric
+            const { MetricsService } = await import('./metrics.service.js');
+            MetricsService.increment('prompt_v2_used_total', {
+              phase: 'turn',
+              policy: (assembleResult.meta.policy || []).join(','),
+            });
+            
+            // Phase 6: Structured logging for turn creation
+            const turnNumber = turnRecord.turn_number || game.turn_count + 1;
+            console.log(JSON.stringify({
+              event: 'turn.created',
+              gameId,
+              turnNumber,
+              tokenPct: assembleResult.meta.tokenEst?.pct || 0,
+              policy: assembleResult.meta.policy || [],
+              model: assembleResult.meta.model || 'unknown',
+            }));
+            
+            // Log AI response to debug service
+            debugService.logAiResponse(
+              gameId,
+              game.turn_count,
+              aiResponseMetadata.promptId || 'prompt-v2',
+              aiResponseText,
+              Date.now() - aiStartTime
+            );
+            
+            // Set aiResult for compatibility with existing code
+            aiResult = {
+              response: aiResponseText,
+              model: assembleResult.meta.model,
+              tokenCount: aiResponseObj.usage?.total_tokens || null,
+              promptId: aiResponseMetadata.promptId,
+              promptData,
+              promptMetadata,
+            };
+          } catch (v2Error) {
+            console.error('V2 prompt assembler or AI service error:', v2Error);
+            if (v2Error instanceof Error && v2Error.message === 'AI timeout') {
               return {
                 success: false,
                 error: ApiErrorCode.UPSTREAM_TIMEOUT,
@@ -308,7 +345,7 @@ export class TurnsService {
                 details: {
                   prompt: gameContext,
                   aiResponse: null,
-                  error: legacyError.message,
+                  error: v2Error.message,
                   timestamp: new Date().toISOString()
                 }
               };
@@ -316,11 +353,11 @@ export class TurnsService {
             return {
               success: false,
               error: ApiErrorCode.INTERNAL_ERROR,
-              message: 'AI service error',
+              message: v2Error instanceof Error ? v2Error.message : 'Turn processing error',
               details: {
                 prompt: gameContext,
                 aiResponse: null,
-                error: legacyError instanceof Error ? legacyError.message : String(legacyError),
+                error: v2Error instanceof Error ? v2Error.message : String(v2Error),
                 timestamp: new Date().toISOString()
               }
             };
@@ -819,13 +856,133 @@ export class TurnsService {
   }
 
   /**
-   * Build prompt for AI request (server-only)
+   * Phase 4.2: Build prompt using V2 assembler for ongoing turns
+   * @param game - Game data with entry_point_id, world_id, etc.
+   * @param optionId - Selected option ID
+   * @returns V2 assembler result with prompt, pieces, and meta
+   */
+  private async buildPromptV2(game: any, optionId: string): Promise<{
+    prompt: string;
+    pieces: any[];
+    meta: {
+      included: string[];
+      dropped: string[];
+      policy?: string[];
+      model: string;
+      worldId: string;
+      rulesetSlug: string;
+      scenarioSlug?: string | null;
+      entryStartSlug: string;
+      tokenEst: { input: number; budget: number; pct: number };
+    };
+  }> {
+    const { DatabasePromptAssembler } = await import('../prompts/database-prompt-assembler.js');
+    const { PromptRepository } = await import('../repositories/prompt.repository.js');
+    const { config } = await import('../config/index.js');
+    const { supabaseAdmin } = await import('./supabase.js');
+
+    // Extract game context for V2 assembler
+    // Get entry point to extract entry_start_slug
+    let entryStartSlug: string;
+    let worldId: string; // UUID
+    let scenarioSlug: string | null | undefined;
+    let rulesetSlug: string | undefined;
+    let entryPointSlug: string | undefined;
+
+    if (game.entry_point_id) {
+      const { data: entryPoint } = await supabaseAdmin
+        .from('entry_points')
+        .select('slug, world_id, entry_start_slug, scenario_slug, ruleset_slug')
+        .eq('id', game.entry_point_id)
+        .single();
+
+      if (entryPoint) {
+        entryStartSlug = entryPoint.entry_start_slug || entryPoint.slug;
+        entryPointSlug = entryPoint.slug;
+        worldId = entryPoint.world_id;
+        scenarioSlug = entryPoint.scenario_slug || null;
+        rulesetSlug = entryPoint.ruleset_slug;
+      } else {
+        // Fallback: try to extract from game state or use defaults
+        entryStartSlug = game.state_snapshot?.entry_start_slug || 'default-start';
+        worldId = game.world_id || game.world_slug;
+        scenarioSlug = game.state_snapshot?.scenario_slug || null;
+        rulesetSlug = game.state_snapshot?.ruleset_slug || 'default';
+      }
+    } else {
+      // Legacy game without entry_point_id - extract from state or use defaults
+      entryStartSlug = game.state_snapshot?.entry_start_slug || 'default-start';
+      worldId = game.world_id || game.world_slug;
+      scenarioSlug = game.state_snapshot?.scenario_slug || null;
+      rulesetSlug = game.state_snapshot?.ruleset_slug || 'default';
+    }
+
+    // If world_id is not a UUID (legacy world_slug), resolve it
+    if (!this.isValidUuid(worldId)) {
+      const { data: worldMapping } = await supabaseAdmin
+        .from('world_id_mapping')
+        .select('uuid_id')
+        .eq('text_id', worldId)
+        .single();
+      
+      if (worldMapping) {
+        worldId = worldMapping.uuid_id;
+      } else {
+        // Fallback: try to find world by slug and get UUID
+        const { data: world } = await supabaseAdmin
+          .from('worlds')
+          .select('id')
+          .eq('slug', worldId)
+          .single();
+        
+        if (world) {
+          worldId = world.id;
+        }
+      }
+    }
+
+    const promptRepository = new PromptRepository(
+      config.supabase.url,
+      config.supabase.serviceKey
+    );
+    const assembler = new DatabasePromptAssembler(promptRepository);
+
+    const budgetTokens = config.prompt.tokenBudgetDefault;
+    const model = config.prompt.modelDefault;
+
+    // Assemble prompt using V2 assembler (phase: "turn" - ongoing turn, not initial)
+    const assembleResult = await assembler.assemblePromptV2({
+      worldId,
+      rulesetSlug: rulesetSlug || 'default',
+      scenarioSlug: scenarioSlug || null,
+      entryStartSlug,
+      model,
+      budgetTokens,
+      entryPointSlug,
+      // For ongoing turns, we may exclude entry if not applicable mid-game
+      // The assembler handles this based on entryStartSlug presence
+    });
+
+    return assembleResult;
+  }
+
+  /**
+   * Helper to check if string is a valid UUID
+   */
+  private isValidUuid(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
+  }
+
+  /**
+   * @deprecated Use buildPromptV2() instead. This method is kept for compatibility only.
+   * Build prompt for AI request (server-only) - Legacy path
    * @param game - Game data
    * @param optionId - Selected option ID
    * @returns Prompt string
    */
   private async buildPrompt(game: any, optionId: string): Promise<string> {
-    // Use the new prompt assembly system
+    // Legacy path - should not be called for ongoing turns anymore
     const gameContext = {
       id: game.id,
       world_id: game.world_slug,

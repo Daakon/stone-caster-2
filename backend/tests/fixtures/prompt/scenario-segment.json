@@ -1,0 +1,12 @@
+{
+  "id": "scenario-001",
+  "content": "Scenario: The Dark Forest Quest\n\nThis scenario adds additional context about a specific quest involving a dark forest. Players must navigate through dangerous paths and encounter mystical creatures. This content is optional and can be dropped if budget is exceeded.",
+  "layer": "scenario",
+  "sort_order": 1,
+  "version": "1.0.0",
+  "metadata": {
+    "scope": "scenario",
+    "slug": "dark-forest-quest"
+  }
+}
+

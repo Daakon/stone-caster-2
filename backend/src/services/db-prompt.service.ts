@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { PromptRepository } from '../repositories/prompt.repository.js';
 import { DatabasePromptAssembler } from '../prompts/database-prompt-assembler.js';
+import { AssemblerAdapter } from '../prompts/assembler-adapter.js';
 import type { PromptContext, PromptAssemblyResult } from '../prompts/schemas.js';
 
 /**
@@ -9,6 +10,7 @@ import type { PromptContext, PromptAssemblyResult } from '../prompts/schemas.js'
 export class DatabasePromptService {
   private promptRepository: PromptRepository;
   private promptAssembler: DatabasePromptAssembler;
+  private adapter: AssemblerAdapter;
 
   constructor() {
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -20,6 +22,7 @@ export class DatabasePromptService {
 
     this.promptRepository = new PromptRepository(supabaseUrl, supabaseKey);
     this.promptAssembler = new DatabasePromptAssembler(this.promptRepository);
+    this.adapter = new AssemblerAdapter(this.promptAssembler);
   }
 
   /**
@@ -29,10 +32,10 @@ export class DatabasePromptService {
     console.log(`[DB_PROMPT_SERVICE] Assembling prompt for world: ${context.world.name}`);
     
     try {
-      // Validate context
-      const validation = this.promptAssembler.validateContext(context);
-      if (!validation.valid) {
-        throw new Error(`Invalid context: missing ${validation.missing.join(', ')}`);
+      // Validate context using adapter
+      const validation = this.adapter.validateContext(context);
+      if (!validation.ok) {
+        throw new Error(`Invalid context: ${validation.issues?.join(', ')}`);
       }
 
       // Assemble prompt using database segments

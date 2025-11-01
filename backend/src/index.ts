@@ -29,6 +29,10 @@ import debugRouter from './routes/debug.js';
 import adminRouter from './routes/admin.js';
 import playerRouter from './routes/player.js';
 import { observabilityMiddleware } from './middleware/observability.js';
+import { testTxMiddleware } from './middleware/testTx.js';
+import devDebugRouter from './routes/dev.debug.js';
+import { devTestRouter } from './routes/dev.test.js';
+import devPromptPreviewRouter from './routes/dev.prompt-preview.js';
 
 const app = express();
 
@@ -73,10 +77,16 @@ app.use(express.urlencoded({
 }) as RequestHandler);
 app.use(cookieParser());
 app.use(observabilityMiddleware);
+// Test transaction middleware (must come after observability for traceId)
+app.use(testTxMiddleware);
 
-// Health check
+// Health check - Phase 5.1: Expose test transaction availability
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    testTxEnabled: process.env.TEST_TX_ENABLED === 'true',
+  });
 });
 
 // API Routes
@@ -104,6 +114,17 @@ app.use('/api/auth', authRouter);
 app.use('/api/debug', debugRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/player', playerRouter);
+
+// Dev debug routes (feature-flagged, requires DEBUG_ROUTES_ENABLED=true and X-Debug-Token header)
+if (config.debug.routesEnabled) {
+  app.use('/api/dev/debug', devDebugRouter);
+  app.use('/api/dev/test', devTestRouter);
+  app.use('/api/dev/test', devPromptPreviewRouter);
+  console.log('🔧 Debug routes enabled at /api/dev/debug and /api/dev/test');
+  console.log('⚠️  WARNING: Debug routes should only be enabled in development/test environments');
+} else {
+  console.log('🔒 Debug routes disabled (set DEBUG_ROUTES_ENABLED=true to enable)');
+}
 
 // Swagger API documentation (only in development/staging)
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {

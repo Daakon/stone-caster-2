@@ -34,12 +34,41 @@ export interface SpawnRequest {
   isGuest: boolean;
 }
 
+export interface SpawnRequestV3 {
+  entry_point_id: string;
+  world_id: string; // UUID
+  entry_start_slug: string;
+  scenario_slug?: string | null;
+  ruleset_slug?: string;
+  model?: string;
+  characterId?: string;
+  ownerId: string;
+  isGuest: boolean;
+  idempotency_key?: string; // Optional idempotency key
+  req?: any; // Optional request object for test transaction access
+}
+
 export interface SpawnResult {
   success: boolean;
   game?: GameDTO;
   error?: ApiErrorCode;
   message?: string;
   existingGameId?: string;
+}
+
+export interface SpawnResultV3 {
+  success: boolean;
+  game_id?: string;
+  first_turn?: {
+    turn_number: number;
+    role: string;
+    content: string;
+    meta: any;
+    created_at: string;
+  };
+  error?: ApiErrorCode;
+  message?: string;
+  code?: string;
 }
 
 export class GamesService {
@@ -259,6 +288,652 @@ export class GamesService {
   }
 
   /**
+   * Phase 3: Spawn a new game with prompt assembly and first turn
+   * @param request - Phase 3 spawn request parameters
+   * @returns Spawn result with game_id and first_turn
+   */
+  async spawnV3(request: SpawnRequestV3): Promise<SpawnResultV3> {
+    const {
+      entry_point_id,
+      world_id,
+      entry_start_slug,
+      scenario_slug,
+      ruleset_slug,
+      model,
+      characterId,
+      ownerId,
+      isGuest,
+      idempotency_key,
+    } = request;
+
+    try {
+      // Check idempotency if key provided (game-scope: key + operation only, no game_id yet)
+      // In test mode, use transaction client; otherwise use Supabase
+      const { getTestTxClient } = await import('../middleware/testTx.js');
+      const txClient = request.req ? getTestTxClient(request.req) : null;
+      
+      if (idempotency_key) {
+        let existingIdempotency: any = null;
+        
+        if (txClient) {
+          // Test mode: query within transaction
+          const result = await txClient.query(
+            'SELECT response_data FROM idempotency_keys WHERE key = $1 AND operation = $2 AND game_id IS NULL AND status = $3',
+            [idempotency_key, 'game_spawn', 'completed']
+          );
+          existingIdempotency = result.rows[0] || null;
+        } else {
+          // Production: use Supabase
+          const { data } = await supabaseAdmin
+            .from('idempotency_keys')
+            .select('response_data')
+            .eq('key', idempotency_key)
+            .eq('operation', 'game_spawn')
+            .is('game_id', null)
+            .eq('status', 'completed')
+            .single();
+          existingIdempotency = data;
+        }
+
+        if (existingIdempotency?.response_data) {
+          // Return cached response (idempotent - same request returns same result)
+          return {
+            success: true,
+            game_id: existingIdempotency.response_data.game_id,
+            first_turn: existingIdempotency.response_data.first_turn,
+          };
+        }
+      }
+
+      // 1. Validate entry point
+      const { data: entryPoint, error: entryPointError } = await supabaseAdmin
+        .from('entry_points')
+        .select('id, slug, type, world_id')
+        .eq('id', entry_point_id)
+        .eq('lifecycle', 'active')
+        .single();
+
+      if (entryPointError || !entryPoint) {
+        return {
+          success: false,
+          error: ApiErrorCode.NOT_FOUND,
+          message: `Entry point '${entry_point_id}' not found or inactive`,
+          code: 'ENTRY_START_NOT_FOUND', // Using standardized code
+        };
+      }
+
+      // Validate world_id matches entry point's world_id
+      // Note: entry_points.world_id is text, but we're comparing with UUID
+      // We need to resolve the entry point's world_id to UUID for comparison
+      let entryPointWorldId: string | null = null;
+      if (entryPoint.world_id) {
+        // entry_points.world_id might be text or UUID depending on schema
+        // Check if it's a UUID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(entryPoint.world_id)) {
+          entryPointWorldId = entryPoint.world_id;
+        } else {
+          // It's a text slug, resolve to UUID
+          const { data: worldMapping } = await supabaseAdmin
+            .from('world_id_mapping')
+            .select('uuid_id')
+            .eq('text_id', entryPoint.world_id)
+            .single();
+          entryPointWorldId = worldMapping?.uuid_id || null;
+        }
+      }
+
+      if (entryPointWorldId && entryPointWorldId !== world_id) {
+        return {
+          success: false,
+          error: ApiErrorCode.VALIDATION_FAILED,
+          message: `Entry point world_id mismatch. Expected ${entryPointWorldId}, got ${world_id}`,
+          code: 'WORLD_ID_MISMATCH',
+        };
+      }
+
+      // 2. Resolve ruleset (from entry_point_rulesets or use provided/default)
+      let rulesetId: string | undefined = ruleset_slug;
+      let resolvedRulesetSlug: string = ruleset_slug || 'default';
+
+      if (!ruleset_slug) {
+        // Fetch primary ruleset from entry_point_rulesets junction table
+        const { data: rulesets } = await supabaseAdmin
+          .from('entry_point_rulesets')
+          .select('rulesets:ruleset_id (id, slug)')
+          .eq('entry_point_id', entry_point_id)
+          .order('sort_order', { ascending: true })
+          .limit(1);
+
+        if (rulesets && rulesets.length > 0) {
+          const primaryRuleset = (rulesets[0] as any).rulesets;
+          if (primaryRuleset) {
+            rulesetId = primaryRuleset.id;
+            resolvedRulesetSlug = primaryRuleset.slug || primaryRuleset.id || 'default';
+          }
+        }
+
+        // If still no ruleset, try to find a default ruleset by slug
+        if (!rulesetId) {
+          const { data: defaultRuleset } = await supabaseAdmin
+            .from('rulesets')
+            .select('id, slug')
+            .eq('slug', 'default')
+            .eq('status', 'active')
+            .limit(1)
+            .single();
+          if (defaultRuleset) {
+            rulesetId = defaultRuleset.id;
+            resolvedRulesetSlug = defaultRuleset.slug || 'default';
+          }
+        }
+      } else {
+        // Validate provided ruleset_slug exists
+        const { data: ruleset } = await supabaseAdmin
+          .from('rulesets')
+          .select('id, slug')
+          .or(`id.eq.${ruleset_slug},slug.eq.${ruleset_slug}`)
+          .eq('status', 'active')
+          .limit(1)
+          .single();
+
+        if (!ruleset) {
+          return {
+            success: false,
+            error: ApiErrorCode.VALIDATION_FAILED,
+            message: `Ruleset '${ruleset_slug}' not found or inactive`,
+            code: 'RULESET_NOT_FOUND',
+          };
+        }
+        rulesetId = ruleset.id;
+        resolvedRulesetSlug = ruleset.slug || ruleset.id;
+      }
+
+      if (!rulesetId) {
+        return {
+          success: false,
+          error: ApiErrorCode.VALIDATION_FAILED,
+          message: `No ruleset found for entry point '${entry_point_id}'`,
+          code: 'RULESET_NOT_FOUND',
+        };
+      }
+
+      // 3. Validate entry_start_slug exists in prompt_segments
+      const { data: entryStartSegment } = await supabaseAdmin
+        .from('prompt_segments')
+        .select('id, scope, ref_id, slug')
+        .or(`ref_id.eq.${entry_start_slug},slug.eq.${entry_start_slug}`)
+        .in('scope', ['entry', 'entry_start'])
+        .eq('active', true)
+        .limit(1)
+        .single();
+
+      if (!entryStartSegment) {
+        return {
+          success: false,
+          error: ApiErrorCode.VALIDATION_FAILED,
+          message: `Entry start '${entry_start_slug}' not found in prompt_segments`,
+          code: 'ENTRY_START_NOT_FOUND',
+        };
+      }
+
+      // 4. Validate scenario_slug if provided
+      if (scenario_slug) {
+        const { data: scenarioSegment } = await supabaseAdmin
+          .from('prompt_segments')
+          .select('id')
+          .or(`ref_id.eq.${scenario_slug},slug.eq.${scenario_slug}`)
+          .eq('scope', 'scenario')
+          .eq('active', true)
+          .limit(1)
+          .single();
+
+        if (!scenarioSegment) {
+          return {
+            success: false,
+            error: ApiErrorCode.VALIDATION_FAILED,
+            message: `Scenario '${scenario_slug}' not found in prompt_segments`,
+            code: 'SCENARIO_NOT_FOUND',
+          };
+        }
+      }
+
+      // 5. Validate character if provided
+      let character: any = null;
+      if (characterId) {
+        character = await CharactersService.getCharacterById(characterId, ownerId, isGuest);
+        if (!character) {
+          return {
+            success: false,
+            error: ApiErrorCode.NOT_FOUND,
+            message: 'Character not found',
+            code: 'CHARACTER_NOT_FOUND',
+          };
+        }
+
+        // Check character is not already active
+        if (character.activeGameId) {
+          return {
+            success: false,
+            error: ApiErrorCode.CONFLICT,
+            message: 'Character is already active in another game',
+            code: 'CHARACTER_ALREADY_ACTIVE',
+            existingGameId: character.activeGameId,
+          };
+        }
+
+        // Validate character world matches
+        if (character.worldId !== world_id) {
+          return {
+            success: false,
+            error: ApiErrorCode.VALIDATION_FAILED,
+            message: `Character and entry point must be from the same world`,
+            code: 'WORLD_MISMATCH',
+          };
+        }
+      }
+
+      // 6. Resolve worldSlug from worldId
+      const { data: worldMapping } = await supabaseAdmin
+        .from('world_id_mapping')
+        .select('text_id')
+        .eq('uuid_id', world_id)
+        .single();
+
+      if (!worldMapping) {
+        return {
+          success: false,
+          error: ApiErrorCode.VALIDATION_FAILED,
+          message: `World UUID '${world_id}' not found in world_id_mapping`,
+          code: 'WORLD_NOT_FOUND',
+        };
+      }
+
+      const worldSlug = worldMapping.text_id;
+
+      // 7. For guest users, ensure they have a cookie group
+      if (isGuest) {
+        await this.ensureGuestCookieGroup(ownerId);
+      }
+
+      // 8. Check for starter stones grant
+      await this.handleStarterStonesGrant(ownerId, isGuest);
+
+      // 9. Assemble prompt using Phase 2 assembler
+      const { DatabasePromptAssembler } = await import('../prompts/database-prompt-assembler.js');
+      const { PromptRepository } = await import('../repositories/prompt.repository.js');
+      const { config } = await import('../config/index.js');
+      const { MetricsService } = await import('./metrics.service.js');
+
+      const promptRepository = new PromptRepository(
+        config.supabase.url,
+        config.supabase.serviceKey
+      );
+      const assembler = new DatabasePromptAssembler(promptRepository);
+
+      // Use config for model and budget
+      const budgetTokens = config.prompt.tokenBudgetDefault;
+
+      const assembleResult = await assembler.assemblePromptV2({
+        worldId: world_id,
+        rulesetSlug: resolvedRulesetSlug,
+        scenarioSlug: scenario_slug || null,
+        entryStartSlug: entry_start_slug,
+        model: model || config.prompt.modelDefault,
+        budgetTokens,
+        entryPointSlug: entryPoint.slug,
+      });
+
+      // Increment V2 usage metric for game creation
+      MetricsService.increment('prompt_v2_used_total', {
+        phase: 'start',
+        policy: (assembleResult.meta.policy || []).join(','),
+      });
+
+      // 10. Atomic transaction: insert game and first turn via stored procedure
+      // Using stored procedure ensures true atomicity with automatic rollback on error
+      // In test mode, execute via transaction client to ensure rollback
+      // Reuse txClient already declared at line 313 (don't redeclare)
+      let transactionResult: any;
+      let transactionError: any;
+      
+      if (txClient) {
+        // Test mode: execute stored procedure via transaction client
+        // Set statement timeout to prevent stuck procedures from pinning the transaction
+        try {
+          await txClient.query('SET LOCAL statement_timeout = 10000'); // 10s timeout
+          
+          const result = await txClient.query(
+            `SELECT * FROM spawn_game_v3_atomic(
+              $1::text, $2::text, $3::uuid, $4::text, $5::uuid,
+              $6::text, $7::jsonb, $8::uuid, $9::uuid,
+              $10::text, $11::text, $12::jsonb
+            )`,
+            [
+              entry_point_id,
+              entryPoint.type,
+              world_id,
+              rulesetId,
+              characterId || null,
+              worldSlug,
+              JSON.stringify({
+                metadata: {
+                  entryPointId: entry_point_id,
+                  entryPointSlug: entryPoint.slug,
+                  entryStartSlug: entry_start_slug,
+                  scenarioSlug: scenario_slug || null,
+                  rulesetSlug: resolvedRulesetSlug,
+                },
+              }),
+              isGuest ? null : ownerId,
+              isGuest ? ownerId : null,
+              'narrator',
+              assembleResult.prompt,
+              JSON.stringify({
+                ...assembleResult.meta,
+                pieces: assembleResult.pieces,
+              }),
+            ]
+          );
+          
+          transactionResult = result.rows[0];
+          transactionError = null;
+        } catch (err: any) {
+          transactionError = err;
+          transactionResult = null;
+        }
+      } else {
+        // Production mode: use Supabase RPC
+        const rpcResult = await supabaseAdmin.rpc(
+          'spawn_game_v3_atomic',
+          {
+            p_entry_point_id: entry_point_id,
+            p_entry_point_type: entryPoint.type,
+            p_world_id: world_id,
+            p_ruleset_id: rulesetId,
+            p_character_id: characterId || null,
+            p_world_slug: worldSlug,
+            p_state_snapshot: {
+              metadata: {
+                entryPointId: entry_point_id,
+                entryPointSlug: entryPoint.slug,
+                entryStartSlug: entry_start_slug,
+                scenarioSlug: scenario_slug || null,
+                rulesetSlug: resolvedRulesetSlug,
+              },
+            },
+            p_user_id: isGuest ? null : ownerId,
+            p_cookie_group_id: isGuest ? ownerId : null,
+            p_turn_role: 'narrator',
+            p_turn_content: assembleResult.prompt,
+            p_turn_meta: {
+              ...assembleResult.meta,
+              pieces: assembleResult.pieces,
+            },
+          }
+        );
+        
+        // Extract result from RPC response
+        transactionResult = rpcResult.data || null;
+        transactionError = rpcResult.error || null;
+      }
+
+      if (transactionError) {
+        console.error('[SPAWN_V3] Transaction error:', transactionError);
+        
+        // Map transaction error codes
+        if (transactionError.code === '23505' || transactionResult?.error_code === 'DB_CONFLICT') {
+          return {
+            success: false,
+            error: ApiErrorCode.CONFLICT,
+            message: transactionResult?.error_message || 'Game creation conflict (unique constraint violation)',
+            code: 'DB_CONFLICT',
+          };
+        }
+
+        return {
+          success: false,
+          error: ApiErrorCode.INTERNAL_ERROR,
+          message: transactionResult?.error_message || transactionError.message || 'Failed to create game',
+          code: transactionResult?.error_code || 'INTERNAL_ERROR',
+        };
+      }
+
+      // Check for errors from stored procedure
+      if (transactionResult?.error_code) {
+        // Handle FK violations
+        if (transactionResult.error_code === 'FK_VIOLATION') {
+          return {
+            success: false,
+            error: ApiErrorCode.VALIDATION_FAILED,
+            message: transactionResult.error_message || 'Foreign key violation',
+            code: 'WORLD_NOT_FOUND', // Or other FK-related codes
+          };
+        }
+
+        // Map DB_CONFLICT to CONFLICT HTTP status
+        if (transactionResult.error_code === 'DB_CONFLICT') {
+          return {
+            success: false,
+            error: ApiErrorCode.CONFLICT,
+            message: transactionResult.error_message || 'Database conflict',
+            code: 'DB_CONFLICT',
+          };
+        }
+
+        return {
+          success: false,
+          error: ApiErrorCode.INTERNAL_ERROR,
+          message: transactionResult.error_message || 'Failed to create game',
+          code: transactionResult.error_code,
+        };
+      }
+
+      // Success: extract results
+      const createdGameId = transactionResult?.game_id;
+      const createdTurnNumber = transactionResult?.turn_number || 1;
+
+      if (!createdGameId) {
+        return {
+          success: false,
+          error: ApiErrorCode.INTERNAL_ERROR,
+          message: 'Game was not created',
+          code: 'GAME_CREATE_ERROR',
+        };
+      }
+
+      // Fetch the created turn to get full metadata
+      // In test mode, use transaction client; otherwise use Supabase
+      let createdTurn: any;
+      let fetchTurnError: any = null;
+      
+      if (txClient) {
+        // Test mode: query within transaction
+        try {
+          const result = await txClient.query(
+            'SELECT turn_number, role, content, meta, created_at FROM turns WHERE game_id = $1 AND turn_number = $2',
+            [createdGameId, createdTurnNumber]
+          );
+          createdTurn = result.rows[0] || null;
+        } catch (err: any) {
+          fetchTurnError = err;
+          createdTurn = null;
+        }
+      } else {
+        // Production: use Supabase
+        const { data, error } = await supabaseAdmin
+          .from('turns')
+          .select('turn_number, role, content, meta, created_at')
+          .eq('game_id', createdGameId)
+          .eq('turn_number', createdTurnNumber)
+          .single();
+        createdTurn = data;
+        fetchTurnError = error;
+      }
+
+      if (fetchTurnError || !createdTurn) {
+        // This should not happen, but handle gracefully
+        console.error('[SPAWN_V3] Error fetching created turn:', fetchTurnError);
+        return {
+          success: false,
+          error: ApiErrorCode.INTERNAL_ERROR,
+          message: 'Game created but failed to fetch turn details',
+          code: 'TURN_FETCH_ERROR',
+        };
+      }
+
+      // 11. Update character to mark it as active
+      if (characterId) {
+        const { error: updateError } = await supabaseAdmin
+          .from('characters')
+          .update({
+            active_game_id: createdGameId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', characterId);
+
+        if (updateError) {
+          console.error('[SPAWN_V3] Error updating character active game:', updateError);
+          // Don't fail the spawn, just log the error
+        }
+      }
+
+      // 12. Store idempotency record if key provided
+      const responseData = {
+        game_id: createdGameId,
+        first_turn: {
+          turn_number: createdTurn.turn_number || 1,
+          role: createdTurn.role,
+          content: createdTurn.content,
+          meta: createdTurn.meta,
+          created_at: createdTurn.created_at,
+        },
+      };
+
+      if (idempotency_key) {
+        const { IdempotencyService } = await import('./idempotency.service.js');
+        const requestHash = IdempotencyService.createRequestHash({
+          entry_point_id,
+          world_id,
+          entry_start_slug,
+          scenario_slug,
+          ruleset_slug,
+          model,
+          characterId,
+        });
+
+        try {
+          // In test mode, use transaction client for idempotency write
+          // Winner-takes-all: if duplicate key exists in production, return cached result
+          if (txClient) {
+            // Check production (outside transaction) for existing key
+            const prodCheck = await supabaseAdmin
+              .from('idempotency_keys')
+              .select('response_data')
+              .eq('key', idempotency_key)
+              .eq('operation', 'game_spawn')
+              .is('game_id', null)
+              .eq('status', 'completed')
+              .single();
+            
+            if (prodCheck.data?.response_data) {
+              // Winner-takes-all: return cached production result (do not write new row)
+              return {
+                success: true,
+                game_id: prodCheck.data.response_data.game_id,
+                first_turn: prodCheck.data.response_data.first_turn,
+              };
+            }
+            
+            // No production record; write within test transaction (will rollback)
+            await txClient.query(
+              `INSERT INTO idempotency_keys (key, owner_id, game_id, operation, request_hash, response_data, status, completed_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+              [
+                idempotency_key,
+                ownerId,
+                createdGameId,
+                'game_spawn',
+                requestHash,
+                JSON.stringify(responseData),
+                'completed',
+                new Date().toISOString(),
+              ]
+            );
+          } else {
+            // Production: use Supabase client
+            await supabaseAdmin
+              .from('idempotency_keys')
+              .insert({
+                key: idempotency_key,
+                owner_id: ownerId,
+                game_id: createdGameId,
+                operation: 'game_spawn',
+                request_hash: requestHash,
+                response_data: responseData,
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+              });
+          }
+        } catch (idempotencyError: any) {
+          // If idempotency insert fails, log but don't fail (operation succeeded)
+          console.warn('[SPAWN_V3] Failed to store idempotency record:', idempotencyError);
+        }
+      }
+
+      // 13. Structured logging
+      const { isTestTxActive } = await import('../middleware/testTx.js');
+      const testTxActive = request.req ? isTestTxActive(request.req) : false;
+      
+      console.log('[SPAWN_V3]', {
+        event: 'game.spawned',
+        gameId: createdGameId,
+        worldId,
+        rulesetSlug: resolvedRulesetSlug,
+        scenarioSlug: scenario_slug || null,
+        entryStartSlug: entry_start_slug,
+        firstTurn: createdTurn.turn_number || 1,
+        tokenPct: assembleResult.meta.tokenEst.pct,
+        policy: assembleResult.meta.policy || [],
+        idempotent: !!idempotency_key,
+        testTx: testTxActive,
+      });
+
+      return {
+        success: true,
+        game_id: createdGameId,
+        first_turn: {
+          turn_number: createdTurn.turn_number || 1,
+          role: createdTurn.role,
+          content: createdTurn.content,
+          meta: createdTurn.meta,
+          created_at: createdTurn.created_at,
+        },
+      };
+    } catch (error) {
+      console.error('[SPAWN_V3] Unexpected error:', error);
+      
+      // Check for DatabasePromptError
+      const { DatabasePromptError } = await import('../prompts/database-prompt-assembler.js');
+      if (error instanceof DatabasePromptError) {
+        return {
+          success: false,
+          error: ApiErrorCode.INTERNAL_ERROR,
+          message: error.message,
+          code: 'PROMPT_ASSEMBLY_ERROR',
+        };
+      }
+
+      return {
+        success: false,
+        error: ApiErrorCode.INTERNAL_ERROR,
+        message: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+      };
+    }
+  }
+
+  /**
    * Get a single game by ID with proper ownership validation
    * @param gameId - Game ID
    * @param ownerId - Owner ID (user ID or cookie group ID)
@@ -460,6 +1135,11 @@ export class GamesService {
       // Extract narrative summary from turn result
       const narrativeSummary = turnResult.narrative || 'Narrative not available';
       
+      // Phase 4.2: Extract V2 assembler metadata if present
+      const promptMeta = turnData?.promptMetadata;
+      const v2Meta = promptMeta?.meta || null;
+      const v2Pieces = promptMeta?.pieces || null;
+
       const turnRecord = {
         game_id: gameId,
         option_id: optionIdUuid,
@@ -472,6 +1152,19 @@ export class GamesService {
         user_prompt: turnData?.userInput || null,
         narrative_summary: narrativeSummary,
         is_initialization: isInitialization,
+        // Phase 4.2: V2 assembler metadata and pieces
+        meta: v2Meta ? {
+          included: v2Meta.included || [],
+          dropped: v2Meta.dropped || [],
+          policy: v2Meta.policy || [],
+          tokenEst: v2Meta.tokenEst || {},
+          model: v2Meta.model,
+          worldId: v2Meta.worldId,
+          rulesetSlug: v2Meta.rulesetSlug,
+          scenarioSlug: v2Meta.scenarioSlug,
+          entryStartSlug: v2Meta.entryStartSlug,
+          pieces: v2Pieces || [],
+        } : null,
         // Legacy fields for backward compatibility
         user_input: turnData?.userInput || null,
         user_input_type: turnData?.userInputType || 'choice',
@@ -526,24 +1219,78 @@ export class GamesService {
   }
 
   /**
-   * Get all turns for a game
+   * Get turns for a game with pagination
    * @param gameId - Game ID
-   * @returns Array of turn records
+   * @param options - Pagination options
+   * @returns Paginated turn records with cursor
    */
-  async getGameTurns(gameId: string): Promise<any[]> {
+  async getGameTurns(
+    gameId: string,
+    options?: {
+      afterTurn?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    turns: any[];
+    next?: { afterTurn: number };
+  }> {
     try {
-      const { data: turns, error } = await supabaseAdmin
+      const limit = options?.limit ?? 20;
+      const afterTurn = options?.afterTurn;
+
+      let query = supabaseAdmin
         .from('turns')
         .select('*')
         .eq('game_id', gameId)
-        .order('turn_number', { ascending: true });
+        .order('turn_number', { ascending: true })
+        .limit(limit + 1); // Fetch one extra to determine if there's a next page
+
+      // Add cursor filter if provided
+      if (afterTurn !== undefined && afterTurn > 0) {
+        query = query.gt('turn_number', afterTurn);
+      }
+
+      const { data: turns, error } = await query;
 
       if (error) {
         console.error('Error loading game turns:', error);
         throw new Error(`Failed to load game turns: ${error.message}`);
       }
 
-      return turns || [];
+      const allTurns = turns || [];
+      
+      // Check if there's a next page
+      const hasMore = allTurns.length > limit;
+      const turnsToReturn = hasMore ? allTurns.slice(0, limit) : allTurns;
+      
+      // Build response with cursor
+      const lastTurnNumber = turnsToReturn.length > 0
+        ? turnsToReturn[turnsToReturn.length - 1].turn_number
+        : undefined;
+
+      const result: {
+        turns: any[];
+        next?: { afterTurn: number };
+      } = {
+        turns: turnsToReturn,
+      };
+
+      // Only include next cursor if there are more turns
+      if (hasMore && lastTurnNumber !== undefined) {
+        result.next = { afterTurn: lastTurnNumber };
+      }
+
+      // Log pagination details
+      console.log('[GAMES_SERVICE] getGameTurns pagination:', {
+        gameId,
+        afterTurn: afterTurn ?? null,
+        limit,
+        returned: turnsToReturn.length,
+        lastTurn: lastTurnNumber ?? null,
+        hasMore,
+      });
+
+      return result;
     } catch (error) {
       console.error('Unexpected error in getGameTurns:', error);
       throw error;

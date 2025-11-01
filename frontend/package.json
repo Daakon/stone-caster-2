@@ -13,6 +13,7 @@
     "test:e2e": "playwright test --reporter=list",
     "test:e2e:ci": "playwright test --reporter=list",
     "test:a11y": "playwright test --grep='Accessibility Tests' --reporter=list",
+    "e2e:a11y": "lighthouse-ci --config=frontend/.lighthouserc.js",
     "type-check": "tsc --noEmit",
     "audit:knip": "knip --reporter compact",
     "audit:tsprune": "ts-prune --ignore \"**/*.test.ts\"",
