@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Entry } from '@/services/admin.entries';
+import { EntryPoint } from '@/services/admin.entryPoints';
 import { BasicsStep } from './Steps/BasicsStep';
 import { NPCsStep } from './Steps/NPCsStep';
-import { SegmentsStep } from './Steps/SegmentsStep';
 import { PreviewStep } from './Steps/PreviewStep';
 
 export interface WizardData {
@@ -28,7 +27,7 @@ export interface WizardData {
 }
 
 interface EntryWizardProps {
-  entry: Entry;
+  entry: EntryPoint;
   currentStep: number;
   onStepComplete: (stepData: any) => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -49,7 +48,7 @@ export function EntryWizard({
       setWizardData({
         name: entry.name,
         slug: entry.slug,
-        worldId: entry.world_text_id,
+        worldId: entry.world_id,
         rulesetIds: [], // Will be loaded separately
         npcIds: [], // Will be loaded separately
       });
@@ -93,15 +92,6 @@ export function EntryWizard({
           />
         );
       case 2:
-        return (
-          <SegmentsStep
-            entry={entry}
-            data={wizardData}
-            onUpdate={updateWizardData}
-            onComplete={handleStepComplete}
-          />
-        );
-      case 3:
         return (
           <PreviewStep
             entry={entry}

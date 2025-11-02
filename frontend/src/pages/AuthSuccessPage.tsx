@@ -63,8 +63,8 @@ export default function AuthSuccessPage() {
               console.log('[AuthSuccessPage] Linking guest account:', guestCookieId);
               try {
                 // Call the backend to link the guest account
-                const apiBaseUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai');
-                const linkResponse = await fetch(`${apiBaseUrl}/api/profile/link-guest`, {
+                const { API_BASE } = await import('@/lib/apiBase');
+                const linkResponse = await fetch(`${API_BASE}/api/profile/link-guest`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -120,8 +120,8 @@ export default function AuthSuccessPage() {
             console.log('[AuthSuccessPage] Linking guest account:', guestCookieId);
             try {
               // Call the backend to link the guest account
-              const apiBaseUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai');
-              const linkResponse = await fetch(`${apiBaseUrl}/api/profile/link-guest`, {
+              const { API_BASE } = await import('@/lib/apiBase');
+              const linkResponse = await fetch(`${API_BASE}/api/profile/link-guest`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

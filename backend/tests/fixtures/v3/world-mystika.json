@@ -1,0 +1,14 @@
+{
+  "id": "00000000-0000-0000-0000-000000000001",
+  "code": "mystika",
+  "title": "Mystika",
+  "tagline": "A realm of magic and mystery",
+  "description": "A test world for v3 entry-point assembly",
+  "status": "active",
+  "tags": ["v3-e2e", "test"],
+  "metadata": {
+    "test_fixture": true,
+    "version": "v3"
+  }
+}
+

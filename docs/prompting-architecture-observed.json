@@ -1,0 +1,524 @@
+{
+  "generatedAt": "2025-02-05T00:00:00Z",
+  "repoHash": "4491bda",
+  "assembler": {
+    "scopesOrder": ["core", "ruleset", "world", "scenario", "entry", "npc"],
+    "selectionInputs": ["worldId", "rulesetSlug?", "scenarioSlug?", "entryStartSlug", "npcHints?", "model?", "budgetTokens?", "entryPointSlug?"],
+    "ordering": {
+      "primary": "scopePriority",
+      "secondary": "sort_order",
+      "scopePriority": {
+        "core": 0,
+        "ruleset": 1,
+        "world": 2,
+        "scenario": 3,
+        "entry": 4,
+        "npc": 5
+      }
+    },
+    "npcDedup": {
+      "by": "slug",
+      "order": "asc",
+      "slugSource": ["metadata.slug", "metadata.ref_id", "layer"]
+    },
+    "joinRules": {
+      "betweenScopes": "\\n\\n",
+      "finalTrailingNewline": false,
+      "header": true,
+      "footer": true
+    },
+    "budget": {
+      "default": 8000,
+      "warnPct": 0.9,
+      "dropSequence": ["scenario", "npc-lru"],
+      "neverDrop": ["core", "ruleset", "world"],
+      "tokenEstimation": "roughTokenCount = Math.ceil(chars / 4)"
+    },
+    "metadataShape": {
+      "piecesItem": ["scope", "slug", "version", "tokens"],
+      "meta": {
+        "included": "string[]",
+        "dropped": "string[]",
+        "policy": "string[]?",
+        "tokenEst": {
+          "input": "number",
+          "budget": "number",
+          "pct": "number"
+        },
+        "model": "string",
+        "worldId": "string",
+        "rulesetSlug": "string",
+        "scenarioSlug": "string | null?",
+        "entryStartSlug": "string"
+      }
+    }
+  },
+  "dataModel": {
+    "tablesUsed": [
+      {
+        "name": "prompting.prompts",
+        "columns": [
+          "id",
+          "layer",
+          "world_slug",
+          "adventure_slug",
+          "scene_id",
+          "turn_stage",
+          "sort_order",
+          "version",
+          "hash",
+          "content",
+          "metadata",
+          "active",
+          "locked"
+        ],
+        "filters": {
+          "active": true,
+          "locked": false
+        }
+      },
+      {
+        "name": "world_id_mapping",
+        "columns": ["uuid_id", "text_id"],
+        "purpose": "Resolve world UUID to slug"
+      },
+      {
+        "name": "turns",
+        "columns": ["id", "game_id", "turn_number", "content", "meta"],
+        "purpose": "Store prompt and assembler metadata"
+      }
+    ],
+    "functionsUsed": [
+      {
+        "name": "prompting.prompt_segments_for_context",
+        "args": [
+          {
+            "name": "p_world_slug",
+            "type": "VARCHAR(100)",
+            "nullable": true,
+            "default": "NULL"
+          },
+          {
+            "name": "p_adventure_slug",
+            "type": "VARCHAR(100)",
+            "nullable": true,
+            "default": "NULL"
+          },
+          {
+            "name": "p_include_start",
+            "type": "BOOLEAN",
+            "nullable": false,
+            "default": true
+          },
+          {
+            "name": "p_scene_id",
+            "type": "VARCHAR(100)",
+            "nullable": true,
+            "default": "NULL"
+          },
+          {
+            "name": "p_include_enhancements",
+            "type": "BOOLEAN",
+            "nullable": false,
+            "default": true
+          }
+        ],
+        "returns": "TABLE(id UUID, layer VARCHAR(50), world_slug VARCHAR(100), adventure_slug VARCHAR(100), scene_id VARCHAR(100), turn_stage VARCHAR(50), sort_order INTEGER, version VARCHAR(20), content TEXT, metadata JSONB)",
+        "delegatesTo": null,
+        "exists": true,
+        "file": "supabase/migrations/20250201_create_prompting_schema.sql:33-108"
+      }
+    ]
+  },
+  "apis": {
+    "createGame": {
+      "path": "/api/games",
+      "method": "POST",
+      "requestKeys": [
+        "entry_point_id",
+        "world_id",
+        "entry_start_slug",
+        "scenario_slug?",
+        "ruleset_slug?",
+        "model?",
+        "characterId?",
+        "idempotency_key?"
+      ],
+      "responseKeys": [
+        "ok",
+        "data.game_id",
+        "data.first_turn.turn_number",
+        "data.first_turn.role",
+        "data.first_turn.content",
+        "data.first_turn.meta",
+        "data.first_turn.created_at",
+        "debug?",
+        "meta.traceId"
+      ],
+      "errors": [
+        {
+          "code": "VALIDATION_FAILED",
+          "http": 400,
+          "causes": ["Invalid input", "World mismatch", "Ruleset not found"]
+        },
+        {
+          "code": "NOT_FOUND",
+          "http": 404,
+          "causes": ["Entry point not found", "Character not found"]
+        },
+        {
+          "code": "CONFLICT",
+          "http": 409,
+          "causes": ["Character already active"]
+        },
+        {
+          "code": "INTERNAL_ERROR",
+          "http": 500,
+          "causes": ["Prompt assembly failure", "Database error"]
+        }
+      ],
+      "file": "backend/src/routes/games.ts:66-256",
+      "serviceFile": "backend/src/services/games.service.ts:301-953"
+    },
+    "sendTurn": {
+      "path": "/api/games/:id/send-turn",
+      "method": "POST",
+      "requestKeys": [
+        "message",
+        "model?",
+        "temperature?"
+      ],
+      "queryParams": [
+        "debug=1|0?",
+        "debugDepth=safe|full?"
+      ],
+      "responseKeys": [
+        "ok",
+        "data.turn.turn_number",
+        "data.turn.role",
+        "data.turn.content",
+        "data.turn.meta",
+        "data.turn.created_at",
+        "debug?",
+        "meta.traceId"
+      ],
+      "errors": [
+        {
+          "code": "VALIDATION_FAILED",
+          "http": 400,
+          "causes": ["Invalid game ID", "Invalid message"]
+        },
+        {
+          "code": "NOT_FOUND",
+          "http": 404,
+          "causes": ["Game not found"]
+        },
+        {
+          "code": "INTERNAL_ERROR",
+          "http": 500,
+          "causes": ["Turn execution failure"]
+        }
+      ],
+      "file": "backend/src/routes/games.ts:514-762",
+      "serviceFile": "backend/src/services/turns.service.ts:942-1045"
+    },
+    "debugPayload": {
+      "keys": [
+        "debugId",
+        "phase",
+        "assembler.prompt",
+        "assembler.pieces[]",
+        "assembler.meta",
+        "ai?.request",
+        "ai?.rawResponse",
+        "ai?.transformed",
+        "timings?.assembleMs",
+        "timings?.aiMs",
+        "timings?.totalMs"
+      ],
+      "enabledByDefaultForAdmins": true,
+      "gatedBy": "isDebugEnabledForUser(req, userRole)",
+      "userRoleCheck": "Must be 'admin'",
+      "redactionEnabled": true,
+      "cappingEnabled": true,
+      "maxChars": "DEBUG_RESPONSE_MAX_CHARS (default 50000)",
+      "file": "backend/src/utils/debugResponse.ts:185-320"
+    }
+  },
+  "config": {
+    "PROMPT_TOKEN_BUDGET_DEFAULT": {
+      "value": 8000,
+      "source": "process.env.PROMPT_TOKEN_BUDGET_DEFAULT",
+      "fallback": 8000,
+      "file": "backend/src/config/index.ts:20-22"
+    },
+    "PROMPT_BUDGET_WARN_PCT": {
+      "value": 0.9,
+      "source": "process.env.PROMPT_BUDGET_WARN_PCT",
+      "fallback": 0.9,
+      "file": "backend/src/config/index.ts:23-25"
+    },
+    "PROMPT_MODEL_DEFAULT": {
+      "value": "gpt-4o-mini",
+      "source": "process.env.PROMPT_MODEL_DEFAULT",
+      "fallback": "gpt-4o-mini",
+      "file": "backend/src/config/index.ts:19"
+    },
+    "DEBUG_RESPONSE_ENABLED": {
+      "value": "false (read via config service)",
+      "source": "process.env.DEBUG_RESPONSE_ENABLED",
+      "fallback": false,
+      "file": "backend/src/config/index.ts:42"
+    },
+    "DEBUG_RESPONSE_MAX_CHARS": {
+      "value": 50000,
+      "source": "process.env.DEBUG_RESPONSE_MAX_CHARS",
+      "fallback": 50000,
+      "file": "backend/src/config/index.ts:43"
+    },
+    "DEBUG_RESPONSE_INCLUDE_AI_RAW": {
+      "value": false,
+      "source": "process.env.DEBUG_RESPONSE_INCLUDE_AI_RAW",
+      "fallback": false,
+      "file": "backend/src/config/index.ts:44"
+    },
+    "LEGACY_PROMPTS_ENABLED": {
+      "value": false,
+      "source": "config.legacyPrompts.enabled",
+      "fallback": false,
+      "file": "backend/src/config/index.ts:50"
+    }
+  },
+  "legacy": {
+    "routes": [
+      {
+        "path": "/api/games/:id/initial-prompt",
+        "method": "POST",
+        "status": "410",
+        "defaultBehavior": "Returns 410 Gone unless LEGACY_PROMPTS_ENABLED=true",
+        "deprecationHeaders": true,
+        "file": "backend/src/routes/games.ts:1091-1214",
+        "references": [
+          "frontend/src/lib/api.ts:530",
+          "backend/tests/integration/legacy.prompts.spec.ts:35-149",
+          "docs/deprecations/legacy-prompts.md:13"
+        ]
+      }
+    ],
+    "services": [
+      {
+        "name": "PromptsService.buildPrompt",
+        "status": "unused",
+        "references": [],
+        "note": "Not called from spawnV3 or buildPromptV2"
+      },
+      {
+        "name": "createInitialPromptWithApproval",
+        "status": "only used by legacy route",
+        "references": ["backend/src/routes/games.ts:1198"]
+      }
+    ],
+    "sql": []
+  },
+  "deviations": [
+    {
+      "expectation": "uses wrapper 5-arg function",
+      "status": "ok",
+      "evidence": [
+        {
+          "file": "supabase/migrations/20250201_create_prompting_schema.sql",
+          "line": 33,
+          "note": "Function exists with 5 args (VARCHAR, VARCHAR, BOOLEAN, VARCHAR, BOOLEAN)"
+        },
+        {
+          "file": "backend/src/repositories/prompt.repository.ts",
+          "line": 50,
+          "note": "Function called via Supabase RPC"
+        }
+      ]
+    },
+    {
+      "expectation": "data source: prompting.prompt_segments",
+      "status": "warn",
+      "evidence": [
+        {
+          "file": "supabase/migrations/20250201_create_prompting_schema.sql",
+          "line": 8,
+          "note": "Actual table is 'prompting.prompts', not 'prompt_segments'"
+        },
+        {
+          "file": "supabase/migrations/20250201_create_prompting_schema.sql",
+          "line": 68,
+          "note": "Function queries 'prompting.prompts' table"
+        }
+      ],
+      "note": "Table name differs from SOT expectation. May be naming inconsistency or migration artifact."
+    },
+    {
+      "expectation": "scopes and order: core → ruleset → world → scenario? → entry → npc",
+      "status": "ok",
+      "evidence": [
+        {
+          "file": "backend/src/prompts/assembler-types.ts",
+          "line": 58,
+          "note": "SCOPE_PRIORITY matches expected order"
+        }
+      ]
+    },
+    {
+      "expectation": "budget policy: warn at PROMPT_BUDGET_WARN_PCT, drop scenario then npc LRU; never drop core|ruleset|world",
+      "status": "ok",
+      "evidence": [
+        {
+          "file": "backend/src/prompts/database-prompt-assembler.ts",
+          "line": 662,
+          "note": "Warn threshold check at 0.9"
+        },
+        {
+          "file": "backend/src/prompts/database-prompt-assembler.ts",
+          "line": 669,
+          "note": "Scenario dropped first"
+        },
+        {
+          "file": "backend/src/prompts/database-prompt-assembler.ts",
+          "line": 677,
+          "note": "NPCs dropped from end (LRU)"
+        },
+        {
+          "file": "backend/src/prompts/assembler-types.ts",
+          "line": 70,
+          "note": "PROTECTED_SCOPES = ['core', 'ruleset', 'world']"
+        }
+      ]
+    },
+    {
+      "expectation": "create game (spawnV3) + ongoing turns both use the same v2 assembler",
+      "status": "ok",
+      "evidence": [
+        {
+          "file": "backend/src/services/games.service.ts",
+          "line": 585,
+          "note": "spawnV3 calls assemblePromptV2"
+        },
+        {
+          "file": "backend/src/services/turns.service.ts",
+          "line": 1032,
+          "note": "buildPromptV2 calls assemblePromptV2"
+        }
+      ]
+    },
+    {
+      "expectation": "debug payload: optional, admin-gated, includes {phase, assembler:{prompt,pieces,meta}, ai?, timings, debugId}",
+      "status": "ok",
+      "evidence": [
+        {
+          "file": "backend/src/utils/debugResponse.ts",
+          "line": 185,
+          "note": "DebugPayload interface matches expected structure"
+        },
+        {
+          "file": "backend/src/utils/debugResponse.ts",
+          "line": 32,
+          "note": "isDebugEnabledForUser gates by admin role"
+        },
+        {
+          "file": "backend/src/routes/games.ts",
+          "line": 182,
+          "note": "Debug payload included in create game response"
+        },
+        {
+          "file": "backend/src/routes/games.ts",
+          "line": 713,
+          "note": "Debug payload included in send turn response"
+        }
+      ]
+    },
+    {
+      "expectation": "legacy items should be gated/410 or unused",
+      "status": "ok",
+      "evidence": [
+        {
+          "file": "backend/src/routes/games.ts",
+          "line": 1099,
+          "note": "Legacy route returns 410 by default"
+        },
+        {
+          "file": "backend/src/routes/games.ts",
+          "line": 1095,
+          "note": "Gated by config.legacyPrompts.enabled"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "commands": [
+      "pnpm test backend/tests/repositories/prompt.repository.test.ts",
+      "pnpm test backend/tests/prompts/assembler-phase2.test.ts",
+      "pnpm test backend/tests/integration/games.create-v3.spec.ts",
+      "pnpm run ingest:prompts"
+    ],
+    "curl": [
+      "curl -X POST http://localhost:3000/api/games -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN' -H 'X-Debug-Response: 1' -d '{\"entry_point_id\":\"...\",\"world_id\":\"...\",\"entry_start_slug\":\"...\"}'",
+      "curl -X POST 'http://localhost:3000/api/games/$GAME_ID/send-turn?debug=1&debugDepth=full' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN' -d '{\"message\":\"Look around\"}'",
+      "curl -X POST http://localhost:3000/api/games/$GAME_ID/initial-prompt -H 'Authorization: Bearer $TOKEN'"
+    ],
+    "sql": [
+      "SELECT * FROM prompting.prompt_segments_for_context('mystika', 'test-adventure', true, 'scene-1', true) LIMIT 10;",
+      "SELECT proname, proargnames, proargtypes FROM pg_proc WHERE proname = 'prompt_segments_for_context' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'prompting');",
+      "SELECT layer, COUNT(*) as count FROM prompting.prompts WHERE active = true AND locked = false GROUP BY layer ORDER BY CASE layer WHEN 'foundation' THEN 1 WHEN 'core' THEN 2 ELSE 9 END;"
+    ]
+  },
+  "filesIndexed": [
+    {
+      "path": "backend/src/prompts/database-prompt-assembler.ts",
+      "purpose": "Main v2 assembler",
+      "lines": 719
+    },
+    {
+      "path": "backend/src/repositories/prompt.repository.ts",
+      "purpose": "Database repository",
+      "lines": 194
+    },
+    {
+      "path": "backend/src/services/games.service.ts",
+      "purpose": "Game creation service",
+      "lines": 1673
+    },
+    {
+      "path": "backend/src/services/turns.service.ts",
+      "purpose": "Turn execution service",
+      "lines": 1307
+    },
+    {
+      "path": "backend/src/utils/debugResponse.ts",
+      "purpose": "Debug payload builder",
+      "lines": 322
+    },
+    {
+      "path": "backend/src/routes/games.ts",
+      "purpose": "API routes",
+      "lines": 1299
+    },
+    {
+      "path": "supabase/migrations/20250201_create_prompting_schema.sql",
+      "purpose": "Prompting schema migration",
+      "lines": 116
+    },
+    {
+      "path": "backend/src/prompts/assembler-types.ts",
+      "purpose": "Type definitions",
+      "lines": 72
+    },
+    {
+      "path": "backend/src/prompts/assembler-utils.ts",
+      "purpose": "Utility functions",
+      "lines": 103
+    },
+    {
+      "path": "backend/src/config/index.ts",
+      "purpose": "Configuration",
+      "lines": 56
+    }
+  ]
+}
+

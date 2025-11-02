@@ -29,6 +29,14 @@ export const TurnInput: React.FC<TurnInputProps> = ({
     }
   };
 
+  // Phase 8: Submit on Enter key (Ctrl/Cmd+Enter also works)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as any);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
@@ -39,9 +47,11 @@ export const TurnInput: React.FC<TurnInputProps> = ({
           id="action"
           value={action}
           onChange={(e) => setAction(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={hasChoices ? "Or describe your own action..." : placeholder}
           disabled={disabled}
           className="min-h-[100px] resize-none"
+          aria-label="Turn message input"
         />
       </div>
       

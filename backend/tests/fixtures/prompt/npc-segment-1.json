@@ -1,0 +1,13 @@
+{
+  "id": "npc-001",
+  "content": "NPC: Wise Old Wizard\n\nThe wizard Gandalf is a knowledgeable guide who provides hints and lore about the world. He can be encountered in various locations.",
+  "layer": "npc",
+  "sort_order": 1,
+  "version": "1.0.0",
+  "metadata": {
+    "scope": "npc",
+    "slug": "wise-wizard",
+    "ref_id": "npc-wise-wizard"
+  }
+}
+

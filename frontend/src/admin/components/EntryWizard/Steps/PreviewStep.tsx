@@ -19,12 +19,12 @@ import {
   Users,
   Globe
 } from 'lucide-react';
-import { Entry } from '@/services/admin.entries';
+import { EntryPoint } from '@/services/admin.entryPoints';
 import { WizardData } from '../EntryWizard';
 import { TokenMeter } from '@/ui/lib/tokenMeter';
 
 interface PreviewStepProps {
-  entry: Entry;
+  entry: EntryPoint;
   data: WizardData;
   onUpdate: (updates: Partial<WizardData>) => void;
   onComplete: (stepData: any) => void;

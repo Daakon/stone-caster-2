@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-// Error codes enum
+// Phase 5: Standardized ErrorCode enum - single source of truth for all error codes
+// Use this enum in route handlers to avoid string drift
 export enum ApiErrorCode {
   VALIDATION_FAILED = 'VALIDATION_FAILED',
   UNAUTHORIZED = 'UNAUTHORIZED',
@@ -22,8 +23,20 @@ export enum ApiErrorCode {
   REQUIRES_AUTH = 'REQUIRES_AUTH',
   UPSTREAM_TIMEOUT = 'UPSTREAM_TIMEOUT',
   PROMPT_TEMPLATE_MISSING = 'PROMPT_TEMPLATE_MISSING',
+  LEGACY_ROUTE_RETIRED = 'LEGACY_ROUTE_RETIRED',
+  // Game spawn error codes (Phase 3.1)
+  ENTRY_START_NOT_FOUND = 'ENTRY_START_NOT_FOUND',
+  SCENARIO_NOT_FOUND = 'SCENARIO_NOT_FOUND',
+  RULESET_NOT_FOUND = 'RULESET_NOT_FOUND',
+  WORLD_NOT_FOUND = 'WORLD_NOT_FOUND',
+  WORLD_MISMATCH = 'WORLD_MISMATCH',
+  IDEMPOTENCY_CONFLICT = 'IDEMPOTENCY_CONFLICT',
+  DB_CONFLICT = 'DB_CONFLICT',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
 }
+
+// Re-export as ErrorCode for convenience
+export { ApiErrorCode as ErrorCode };
 
 // Response envelope schemas
 export const ApiResponseMetaSchema = z.object({
@@ -65,6 +78,12 @@ export const SearchQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+// Game turns query schema for pagination
+export const GetTurnsQuerySchema = z.object({
+  afterTurn: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 // Character request schemas
 export const CreateCharacterLegacyRequestSchema = z.object({
   name: z.string().min(1).max(50),
@@ -99,16 +118,45 @@ export const PremadeCharacterQuerySchema = z.object({
   world: z.string().min(1).max(100),
 });
 
-// Game request schemas
+// Standardized error codes for game creation
+export const GameSpawnErrorCode = {
+  ENTRY_START_NOT_FOUND: 'ENTRY_START_NOT_FOUND',
+  SCENARIO_NOT_FOUND: 'SCENARIO_NOT_FOUND',
+  RULESET_NOT_FOUND: 'RULESET_NOT_FOUND',
+  WORLD_NOT_FOUND: 'WORLD_NOT_FOUND',
+  WORLD_MISMATCH: 'WORLD_MISMATCH',
+  IDEMPOTENCY_CONFLICT: 'IDEMPOTENCY_CONFLICT',
+  DB_CONFLICT: 'DB_CONFLICT',
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+} as const;
+
+export type GameSpawnErrorCode = typeof GameSpawnErrorCode[keyof typeof GameSpawnErrorCode];
+
+// Game request schemas with improved validation
 export const CreateGameRequestSchema = z.object({
-  adventureSlug: z.string().min(1).max(100),
-  characterId: z.string().uuid().optional(),
+  entry_point_id: z.string().trim().min(1, 'entry_point_id is required'),
+  world_id: z.string().uuid('world_id must be a valid UUID'),
+  entry_start_slug: z.string().trim().min(1, 'entry_start_slug is required'),
+  scenario_slug: z.string().trim().min(1).nullable().optional(),
+  ruleset_slug: z.string().trim().min(1).optional(),
+  model: z.string().trim().min(1).optional(),
+  characterId: z.string().uuid('characterId must be a valid UUID').optional(),
+  idempotency_key: z.string().trim().min(1).optional(), // Optional idempotency key in body
+  // Legacy support - allow adventureSlug for backward compatibility
+  adventureSlug: z.string().trim().min(1).max(100).optional(),
 });
 
 export const GameTurnRequestSchema = z.object({
   optionId: z.string().uuid(),
   userInput: z.string().optional(),
   userInputType: z.enum(['choice', 'text', 'action']).optional(),
+});
+
+// Phase 8: Simple send-turn schema for playable loop
+export const SendTurnRequestSchema = z.object({
+  message: z.string().trim().min(1, 'Message is required'),
+  model: z.string().trim().optional(),
+  temperature: z.number().min(0).max(2).optional(),
 });
 
 // Stones request schemas
@@ -130,6 +178,8 @@ export const CreateSubscriptionRequestSchema = z.object({
 export const CancelSubscriptionRequestSchema = z.object({
   subscriptionId: z.string().uuid(),
 });
+
+export type GetTurnsQuery = z.infer<typeof GetTurnsQuerySchema>;
 
 // Telemetry request schemas (moved to types/index.ts for Layer 0.9)
 

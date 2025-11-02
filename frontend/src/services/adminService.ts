@@ -101,8 +101,8 @@ export class AdminService {
   ): Promise<T> {
     const headers = await this.getAuthHeaders();
     
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai');
-    const response = await fetch(`${baseUrl}/api/admin${endpoint}`, {
+    const { API_BASE } = await import('../lib/apiBase');
+    const response = await fetch(`${API_BASE}/api/admin${endpoint}`, {
       ...options,
       headers: {
         ...headers,

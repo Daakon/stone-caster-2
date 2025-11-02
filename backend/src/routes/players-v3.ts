@@ -36,11 +36,30 @@ export async function createPlayerV3(
 
     const validatedPlayer = playerValidation.data;
 
+    // Resolve world_id UUID from world_slug
+    console.log('[PLAYERV3_CREATE] Resolving world_id for worldSlug:', worldSlug);
+    const { data: worldMapping, error: mappingError } = await supabaseAdmin
+      .from('world_id_mapping')
+      .select('uuid_id')
+      .eq('text_id', worldSlug)
+      .single();
+    
+    if (mappingError || !worldMapping) {
+      console.error('[PLAYERV3_CREATE] World mapping not found:', { worldSlug, error: mappingError });
+      return {
+        ok: false,
+        error: { message: `World '${worldSlug}' not found in world_id_mapping` }
+      };
+    }
+
+    console.log('[PLAYERV3_CREATE] Resolved world_id:', worldMapping.uuid_id);
+
     // Store PlayerV3 data in the existing characters table using world_data field
     const characterData = {
       id: validatedPlayer.id,
       name: validatedPlayer.name,
-      world_slug: worldSlug,
+      world_slug: worldSlug, // TEXT identifier for display
+      world_id: worldMapping.uuid_id, // UUID (source of truth)
       world_data: {
         playerV3: validatedPlayer,
         version: 3
@@ -73,6 +92,13 @@ export async function createPlayerV3(
       ...(isGuest ? { cookie_id: userId } : { user_id: userId })
     };
     
+    console.log('[PLAYERV3_CREATE_DATA] Character data being inserted:', {
+      id: characterData.id,
+      name: characterData.name,
+      world_slug: characterData.world_slug,
+      world_id: characterData.world_id
+    });
+    
     const { data: createdPlayer, error: createError } = await supabaseAdmin
       .from('characters')
       .insert([characterData])
@@ -86,6 +112,13 @@ export async function createPlayerV3(
         error: { message: `Failed to create character: ${createError.message}` }
       };
     }
+
+    console.log('[PLAYERV3_CREATED_DB_ROW] Character created in DB:', {
+      id: createdPlayer.id,
+      name: createdPlayer.name,
+      world_slug: createdPlayer.world_slug,
+      world_id: createdPlayer.world_id
+    });
 
     return {
       ok: true,

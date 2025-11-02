@@ -1,0 +1,12 @@
+{
+  "id": "world-001",
+  "content": "World: Fantasy Realm\n\nThis is a world of magic and adventure. The world setting includes medieval towns, mystical forests, and ancient ruins. The tone is heroic fantasy with elements of mystery.",
+  "layer": "world",
+  "sort_order": 1,
+  "version": "1.0.0",
+  "metadata": {
+    "scope": "world",
+    "slug": "fantasy-realm"
+  }
+}
+

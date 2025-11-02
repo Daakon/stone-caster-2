@@ -53,3 +53,14 @@ export function generateOptionId(action: string): string {
   
   return formatted;
 }
+
+/**
+ * Phase 8: Generate v4 UUID idempotency key (re-export from lib/idempotency)
+ */
+export function generateIdempotencyKeyV4(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return `idem-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+}

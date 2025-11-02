@@ -107,7 +107,8 @@ const LayerSchema = z.string()
   .transform((value) => value.toLowerCase());
 
 // Schema for prompt creation/update
-const PromptSchema = z.object({
+// Note: This is for the legacy prompting.prompts table (see docs/prompt-system/LEGACY_SYSTEMS.md)
+const PromptSchemaBase = z.object({
   layer: LayerSchema,
   world_slug: z.string().nullable().optional(),
   adventure_slug: z.string().nullable().optional(),
@@ -121,7 +122,8 @@ const PromptSchema = z.object({
   locked: z.boolean().default(false)
 });
 
-const UpdatePromptSchema = PromptSchema.partial();
+const PromptSchema = PromptSchemaBase;
+const UpdatePromptSchema = PromptSchemaBase.partial();
 
 // Get all prompts with filtering
 /**
@@ -3763,8 +3765,24 @@ router.get('/entry-points', authenticateToken, requireAdminRole, async (req, res
       query = query.in('visibility', visibilityArray);
     }
 
+    // Resolve world_id filter: if UUID, convert to TEXT for query
     if (world_id) {
-      query = query.eq('world_id', world_id);
+      let resolvedWorldId = world_id as string;
+      if (typeof world_id === 'string' && world_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        const { data: mapping, error: mappingError } = await supabase
+          .from('world_id_mapping')
+          .select('text_id')
+          .eq('uuid_id', world_id)
+          .single();
+
+        if (!mappingError && mapping) {
+          resolvedWorldId = mapping.text_id;
+        } else {
+          // If mapping not found, filter will return empty results (world doesn't exist)
+          resolvedWorldId = '___NO_MATCH___';
+        }
+      }
+      query = query.eq('world_id', resolvedWorldId);
     }
 
     if (type) {
@@ -3786,9 +3804,25 @@ router.get('/entry-points', authenticateToken, requireAdminRole, async (req, res
       throw error;
     }
 
+    // Resolve world_id from TEXT to UUID for each entry point
+    const resolvedData = await Promise.all((data || []).map(async (ep: any) => {
+      if (ep.world_id) {
+        const { data: mapping, error: mappingError } = await supabase
+          .from('world_id_mapping')
+          .select('uuid_id')
+          .eq('text_id', ep.world_id)
+          .single();
+
+        if (!mappingError && mapping) {
+          return { ...ep, world_id: mapping.uuid_id };
+        }
+      }
+      return ep;
+    }));
+
     res.json({
       ok: true,
-      data: data || [],
+      data: resolvedData,
       count: count || 0,
       hasMore: (count || 0) > Number(page) * Number(limit)
     });
@@ -3827,9 +3861,20 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
   try {
     const { id } = req.params;
     
+    // Fetch entry point with joined rulesets
     const { data, error } = await supabase
       .from('entry_points')
-      .select('*')
+      .select(`
+        *,
+        entry_point_rulesets:entry_point_rulesets(
+          sort_order,
+          ruleset_id,
+          rulesets:ruleset_id(
+            id,
+            name
+          )
+        )
+      `)
       .eq('id', id)
       .single();
 
@@ -3843,9 +3888,41 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
       throw error;
     }
 
+    // Resolve world_id from TEXT to UUID if it exists
+    let resolvedWorldId = data.world_id;
+    if (data.world_id) {
+      const { data: mapping, error: mappingError } = await supabase
+        .from('world_id_mapping')
+        .select('uuid_id')
+        .eq('text_id', data.world_id)
+        .single();
+
+      if (!mappingError && mapping) {
+        resolvedWorldId = mapping.uuid_id;
+      }
+      // If mapping doesn't exist, keep the original text_id
+      // This handles edge cases where a world exists but mapping is missing
+    }
+
+    // Transform rulesets to match frontend format
+    const rulesets = (data.entry_point_rulesets || [])
+      .sort((a: any, b: any) => a.sort_order - b.sort_order)
+      .map((epr: any) => ({
+        id: epr.rulesets?.id || epr.ruleset_id,
+        name: epr.rulesets?.name || epr.ruleset_id,
+        sort_order: epr.sort_order
+      }));
+
+    // Remove the nested entry_point_rulesets from response
+    const { entry_point_rulesets, ...entryPointData } = data;
+
     res.json({
       ok: true,
-      data
+      data: {
+        ...entryPointData,
+        world_id: resolvedWorldId, // Return UUID instead of TEXT
+        rulesets
+      }
     });
   } catch (error) {
     console.error('Error fetching entry point:', error);
@@ -3911,7 +3988,7 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
  */
 router.post('/entry-points', authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { name, slug, type, world_id, rulesetIds, title, subtitle, description, synopsis, tags, visibility, content_rating, prompt, entry_id } = req.body;
+    const { name, slug, type, world_id, rulesetIds, title, subtitle, description, synopsis, tags, visibility, content_rating, prompt } = req.body;
     
     if (!name || !type || !world_id || !rulesetIds || !title || !description || !tags || !visibility || !content_rating) {
       return res.status(400).json({
@@ -3962,8 +4039,7 @@ router.post('/entry-points', authenticateToken, requireAdminRole, async (req, re
         visibility,
         content_rating,
         lifecycle: 'draft',
-        prompt,
-        entry_id
+        prompt
       })
       .select()
       .single();

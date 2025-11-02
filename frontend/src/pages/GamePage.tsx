@@ -5,19 +5,40 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
+import { Switch } from '../components/ui/switch';
+import { Label } from '../components/ui/label';
 import { StoneCost } from '../components/gameplay/StoneCost';
 import { WorldRuleMeters } from '../components/gameplay/WorldRuleMeters';
 import { TurnInput } from '../components/gameplay/TurnInput';
 import { HistoryFeed } from '../components/gameplay/HistoryFeed';
+import { TurnsList } from '../components/gameplay/TurnsList'; // Phase 5: Paginated turns
+import { DebugDrawer } from '../components/debug/DebugDrawer';
+import { debugStore } from '../lib/debugStore';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, Settings, Save } from 'lucide-react';
-import { submitTurn, getGame, getStoryById, getCharacter, getWorldById, getWallet, getGameTurns, autoInitializeGame } from '../lib/api';
+import { submitTurn, sendTurn, getGame, getStoryById, getCharacter, getWorldById, getWallet, getGameTurns, autoInitializeGame } from '../lib/api';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
+import { generateIdempotencyKeyV4 } from '../lib/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useDebugPanel } from '../hooks/useDebugPanel';
 import { DebugPanel } from '../components/debug/DebugPanel';
+import { useDebugResponses } from '../lib/debug';
 // PromptApprovalModal removed - not needed with new backend system
 import type { TurnDTO, GameDTO } from '@shared';
+import type { Turn } from '../lib/types';
+
+// Phase 8: Simple toast fallback (replace with proper toast hook if available)
+const useToast = () => {
+  return {
+    toast: (options: { title: string; description?: string; variant?: 'default' | 'destructive' }) => {
+      if (options.variant === 'destructive') {
+        console.error(`[Toast] ${options.title}: ${options.description || ''}`);
+      } else {
+        console.log(`[Toast] ${options.title}: ${options.description || ''}`);
+      }
+    },
+  };
+};
 
 interface GameState {
   worldRules: Record<string, number>;
@@ -53,7 +74,10 @@ export default function GamePage() {
   
   const telemetry = useAdventureTelemetry();
   const debugPanel = useDebugPanel();
+  const debugResponses = useDebugResponses();
+  const [debugDrawerOpen, setDebugDrawerOpen] = useState(false);
   const [gameErrorState, setGameErrorState] = useState<string | null>(null);
+  const { toast } = useToast(); // Phase 8: Toast notifications
   
   // Game initialization state - use sessionStorage to prevent duplicate calls across page refreshes
   const [hasInitializedGame, setHasInitializedGame] = useState(() => {
@@ -174,21 +198,9 @@ export default function GamePage() {
     retry: 1,
   });
 
-  // Load game turns
-  const { data: gameTurns } = useQuery({
-    queryKey: ['game-turns', gameId],
-    queryFn: async () => {
-      if (!gameId) throw new Error('No game ID provided');
-      const result = await getGameTurns(gameId);
-      if (!result.ok) {
-        throw new Error(result.error.message || 'Failed to load game turns');
-      }
-      return result.data;
-    },
-    enabled: !!gameId,
-    staleTime: 5 * 60 * 1000, // 5 minutes cache for game turns
-    retry: 1,
-  });
+  // Phase 5: Load game turns with pagination (using new API)
+  // Note: Keeping gameTurns query for legacy compatibility, but we'll use TurnsList component
+  // which handles its own pagination
 
   // Handle navigation and game start time
   useEffect(() => {
@@ -208,10 +220,10 @@ export default function GamePage() {
         currentTurn: gameData.turnCount
       }));
       
-      // Check if game needs initialization (turn count is 0, no existing turns, and not already initialized)
-      const hasExistingTurns = gameTurns && gameTurns.length > 0;
+      // Phase 5: Check if game needs initialization (turn count is 0, and not already initialized)
+      // Note: TurnsList will fetch turns independently, so we can't check hasExistingTurns here
+      // We'll rely on turnCount === 0 as the indicator
       const shouldAutoInit = gameData.turnCount === 0 && 
-                            !hasExistingTurns &&
                             !hasInitializedGame && 
                             !isAutoInitializing && 
                             !autoInitAttempted && 
@@ -220,7 +232,6 @@ export default function GamePage() {
       
       console.log('GamePage: Auto-initialization check:', {
         turnCount: gameData.turnCount,
-        hasExistingTurns,
         gameTurnsLength: gameTurns?.length || 0,
         hasInitializedGame,
         isAutoInitializing,
@@ -289,23 +300,8 @@ export default function GamePage() {
     }
   }, [walletData]);
 
-  // Load game turns into history
-  useEffect(() => {
-    if (gameTurns && gameTurns.length > 0) {
-      const history = gameTurns.map((turn: any) => ({
-        id: turn.id,
-        timestamp: turn.created_at,
-        type: 'system' as const,
-        content: turn.ai_response?.narrative || 'Turn completed',
-        character: turn.ai_response?.character || undefined,
-      }));
-      
-      setGameState(prev => ({
-        ...prev,
-        history: history
-      }));
-    }
-  }, [gameTurns]);
+  // Phase 5: TurnsList component handles its own data fetching and display
+  // Legacy history mapping removed - TurnsList fetches paginated turns directly
 
   // Handle game error
   useEffect(() => {
@@ -314,93 +310,113 @@ export default function GamePage() {
     }
   }, [gameError]);
 
+  // Phase 8: Track optimistic turns for rollback
+  const [optimisticTurns, setOptimisticTurns] = useState<Turn[]>([]);
+  const [turnsRefreshKey, setTurnsRefreshKey] = useState(0); // Trigger TurnsList refetch
+
   const handleTurnSubmit = async (action: string) => {
-    if (!adventure || !character || !gameId || isSubmittingTurn) return;
+    if (!gameId || isSubmittingTurn) return;
 
     setIsSubmittingTurn(true);
     setTurnError(null);
 
-    try {
-      // Generate idempotency key and option ID
-      const idempotencyKey = generateIdempotencyKey();
-      const optionId = generateOptionId(action);
+    // Phase 8: Generate idempotency key for send-turn
+    const idempotencyKey = generateIdempotencyKeyV4();
 
-      // Submit turn to Layer M3 turn engine
-      const result = await submitTurn<TurnDTO>(gameId, optionId, idempotencyKey);
+    // Phase 8: Optimistic update - add player turn immediately
+    const tempPlayerTurn: Turn = {
+      id: `temp-${Date.now()}`,
+      game_id: gameId,
+      turn_number: (game?.turnCount || 0) + 1,
+      role: 'player',
+      content: action,
+      created_at: new Date().toISOString(),
+    };
+    setOptimisticTurns([tempPlayerTurn]); // Show immediately
+
+    try {
+      // Phase 8: Use simple send-turn endpoint with debug parameter
+      const result = await sendTurn(gameId, action, { 
+        idempotencyKey,
+        debug: debugResponses.enabled,
+        debugDepth: 'safe',
+      });
+
+      // Capture debug data from response and store in debugStore
+      if (result.ok && result.data.debug && debugResponses.enabled) {
+        const debug = result.data.debug;
+        // Extract turn number from debugId or use turn_number from response
+        const turnNumber = standardizedTurn.turn_number;
+        const turnKey = `${gameId}:${turnNumber}`;
+        debugStore.addDebug(turnKey, debug);
+        
+        // Auto-open drawer on first debug capture
+        if (!debugDrawerOpen) {
+          setDebugDrawerOpen(true);
+        }
+      }
 
       if (!result.ok) {
+        // Phase 8: Roll back optimistic turn on error
+        setOptimisticTurns([]);
+        
         // Handle specific error cases
-        switch (result.error.code) {
-          case 'INSUFFICIENT_STONES':
-            setTurnError('Not enough casting stones to take this turn.');
-            break;
-          case 'IDEMPOTENCY_REQUIRED':
-            setTurnError('Turn submission requires an idempotency key.');
-            break;
-          case 'VALIDATION_FAILED':
-            setTurnError('The AI response was invalid. Please try again.');
-            break;
-          case 'UPSTREAM_TIMEOUT':
-            setTurnError('The AI service timed out. Please try again.');
-            break;
-          case 'NOT_FOUND':
-            setTurnError('Game not found. Please refresh the page.');
-            break;
-          case 'FORBIDDEN':
-            setTurnError('You do not have permission to take turns in this game.');
-            break;
-          default:
-            setTurnError(result.error.message || 'Failed to submit turn. Please try again.');
+        const errorCode = result.error.code;
+        if (errorCode === 'RATE_LIMITED') {
+          setTurnError('Too many requests. Please wait a moment and try again.');
+        } else if (errorCode === 'VALIDATION_FAILED') {
+          setTurnError('Invalid message. Please check your input.');
+        } else if (errorCode === 'NOT_FOUND') {
+          setTurnError('Game not found. Please refresh the page.');
+        } else if (errorCode === 'INSUFFICIENT_STONES') {
+          setTurnError('Not enough casting stones to take this turn.');
+        } else {
+          setTurnError(result.error.message || 'Failed to submit turn. Please try again.');
         }
+        
+        // Show toast for errors
+        toast({
+          title: 'Turn Failed',
+          description: result.error.message || 'Failed to submit turn',
+          variant: 'destructive',
+        });
         return;
       }
 
-      const turnDTO = result.data;
-
-      // Track time to first turn if this is the first turn
-      if (!hasTrackedFirstTurn && gameStartTime && game) {
-        const duration = Date.now() - gameStartTime;
-        await telemetry.trackTimeToFirstTurn(
-          'existing', // We don't know the character type here, so default to existing
-          character.id,
-          game.adventureId || 'unknown',
-          duration
-        );
-        setHasTrackedFirstTurn(true);
-      }
-
-      // Refresh game turns from database instead of manually managing history
+      // Phase 8: Success - remove optimistic turn, trigger refetch
+      setOptimisticTurns([]);
+      const returnedTurn = result.data.turn;
+      
+      // Trigger TurnsList to refetch (by incrementing refresh key)
+      setTurnsRefreshKey(prev => prev + 1);
+      
+      // Also invalidate React Query cache if any
       queryClient.invalidateQueries({ queryKey: ['game-turns', gameId] });
       
       // Update turn count
       setGameState(prev => ({
         ...prev,
-        currentTurn: turnDTO.turnCount
+        currentTurn: returnedTurn.turn_number
       }));
 
-      // Update wallet balance from the response
-      setWallet((prev: any) => ({
-        ...prev,
-        balance: turnDTO.castingStonesBalance
-      }));
-
-      // Update world rules if there are relationship/faction deltas
-      if (turnDTO.relationshipDeltas || turnDTO.factionDeltas) {
-        setGameState(prev => ({
-          ...prev,
-          worldRules: {
-            ...prev.worldRules,
-            ...turnDTO.relationshipDeltas,
-            ...turnDTO.factionDeltas
-          }
-        }));
-      }
+      // Phase 8: Show success toast (quiet, not too intrusive)
+      toast({
+        title: 'Turn submitted',
+        description: 'Your turn has been processed.',
+      });
 
       // Game state is now managed by database-driven history loading
 
     } catch (error) {
       console.error('Turn submission error:', error);
-      setTurnError('Network error. Please check your connection and try again.');
+      // Phase 8: Roll back optimistic turn on error
+      setOptimisticTurns([]);
+      setTurnError('An unexpected error occurred. Please try again.');
+      toast({
+        title: 'Error',
+        description: 'Failed to submit turn. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsSubmittingTurn(false);
     }
@@ -631,6 +647,18 @@ export default function GamePage() {
             </div>
             
             <div className="flex items-center gap-4">
+              {debugResponses.visible && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="debug-responses"
+                    checked={debugResponses.enabled}
+                    onCheckedChange={debugResponses.setEnabled}
+                  />
+                  <Label htmlFor="debug-responses" className="text-sm cursor-pointer">
+                    Debug responses
+                  </Label>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Gem className="h-4 w-4 text-primary" />
                 <span className="font-medium">{wallet?.balance || 0}</span>
@@ -694,14 +722,21 @@ export default function GamePage() {
                   disabled={(wallet?.balance || 0) < 1 || isSubmittingTurn}
                   placeholder={isSubmittingTurn ? "Processing your turn..." : "Describe your action..."}
                 />
+                {debugResponses.visible && lastDebug && (
+                  <DebugMiniPanel debug={lastDebug} />
+                )}
               </CardContent>
             </Card>
 
-            {/* Game History */}
-            <HistoryFeed
-              history={gameState.history}
-              className="h-96"
-            />
+            {/* Phase 8: Paginated Turns List with Error Boundary and optimistic updates */}
+            <ErrorBoundary>
+              <TurnsList 
+                gameId={gameId || ''} 
+                initialLimit={50}
+                refreshKey={turnsRefreshKey}
+                optimisticTurns={optimisticTurns}
+              />
+            </ErrorBoundary>
           </div>
 
           {/* Sidebar */}
@@ -778,6 +813,15 @@ export default function GamePage() {
         isVisible={debugPanel.isVisible} 
         onToggle={debugPanel.toggle} 
       />
+      
+      {/* Debug Drawer */}
+      {debugResponses.visible && gameId && (
+        <DebugDrawer
+          gameId={gameId}
+          open={debugDrawerOpen}
+          onOpenChange={setDebugDrawerOpen}
+        />
+      )}
       
       {/* Prompt Approval Modal removed - not needed with new backend system */}
     </div>

@@ -428,9 +428,12 @@ let cloudSyncClient: CloudSyncClient | null = null;
 
 export function getCloudSyncClient(config?: CloudSyncConfig): CloudSyncClient {
   if (!cloudSyncClient) {
+    // Import API_BASE dynamically to avoid circular dependencies
+    const API_BASE = (import.meta.env.VITE_API_BASE ?? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai')).replace(/\/+$/, "");
+    
     const defaultConfig: CloudSyncConfig = {
       enabled: true,
-      api_base_url: process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000',
+      api_base_url: API_BASE,
       hmac_secret: process.env.REACT_APP_HMAC_SECRET || 'change-me',
       auto_sync: true,
       sync_interval_ms: 30000, // 30 seconds

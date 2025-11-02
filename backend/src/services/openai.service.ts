@@ -135,13 +135,43 @@ export class OpenAIService {
 
   /**
    * Parse and validate AI response as JSON
+   * Handles responses that may be wrapped in markdown code blocks (```json ... ```)
    */
   parseAIResponse(response: string): any {
     try {
+      // First, try to parse directly
       return JSON.parse(response);
-    } catch (error) {
-      console.error('[OPENAI_SERVICE] Failed to parse AI response as JSON:', error);
-      throw new Error('Invalid JSON response from AI');
+    } catch (directError) {
+      // If direct parse fails, try to extract JSON from markdown code blocks
+      let cleanedResponse = response.trim();
+      
+      // Remove markdown code block fences if present
+      const codeBlockPattern = /^```(?:json)?\s*([\s\S]*?)\s*```$/;
+      const match = cleanedResponse.match(codeBlockPattern);
+      if (match) {
+        cleanedResponse = match[1].trim();
+      }
+      
+      // Try parsing the cleaned response
+      try {
+        return JSON.parse(cleanedResponse);
+      } catch (cleanedError) {
+        // If still failing, try to extract JSON object from mixed content
+        const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            return JSON.parse(jsonMatch[0]);
+          } catch (extractedError) {
+            console.error('[OPENAI_SERVICE] Failed to parse AI response as JSON (after extraction):', extractedError);
+            console.error('[OPENAI_SERVICE] Original response:', response.substring(0, 500));
+            throw new Error('Invalid JSON response from AI - unable to extract valid JSON');
+          }
+        }
+        
+        console.error('[OPENAI_SERVICE] Failed to parse AI response as JSON:', cleanedError);
+        console.error('[OPENAI_SERVICE] Original response:', response.substring(0, 500));
+        throw new Error('Invalid JSON response from AI');
+      }
     }
   }
 

@@ -1,0 +1,12 @@
+{
+  "slug": "core.default",
+  "title": "Core Default Ruleset",
+  "is_default": true,
+  "world_id": null,
+  "tags": ["v3-e2e", "test"],
+  "metadata": {
+    "test_fixture": true,
+    "version": "v3"
+  }
+}
+

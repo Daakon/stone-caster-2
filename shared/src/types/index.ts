@@ -6,7 +6,8 @@ export const CharacterSchema = z.object({
   userId: z.string().uuid().optional(), // Optional for guest users
   cookieId: z.string().uuid().optional(), // Optional for authenticated users
   name: z.string().min(1).max(50),
-  worldSlug: z.string().min(1).max(100), // Required world validation
+  worldSlug: z.string().min(1).max(100).optional(), // World text slug (for display only)
+  worldId: z.string().uuid(), // World UUID (source of truth, FK to world_id_mapping)
   activeGameId: z.string().uuid().optional(), // Currently active game (enforces single-active constraint)
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

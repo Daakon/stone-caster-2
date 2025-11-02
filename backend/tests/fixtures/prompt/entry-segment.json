@@ -1,0 +1,12 @@
+{
+  "id": "entry-001",
+  "content": "Entry Point: Forest Clearing\n\nYou stand at the edge of a vast forest. The path ahead leads into shadows between ancient trees. This is the starting point of your adventure.",
+  "layer": "entry",
+  "sort_order": 1,
+  "version": "1.0.0",
+  "metadata": {
+    "scope": "entry",
+    "slug": "forest-clearing"
+  }
+}
+

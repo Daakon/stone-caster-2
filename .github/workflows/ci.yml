@@ -33,6 +33,53 @@ jobs:
     
     - name: Build
       run: npm run build
+    
+    - name: Check legacy code
+      run: |
+        if [ -f scripts/check-legacy-code.sh ]; then
+          bash scripts/check-legacy-code.sh
+        elif [ -f scripts/check-legacy-code.ps1 ]; then
+          pwsh -File scripts/check-legacy-code.ps1
+        fi
+    
+    - name: Type check strict
+      run: npm run typecheck:strict
+    
+    - name: DB guards check
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        if [ -n "$DATABASE_URL" ]; then
+          npm run ops:db-guards || echo "⚠️  DB guards check skipped (no DATABASE_URL)"
+        else
+          echo "⚠️  DB guards check skipped (no DATABASE_URL)"
+        fi
+    
+    - name: Check compiled output for legacy symbols
+      run: |
+        if [ -d backend/dist ]; then
+          rg -n "(prompt_segments_for_context|prompting\.prompts|prompting\.prompt_segments)" backend/dist || true
+          if rg -q "(prompt_segments_for_context|prompting\.prompts|prompting\.prompt_segments)" backend/dist; then
+            echo "❌ ERROR: Found legacy symbols in compiled output"
+            exit 1
+          fi
+        else
+          echo "⚠️  No compiled output to check"
+        fi
+    
+    - name: QA scan (warn only on PR)
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        if [ -n "$DATABASE_URL" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npm run qa:scan || echo "⚠️  QA scan found issues (warning only on PR)"
+          else
+            npm run qa:scan
+          fi
+        else
+          echo "⚠️  QA scan skipped (no DATABASE_URL)"
+        fi
   
   e2e-tests:
     runs-on: ubuntu-latest

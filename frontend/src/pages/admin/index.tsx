@@ -23,13 +23,13 @@ export default function AdminHome() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Public Entry Points</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Public Stories</CardTitle>
             <Badge variant="secondary">TODO</Badge>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">
-              Public entry points available to users
+              Public stories available to users
             </p>
           </CardContent>
         </Card>
@@ -93,7 +93,7 @@ export default function AdminHome() {
             <div className="space-y-2">
               <h4 className="font-medium">Content Creation</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Create new entry point</li>
+                <li>• Create new story</li>
                 <li>• Add prompt segments</li>
                 <li>• Manage NPCs</li>
               </ul>

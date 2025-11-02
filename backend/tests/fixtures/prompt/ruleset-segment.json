@@ -1,0 +1,12 @@
+{
+  "id": "ruleset-001",
+  "content": "Ruleset: Default RPG Rules\n\n- D20-based skill checks\n- Advantage/disadvantage system\n- Health points and damage\n\nThis ruleset defines the game mechanics.",
+  "layer": "ruleset",
+  "sort_order": 1,
+  "version": "1.0.0",
+  "metadata": {
+    "scope": "ruleset",
+    "slug": "default-ruleset"
+  }
+}
+

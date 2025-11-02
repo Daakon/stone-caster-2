@@ -1,0 +1,89 @@
+{
+  "npcs": [
+    {
+      "slug": "guardian_ancient",
+      "name": "Ancient Guardian",
+      "sort_order": 1,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "merchant_wandering",
+      "name": "Wandering Merchant",
+      "sort_order": 2,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "sorcerer_wise",
+      "name": "Wise Sorcerer",
+      "sort_order": 3,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "warrior_elite",
+      "name": "Elite Warrior",
+      "sort_order": 4,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "thief_shadow",
+      "name": "Shadow Thief",
+      "sort_order": 5,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "healer_village",
+      "name": "Village Healer",
+      "sort_order": 6,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "bard_traveling",
+      "name": "Traveling Bard",
+      "sort_order": 7,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "ranger_woodland",
+      "name": "Woodland Ranger",
+      "sort_order": 8,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "mage_tower",
+      "name": "Tower Mage",
+      "sort_order": 9,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "priest_temple",
+      "name": "Temple Priest",
+      "sort_order": 10,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "blacksmith_forge",
+      "name": "Forge Blacksmith",
+      "sort_order": 11,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    },
+    {
+      "slug": "guide_forest",
+      "name": "Forest Guide",
+      "sort_order": 12,
+      "world_slug": "mystika",
+      "tags": ["v3-e2e", "test"]
+    }
+  ]
+}
+

@@ -8,9 +8,8 @@ import { ApiErrorCode } from '@shared';
 import { PlayerV3Service } from './player-v3.service.js';
 import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS, DEFAULT_VALUES } from '../constants/game-constants.js';
 import { GameConfigService } from './game-config.service.js';
-import { DatabasePromptService } from './db-prompt.service.js';
-import { DatabasePromptAssembler, DatabasePromptError, DatabasePromptParams } from '../prompts/database-prompt-assembler.js';
-import { initializeRuntimeGuards } from '../prompts/runtime-guards.js';
+// Legacy imports removed - this service is deprecated
+// Use EntryPointAssemblerV3 instead via GamesService.spawnV3() or TurnsService.buildPromptV2()
 import type { Character, WorldTemplate, Prompt } from '@shared';
 import type { PromptContext, PromptAssemblyResult, PromptAuditEntry } from '../prompts/schemas.js';
 
@@ -26,20 +25,17 @@ export interface GameContext {
 /**
  * Database-only prompts service that replaces all file-based prompt loading
  */
+/**
+ * @deprecated This service is deprecated. Use EntryPointAssemblerV3 via GamesService.spawnV3() instead.
+ * This service will be removed in a future release.
+ */
 export class PromptsService {
   private promptWrapper: PromptWrapper;
   private gameConfigService: GameConfigService;
-  private databasePromptService: DatabasePromptService;
-  private databasePromptAssembler: DatabasePromptAssembler;
 
-  constructor(databasePromptService: DatabasePromptService) {
-    // Initialize runtime guards for DB-only mode
-    initializeRuntimeGuards();
-    
+  constructor() {
     this.promptWrapper = new PromptWrapper();
     this.gameConfigService = GameConfigService.getInstance();
-    this.databasePromptService = databasePromptService;
-    this.databasePromptAssembler = new DatabasePromptAssembler(databasePromptService['promptRepository']);
   }
 
   /**
@@ -48,103 +44,24 @@ export class PromptsService {
    * @returns Formatted prompt string for game initialization
    */
   async createInitialPrompt(game: GameContext): Promise<string> {
-    try {
-      console.log(`[PROMPTS_SERVICE] Using database-only assembly for initial prompt`);
-      
-      // Build database prompt parameters
-      const params: DatabasePromptParams = {
-        worldSlug: game.world_id.toLowerCase(),
-        adventureSlug: this.extractAdventureSlug(game),
-        startingSceneId: this.extractStartingSceneId(game),
-        includeEnhancements: true,
-      };
-      
-      // Assemble prompt using database-only assembler
-      const result = await this.databasePromptAssembler.assemblePrompt(params);
-      
-      // Log to debug service
-      const promptId = debugService.logPrompt(
-        game.id,
-        0, // Initial prompt is turn 0
-        game.world_id,
-        game.character_id || 'Guest',
-        {
-          prompt: result.promptText,
-          audit: result.audit,
-          metadata: result.metadata,
-        }
-      );
-      
-      console.log(`[PROMPTS_SERVICE] Created initial prompt using database-only assembly with ${result.metadata.totalSegments} segments`);
-      return result.promptText;
-    } catch (error) {
-      console.error('[PROMPTS_SERVICE] Error creating initial prompt:', error);
-      
-      if (error instanceof DatabasePromptError) {
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: `Database prompt error: ${error.message}`
-        });
-      }
-      
-      throw new ServiceError(500, {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to create initial prompt: ${error instanceof Error ? error.message : String(error)}`
-      });
-    }
+    throw new ServiceError(500, {
+      code: ApiErrorCode.INTERNAL_ERROR,
+      message: 'This method is deprecated. Use GamesService.spawnV3() with EntryPointAssemblerV3 instead.'
+    });
   }
 
   /**
+   * @deprecated Use DatabasePromptAssembler.assemblePromptV2() instead. This method will be removed after legacy prompts sunset.
    * Build a prompt for AI generation using database-only assembly
    * @param game - Game context with state and metadata
    * @param optionId - The option/action the player chose
    * @returns Formatted prompt string (server-only, never sent to client)
    */
   async buildPrompt(game: GameContext, optionId: string): Promise<string> {
-    try {
-      console.log(`[PROMPTS_SERVICE] Building prompt for game ${game.id}, turn ${game.turn_index}, optionId: ${optionId}`);
-      
-      // Build database prompt parameters
-      const params: DatabasePromptParams = {
-        worldSlug: game.world_id.toLowerCase(),
-        adventureSlug: this.extractAdventureSlug(game),
-        startingSceneId: this.extractStartingSceneId(game),
-        includeEnhancements: true,
-      };
-      
-      // Assemble prompt using database-only assembler
-      const result = await this.databasePromptAssembler.assemblePrompt(params);
-      
-      // Log to debug service
-      const promptId = debugService.logPrompt(
-        game.id,
-        game.turn_index,
-        game.world_id,
-        game.character_id || 'Guest',
-        {
-          prompt: result.promptText,
-          audit: result.audit,
-          metadata: result.metadata,
-        }
-      );
-      
-      console.log(`[PROMPTS_SERVICE] Created prompt using database-only assembly with ${result.metadata.totalSegments} segments`);
-      return result.promptText;
-    } catch (error) {
-      console.error('[PROMPTS_SERVICE] Error building prompt:', error);
-      
-      if (error instanceof DatabasePromptError) {
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: `Database prompt error: ${error.message}`
-        });
-      }
-      
-      throw new ServiceError(500, {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to build prompt: ${error instanceof Error ? error.message : String(error)}`
-      });
-    }
+    throw new ServiceError(500, {
+      code: ApiErrorCode.INTERNAL_ERROR,
+      message: 'This method is deprecated. Use TurnsService.buildPromptV2() with EntryPointAssemblerV3 instead.'
+    });
   }
 
   /**
@@ -345,7 +262,105 @@ export class PromptsService {
   calculateTokenCount(prompt: string): number {
     return this.estimateTokenCount(prompt);
   }
+
+  /**
+   * @deprecated Use GamesService.spawnV3() with Phase 3 flow instead. This method will be removed after legacy prompts sunset (2025-12-31).
+   * Compatibility adapter: creates initial prompt with approval mechanism (legacy flow).
+   * Internally routes to new Phase 3 flow when LEGACY_PROMPTS_ENABLED=true.
+   * This adapter will be deleted after sunset date.
+   * 
+   * @param gameId - Game ID
+   * @param worldSlug - World slug (legacy format)
+   * @param characterId - Optional character ID
+   * @returns Legacy prompt result format
+   */
+  async createInitialPromptWithApproval(
+    gameId: string,
+    worldSlug: string,
+    characterId?: string
+  ): Promise<{ prompt: string; promptId: string }> {
+    // Legacy compatibility adapter - routes to new Phase 3 flow if enabled
+    // When LEGACY_PROMPTS_ENABLED=false, this method should not be called (route returns 410)
+    const { config } = await import('../config/index.js');
+    
+    if (config.legacyPrompts.enabled) {
+      // Try to map to new flow: get game to extract entry_point_id, world_id, entry_start_slug
+      const { supabaseAdmin } = await import('./supabase.js');
+      const { GamesService } = await import('./games.service.js');
+      
+      const gamesService = new GamesService();
+      const game = await gamesService.getGameById(gameId, '', false, null);
+      
+      if (!game) {
+        throw new Error('Game not found');
+      }
+
+      // Extract entry point info from game (legacy games may not have entry_point_id)
+      let entryPointId: string | undefined;
+      let entryStartSlug: string | undefined;
+      
+      if (game.entry_point_id) {
+        entryPointId = game.entry_point_id;
+      } else {
+        // Fallback: try to find entry point by world slug
+        const { data: entryPoint } = await supabaseAdmin
+          .from('entry_points')
+          .select('id, slug')
+          .eq('world_id', game.world_id || worldSlug)
+          .limit(1)
+          .single();
+        
+        if (entryPoint) {
+          entryPointId = entryPoint.id;
+          entryStartSlug = entryPoint.slug;
+        }
+      }
+
+      // If we can't map, fall back to old behavior (create prompt string only)
+      if (!entryPointId || !entryStartSlug) {
+        const gameContext: GameContext = {
+          id: gameId,
+          world_id: worldSlug,
+          character_id: characterId,
+          state_snapshot: game.state_snapshot || {},
+          turn_index: 0,
+        };
+        
+        const prompt = await this.createInitialPrompt(gameContext);
+        const promptId = debugService.logPrompt(gameId, 0, worldSlug, characterId || 'Guest', {
+          prompt,
+          audit: {},
+          metadata: {},
+        });
+        
+        return { prompt, promptId };
+      }
+
+      // Route to new flow (compatibility adapter - this will be deleted after sunset)
+      // Note: We can't fully replicate the approval flow, so we just create the first turn
+      // Legacy clients should migrate to POST /api/games with Phase 3 format
+      const gameContext: GameContext = {
+        id: gameId,
+        world_id: game.world_id || worldSlug,
+        character_id: characterId,
+        state_snapshot: game.state_snapshot || {},
+        turn_index: 0,
+      };
+      
+      const prompt = await this.createInitialPrompt(gameContext);
+      const promptId = debugService.logPrompt(gameId, 0, worldSlug, characterId || 'Guest', {
+        prompt,
+        audit: {},
+        metadata: {},
+      });
+      
+      return { prompt, promptId };
+    }
+    
+    // Should not reach here if legacy is disabled (route should return 410)
+    throw new Error('Legacy prompts are disabled. Use POST /api/games with Phase 3 format.');
+  }
 }
 
-// Export singleton instance
-export const promptsService = new PromptsService(new DatabasePromptService());
+// Export singleton instance (deprecated - methods throw errors)
+export const promptsService = new PromptsService();

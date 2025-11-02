@@ -2,11 +2,10 @@ import { type AppError, toAppError } from './errors';
 import { supabase } from './supabase';
 import { GuestCookieService } from '../services/guestCookie';
 import type { GameListDTO } from '@shared';
+import { API_BASE } from './apiBase';
 
-const BASE = (import.meta.env.VITE_API_BASE_URL ?? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai')).replace(
-  /\/+$/,
-  '',
-);
+// Use centralized API_BASE from apiBase.ts
+const BASE = API_BASE;
 
 export async function apiFetch<T = unknown>(
   path: string,
@@ -95,8 +94,23 @@ export async function apiFetch<T = unknown>(
       return { ok: false, error };
     }
 
-    // For paginated responses (have count/hasMore), return the full response object
-    // For simple responses, extract the data field
+    // Phase 5.1: Handle paginated turns responses (defensive adapter)
+    // Backend returns { ok: true, data: turns[], next?: { afterTurn } }
+    // Normalize to { ok: true, data: { turns, next } } for consistent frontend consumption
+    if (json && typeof json === 'object' && ('next' in json)) {
+      // Handle both shapes: { data: turns[], next } or { data: { turns, next } }
+      const data = json.data;
+      const normalizedData = Array.isArray(data) 
+        ? { turns: data, next: json.next }
+        : (data && 'turns' in data ? data : { turns: [], next: json.next });
+      
+      return { 
+        ok: true, 
+        data: normalizedData as T
+      };
+    }
+    
+    // For other paginated responses (have count/hasMore), return the full response object
     if (json && typeof json === 'object' && ('count' in json || 'hasMore' in json)) {
       return { ok: true, data: json as T };
     }
@@ -273,6 +287,50 @@ export async function submitTurn<T = unknown>(
   });
 }
 
+// Phase 8: Simple send-turn API for playable loop
+export async function sendTurn(
+  gameId: string,
+  message: string,
+  options?: {
+    idempotencyKey?: string;
+    model?: string;
+    temperature?: number;
+    debug?: boolean;
+    debugDepth?: 'safe' | 'full';
+  }
+): Promise<{ ok: true; data: { turn: { turn_number: number; role: string; content: string; meta: any; created_at: string }; debug?: any } } | { ok: false; error: AppError }> {
+  const headers: Record<string, string> = {};
+  
+  if (options?.idempotencyKey) {
+    headers['Idempotency-Key'] = options.idempotencyKey;
+  }
+
+  // Handle debug parameter
+  let url = `/api/games/${gameId}/send-turn`;
+  if (options?.debug !== undefined) {
+    if (options.debug) {
+      url += `?debug=1&debugDepth=${options.debugDepth || 'safe'}`;
+      headers['X-Debug-Response'] = '1';
+    } else {
+      url += `?debug=0`;
+      headers['X-Debug-Response'] = '0';
+    }
+  }
+
+  return apiFetch<{ turn: { turn_number: number; role: string; content: string; meta: any; created_at: string }; debug?: any }>(
+    url,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        model: options?.model,
+        temperature: options?.temperature,
+      }),
+      headers,
+    }
+  );
+}
+
 // World templates
 export async function getWorldTemplates(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
   return apiGet('/api/worlds');
@@ -346,11 +404,113 @@ export async function getStonesHistory(): Promise<{ ok: true; data: any[] } | { 
   return apiGet('/api/stones/history');
 }
 
-// Game Turns API
+// Phase 6.1: Defensive adapter for turns API normalization
+// Handles both response shapes:
+// - { ok: true, data: turns[], next?: { afterTurn } }
+// - { ok: true, data: { turns: [], next?: { afterTurn } } }
+function normalizeTurnsResponse(
+  response: any
+): { ok: true; data: { turns: any[]; next?: { afterTurn: number } } } | { ok: false; error: AppError } {
+  if (!response.ok) {
+    return response;
+  }
+
+  const data = response.data;
+  
+  // If data is already an array, normalize to { turns, next }
+  if (Array.isArray(data)) {
+    return {
+      ok: true,
+      data: {
+        turns: data,
+        next: response.next,
+      },
+    };
+  }
+  
+  // If data is an object with turns, use it directly
+  if (data && typeof data === 'object' && 'turns' in data) {
+    return {
+      ok: true,
+      data: {
+        turns: data.turns || [],
+        next: data.next || response.next,
+      },
+    };
+  }
+  
+  // Fallback: assume empty array
+  return {
+    ok: true,
+    data: {
+      turns: [],
+      next: response.next,
+    },
+  };
+}
+
+// Game Turns API - Phase 5: Paginated turns with cursor
 export async function getGameTurns(
-  gameId: string
-): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
-  return apiGet(`/api/games/${gameId}/turns`);
+  gameId: string,
+  params?: { afterTurn?: number; limit?: number }
+): Promise<{ ok: true; data: { turns: any[]; next?: { afterTurn: number } } } | { ok: false; error: AppError }> {
+  const searchParams = new URLSearchParams();
+  if (params?.afterTurn) {
+    searchParams.set('afterTurn', String(params.afterTurn));
+  }
+  if (params?.limit) {
+    searchParams.set('limit', String(params.limit));
+  }
+  const query = searchParams.toString();
+  const rawResponse = await apiGet(`/api/games/${gameId}/turns${query ? `?${query}` : ''}`);
+  return normalizeTurnsResponse(rawResponse);
+}
+
+// Phase 5: V3 Create Game API with idempotency and test transaction support
+export async function postCreateGame(
+  body: {
+    entry_point_id: string;
+    world_id: string;
+    entry_start_slug: string;
+    scenario_slug?: string | null;
+    ruleset_slug?: string;
+    model?: string;
+    characterId?: string;
+  },
+  opts?: {
+    idempotencyKey?: string;
+    testRollback?: boolean;
+    debug?: boolean;
+    debugDepth?: 'safe' | 'full';
+  }
+): Promise<{ ok: true; data: { game_id: string; first_turn: any; debug?: any } } | { ok: false; error: AppError }> {
+  const headers: Record<string, string> = {};
+  
+  if (opts?.idempotencyKey) {
+    headers['Idempotency-Key'] = opts.idempotencyKey;
+  }
+  
+  if (opts?.testRollback && import.meta.env.VITE_TEST_TX_HEADER_ENABLED === 'true') {
+    headers['X-Test-Rollback'] = '1';
+  }
+
+  // Handle debug parameter
+  let url = `/api/games`;
+  if (opts?.debug !== undefined) {
+    if (opts.debug) {
+      url += `?debug=1&debugDepth=${opts.debugDepth || 'safe'}`;
+      headers['X-Debug-Response'] = '1';
+    } else {
+      url += `?debug=0`;
+      headers['X-Debug-Response'] = '0';
+    }
+  }
+  
+  return apiFetch(url, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers,
+  });
 }
 
 // Auto-initialize game API
@@ -388,7 +548,7 @@ export async function approvePrompt(
 import { httpGet } from './http';
 import type { World, NPC, Ruleset, Story, StoryWithJoins, ID, StoryKind } from '@/types/domain';
 
-export interface ListParamsBase { q?: string }
+export interface ListParamsBase { q?: string; limit?: number }
 export interface ListStoriesParams extends ListParamsBase { world?: ID; kind?: StoryKind; ruleset?: ID; tags?: string[] }
 export interface ListNPCsParams extends ListParamsBase { world?: ID }
 
@@ -419,24 +579,24 @@ export const getRuleset = (id: ID) => httpGet<Ruleset>(`/api/catalog/rulesets/${
 import type { Character, Session } from '@/types/domain';
 
 // Characters
-export const listCharacters = () => httpGet<Character[]>('/me/characters');
+export const listCharacters = () => httpGet<Character[]>('/api/characters');
 
 export const createCharacter = (body: { name: string; portrait_seed?: string }) =>
-  httpPost<Character>('/me/characters', body);
+  httpPost<Character>('/api/characters', body);
 
 // Sessions
 export const findExistingSession = (storyId: ID, characterId: ID) =>
-	httpGet<{ id: ID } | null>(`/sessions`, { params: { story_id: storyId, character_id: characterId } as any });
+	httpGet<{ id: ID } | null>(`/api/sessions`, { params: { story_id: storyId, character_id: characterId } as any });
 
-export const getSession = (sessionId: ID) => httpGet<Session>(`/sessions/${sessionId}`);
+export const getSession = (sessionId: ID) => httpGet<Session>(`/api/sessions/${sessionId}`);
 
 export const getSessionMessages = (sessionId: ID, limit: number = 20) =>
-	httpGet<{ id: string; content: string; role: 'user'|'assistant'; created_at: string }[]>(`/sessions/${sessionId}/messages`, { params: { limit } as any });
+	httpGet<{ id: string; content: string; role: 'user'|'assistant'; created_at: string }[]>(`/api/sessions/${sessionId}/messages`, { params: { limit } as any });
 
 export const createSession = (
 	body: { story_id: ID; character_id: ID },
 	opts?: { headers?: Record<string, string> }
-) => httpPost<Session>('/sessions', body, opts);
+) => httpPost<Session>('/api/sessions', body, opts);
 
 // Guest authentication
 export const createGuestToken = () =>

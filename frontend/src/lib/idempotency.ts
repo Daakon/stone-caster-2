@@ -26,6 +26,16 @@ export function makeIdempotencyKey(storyId: string, characterId: string): string
 	return `idem:${base}`;
 }
 
+// Phase 5: Generate v4 UUID idempotency key for game creation
+export function generateIdempotencyKeyV4(): string {
+	// Use crypto.randomUUID() if available (browsers), fallback to timestamp + random
+	if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+		return crypto.randomUUID();
+	}
+	// Fallback for environments without crypto.randomUUID
+	return `idem-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+}
+
 
 
 

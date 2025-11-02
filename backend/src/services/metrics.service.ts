@@ -81,6 +81,43 @@ export class MetricsService {
   }
 
   /**
+   * Increment a counter metric with optional labels
+   * Phase 4.2: Simple metrics counter for legacy/V2 prompt usage tracking
+   */
+  static increment(name: string, labels?: Record<string, string | number>): void {
+    const labelKey = labels ? JSON.stringify(labels) : '';
+    const fullKey = labelKey ? `${name}{${labelKey}}` : name;
+    
+    // Store counter in errorCounts (reusing existing structure for simplicity)
+    // In a production system, you'd use a proper metrics library (Prometheus, StatsD, etc.)
+    this.errorCounts[fullKey] = (this.errorCounts[fullKey] || 0) + 1;
+    
+    // Log structured metric for observability
+    console.log(JSON.stringify({
+      event: 'metric.counter',
+      name,
+      labels: labels || {},
+      value: this.errorCounts[fullKey],
+    }));
+  }
+
+  /**
+   * Phase 7: Record a histogram metric (no-op, console export compatible with Prometheus)
+   * Histograms track value distributions (latency, size, etc.)
+   */
+  static observe(name: string, value: number, labels?: Record<string, string | number>): void {
+    // In production, this would bucket the value into histogram buckets
+    // For now, we log the value and can calculate percentiles from logs
+    console.log(JSON.stringify({
+      event: 'metric.histogram',
+      name,
+      labels: labels || {},
+      value,
+      timestamp: new Date().toISOString(),
+    }));
+  }
+
+  /**
    * Get current metrics snapshot
    */
   static getSnapshot(): MetricsSnapshot {

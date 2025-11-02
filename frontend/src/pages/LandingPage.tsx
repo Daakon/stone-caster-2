@@ -16,7 +16,7 @@ import { trackCatalogCardClick } from '@/lib/analytics';
 export default function LandingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { initialize } = useAuthStore();
+  const { initialize, isAuthenticated } = useAuthStore();
   const [email, setEmail] = useState('');
   const [showDrifter, setShowDrifter] = useState(false);
   
@@ -24,8 +24,8 @@ export default function LandingPage() {
   const worldsQ = useWorldsQuery(undefined);
   const storiesQ = useStoriesQuery({ limit: 6 });
   
-  const worlds = (worldsQ.data || []).slice(0, 3);
-  const stories = (storiesQ.data || []).slice(0, 6);
+  const worlds = (worldsQ.data?.ok ? worldsQ.data.data : []).slice(0, 3);
+  const stories = (storiesQ.data?.ok ? storiesQ.data.data : []).slice(0, 6);
 
   const handleOAuthCallback = useCallback(async () => {
     try {
@@ -164,7 +164,7 @@ export default function LandingPage() {
               Create characters, explore rich worlds, and shape epic adventures with friends.
             </p>
             
-            {!isInvited && (
+            {!isAuthenticated && (
               <div className="max-w-md mx-auto mb-8">
                 <form onSubmit={handleEmailSubmit} className="flex gap-2">
                   <Input

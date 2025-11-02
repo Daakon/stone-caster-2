@@ -59,7 +59,9 @@
     "docs:generate": "tsx scripts/generate-swagger-docs.ts",
     "docs:ci": "tsx scripts/api-docs-ci.ts",
     "docs:spec": "tsx scripts/api-docs-ci.ts spec",
-    "docs:contract": "tsx scripts/api-docs-ci.ts post-merge"
+    "docs:contract": "tsx scripts/api-docs-ci.ts post-merge",
+    "tidy": "npm run type-check && npm run lint && npm run tidy:dead-code",
+    "tidy:dead-code": "echo 'Running dead code analysis...' && (npx ts-prune --project tsconfig.json 2>/dev/null || echo 'Note: Install ts-prune with: npm install -D ts-prune')"
   },
   "keywords": [
     "rpg",
@@ -82,6 +84,7 @@
     "express": "^4.18.2",
     "node-fetch": "^3.3.2",
     "openai": "^4.20.0",
+    "pg": "^8.11.3",
     "stripe": "^19.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
@@ -92,6 +95,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.10.0",
+    "@types/pg": "^8.10.9",
     "@types/supertest": "^2.0.16",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
