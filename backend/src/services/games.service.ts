@@ -10,6 +10,8 @@ import {
   resolveAdventureByIdentifier,
   computeAdventureId,
 } from '../utils/adventure-identity.js';
+import { PerformanceTimer } from '../utils/timing.js';
+import { rulesetCache, npcListCache } from '../utils/cache.js';
 
 export interface Game {
   id: string;
@@ -299,6 +301,9 @@ export class GamesService {
    * @returns Spawn result with game_id and first_turn
    */
   async spawnV3(request: SpawnRequestV3): Promise<SpawnResultV3> {
+    const timer = new PerformanceTimer();
+    timer.start('totalMs');
+    
     const {
       entry_point_id,
       world_id,
@@ -401,38 +406,61 @@ export class GamesService {
       }
 
       // 2. Resolve ruleset (from entry_point_rulesets or use provided/default)
+      timer.start('resolveContextMs');
+      
       let rulesetId: string | undefined = ruleset_slug;
       let resolvedRulesetSlug: string = ruleset_slug || 'default';
 
       if (!ruleset_slug) {
-        // Fetch primary ruleset from entry_point_rulesets junction table
-        const { data: rulesets } = await supabaseAdmin
-          .from('entry_point_rulesets')
-          .select('rulesets:ruleset_id (id, slug)')
-          .eq('entry_point_id', entry_point_id)
-          .order('sort_order', { ascending: true })
-          .limit(1);
-
-        if (rulesets && rulesets.length > 0) {
-          const primaryRuleset = (rulesets[0] as any).rulesets;
-          if (primaryRuleset) {
-            rulesetId = primaryRuleset.id;
-            resolvedRulesetSlug = primaryRuleset.slug || primaryRuleset.id || 'default';
-          }
-        }
-
-        // If still no ruleset, try to find a default ruleset by slug
-        if (!rulesetId) {
-          const { data: defaultRuleset } = await supabaseAdmin
+        // Check cache first
+        const cacheKey = `ruleset:${entry_point_id}`;
+        const cachedSlug = rulesetCache.get(cacheKey);
+        
+        if (cachedSlug) {
+          resolvedRulesetSlug = cachedSlug;
+          // Still need to resolve rulesetId from slug
+          const { data: ruleset } = await supabaseAdmin
             .from('rulesets')
             .select('id, slug')
-            .eq('slug', 'default')
+            .eq('slug', cachedSlug)
             .eq('status', 'active')
             .limit(1)
             .single();
-          if (defaultRuleset) {
-            rulesetId = defaultRuleset.id;
-            resolvedRulesetSlug = defaultRuleset.slug || 'default';
+          if (ruleset) {
+            rulesetId = ruleset.id;
+          }
+        } else {
+          // Fetch primary ruleset from entry_point_rulesets junction table
+          const { data: rulesets } = await supabaseAdmin
+            .from('entry_point_rulesets')
+            .select('rulesets:ruleset_id (id, slug)')
+            .eq('entry_point_id', entry_point_id)
+            .order('sort_order', { ascending: true })
+            .limit(1);
+
+          if (rulesets && rulesets.length > 0) {
+            const primaryRuleset = (rulesets[0] as any).rulesets;
+            if (primaryRuleset) {
+              rulesetId = primaryRuleset.id;
+              resolvedRulesetSlug = primaryRuleset.slug || primaryRuleset.id || 'default';
+              rulesetCache.set(cacheKey, resolvedRulesetSlug);
+            }
+          }
+
+          // If still no ruleset, try to find a default ruleset by slug
+          if (!rulesetId) {
+            const { data: defaultRuleset } = await supabaseAdmin
+              .from('rulesets')
+              .select('id, slug')
+              .eq('slug', 'default')
+              .eq('status', 'active')
+              .limit(1)
+              .single();
+            if (defaultRuleset) {
+              rulesetId = defaultRuleset.id;
+              resolvedRulesetSlug = defaultRuleset.slug || 'default';
+              rulesetCache.set(cacheKey, resolvedRulesetSlug);
+            }
           }
         }
       } else {
@@ -466,47 +494,10 @@ export class GamesService {
         };
       }
 
-      // 3. Validate entry_start_slug exists in prompt_segments
-      const { data: entryStartSegment } = await supabaseAdmin
-        .from('prompt_segments')
-        .select('id, scope, ref_id, slug')
-        .or(`ref_id.eq.${entry_start_slug},slug.eq.${entry_start_slug}`)
-        .in('scope', ['entry', 'entry_start'])
-        .eq('active', true)
-        .limit(1)
-        .single();
+      // 3. Validate entry point exists and is active (entry_start_slug validation done by v3 assembler)
+      // Note: scenario_slug is no longer used in v3 (removed from scope order)
 
-      if (!entryStartSegment) {
-        return {
-          success: false,
-          error: ApiErrorCode.VALIDATION_FAILED,
-          message: `Entry start '${entry_start_slug}' not found in prompt_segments`,
-          code: 'ENTRY_START_NOT_FOUND',
-        };
-      }
-
-      // 4. Validate scenario_slug if provided
-      if (scenario_slug) {
-        const { data: scenarioSegment } = await supabaseAdmin
-          .from('prompt_segments')
-          .select('id')
-          .or(`ref_id.eq.${scenario_slug},slug.eq.${scenario_slug}`)
-          .eq('scope', 'scenario')
-          .eq('active', true)
-          .limit(1)
-          .single();
-
-        if (!scenarioSegment) {
-          return {
-            success: false,
-            error: ApiErrorCode.VALIDATION_FAILED,
-            message: `Scenario '${scenario_slug}' not found in prompt_segments`,
-            code: 'SCENARIO_NOT_FOUND',
-          };
-        }
-      }
-
-      // 5. Validate character if provided
+      // 4. Validate character if provided
       let character: any = null;
       if (characterId) {
         character = await CharactersService.getCharacterById(characterId, ownerId, isGuest);
@@ -526,7 +517,6 @@ export class GamesService {
             error: ApiErrorCode.CONFLICT,
             message: 'Character is already active in another game',
             code: 'CHARACTER_ALREADY_ACTIVE',
-            existingGameId: character.activeGameId,
           };
         }
 
@@ -567,38 +557,60 @@ export class GamesService {
       // 8. Check for starter stones grant
       await this.handleStarterStonesGrant(ownerId, isGuest);
 
-      // 9. Assemble prompt using Phase 2 assembler
-      const { DatabasePromptAssembler } = await import('../prompts/database-prompt-assembler.js');
-      const { PromptRepository } = await import('../repositories/prompt.repository.js');
-      const { config } = await import('../config/index.js');
+      timer.end('resolveContextMs');
+      
+      // 9. Assemble prompt using v3 entry-point assembler
+      timer.start('assemblerMs');
+      
+      const { EntryPointAssemblerV3, EntryPointAssemblerError } = await import('../prompts/entry-point-assembler-v3.js');
+      const { config: appConfig } = await import('../config/index.js');
       const { MetricsService } = await import('./metrics.service.js');
 
-      const promptRepository = new PromptRepository(
-        config.supabase.url,
-        config.supabase.serviceKey
-      );
-      const assembler = new DatabasePromptAssembler(promptRepository);
+      const assembler = new EntryPointAssemblerV3();
 
       // Use config for model and budget
-      const budgetTokens = config.prompt.tokenBudgetDefault;
+      const budgetTokens = appConfig.prompt.tokenBudgetDefault;
 
-      const assembleResult = await assembler.assemblePromptV2({
-        worldId: world_id,
-        rulesetSlug: resolvedRulesetSlug,
-        scenarioSlug: scenario_slug || null,
-        entryStartSlug: entry_start_slug,
-        model: model || config.prompt.modelDefault,
-        budgetTokens,
-        entryPointSlug: entryPoint.slug,
-      });
+      let assembleResult;
+      try {
+        assembleResult = await assembler.assemble({
+          entryPointId: entry_point_id,
+          entryStartSlug: entry_start_slug,
+          model: model || appConfig.prompt.modelDefault,
+          budgetTokens,
+        });
+      } catch (error) {
+        if (error instanceof EntryPointAssemblerError) {
+          // Map assembler errors to API error codes
+          let apiCode = ApiErrorCode.VALIDATION_FAILED;
+          if (error.code === 'ENTRY_POINT_NOT_FOUND') {
+            apiCode = ApiErrorCode.NOT_FOUND;
+          } else if (error.code === 'WORLD_NOT_ACTIVE') {
+            apiCode = ApiErrorCode.VALIDATION_FAILED;
+          } else if (error.code === 'RULESET_NOT_ALLOWED') {
+            apiCode = ApiErrorCode.VALIDATION_FAILED;
+          }
+          
+          return {
+            success: false,
+            error: apiCode,
+            message: error.message,
+            code: error.code,
+          };
+        }
+        throw error; // Re-throw unexpected errors
+      }
+      
+      timer.end('assemblerMs');
 
-      // Increment V2 usage metric for game creation
-      MetricsService.increment('prompt_v2_used_total', {
+      // Increment v3 usage metric for game creation
+      MetricsService.increment('prompt_v3_used_total', {
         phase: 'start',
         policy: (assembleResult.meta.policy || []).join(','),
       });
 
       // 10. Atomic transaction: insert game and first turn via stored procedure
+      timer.start('persistMs');
       // Using stored procedure ensures true atomicity with automatic rollback on error
       // In test mode, execute via transaction client to ensure rollback
       // Reuse txClient already declared at line 313 (don't redeclare)
@@ -677,6 +689,8 @@ export class GamesService {
             p_turn_meta: {
               ...assembleResult.meta,
               pieces: assembleResult.pieces,
+              version: 'v3',
+              source: 'entry-point',
             },
           }
         );
@@ -737,6 +751,8 @@ export class GamesService {
         };
       }
 
+      timer.end('persistMs');
+      
       // Success: extract results
       const createdGameId = transactionResult?.game_id;
       const createdTurnNumber = transactionResult?.turn_number || 1;
@@ -896,7 +912,7 @@ export class GamesService {
       console.log('[SPAWN_V3]', {
         event: 'game.spawned',
         gameId: createdGameId,
-        worldId,
+        worldId: world_id,
         rulesetSlug: resolvedRulesetSlug,
         scenarioSlug: scenario_slug || null,
         entryStartSlug: entry_start_slug,
@@ -919,22 +935,89 @@ export class GamesService {
         },
       };
 
+      timer.end('totalMs');
+      
+      const timings = {
+        resolveContextMs: timer.getDuration('resolveContextMs') || 0,
+        assemblerMs: timer.getDuration('assemblerMs') || 0,
+        aiMs: 0, // Not tracked in spawn (no AI call)
+        persistMs: timer.getDuration('persistMs') || 0,
+        totalMs: timer.getDuration('totalMs') || 0,
+      };
+      
+      // Record metrics
+      const { metricsCollector, checkSLOViolations } = await import('../utils/metrics.js');
+      const totalMs = timings.totalMs;
+      metricsCollector.recordHistogram('v3_spawn_ms', totalMs);
+      metricsCollector.recordHistogram('v3_assembler_ms', timings.assemblerMs);
+      
+      // Check SLO violations
+      const spawnPercentiles = metricsCollector.getHistogramPercentiles('v3_spawn_ms');
+      if (spawnPercentiles) {
+        checkSLOViolations('v3_spawn_ms', spawnPercentiles.p95, appConfig.slo.spawnP95Ms);
+      }
+      
       // Include assembler metadata if requested (for debug)
       if (request.includeAssemblerMetadata) {
         result.assemblerMetadata = {
           prompt: assembleResult.prompt,
           pieces: assembleResult.pieces,
-          meta: assembleResult.meta,
+          meta: {
+            ...assembleResult.meta,
+            timings,
+          },
         };
       }
 
+      // Write prompt trace (if enabled and user is admin)
+      if (ownerId && result.assemblerMetadata) {
+        try {
+          const { supabaseAdmin } = await import('./supabase.js');
+          const { data: profile } = await supabaseAdmin
+            .from('user_profiles')
+            .select('role')
+            .eq('auth_user_id', ownerId)
+            .single();
+          
+          const userRole = profile?.role || null;
+          
+          if (userRole === 'admin') {
+            const { writePromptTrace } = await import('./prompt-trace.service.js');
+            // Get turn ID from turns table
+            const { data: turnData } = await supabaseAdmin
+              .from('turns')
+              .select('id')
+              .eq('game_id', result.game_id)
+              .eq('turn_number', result.first_turn?.turn_number || 1)
+              .single();
+            
+            const turnId = turnData?.id || result.game_id;
+            await writePromptTrace({
+              gameId: result.game_id!,
+              turnId: turnId || result.game_id!,
+              turnNumber: result.first_turn?.turn_number || 1,
+              phase: 'start',
+              assembler: result.assemblerMetadata,
+              timings: {
+                assembleMs: undefined, // Not tracked in spawnV3 currently
+                aiMs: undefined,
+                totalMs: undefined,
+              },
+            });
+          }
+        } catch (error) {
+          // Fail silently - tracing must not break spawn
+          console.error('[GAMES_SERVICE] Failed to write prompt trace:', error);
+        }
+      }
+
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('[SPAWN_V3] Unexpected error:', error);
       
-      // Check for DatabasePromptError
-      const { DatabasePromptError } = await import('../prompts/database-prompt-assembler.js');
-      if (error instanceof DatabasePromptError) {
+      // Check for EntryPointAssemblerError (v3 assembler)
+      const { EntryPointAssemblerError } = await import('../prompts/entry-point-assembler-v3.js');
+      if (error instanceof EntryPointAssemblerError) {
         return {
           success: false,
           error: ApiErrorCode.INTERNAL_ERROR,
@@ -1323,7 +1406,8 @@ export class GamesService {
    */
   async getSessionTurns(gameId: string): Promise<any[]> {
     try {
-      const { data: turns, error } = await supabaseAdmin
+      // Try to select narrative_summary, but fall back to ai_response if column doesn't exist
+      let { data: turns, error } = await supabaseAdmin
         .from('turns')
         .select(`
           id,
@@ -1331,12 +1415,44 @@ export class GamesService {
           sequence,
           user_prompt,
           narrative_summary,
+          ai_response,
           is_initialization,
           created_at,
           turn_number
         `)
         .eq('session_id', gameId)
         .order('sequence', { ascending: true });
+
+      // If narrative_summary column doesn't exist, try again without it
+      if (error && error.code === '42703') {
+        const { data: turns2, error: error2 } = await supabaseAdmin
+          .from('turns')
+          .select(`
+            id,
+            session_id,
+            sequence,
+            user_prompt,
+            ai_response,
+            is_initialization,
+            created_at,
+            turn_number
+          `)
+          .eq('session_id', gameId)
+          .order('sequence', { ascending: true });
+        
+        if (error2) {
+          throw new Error(`Failed to fetch session turns: ${error2.message}`);
+        }
+        
+        // Map ai_response.narrative to narrative_summary for compatibility
+        turns = turns2?.map(turn => ({
+          ...turn,
+          narrative_summary: (turn.ai_response && typeof turn.ai_response === 'object' 
+            ? (turn.ai_response as any).narrative 
+            : null) || null
+        })) || [];
+        error = null;
+      }
 
       if (error) {
         console.error('Error fetching session turns:', error);
@@ -1359,17 +1475,40 @@ export class GamesService {
     try {
       const { data: turn, error } = await supabaseAdmin
         .from('turns')
-        .select('narrative_summary')
+        .select('narrative_summary, ai_response')
         .eq('session_id', gameId)
         .eq('is_initialization', true)
         .single();
 
       if (error) {
+        // If column doesn't exist, try reading from ai_response
+        if (error.code === '42703') {
+          const { data: turn2, error: error2 } = await supabaseAdmin
+            .from('turns')
+            .select('ai_response')
+            .eq('session_id', gameId)
+            .eq('is_initialization', true)
+            .single();
+
+          if (error2 || !turn2) {
+            return null;
+          }
+
+          // Extract narrative from ai_response JSONB
+          if (turn2.ai_response && typeof turn2.ai_response === 'object') {
+            return (turn2.ai_response as any).narrative || null;
+          }
+          return null;
+        }
         console.error('Error fetching initialize narrative:', error);
         return null;
       }
 
-      return turn?.narrative_summary || null;
+      // Try narrative_summary first, fallback to ai_response.narrative
+      return turn?.narrative_summary 
+        || (turn?.ai_response && typeof turn.ai_response === 'object' 
+            ? (turn.ai_response as any).narrative || null 
+            : null);
     } catch (error) {
       console.error('Unexpected error in getInitializeNarrative:', error);
       return null;

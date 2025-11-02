@@ -87,17 +87,52 @@ export async function isDebugResponseAllowed(req: Request): Promise<boolean> {
 }
 
 /**
+ * Redact sensitive fields from a string (prompts, etc.)
+ * @param str - String to redact
+ * @returns Redacted string
+ */
+export function redactSensitive(str: string): string;
+/**
  * Redact sensitive fields from an object (deep clone)
  * @param obj - Object to redact
  * @returns Redacted deep copy of the object
  */
-export function redactSensitive(obj: any): any {
+export function redactSensitive(obj: any): any;
+export function redactSensitive(input: string | any): string | any {
+  // Handle string input (for prompts)
+  if (typeof input === 'string') {
+    if (!input) {
+      return input;
+    }
+    
+    // Simple redaction: look for common patterns (API keys, tokens, etc.)
+    const sensitivePatterns = [
+      /(api[_-]?key|api[_-]?token|secret|password|auth[_-]?token)\s*[:=]\s*['"]?([a-zA-Z0-9_\-]{20,})['"]?/gi,
+      /\b[A-Za-z0-9]{32,}\b/g, // Long alphanumeric strings (potential tokens)
+    ];
+
+    let redacted = input;
+    for (const pattern of sensitivePatterns) {
+      redacted = redacted.replace(pattern, (match) => {
+        // Replace middle chars with asterisks, keep first/last few
+        if (match.length > 10) {
+          return match.substring(0, 4) + '*'.repeat(Math.min(match.length - 8, 20)) + match.substring(match.length - 4);
+        }
+        return '[REDACTED]';
+      });
+    }
+
+    return redacted;
+  }
+
+  // Handle object input (original behavior)
+  const obj = input;
   if (obj === null || obj === undefined) {
     return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => redactSensitive(item));
+    return obj.map((item: any) => redactSensitive(item));
   }
 
   if (typeof obj !== 'object') {
@@ -162,6 +197,15 @@ export interface DebugAssembler {
     scenarioSlug?: string | null;
     entryStartSlug?: string;
     tokenEst?: { input: number; budget: number; pct: number };
+    source?: 'entry-point';
+    version?: 'v3';
+    selectionContext?: {
+      world: string;
+      ruleset: string;
+      entryPoint: string;
+      entryPointType: string;
+      npcCount: number;
+    };
     [key: string]: any;
   };
 }
@@ -188,6 +232,7 @@ export interface DebugPayload {
   assembler: DebugAssembler;
   ai?: DebugAI;
   timings?: DebugTimings;
+  npcTrimmedCount?: number;
 }
 
 /**
@@ -196,7 +241,9 @@ export interface DebugPayload {
  * @returns Debug payload ready for response
  */
 export function buildDebugPayload(params: {
-  debugId: string; // Unique identifier: ${gameId}:${turnNumber}
+  debugId?: string; // Unique identifier: ${gameId}:${turnNumber} (auto-generated if missing)
+  gameId?: string; // Used to generate debugId if not provided
+  turnNumber?: number; // Used to generate debugId if not provided
   phase: 'start' | 'turn';
   assembler: {
     prompt: string;
@@ -211,6 +258,11 @@ export function buildDebugPayload(params: {
       scenarioSlug?: string | null;
       entryStartSlug?: string;
       tokenEst?: { input: number; budget: number; pct: number };
+      npcTrimmedCount?: number;
+      selectionContext?: {
+        npcCountBefore?: number;
+        npcCountAfter?: number;
+      };
       [key: string]: any;
     };
   };
@@ -261,8 +313,11 @@ export function buildDebugPayload(params: {
     }
   }
 
+  // Generate debugId if not provided
+  const debugId = params.debugId || `${params.gameId || 'unknown'}:${params.turnNumber || 0}`;
+
   const debugPayload: DebugPayload = {
-    debugId: params.debugId,
+    debugId,
     phase: params.phase,
     assembler: {
       prompt: cappedPrompt,

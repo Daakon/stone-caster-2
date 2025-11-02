@@ -108,6 +108,60 @@ class DebugStore {
   clearAll(): void {
     this.store.clear();
   }
+
+  /**
+   * Fetch traces from API and merge with in-memory payloads
+   */
+  async hydrateTraces(gameId: string): Promise<void> {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const debugToken = import.meta.env.VITE_DEBUG_ROUTES_TOKEN;
+      
+      if (!debugToken) {
+        console.warn('[DEBUG_STORE] No debug token configured, skipping trace fetch');
+        return;
+      }
+
+      const response = await fetch(`${apiUrl}/api/dev/debug/traces/${gameId}?limit=50`, {
+        headers: {
+          'X-Debug-Token': debugToken,
+        },
+      });
+
+      if (!response.ok) {
+        console.warn('[DEBUG_STORE] Failed to fetch traces:', response.statusText);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.ok && data.data?.traces) {
+        // Merge traces with in-memory payloads
+        for (const trace of data.data.traces) {
+          const turnKey = `${gameId}:${trace.turnNumber}`;
+          
+          // Only add if not already in store (live payloads take precedence)
+          if (!this.store.has(turnKey)) {
+            this.store.set(turnKey, {
+              debugId: `${gameId}:${trace.turnNumber}`,
+              phase: trace.phase,
+              assembler: {
+                prompt: trace.promptSnippet || '',
+                pieces: trace.pieces || [],
+                meta: {
+                  tokenEst: { input: 0, budget: 0, pct: trace.tokenPct },
+                  policy: trace.policy || [],
+                  npcTrimmedCount: trace.npcTrimmedCount || 0,
+                },
+              },
+              timings: trace.timings,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[DEBUG_STORE] Error hydrating traces:', error);
+    }
+  }
 }
 
 // Singleton instance

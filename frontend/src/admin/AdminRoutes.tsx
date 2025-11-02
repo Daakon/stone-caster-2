@@ -10,7 +10,6 @@ import { Guarded } from './routeGuard';
 import AdminHome from '@/pages/admin/index';
 import EntryPointsAdmin from '@/pages/admin/entry-points/index';
 import EntryPointEditPage from '@/pages/admin/entry-points/id';
-import PromptSegmentsAdmin from '@/pages/admin/prompt-segments/index';
 import NPCsAdmin from '@/pages/admin/npcs/index';
 import CreateNPCPage from '@/pages/admin/npcs/new';
 import NPCDetailPage from '@/pages/admin/npcs/[id]';
@@ -21,9 +20,6 @@ import WorldNewPage from '@/pages/admin/worlds/new';
 import WorldEditPage from '@/pages/admin/worlds/edit';
 import RulesetsAdmin from '@/pages/admin/rulesets/index';
 import RulesetDetailPage from '@/pages/admin/rulesets/[id]';
-import EntriesAdmin from '@/pages/admin/entries/index';
-import EntryEditPage from '@/pages/admin/entries/edit';
-import EntryPreviewPage from '@/pages/admin/entries/preview';
 import ImportExportPage from '@/pages/admin/tools/import-export';
 import ReviewsAdmin from '@/pages/admin/reviews/index';
 import ReportsAdmin from '@/pages/admin/reports/index';
@@ -41,38 +37,12 @@ export function AdminRoutes() {
       <Route path="/admin" element={<AdminHome />} />
       <Route path="/entry-points" element={<EntryPointsAdmin />} />
       <Route path="/entry-points/:id" element={<EntryPointEditPage />} />
-      <Route path="/prompt-segments" element={<PromptSegmentsAdmin />} />
       <Route path="/npcs" element={<NPCsAdmin />} />
       <Route path="/npcs/new" element={<CreateNPCPage />} />
       <Route path="/npcs/:id" element={<NPCDetailPage />} />
       <Route path="/npcs/:id/edit" element={<EditNPCPage />} />
       
-      {/* Entries routes (Creators: read; Mods/Admin: CRUD) */}
-      <Route 
-        path="/entries" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <EntriesAdmin />
-          </Guarded>
-        } 
-      />
-      <Route 
-        path="/entries/:id/edit" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <EntryEditPage />
-          </Guarded>
-        } 
-      />
-        <Route
-          path="/entries/:id/preview"
-          element={
-            <Guarded allow={['creator', 'moderator', 'admin']}>
-              <EntryPreviewPage />
-            </Guarded>
-          }
-        />
-        <Route
+      <Route
           path="/tools/import-export"
           element={
             <Guarded allow={['admin']}>

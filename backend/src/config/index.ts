@@ -50,6 +50,16 @@ export const config = {
     enabled: env.legacyPromptsEnabled,
     sunset: env.legacyPromptsSunset || '2025-12-31',
   },
+  promptTracing: {
+    enabled: process.env.PROMPT_TRACING_ENABLED === 'true',
+    maxSnippet: process.env.PROMPT_TRACING_MAX_SNIPPET 
+      ? Number(process.env.PROMPT_TRACING_MAX_SNIPPET) 
+      : 2000,
+  },
+  slo: {
+    spawnP95Ms: process.env.SLO_SPAWN_P95_MS ? Number(process.env.SLO_SPAWN_P95_MS) : 600,
+    turnP95Ms: process.env.SLO_TURN_P95_MS ? Number(process.env.SLO_TURN_P95_MS) : 200,
+  },
 };
 
 export { configService, configServiceReady };

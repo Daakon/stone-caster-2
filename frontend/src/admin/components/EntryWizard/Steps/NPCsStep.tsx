@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, X, Users, AlertCircle } from 'lucide-react';
-import { Entry } from '@/services/admin.entries';
+import { EntryPoint } from '@/services/admin.entryPoints';
 import { WizardData } from '../EntryWizard';
 import { useNPCs } from '@/hooks/useNPCs';
 import { useNPCPacks } from '@/hooks/useNPCPacks';
@@ -24,7 +24,7 @@ const npcsSchema = z.object({
 type NPCsFormData = z.infer<typeof npcsSchema>;
 
 interface NPCsStepProps {
-  entry: Entry;
+  entry: EntryPoint;
   data: WizardData;
   onUpdate: (updates: Partial<WizardData>) => void;
   onComplete: (stepData: any) => void;

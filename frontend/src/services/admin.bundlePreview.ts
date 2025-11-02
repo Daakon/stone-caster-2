@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import { entriesService } from './admin.entries';
+import { entryPointsService } from './admin.entryPoints';
 import { rulesetsService } from './admin.rulesets';
 import { worldsService } from './admin.worlds';
 
@@ -76,56 +76,56 @@ export class BundlePreviewService {
       throw new Error('No authentication token available');
     }
 
-    // Get entry with all associations
-    const entry = await entriesService.getEntry(entryId);
-    if (!entry) {
-      throw new Error('Entry not found');
+    // Get story (entry point) with all associations
+    const entryPoint = await entryPointsService.getEntryPoint(entryId);
+    if (!entryPoint) {
+      throw new Error('Story not found');
     }
 
     // Get world
-    const world = entry.world;
+    const world = entryPoint.world;
     if (!world) {
-      throw new Error('Entry has no associated world');
+      throw new Error('Story has no associated world');
     }
 
     // Get rulesets in order
-    const rulesets = entry.rulesets || [];
+    const rulesets = entryPoint.rulesets || [];
     
     // Filter out archived rulesets
-    const activeRulesets = rulesets.filter(r => r.status !== 'archived');
+    const activeRulesets = rulesets.filter((r: any) => r.status !== 'archived');
     
     // Filter out drafts if not requested
     const filteredRulesets = options.includeDrafts 
       ? activeRulesets 
-      : activeRulesets.filter(r => r.status === 'active');
+      : activeRulesets.filter((r: any) => r.status === 'active');
 
     // Get NPCs
-    const npcs = entry.npcs || [];
-    const activeNPCs = npcs.filter(n => n.status !== 'archived');
+    const npcs = entryPoint.npcs || [];
+    const activeNPCs = npcs.filter((n: any) => n.status !== 'archived');
 
     // Get NPC packs with members
-    const npcPacks = entry.npc_packs || [];
-    const activeNPCPacks = npcPacks.filter(p => p.status !== 'archived');
+    const npcPacks = entryPoint.npc_packs || [];
+    const activeNPCPacks = npcPacks.filter((p: any) => p.status !== 'archived');
 
     // Calculate metadata
-    const totalMembers = activeNPCPacks.reduce((sum, pack) => sum + (pack.members?.length || 0), 0);
+    const totalMembers = activeNPCPacks.reduce((sum: number, pack: any) => sum + (pack.members?.length || 0), 0);
     
     // Estimate size (rough calculation)
-    const estimatedSize = this.estimateBundleSize(entry, world, filteredRulesets, activeNPCs, activeNPCPacks);
+    const estimatedSize = this.estimateBundleSize(entryPoint, world, filteredRulesets, activeNPCs, activeNPCPacks);
     
     // Generate warnings
-    const warnings = this.generateWarnings(entry, world, filteredRulesets, activeNPCs, activeNPCPacks, estimatedSize, options.maxSize);
+    const warnings = this.generateWarnings(entryPoint, world, filteredRulesets, activeNPCs, activeNPCPacks, estimatedSize, options.maxSize);
     
     // Generate assembly order
-    const assemblyOrder = this.generateAssemblyOrder(entry, world, filteredRulesets);
+    const assemblyOrder = this.generateAssemblyOrder(entryPoint, world, filteredRulesets);
 
     return {
       entry: {
-        id: entry.id,
-        name: entry.name,
-        slug: entry.slug,
-        description: entry.description,
-        status: entry.status
+        id: entryPoint.id,
+        name: entryPoint.name || entryPoint.title,
+        slug: entryPoint.slug,
+        description: entryPoint.description,
+        status: entryPoint.lifecycle
       },
       world: {
         id: world.id,

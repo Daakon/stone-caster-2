@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { Copy } from 'lucide-react';
 import { CodeBlock } from './CodeBlock';
+import { ComparePromptView } from './ComparePromptView';
+import { CompareView } from './CompareView';
 import { redactSensitiveClient } from '@/lib/debug';
 import type { DebugPayload } from '@/lib/debugStore';
 
@@ -72,10 +74,13 @@ export function DebugTabs({ debug, compareMode = false, compareDebug }: DebugTab
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList 
         ref={tabListRef}
-        className="grid w-full grid-cols-5"
+        className={`grid w-full ${compareMode && compareDebug ? 'grid-cols-6' : 'grid-cols-5'}`}
         role="tablist"
       >
         <TabsTrigger value="prompt" role="tab" aria-label="Prompt tab">Prompt</TabsTrigger>
+        {compareMode && compareDebug && (
+          <TabsTrigger value="compare" role="tab" aria-label="Compare tab">Compare</TabsTrigger>
+        )}
         <TabsTrigger value="ai" role="tab" aria-label="AI I/O tab">AI I/O</TabsTrigger>
         <TabsTrigger value="pieces" role="tab" aria-label="Pieces tab">Pieces</TabsTrigger>
         <TabsTrigger value="meta" role="tab" aria-label="Meta tab">Meta</TabsTrigger>
@@ -98,6 +103,12 @@ export function DebugTabs({ debug, compareMode = false, compareDebug }: DebugTab
           />
         )}
       </TabsContent>
+      
+      {compareMode && safeCompareDebug && (
+        <TabsContent value="compare" className="mt-4">
+          <CompareView left={safeDebug} right={safeCompareDebug} />
+        </TabsContent>
+      )}
 
       <TabsContent value="ai" className="mt-4">
         <div className="space-y-4">
@@ -333,91 +344,3 @@ export function DebugTabs({ debug, compareMode = false, compareDebug }: DebugTab
     </Tabs>
   );
 }
-
-// Simple compare view for prompts
-function ComparePromptView({ 
-  left, 
-  right, 
-  leftLabel, 
-  rightLabel 
-}: { 
-  left: string; 
-  right: string; 
-  leftLabel: string; 
-  rightLabel: string;
-}) {
-  // Simple character-by-character diff (can be enhanced later)
-  const renderDiff = (text1: string, text2: string) => {
-    const lines1 = text1.split('\n');
-    const lines2 = text2.split('\n');
-    const maxLines = Math.max(lines1.length, lines2.length);
-    const diff: Array<{ left?: string; right?: string; type: 'same' | 'added' | 'removed' | 'changed' }> = [];
-
-    for (let i = 0; i < maxLines; i++) {
-      const line1 = lines1[i];
-      const line2 = lines2[i];
-
-      if (line1 === undefined) {
-        diff.push({ right: line2, type: 'added' });
-      } else if (line2 === undefined) {
-        diff.push({ left: line1, type: 'removed' });
-      } else if (line1 === line2) {
-        diff.push({ left: line1, right: line2, type: 'same' });
-      } else {
-        diff.push({ left: line1, right: line2, type: 'changed' });
-      }
-    }
-
-    return diff;
-  };
-
-  const diff = renderDiff(left, right);
-
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <div className="text-xs font-medium mb-2">{leftLabel}</div>
-        <ScrollArea className="h-[400px] w-full rounded-md border bg-muted p-4">
-          <pre className="text-xs">
-            {diff.map((item, idx) => (
-              <div
-                key={idx}
-                className={
-                  item.type === 'removed' || item.type === 'changed'
-                    ? 'bg-red-500/20'
-                    : item.type === 'added'
-                      ? 'bg-green-500/20'
-                      : ''
-                }
-              >
-                {item.left && <code>{item.left}</code>}
-              </div>
-            ))}
-          </pre>
-        </ScrollArea>
-      </div>
-      <div>
-        <div className="text-xs font-medium mb-2">{rightLabel}</div>
-        <ScrollArea className="h-[400px] w-full rounded-md border bg-muted p-4">
-          <pre className="text-xs">
-            {diff.map((item, idx) => (
-              <div
-                key={idx}
-                className={
-                  item.type === 'added' || item.type === 'changed'
-                    ? 'bg-green-500/20'
-                    : item.type === 'removed'
-                      ? 'bg-red-500/20'
-                      : ''
-                }
-              >
-                {item.right && <code>{item.right}</code>}
-              </div>
-            ))}
-          </pre>
-        </ScrollArea>
-      </div>
-    </div>
-  );
-}
-

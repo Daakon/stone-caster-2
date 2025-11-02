@@ -8,9 +8,8 @@ import { ApiErrorCode } from '@shared';
 import { PlayerV3Service } from './player-v3.service.js';
 import { SCENE_IDS, ADVENTURE_IDS, WORLD_IDS, DEFAULT_VALUES } from '../constants/game-constants.js';
 import { GameConfigService } from './game-config.service.js';
-import { DatabasePromptService } from './db-prompt.service.js';
-import { DatabasePromptAssembler, DatabasePromptError, DatabasePromptParams } from '../prompts/database-prompt-assembler.js';
-import { initializeRuntimeGuards } from '../prompts/runtime-guards.js';
+// Legacy imports removed - this service is deprecated
+// Use EntryPointAssemblerV3 instead via GamesService.spawnV3() or TurnsService.buildPromptV2()
 import type { Character, WorldTemplate, Prompt } from '@shared';
 import type { PromptContext, PromptAssemblyResult, PromptAuditEntry } from '../prompts/schemas.js';
 
@@ -26,20 +25,17 @@ export interface GameContext {
 /**
  * Database-only prompts service that replaces all file-based prompt loading
  */
+/**
+ * @deprecated This service is deprecated. Use EntryPointAssemblerV3 via GamesService.spawnV3() instead.
+ * This service will be removed in a future release.
+ */
 export class PromptsService {
   private promptWrapper: PromptWrapper;
   private gameConfigService: GameConfigService;
-  private databasePromptService: DatabasePromptService;
-  private databasePromptAssembler: DatabasePromptAssembler;
 
-  constructor(databasePromptService: DatabasePromptService) {
-    // Initialize runtime guards for DB-only mode
-    initializeRuntimeGuards();
-    
+  constructor() {
     this.promptWrapper = new PromptWrapper();
     this.gameConfigService = GameConfigService.getInstance();
-    this.databasePromptService = databasePromptService;
-    this.databasePromptAssembler = new DatabasePromptAssembler(databasePromptService['promptRepository']);
   }
 
   /**
@@ -48,50 +44,10 @@ export class PromptsService {
    * @returns Formatted prompt string for game initialization
    */
   async createInitialPrompt(game: GameContext): Promise<string> {
-    try {
-      console.log(`[PROMPTS_SERVICE] Using database-only assembly for initial prompt`);
-      
-      // Build database prompt parameters
-      const params: DatabasePromptParams = {
-        worldSlug: game.world_id.toLowerCase(),
-        adventureSlug: this.extractAdventureSlug(game),
-        startingSceneId: this.extractStartingSceneId(game),
-        includeEnhancements: true,
-      };
-      
-      // Assemble prompt using database-only assembler
-      const result = await this.databasePromptAssembler.assemblePrompt(params);
-      
-      // Log to debug service
-      const promptId = debugService.logPrompt(
-        game.id,
-        0, // Initial prompt is turn 0
-        game.world_id,
-        game.character_id || 'Guest',
-        {
-          prompt: result.promptText,
-          audit: result.audit,
-          metadata: result.metadata,
-        }
-      );
-      
-      console.log(`[PROMPTS_SERVICE] Created initial prompt using database-only assembly with ${result.metadata.totalSegments} segments`);
-      return result.promptText;
-    } catch (error) {
-      console.error('[PROMPTS_SERVICE] Error creating initial prompt:', error);
-      
-      if (error instanceof DatabasePromptError) {
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: `Database prompt error: ${error.message}`
-        });
-      }
-      
-      throw new ServiceError(500, {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to create initial prompt: ${error instanceof Error ? error.message : String(error)}`
-      });
-    }
+    throw new ServiceError(500, {
+      code: ApiErrorCode.INTERNAL_ERROR,
+      message: 'This method is deprecated. Use GamesService.spawnV3() with EntryPointAssemblerV3 instead.'
+    });
   }
 
   /**
@@ -102,50 +58,10 @@ export class PromptsService {
    * @returns Formatted prompt string (server-only, never sent to client)
    */
   async buildPrompt(game: GameContext, optionId: string): Promise<string> {
-    try {
-      console.log(`[PROMPTS_SERVICE] Building prompt for game ${game.id}, turn ${game.turn_index}, optionId: ${optionId}`);
-      
-      // Build database prompt parameters
-      const params: DatabasePromptParams = {
-        worldSlug: game.world_id.toLowerCase(),
-        adventureSlug: this.extractAdventureSlug(game),
-        startingSceneId: this.extractStartingSceneId(game),
-        includeEnhancements: true,
-      };
-      
-      // Assemble prompt using database-only assembler
-      const result = await this.databasePromptAssembler.assemblePrompt(params);
-      
-      // Log to debug service
-      const promptId = debugService.logPrompt(
-        game.id,
-        game.turn_index,
-        game.world_id,
-        game.character_id || 'Guest',
-        {
-          prompt: result.promptText,
-          audit: result.audit,
-          metadata: result.metadata,
-        }
-      );
-      
-      console.log(`[PROMPTS_SERVICE] Created prompt using database-only assembly with ${result.metadata.totalSegments} segments`);
-      return result.promptText;
-    } catch (error) {
-      console.error('[PROMPTS_SERVICE] Error building prompt:', error);
-      
-      if (error instanceof DatabasePromptError) {
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: `Database prompt error: ${error.message}`
-        });
-      }
-      
-      throw new ServiceError(500, {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: `Failed to build prompt: ${error instanceof Error ? error.message : String(error)}`
-      });
-    }
+    throw new ServiceError(500, {
+      code: ApiErrorCode.INTERNAL_ERROR,
+      message: 'This method is deprecated. Use TurnsService.buildPromptV2() with EntryPointAssemblerV3 instead.'
+    });
   }
 
   /**
@@ -446,5 +362,5 @@ export class PromptsService {
   }
 }
 
-// Export singleton instance
-export const promptsService = new PromptsService(new DatabasePromptService());
+// Export singleton instance (deprecated - methods throw errors)
+export const promptsService = new PromptsService();

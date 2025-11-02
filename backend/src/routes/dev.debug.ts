@@ -9,8 +9,7 @@
 
 import express, { Request, Response } from 'express';
 import { z } from 'zod';
-import { DatabasePromptAssembler } from '../prompts/database-prompt-assembler.js';
-import { PromptRepository } from '../repositories/prompt.repository.js';
+// Legacy imports removed - v3 assembler used instead
 import { config } from '../config/index.js';
 import { GamesService } from '../services/games.service.js';
 import { getTraceId } from '../utils/response.js';
@@ -62,7 +61,7 @@ function rateLimitDebugRoute(req: Request, res: Response, next: express.NextFunc
 
   // Check if request can proceed
   if (bucket.tokens <= 0) {
-    return res.status(429).json({
+    res.status(429).json({
       ok: false,
       error: {
         code: 'RATE_LIMITED',
@@ -108,7 +107,7 @@ const requireDebugAccess = (req: Request, res: Response, next: express.NextFunct
   const providedToken = req.headers['x-debug-token'] as string;
 
   if (!debugEnabled) {
-    return res.status(403).json({
+    res.status(403).json({
       ok: false,
       error: {
         code: 'FORBIDDEN',
@@ -121,7 +120,7 @@ const requireDebugAccess = (req: Request, res: Response, next: express.NextFunct
   }
 
   if (!debugToken) {
-    return res.status(403).json({
+    res.status(403).json({
       ok: false,
       error: {
         code: 'FORBIDDEN',
@@ -134,7 +133,7 @@ const requireDebugAccess = (req: Request, res: Response, next: express.NextFunct
   }
 
   if (!providedToken || providedToken !== debugToken) {
-    return res.status(403).json({
+    res.status(403).json({
       ok: false,
       error: {
         code: 'FORBIDDEN',
@@ -169,20 +168,18 @@ router.use(rateLimitDebugRoute);
  * Returns assembled prompt preview, pieces, and metadata.
  */
 const PromptAssemblyQuerySchema = z.object({
-  world_id: z.string().uuid('world_id must be a valid UUID'),
-  entry_start_slug: z.string().trim().min(1, 'entry_start_slug is required'),
-  scenario_slug: z.string().trim().min(1).nullable().optional(),
-  ruleset_slug: z.string().trim().min(1).optional(),
+  entry_point_id: z.string().trim().min(1, 'entry_point_id is required'),
+  entry_start_slug: z.string().trim().min(1).optional(),
   model: z.string().trim().min(1).optional(),
   budget: z.coerce.number().int().min(1).optional(),
 });
 
-router.get('/prompt-assembly', async (req: Request, res: Response) => {
+router.get('/prompt-assembly', async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate query parameters
     const validationResult = PromptAssemblyQuerySchema.safeParse(req.query);
     if (!validationResult.success) {
-      return res.status(400).json({
+      res.status(400).json({
         ok: false,
         error: {
           code: 'VALIDATION_FAILED',
@@ -200,28 +197,30 @@ router.get('/prompt-assembly', async (req: Request, res: Response) => {
       });
     }
 
+    if (!validationResult.data) {
+      res.status(400).json({
+        ok: false,
+        error: { code: 'VALIDATION_FAILED', message: 'Missing required parameters' },
+        meta: { traceId: getTraceId(req) },
+      });
+      return;
+    }
+
     const {
-      world_id,
+      entry_point_id,
       entry_start_slug,
-      scenario_slug,
-      ruleset_slug,
       model,
       budget,
     } = validationResult.data;
 
-    // Assemble prompt using Phase 2 assembler (no DB writes, no model call)
-    const promptRepository = new PromptRepository(
-      config.supabase.url,
-      config.supabase.serviceKey
-    );
-    const assembler = new DatabasePromptAssembler(promptRepository);
+    // Assemble prompt using v3 entry-point assembler (no DB writes, no model call)
+    const { EntryPointAssemblerV3 } = await import('../prompts/entry-point-assembler-v3.js');
+    const assembler = new EntryPointAssemblerV3();
 
     const budgetTokens = budget || config.prompt.tokenBudgetDefault;
 
-    const assembleResult = await assembler.assemblePromptV2({
-      worldId: world_id,
-      rulesetSlug: ruleset_slug || undefined,
-      scenarioSlug: scenario_slug || null,
+    const assembleResult = await assembler.assemble({
+      entryPointId: entry_point_id,
       entryStartSlug: entry_start_slug,
       model: model || config.prompt.modelDefault,
       budgetTokens,
@@ -231,7 +230,7 @@ router.get('/prompt-assembly', async (req: Request, res: Response) => {
     const promptPreview = assembleResult.prompt.substring(0, 400);
     const safeMeta = redactSensitiveFields(assembleResult.meta);
 
-    return res.json({
+    res.json({
       ok: true,
       data: {
         promptPreview: promptPreview + (assembleResult.prompt.length > 400 ? '...' : ''),
@@ -249,8 +248,11 @@ router.get('/prompt-assembly', async (req: Request, res: Response) => {
           model: safeMeta.model,
           worldId: safeMeta.worldId,
           rulesetSlug: safeMeta.rulesetSlug,
-          scenarioSlug: safeMeta.scenarioSlug,
           entryStartSlug: safeMeta.entryStartSlug,
+          source: safeMeta.source,
+          version: safeMeta.version,
+          selectionContext: safeMeta.selectionContext,
+          npcTrimmedCount: (safeMeta as any).npcTrimmedCount || 0,
         },
       },
       meta: {
@@ -259,7 +261,7 @@ router.get('/prompt-assembly', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('[DEV_DEBUG] Error in prompt-assembly:', error);
-    return res.status(500).json({
+    res.status(500).json({
       ok: false,
       error: {
         code: 'INTERNAL_ERROR',
@@ -279,12 +281,12 @@ router.get('/prompt-assembly', async (req: Request, res: Response) => {
  * Returns ordered turn list with turn_number, role, created_at, and slimmed meta.
  * Does not include full content (for privacy/performance).
  */
-router.get('/game/:gameId/turns', async (req: Request, res: Response) => {
+router.get('/game/:gameId/turns', async (req: Request, res: Response): Promise<void> => {
   try {
     const { gameId } = req.params;
 
     if (!gameId || typeof gameId !== 'string') {
-      return res.status(400).json({
+      res.status(400).json({
         ok: false,
         error: {
           code: 'VALIDATION_FAILED',
@@ -323,7 +325,7 @@ router.get('/game/:gameId/turns', async (req: Request, res: Response) => {
       };
     });
 
-    return res.json({
+    res.json({
       ok: true,
       data: {
         gameId,
@@ -336,11 +338,228 @@ router.get('/game/:gameId/turns', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('[DEV_DEBUG] Error in game turns inspector:', error);
-    return res.status(500).json({
+    res.status(500).json({
       ok: false,
       error: {
         code: 'INTERNAL_ERROR',
         message: error instanceof Error ? error.message : 'Failed to fetch turns',
+      },
+      meta: {
+        traceId: getTraceId(req),
+      },
+    });
+  }
+});
+
+/**
+ * GET /api/dev/debug/traces/:gameId
+ * Fetch prompt traces for a game (admin-only)
+ */
+router.get('/traces/:gameId', requireDebugAccess, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { gameId } = req.params;
+    const limit = req.query.limit ? Number(req.query.limit) : 50;
+
+    if (!gameId || typeof gameId !== 'string') {
+      res.status(400).json({
+        ok: false,
+        error: { code: 'VALIDATION_FAILED', message: 'gameId is required' },
+        meta: { traceId: getTraceId(req) },
+      });
+      return;
+    }
+
+    // Verify user is admin (via userId from optionalAuth middleware if present)
+    const userId = (req as any).ctx?.userId || (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({
+        ok: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        meta: { traceId: getTraceId(req) },
+      });
+      return;
+    }
+    
+    const { getUserRole } = await import('../utils/debugResponse.js');
+    const userRole = await getUserRole(userId);
+    if (userRole !== 'admin') {
+      res.status(403).json({
+        ok: false,
+        error: { code: 'FORBIDDEN', message: 'Admin access required' },
+        meta: { traceId: getTraceId(req) },
+      });
+      return;
+    }
+
+    const { getPromptTraces } = await import('../services/prompt-trace.service.js');
+    const traces = await getPromptTraces(gameId, limit);
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      ok: true,
+      data: {
+        gameId,
+        traces,
+        count: traces.length,
+      },
+      meta: {
+        traceId: getTraceId(req),
+      },
+    });
+  } catch (error) {
+    console.error('[DEV_DEBUG] Error fetching traces:', error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to fetch traces',
+      },
+      meta: {
+        traceId: getTraceId(req),
+      },
+    });
+  }
+});
+
+/**
+ * GET /api/dev/debug/cache-stats
+ * Get cache statistics (admin only)
+ */
+/**
+ * GET /api/dev/debug/preview-prompt/:gameId
+ * 
+ * Preview the prompt that would be generated for a game's next turn (or initial turn).
+ * This is useful for testing and debugging prompt assembly before actually making an AI call.
+ * 
+ * Query params:
+ *   - optionId: The option ID to use (default: 'game_start' for initial, or latest turn's option)
+ *   - fullPrompt: If true, return the full prompt instead of preview (default: false)
+ */
+router.get('/preview-prompt/:gameId', requireDebugAccess, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { gameId } = req.params;
+    const optionId = (req.query.optionId as string) || 'game_start';
+    const fullPrompt = req.query.fullPrompt === 'true';
+
+    // Load the game
+    const gamesService = new GamesService();
+    const game = await gamesService.loadGame(gameId);
+
+    if (!game) {
+      res.status(404).json({
+        ok: false,
+        error: { code: 'NOT_FOUND', message: 'Game not found' },
+        meta: { traceId: getTraceId(req) },
+      });
+      return;
+    }
+
+    // Build prompt using v3 assembler (same as turns service)
+    const turnsService = (await import('../services/turns.service.js')).turnsService;
+    
+    // Use the private buildPromptV2 method via reflection (or make it public)
+    // For now, let's replicate the logic here
+    if (!game.entry_point_id) {
+      res.status(400).json({
+        ok: false,
+        error: { code: 'VALIDATION_FAILED', message: 'Game missing entry_point_id; v3 assembler requires entry point' },
+        meta: { traceId: getTraceId(req) },
+      });
+      return;
+    }
+
+    const { EntryPointAssemblerV3 } = await import('../prompts/entry-point-assembler-v3.js');
+    const assembler = new EntryPointAssemblerV3();
+
+    const budgetTokens = config.prompt.tokenBudgetDefault;
+    const model = config.prompt.modelDefault;
+
+    // Get entry_start_slug if needed
+    const { supabaseAdmin } = await import('../services/supabase.js');
+    const { data: entryPoint } = await supabaseAdmin
+      .from('entry_points')
+      .select('id, content')
+      .eq('id', game.entry_point_id)
+      .single();
+
+    let entryStartSlug: string | undefined;
+    if (entryPoint) {
+      entryStartSlug = entryPoint.content?.doc?.entryStartSlug ||
+                      entryPoint.content?.entryStartSlug ||
+                      undefined;
+    }
+
+    // Assemble prompt using v3 assembler
+    const assembleResult = await assembler.assemble({
+      entryPointId: game.entry_point_id,
+      entryStartSlug,
+      model,
+      budgetTokens,
+    });
+
+    // Return the prompt (full or preview)
+    const promptToReturn = fullPrompt 
+      ? assembleResult.prompt 
+      : assembleResult.prompt.substring(0, 2000) + (assembleResult.prompt.length > 2000 ? '\n\n... (truncated, use ?fullPrompt=true for full prompt)' : '');
+
+    res.json({
+      ok: true,
+      data: {
+        prompt: promptToReturn,
+        promptLength: assembleResult.prompt.length,
+        pieces: assembleResult.pieces,
+        meta: assembleResult.meta,
+        gameInfo: {
+          id: game.id,
+          entry_point_id: game.entry_point_id,
+          world_id: (game as any).world_id || (game as any).world_slug,
+          turn_count: game.turn_count,
+        },
+        optionId,
+      },
+      meta: {
+        traceId: getTraceId(req),
+      },
+    });
+  } catch (error) {
+    console.error('[DEV_DEBUG] Error in preview-prompt:', error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to preview prompt',
+      },
+      meta: {
+        traceId: getTraceId(req),
+      },
+    });
+  }
+});
+
+router.get('/cache-stats', requireDebugAccess, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { rulesetCache, npcListCache } = await import('../utils/cache.js');
+    
+    const rulesetStats = rulesetCache.getStats();
+    const npcStats = npcListCache.getStats();
+    
+    res.json({
+      ok: true,
+      data: {
+        ruleset: rulesetStats,
+        npc: npcStats,
+      },
+      meta: {
+        traceId: getTraceId(req),
+      },
+    });
+  } catch (error) {
+    console.error('[DEV_DEBUG] Error fetching cache stats:', error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to fetch cache stats',
       },
       meta: {
         traceId: getTraceId(req),

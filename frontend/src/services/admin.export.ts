@@ -8,7 +8,7 @@ import { worldsService } from './admin.worlds';
 import { rulesetsService } from './admin.rulesets';
 import { npcsService } from './admin.npcs';
 import { npcPacksService } from './admin.npcPacks';
-import { entriesService } from './admin.entries';
+import { entryPointsService } from './admin.entryPoints';
 
 export interface ExportOptions {
   includeAssociations?: boolean;
@@ -179,34 +179,35 @@ export class ExportService {
   }
 
   /**
-   * Export an entry with all its associations
+   * Export a story (entry point) with all its associations
    */
   async exportEntry(id: string, options: ExportOptions = {}): Promise<ExportResult> {
     try {
-      const entry = await entriesService.getEntry(id);
+      const entryPoint = await entryPointsService.getEntryPoint(id);
       
       const exportData = {
-        type: 'entry',
+        type: 'story',
         version: '1.0',
         exported_at: new Date().toISOString(),
         data: {
-          id: entry.id,
-          name: entry.name,
-          slug: entry.slug,
-          description: entry.description,
-          status: entry.status,
-          world_id: entry.world_id,
-          created_at: entry.created_at,
-          updated_at: entry.updated_at
+          id: entryPoint.id,
+          name: entryPoint.name,
+          slug: entryPoint.slug,
+          title: entryPoint.title,
+          description: entryPoint.description,
+          lifecycle: entryPoint.lifecycle,
+          world_id: entryPoint.world_id,
+          created_at: entryPoint.created_at,
+          updated_at: entryPoint.updated_at
         }
       };
 
       if (options.includeAssociations) {
         exportData.data.associations = {
-          world: entry.world,
-          rulesets: entry.rulesets,
-          npcs: entry.npcs,
-          npc_packs: entry.npc_packs
+          world: entryPoint.world,
+          rulesets: entryPoint.rulesets,
+          npcs: entryPoint.npcs,
+          npc_packs: entryPoint.npc_packs
         };
       }
 

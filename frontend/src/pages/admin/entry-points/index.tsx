@@ -1,6 +1,6 @@
 /**
- * Entry Points Admin Page
- * Phase 3: Full CRUD interface for entry points management
+ * Stories Admin Page
+ * Phase 3: Full CRUD interface for stories management
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -38,8 +38,8 @@ export default function EntryPointsAdmin() {
       const response = await entryPointsService.listEntryPoints(memoizedFilters);
       setEntryPoints(response.data || []);
     } catch (error) {
-      toast.error('Failed to load entry points');
-      console.error('Error loading entry points:', error);
+      toast.error('Failed to load stories');
+      console.error('Error loading stories:', error);
       setEntryPoints([]); // Reset to empty array on error
     } finally {
       setLoading(false);
@@ -73,7 +73,7 @@ export default function EntryPointsAdmin() {
 
     try {
       await entryPointsService.submitForReview(id);
-      toast.success('Entry point submitted for review');
+      toast.success('Story submitted for review');
       loadEntryPoints();
     } catch (error) {
       toast.error('Failed to submit for review');
@@ -126,15 +126,15 @@ export default function EntryPointsAdmin() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Entry Points</h1>
+          <h1 className="text-3xl font-bold">Stories</h1>
           <p className="text-muted-foreground">
-            Manage adventure entry points, scenarios, and game starts
+            Manage stories, adventures, scenarios, and game starts
           </p>
         </div>
         <Button asChild>
           <Link to="/admin/entry-points/new">
             <Plus className="mr-2 h-4 w-4" />
-            Create Entry Point
+            Create Story
           </Link>
         </Button>
       </div>
@@ -152,7 +152,7 @@ export default function EntryPointsAdmin() {
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search entry points..."
+                  placeholder="Search stories..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
@@ -237,12 +237,12 @@ export default function EntryPointsAdmin() {
         </CardContent>
       </Card>
 
-      {/* Entry Points Table */}
+      {/* Stories Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Entry Points ({entryPoints.length})</CardTitle>
+          <CardTitle>Stories ({entryPoints.length})</CardTitle>
           <CardDescription>
-            Manage your entry points and their lifecycle
+            Manage your stories and their lifecycle
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -16,28 +16,16 @@ const NAV_ITEMS = [
     icon: '🏠'
   },
   {
-    label: 'Entry Points',
+    label: 'Stories',
     href: '/admin/entry-points',
     roles: 'any' as const,
-    icon: '🎯'
-  },
-  {
-    label: 'Prompt Segments',
-    href: '/admin/prompt-segments',
-    roles: 'any' as const,
-    icon: '📝'
+    icon: '📖'
   },
   {
     label: 'NPCs',
     href: '/admin/npcs',
     roles: 'any' as const,
     icon: '👥'
-  },
-  {
-    label: 'Entries',
-    href: '/admin/entries',
-    roles: ['creator', 'moderator', 'admin'] as const,
-    icon: '📚'
   },
   {
     label: 'Worlds',

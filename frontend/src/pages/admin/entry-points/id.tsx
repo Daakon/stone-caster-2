@@ -1,6 +1,6 @@
 /**
- * Entry Point Edit Page
- * Phase 3: Edit/create entry point with tabs for segments and NPC bindings
+ * Story Edit Page
+ * Phase 3: Edit/create story with tabs for segments and NPC bindings
  */
 
 import { useState, useEffect } from 'react';
@@ -42,8 +42,8 @@ export default function EntryPointEditPage() {
       const data = await entryPointsService.getEntryPoint(id);
       setEntryPoint(data);
     } catch (error) {
-      toast.error('Failed to load entry point');
-      console.error('Error loading entry point:', error);
+      toast.error('Failed to load story');
+      console.error('Error loading story:', error);
       navigate('/admin/entry-points');
     } finally {
       setLoading(false);
@@ -64,8 +64,8 @@ export default function EntryPointEditPage() {
         toast.success('Entry point updated successfully');
       }
     } catch (error) {
-      toast.error('Failed to save entry point');
-      console.error('Error saving entry point:', error);
+      toast.error('Failed to save story');
+      console.error('Error saving story:', error);
     } finally {
       setSaving(false);
     }

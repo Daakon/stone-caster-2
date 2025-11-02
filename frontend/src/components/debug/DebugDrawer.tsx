@@ -35,6 +35,15 @@ export function DebugDrawer({ gameId, open, onOpenChange }: DebugDrawerProps) {
     }
   }, [open, turns, selectedTurnKey]);
 
+  // Hydrate traces from API when drawer opens (admin only)
+  useEffect(() => {
+    if (open && gameId) {
+      debugStore.hydrateTraces(gameId).catch(err => {
+        console.error('[DEBUG_DRAWER] Failed to hydrate traces:', err);
+      });
+    }
+  }, [open, gameId]);
+
   // Announce drawer state changes
   useEffect(() => {
     if (announcementRef.current) {

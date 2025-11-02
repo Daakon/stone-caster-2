@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { GripVertical, X } from 'lucide-react';
-import { Entry } from '@/services/admin.entries';
+import { EntryPoint } from '@/services/admin.entryPoints';
 import { WizardData } from '../EntryWizard';
 import { NamedSinglePicker } from '@/admin/components/NamedSinglePicker';
 import { NamedMultiPicker } from '@/admin/components/NamedMultiPicker';
@@ -25,7 +25,7 @@ const basicsSchema = z.object({
 type BasicsFormData = z.infer<typeof basicsSchema>;
 
 interface BasicsStepProps {
-  entry: Entry;
+  entry: EntryPoint;
   data: WizardData;
   onUpdate: (updates: Partial<WizardData>) => void;
   onComplete: (stepData: any) => void;

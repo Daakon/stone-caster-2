@@ -5,7 +5,7 @@ import { requireIdempotencyKey } from '../middleware/validation.js';
 import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema, SessionTurnsResponseSchema, GetTurnsQuerySchema } from '@shared';
 import { GamesService } from '../services/games.service.js';
 import { turnsService } from '../services/turns.service.js';
-import { promptsService } from '../services/prompts.service.js';
+// Legacy promptsService import removed - v3 assembler used instead
 import { supabaseAdmin } from '../services/supabase.js';
 import { z } from 'zod';
 
@@ -166,6 +166,16 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
         });
       }
 
+      // Check if debug is requested
+      const wantsDebug = debugAllowed && (req.query.debug === '1' || req.headers['x-debug'] === '1');
+      
+      // Set cache headers
+      if (wantsDebug) {
+        res.setHeader('Cache-Control', 'no-store');
+      } else {
+        res.setHeader('Cache-Control', 'private, max-age=30');
+      }
+      
       // Build response
       const response: any = {
         ok: true,
@@ -179,17 +189,13 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       };
 
       // Add debug payload if allowed and assembler metadata is available
-      if (debugAllowed && spawnResult.assemblerMetadata) {
-        // Determine debugId from first_turn
-        const debugId = spawnResult.first_turn?.id 
-          ? `${spawnResult.game_id}:${spawnResult.first_turn.turn_number || 1}`
-          : `${spawnResult.game_id}:1`;
-
+      if (debugAllowed && spawnResult.assemblerMetadata && wantsDebug) {
         // Check if full mode is requested (via debugDepth query param)
         const debugDepth = req.query.debugDepth === 'full';
 
         const debugPayload = buildDebugPayload({
-          debugId,
+          gameId: spawnResult.game_id,
+          turnNumber: spawnResult.first_turn?.turn_number || 1,
           phase: 'start',
           assembler: spawnResult.assemblerMetadata,
           timings: {
@@ -1088,211 +1094,10 @@ router.post('/:id/auto-initialize', optionalAuth, async (req: Request, res: Resp
   }
 });
 
-// POST /api/games/:id/initial-prompt - LEGACY ROUTE (deprecated, will be retired)
-// Phase 4.1: Deprecation bridge - returns 410 Gone by default, or deprecation headers if enabled
-router.post('/:id/initial-prompt', optionalAuth, async (req: Request, res: Response) => {
-  const { config } = await import('../config/index.js');
-  const legacyEnabled = config.legacyPrompts.enabled;
-  const sunsetDate = config.legacyPrompts.sunset;
+// POST /api/games/:id/initial-prompt - REMOVED (v3 cutover, no legacy support)
+// This route has been permanently removed. Use POST /api/games with entry_point_id instead.
 
-  // Default: return 410 Gone (legacy route retired)
-  if (!legacyEnabled) {
-    return res.status(410).json({
-      ok: false,
-      error: {
-        code: ApiErrorCode.LEGACY_ROUTE_RETIRED,
-        message: 'This legacy route has been retired. Use POST /api/games with Phase 3 format instead.',
-      },
-      meta: {
-        traceId: getTraceId(req),
-        migration: {
-          newEndpoint: 'POST /api/games',
-          docs: 'https://github.com/your-org/stone-caster/blob/main/docs/API_CONTRACT.md#create-game',
-        },
-      },
-    });
-  }
-
-  // Legacy enabled: proceed but add deprecation headers and telemetry
-  try {
-    const userId = req.ctx?.userId;
-    const isGuest = req.ctx?.isGuest;
-
-    if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        'User context required',
-        req
-      );
-    }
-
-    // Add deprecation headers
-    res.setHeader('Deprecation', 'true');
-    res.setHeader('Sunset', sunsetDate);
-    res.setHeader('Link', '<https://github.com/your-org/stone-caster/blob/main/docs/API_CONTRACT.md#legacy-prompts>; rel="deprecation"');
-
-    // Validate game ID parameter
-    const paramValidation = IdParamSchema.safeParse(req.params);
-    if (!paramValidation.success) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Invalid game ID',
-        req,
-        paramValidation.error.errors
-      );
-    }
-
-    const { id: gameId } = paramValidation.data;
-
-    // Get the game to validate ownership and get world info
-    const gamesService = new GamesService();
-    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
-    const ownerId = ownership.ownerId ?? userId;
-    const game = await gamesService.getGameById(
-      gameId,
-      ownerId,
-      ownership.isGuestOwner,
-      ownership.guestCookieId
-    );
-
-    if (!game) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.NOT_FOUND,
-        'Game not found',
-        req
-      );
-    }
-
-    // Check if game has already been initiated (has turns)
-    if (game.turnCount > 0) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Game has already been initiated',
-        req
-      );
-    }
-
-    // Log legacy usage telemetry
-    console.log(JSON.stringify({
-      event: 'legacy.prompt.used',
-      route: '/api/games/:id/initial-prompt',
-      gameId,
-      userId,
-      sunset: sunsetDate,
-      traceId: getTraceId(req),
-    }));
-
-    // Increment legacy usage metric
-    const { MetricsService } = await import('../services/metrics.service.js');
-    MetricsService.increment('legacy_prompt_used_total', {
-      route: 'initial-prompt',
-      sunset: sunsetDate,
-    });
-
-    // Create initial prompt with approval mechanism (compatibility adapter)
-    // Note: GameDTO has worldSlug, not world_id
-    const promptResult = await promptsService.createInitialPromptWithApproval(
-      gameId,
-      game.worldSlug || '',
-      game.characterId
-    );
-
-    sendSuccess(res, promptResult, req);
-  } catch (error) {
-    console.error('Error creating initial prompt:', error);
-    sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      'Internal server error',
-      req
-    );
-  }
-});
-
-// POST /api/games/:id/approve-prompt - approve a prompt for AI processing
-router.post('/:id/approve-prompt', optionalAuth, async (req: Request, res: Response) => {
-  try {
-    const userId = req.ctx?.userId;
-    const isGuest = req.ctx?.isGuest;
-
-    if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        'User context required',
-        req
-      );
-    }
-
-    // Validate game ID parameter
-    const paramValidation = IdParamSchema.safeParse(req.params);
-    if (!paramValidation.success) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Invalid game ID',
-        req,
-        paramValidation.error.errors
-      );
-    }
-
-    // Validate request body
-    const bodyValidation = z.object({
-      promptId: z.string(),
-      approved: z.boolean(),
-    }).safeParse(req.body);
-
-    if (!bodyValidation.success) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Invalid request data',
-        req,
-        bodyValidation.error.errors
-      );
-    }
-
-    const { id: gameId } = paramValidation.data;
-    const { promptId, approved } = bodyValidation.data;
-
-    // Validate game ownership
-    const gamesService = new GamesService();
-    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
-    const ownerId = ownership.ownerId ?? userId;
-    const game = await gamesService.getGameById(
-      gameId,
-      ownerId,
-      ownership.isGuestOwner,
-      ownership.guestCookieId
-    );
-
-    if (!game) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.NOT_FOUND,
-        'Game not found',
-        req
-      );
-    }
-
-    // Approve the prompt (legacy route - approvePrompt method may not exist if approval flow was removed)
-    // For now, return success as approval is no longer needed with Phase 3 flow
-    // TODO: Remove this route after legacy prompts sunset
-    console.warn('[LEGACY] approve-prompt route called - approval no longer needed with Phase 3 flow');
-    sendSuccess(res, { message: 'Prompt approval is no longer required with the new game creation flow' }, req);
-  } catch (error) {
-    console.error('Error approving prompt:', error);
-    sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      'Internal server error',
-      req
-    );
-  }
-});
+// POST /api/games/:id/approve-prompt - REMOVED (v3 cutover, no legacy support)
+// This route has been permanently removed. Approval flow is no longer needed with v3 assembler.
 
 export default router;

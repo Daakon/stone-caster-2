@@ -18,10 +18,26 @@ export function TurnPicker({ turns, selectedTurnKey, onSelectTurn }: TurnPickerP
     );
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent, turnIndex: number) => {
+    if (e.key === 'ArrowUp' && turnIndex > 0) {
+      e.preventDefault();
+      onSelectTurn(turns[turnIndex - 1].turnKey);
+    } else if (e.key === 'ArrowDown' && turnIndex < turns.length - 1) {
+      e.preventDefault();
+      onSelectTurn(turns[turnIndex + 1].turnKey);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      onSelectTurn(turns[0].turnKey);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      onSelectTurn(turns[turns.length - 1].turnKey);
+    }
+  };
+
   return (
     <ScrollArea className="h-full">
-      <div className="space-y-1 p-2">
-        {turns.map((turn) => (
+      <div className="space-y-1 p-2" role="listbox" aria-label="Turn selection">
+        {turns.map((turn, index) => (
           <Button
             key={turn.turnKey}
             variant={selectedTurnKey === turn.turnKey ? 'secondary' : 'ghost'}
@@ -30,6 +46,10 @@ export function TurnPicker({ turns, selectedTurnKey, onSelectTurn }: TurnPickerP
               selectedTurnKey === turn.turnKey && 'bg-secondary'
             )}
             onClick={() => onSelectTurn(turn.turnKey)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
+            role="option"
+            aria-selected={selectedTurnKey === turn.turnKey}
+            tabIndex={selectedTurnKey === turn.turnKey ? 0 : -1}
           >
             <div className="flex flex-col items-start gap-1">
               <div className="text-xs font-medium">

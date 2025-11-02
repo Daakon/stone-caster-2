@@ -32,7 +32,8 @@ import { observabilityMiddleware } from './middleware/observability.js';
 import { testTxMiddleware } from './middleware/testTx.js';
 import devDebugRouter from './routes/dev.debug.js';
 import { devTestRouter } from './routes/dev.test.js';
-import devPromptPreviewRouter from './routes/dev.prompt-preview.js';
+import healthRouter from './routes/health.js';
+import adminPreviewRouter from './routes/admin.preview.js';
 
 const app = express();
 
@@ -114,12 +115,18 @@ app.use('/api/auth', authRouter);
 app.use('/api/debug', debugRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/player', playerRouter);
+app.use('/api/health', healthRouter);
+
+// Admin preview routes (requires DEBUG_ROUTES_ENABLED + admin role)
+if (config.debug.routesEnabled) {
+  app.use('/api/admin/preview', adminPreviewRouter);
+  console.log('🔧 Admin preview routes enabled at /api/admin/preview');
+}
 
 // Dev debug routes (feature-flagged, requires DEBUG_ROUTES_ENABLED=true and X-Debug-Token header)
 if (config.debug.routesEnabled) {
   app.use('/api/dev/debug', devDebugRouter);
   app.use('/api/dev/test', devTestRouter);
-  app.use('/api/dev/test', devPromptPreviewRouter);
   console.log('🔧 Debug routes enabled at /api/dev/debug and /api/dev/test');
   console.log('⚠️  WARNING: Debug routes should only be enabled in development/test environments');
 } else {
