@@ -592,10 +592,10 @@ export class EntryPointAssemblerV3 {
       return { ruleset: null, multipleDefaults: false };
     }
 
-    // Load ruleset
+    // Load ruleset (include both prompt and doc columns)
     const { data, error } = await supabaseAdmin
       .from('rulesets')
-      .select('id, slug, version, doc')
+      .select('id, slug, version, doc, prompt, name, description')
       .eq('id', selectedRulesetId)
       .eq('status', 'active')
       .single();
@@ -604,11 +604,22 @@ export class EntryPointAssemblerV3 {
       return { ruleset: null, multipleDefaults: false };
     }
 
+    // Build doc object from available fields
+    // Merge prompt (top-level) and doc fields
+    const rulesetDoc: Record<string, any> = {
+      ...((data.doc as Record<string, any>) || {}),
+      // If prompt exists at top level but not in doc, add it
+      ...((data.prompt && !(data.doc as any)?.prompt) ? { prompt: data.prompt } : {}),
+      // Include name and description if not in doc
+      ...((data.name && !(data.doc as any)?.name) ? { name: data.name } : {}),
+      ...((data.description && !(data.doc as any)?.description) ? { description: data.description } : {}),
+    };
+
     const ruleset: RulesetData = {
       id: data.id,
       slug: (data as any).slug || data.id,
-      version: data.version,
-      doc: (data.doc as Record<string, any>) || {},
+      version: String((data as any).version || '1.0.0'),
+      doc: rulesetDoc,
     };
 
     // Cache ruleset
@@ -717,22 +728,76 @@ export class EntryPointAssemblerV3 {
 
   /**
    * Extract ruleset prompt content from doc
+   * Handles multiple structures: prompt.text, prompt (string), prompt (object), description, name
+   * Also checks for AWF CoreRulesetV1 structure (doc.ruleset)
    */
   private extractRulesetPrompt(doc: Record<string, any>): string {
     // Try various paths for ruleset prompt content
-    if (doc.prompt?.text) {
+    // 1. Check for prompt.text (structured format)
+    if (doc.prompt?.text && typeof doc.prompt.text === 'string') {
       return doc.prompt.text;
     }
-    if (doc.prompt) {
-      return typeof doc.prompt === 'string' ? doc.prompt : JSON.stringify(doc.prompt);
+    
+    // 2. Check for prompt as string
+    if (typeof doc.prompt === 'string' && doc.prompt.trim()) {
+      return doc.prompt;
     }
-    if (doc.description) {
+    
+    // 3. Check for prompt as object (try to extract meaningful content)
+    if (doc.prompt && typeof doc.prompt === 'object') {
+      // If it has a text property but we didn't catch it above
+      if (doc.prompt.text) {
+        return doc.prompt.text;
+      }
+      // Try to extract narrative/policy content from prompt object
+      if (doc.prompt.narrative || doc.prompt.policy) {
+        return `# Ruleset\n\n${JSON.stringify(doc.prompt, null, 2)}`;
+      }
+      // Fallback: stringify the prompt object
+      const promptStr = JSON.stringify(doc.prompt);
+      if (promptStr.length > 20) { // Only use if meaningful
+        return `# Ruleset\n\n${promptStr}`;
+      }
+    }
+    
+    // 4. Check for AWF CoreRulesetV1 structure (doc.ruleset)
+    if (doc.ruleset) {
+      const ruleset = doc.ruleset;
+      const parts: string[] = [];
+      
+      if (ruleset.name) {
+        parts.push(`# Ruleset: ${ruleset.name}`);
+      }
+      
+      if (ruleset['txt.policy']) {
+        parts.push(`\n## Text Policy\n${ruleset['txt.policy']}`);
+      }
+      
+      if (ruleset['choices.policy']) {
+        parts.push(`\n## Choices Policy\n${ruleset['choices.policy']}`);
+      }
+      
+      if (ruleset['scn.phases'] && Array.isArray(ruleset['scn.phases'])) {
+        parts.push(`\n## Scene Phases\n${ruleset['scn.phases'].join(', ')}`);
+      }
+      
+      if (parts.length > 0) {
+        return parts.join('\n');
+      }
+    }
+    
+    // 5. Fallback to description
+    if (doc.description && typeof doc.description === 'string') {
       return `# Ruleset\n\n${doc.description}`;
     }
-    if (doc.name) {
-      return `# Ruleset: ${doc.name}`;
+    
+    // 6. Fallback to name
+    if (doc.name && typeof doc.name === 'string') {
+      return `# Ruleset: ${doc.name}\n\n[Add ruleset content in the Rulesets admin page]`;
     }
-    return '# Ruleset\n\n[Ruleset content not specified]';
+    
+    // 7. Last resort - indicate what's missing
+    return '# Ruleset\n\n[Ruleset content not specified - please add prompt content in the Rulesets admin page]';
   }
 
   /**

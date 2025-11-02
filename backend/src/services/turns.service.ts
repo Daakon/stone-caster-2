@@ -297,6 +297,17 @@ export class TurnsService {
           console.log(`[TURNS] Using V2 prompt assembler for ongoing turn ${game.turn_count + 1}`);
 
           try {
+            // Legacy isolation: Guard against legacy assembler usage when AWF is enabled
+            // This should never happen due to feature flag, but fail loudly if it does
+            const currentAwfCheck = isAwfEnabled({ sessionId: gameId });
+            if (currentAwfCheck) {
+              const errorMsg = `ILLEGAL_LEGACY_ASSEMBLER_PATH: AWF enabled but legacy buildPromptV2 called for session ${gameId}`;
+              console.error(`[TURNS] ${errorMsg}`);
+              // Log metric for monitoring
+              console.error(`[METRICS] legacy_assembler_called_when_awf_enabled: { sessionId: ${gameId}, gameId: ${gameId}, turn: ${game.turn_count} }`);
+              throw new Error(errorMsg);
+            }
+            
             // Phase 4.2: Use V2 assembler for ongoing turns
             timer.start('assemblerMs');
             const assembleResult = await this.buildPromptV2(game, optionId);

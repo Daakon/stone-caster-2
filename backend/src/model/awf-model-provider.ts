@@ -4,6 +4,8 @@
  */
 
 import OpenAI from 'openai';
+import { minifyBundleJson } from '../utils/bundle-minifier.js';
+import type { AwfBundle } from '../types/awf-bundle.js';
 
 export interface AwfToolCall {
   name: "GetLoreSlice";
@@ -57,6 +59,13 @@ export class OpenAIModelProvider implements AwfModelProvider {
     console.log(`[AWF Model] Starting inference with model ${this.config.modelName}`);
     const startTime = Date.now();
     
+    // Minify bundle for optimal token count
+    const minifiedBundle = minifyBundleJson(awf_bundle as AwfBundle);
+    const originalSize = JSON.stringify(awf_bundle).length;
+    const minifiedSize = minifiedBundle.length;
+    const reduction = ((1 - minifiedSize / originalSize) * 100).toFixed(1);
+    console.log(`[AWF Model] Bundle minified: ${originalSize} → ${minifiedSize} chars (${reduction}% reduction)`);
+    
     try {
       const response = await this.client.chat.completions.create({
         model: this.config.modelName,
@@ -67,7 +76,7 @@ export class OpenAIModelProvider implements AwfModelProvider {
           },
           {
             role: 'user',
-            content: JSON.stringify(awf_bundle, null, 2)
+            content: minifiedBundle
           }
         ],
         temperature: 0.7,
@@ -141,6 +150,13 @@ export class OpenAIModelProvider implements AwfModelProvider {
         }
       };
 
+      // Minify bundle for optimal token count
+      const minifiedBundle = minifyBundleJson(awf_bundle as AwfBundle);
+      const originalSize = JSON.stringify(awf_bundle).length;
+      const minifiedSize = minifiedBundle.length;
+      const reduction = ((1 - minifiedSize / originalSize) * 100).toFixed(1);
+      console.log(`[AWF Model] Bundle minified: ${originalSize} → ${minifiedSize} chars (${reduction}% reduction)`);
+
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
         {
           role: 'system',
@@ -148,7 +164,7 @@ export class OpenAIModelProvider implements AwfModelProvider {
         },
         {
           role: 'user',
-          content: JSON.stringify(awf_bundle, null, 2)
+          content: minifiedBundle
         }
       ];
 

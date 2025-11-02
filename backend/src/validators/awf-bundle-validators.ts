@@ -4,6 +4,14 @@
  */
 
 import { z } from 'zod';
+import { CoreRulesetV1Schema } from './awf-ruleset.schema.js';
+
+// Act catalog entry validation
+export const AwfActCatalogEntrySchema = z.object({
+  type: z.string().min(1, 'Act type is required'),
+  mode: z.string().min(1, 'Act mode is required'),
+  target: z.string().min(1, 'Act target is required'),
+});
 
 // Meta validation
 export const AwfBundleMetaSchema = z.object({
@@ -12,7 +20,16 @@ export const AwfBundleMetaSchema = z.object({
   adventure: z.string().min(1, 'Adventure reference is required'),
   turn_id: z.number().int().min(1, 'Turn ID must be a positive integer'),
   is_first_turn: z.boolean(),
+  locale: z.string().optional(),
   timestamp: z.string().min(1, 'Timestamp is required'),
+  // LiveOps levers (optional)
+  token_budget: z.object({
+    input_max: z.number().int().positive().optional(),
+    output_max: z.number().int().positive().optional(),
+  }).optional(),
+  tool_quota: z.object({
+    max_calls: z.number().int().positive().optional(),
+  }).optional(),
 });
 
 // Contract validation
@@ -91,13 +108,22 @@ export const AwfBundleInputSchema = z.object({
   timestamp: z.string().min(1, 'Input timestamp is required'),
 });
 
+// Core section validation
+export const AwfBundleCoreSchema = z.object({
+  ruleset: CoreRulesetV1Schema,
+  contract: z.object({
+    acts_catalog: z.array(AwfActCatalogEntrySchema).optional(),
+  }),
+});
+
 // Main bundle validation
 export const AwfBundleSchema = z.object({
   awf_bundle: z.object({
     meta: AwfBundleMetaSchema,
     contract: AwfBundleContractSchema,
-    world: AwfBundleWorldSchema,
-    adventure: AwfBundleAdventureSchema,
+    core: AwfBundleCoreSchema,
+    world: AwfBundleWorldSchema.optional(),
+    adventure: AwfBundleAdventureSchema.optional(),
     npcs: AwfBundleNpcsSchema,
     player: AwfBundlePlayerSchema,
     game_state: AwfBundleGameStateSchema,

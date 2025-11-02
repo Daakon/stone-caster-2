@@ -240,6 +240,26 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
         </CardContent>
       </Card>
 
+      {/* Story Start Notice */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Story Start Content</CardTitle>
+          <CardDescription>
+            Define how the story begins for players
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-4 bg-muted rounded-md">
+            <p className="text-sm text-muted-foreground mb-2">
+              <strong>Note:</strong> Story start content is managed in the <strong>Segments</strong> tab after saving this entry point.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Create an "Entry Start" segment with scope <code className="bg-background px-1 rounded">entry_start</code> to define the opening narrative, atmosphere, and initial scene description that players will see on the first turn.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Configuration */}
       <Card>
         <CardHeader>

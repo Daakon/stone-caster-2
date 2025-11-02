@@ -34,6 +34,8 @@ import { compactNpcDoc } from './npc-compactor.js';
 import { loadScenario } from './load-scenario.js';
 import { compactWorld, compactAdventure, applyWorldTokenDiscipline, applyAdventureTokenDiscipline } from './world-adv-compact.js';
 import { executeInjectionMap, createInjectionContext } from './injection-map-executor.js';
+import { createLiveOpsConfigResolver } from '../liveops/config-resolver.js';
+import type { CoreContractV2 } from '../types/awf-core.js';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -166,6 +168,18 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
       getDefaultAdventureSlices()
     );
     
+    // Resolve LiveOps config before bundle creation (needed for meta)
+    const liveOpsResolver = createLiveOpsConfigResolver(supabaseUrl, supabaseKey);
+    const liveOpsConfig = await liveOpsResolver.resolveEffectiveConfig({
+      sessionId: params.sessionId,
+      worldId: worldId,
+      adventureId: adventureId,
+    });
+    
+    // Extract acts_catalog from core contract
+    const coreContractDoc = coreContract.doc as CoreContractV2;
+    const actsCatalog = coreContractDoc.core?.acts_catalog ?? [];
+    
     // Create the bundle structure
     const bundle: AwfBundle = {
       awf_bundle: {
@@ -177,12 +191,26 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
           is_first_turn: (game as any).turn_count === 0,
           locale: locale,
           timestamp: new Date().toISOString(),
+          // Merge LiveOps effective levers into meta
+          token_budget: {
+            input_max: liveOpsConfig.AWF_MAX_INPUT_TOKENS,
+            output_max: liveOpsConfig.AWF_MAX_OUTPUT_TOKENS,
+          },
+          tool_quota: {
+            max_calls: liveOpsConfig.AWF_TOOL_CALL_QUOTA,
+          },
         },
         contract: {
           id: coreContract.id,
           version: coreContract.version,
           hash: coreContract.hash,
           doc: coreContract.doc as unknown as Record<string, unknown>,
+        },
+        core: {
+          ruleset: coreRuleset.doc,
+          contract: {
+            acts_catalog: actsCatalog.length > 0 ? actsCatalog : undefined,
+          },
         },
         world: applyWorldTokenDiscipline(compactWorld(world.doc, locale)),
         adventure: applyAdventureTokenDiscipline(compactAdventure(adventure.doc, locale)),
@@ -215,7 +243,7 @@ export async function assembleBundle(params: AwfBundleParams): Promise<AwfBundle
       },
     };
     
-    // Apply injection map if available
+    // Apply injection map if available (after LiveOps merge)
     if (injectionMap) {
       const context = createInjectionContext({
         world: world.doc,
