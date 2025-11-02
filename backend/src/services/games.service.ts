@@ -1242,19 +1242,13 @@ export class GamesService {
       const v2Meta = promptMeta?.meta || null;
       const v2Pieces = promptMeta?.pieces || null;
 
-      const turnRecord = {
+      // Build turn record - use 'content' column (jsonb) for AI response data
+      // The turns table uses 'content' (jsonb) not 'ai_response'
+      const turnRecord: any = {
         game_id: gameId,
-        option_id: optionIdUuid,
-        ai_response: turnResult,
         turn_number: nextTurnNumber,
-        created_at: new Date().toISOString(),
-        // Enhanced turn recording fields for realtime data
-        session_id: gameId, // Same as game_id for compatibility
-        sequence: nextTurnNumber,
-        user_prompt: turnData?.userInput || null,
-        narrative_summary: narrativeSummary,
-        is_initialization: isInitialization,
-        // Phase 4.2: V2 assembler metadata and pieces
+        role: 'narrator', // AI-generated turn
+        content: turnResult, // Store the full turn result in content (jsonb)
         meta: v2Meta ? {
           included: v2Meta.included || [],
           dropped: v2Meta.dropped || [],
@@ -1266,18 +1260,28 @@ export class GamesService {
           scenarioSlug: v2Meta.scenarioSlug,
           entryStartSlug: v2Meta.entryStartSlug,
           pieces: v2Pieces || [],
-        } : null,
-        // Legacy fields for backward compatibility
-        user_input: turnData?.userInput || null,
-        user_input_type: turnData?.userInputType || 'choice',
-        prompt_data: turnData?.promptData || null,
-        prompt_metadata: turnData?.promptMetadata || null,
-        ai_response_metadata: turnData?.aiResponseMetadata || null,
-        processing_time_ms: turnData?.processingTimeMs || null,
-        token_count: turnData?.aiResponseMetadata?.tokenCount || null,
-        model_used: turnData?.aiResponseMetadata?.model || null,
-        prompt_id: turnData?.aiResponseMetadata?.promptId || null,
+          // Store additional metadata for backward compatibility
+          userInput: turnData?.userInput || null,
+          userInputType: turnData?.userInputType || 'choice',
+          promptData: turnData?.promptData || null,
+          promptMetadata: turnData?.promptMetadata || null,
+          aiResponseMetadata: turnData?.aiResponseMetadata || null,
+          processingTimeMs: turnData?.processingTimeMs || null,
+          narrativeSummary: narrativeSummary,
+          isInitialization: isInitialization,
+        } : {
+          // Minimal meta if no v2Meta
+          userInput: turnData?.userInput || null,
+          userInputType: turnData?.userInputType || 'choice',
+          narrativeSummary: narrativeSummary,
+          isInitialization: isInitialization,
+        },
+        created_at: new Date().toISOString(),
       };
+
+      // Add optional fields if they exist as separate columns (check via Supabase schema)
+      // These may not exist in all environments, so we'll only include if we can safely verify
+      // For now, store everything in meta to be safe
 
       const { data: createdTurn, error: turnError } = await supabaseAdmin
         .from('turns')
@@ -1406,60 +1410,39 @@ export class GamesService {
    */
   async getSessionTurns(gameId: string): Promise<any[]> {
     try {
-      // Try to select narrative_summary, but fall back to ai_response if column doesn't exist
-      let { data: turns, error } = await supabaseAdmin
+      // Select turns with content (jsonb) - the turns table uses 'content' not 'ai_response'
+      const { data: turns, error } = await supabaseAdmin
         .from('turns')
         .select(`
           id,
-          session_id,
-          sequence,
-          user_prompt,
-          narrative_summary,
-          ai_response,
-          is_initialization,
-          created_at,
-          turn_number
+          game_id,
+          turn_number,
+          role,
+          content,
+          meta,
+          created_at
         `)
-        .eq('session_id', gameId)
-        .order('sequence', { ascending: true });
-
-      // If narrative_summary column doesn't exist, try again without it
-      if (error && error.code === '42703') {
-        const { data: turns2, error: error2 } = await supabaseAdmin
-          .from('turns')
-          .select(`
-            id,
-            session_id,
-            sequence,
-            user_prompt,
-            ai_response,
-            is_initialization,
-            created_at,
-            turn_number
-          `)
-          .eq('session_id', gameId)
-          .order('sequence', { ascending: true });
-        
-        if (error2) {
-          throw new Error(`Failed to fetch session turns: ${error2.message}`);
-        }
-        
-        // Map ai_response.narrative to narrative_summary for compatibility
-        turns = turns2?.map(turn => ({
-          ...turn,
-          narrative_summary: (turn.ai_response && typeof turn.ai_response === 'object' 
-            ? (turn.ai_response as any).narrative 
-            : null) || null
-        })) || [];
-        error = null;
-      }
-
+        .eq('game_id', gameId)
+        .order('turn_number', { ascending: true });
+      
       if (error) {
-        console.error('Error fetching session turns:', error);
         throw new Error(`Failed to fetch session turns: ${error.message}`);
       }
+      
+      // Map content.narrative to narrative_summary for compatibility
+      const mappedTurns = (turns || []).map((turn: any) => ({
+        id: turn.id,
+        session_id: gameId, // For compatibility
+        sequence: turn.turn_number, // For compatibility
+        turn_number: turn.turn_number,
+        user_prompt: turn.meta?.userInput || null,
+        narrative_summary: turn.content?.narrative || turn.meta?.narrativeSummary || null,
+        ai_response: turn.content, // Store content as ai_response for backward compatibility
+        is_initialization: turn.meta?.isInitialization || (turn.turn_number === 1),
+        created_at: turn.created_at,
+      }));
 
-      return turns || [];
+      return mappedTurns;
     } catch (error) {
       console.error('Unexpected error in getSessionTurns:', error);
       throw error;
@@ -1473,42 +1456,35 @@ export class GamesService {
    */
   async getInitializeNarrative(gameId: string): Promise<string | null> {
     try {
+      // Get the first turn (turn_number = 1) which should be the initialization turn
       const { data: turn, error } = await supabaseAdmin
         .from('turns')
-        .select('narrative_summary, ai_response')
-        .eq('session_id', gameId)
-        .eq('is_initialization', true)
+        .select('content, meta')
+        .eq('game_id', gameId)
+        .eq('turn_number', 1)
         .single();
 
-      if (error) {
-        // If column doesn't exist, try reading from ai_response
-        if (error.code === '42703') {
-          const { data: turn2, error: error2 } = await supabaseAdmin
-            .from('turns')
-            .select('ai_response')
-            .eq('session_id', gameId)
-            .eq('is_initialization', true)
-            .single();
-
-          if (error2 || !turn2) {
-            return null;
-          }
-
-          // Extract narrative from ai_response JSONB
-          if (turn2.ai_response && typeof turn2.ai_response === 'object') {
-            return (turn2.ai_response as any).narrative || null;
-          }
+      if (error || !turn) {
+        // If no turn found, return null
+        if (error?.code === 'PGRST116') {
+          // No rows found - this is OK
           return null;
         }
         console.error('Error fetching initialize narrative:', error);
         return null;
       }
 
-      // Try narrative_summary first, fallback to ai_response.narrative
-      return turn?.narrative_summary 
-        || (turn?.ai_response && typeof turn.ai_response === 'object' 
-            ? (turn.ai_response as any).narrative || null 
-            : null);
+      // Extract narrative from content JSONB or meta
+      if (turn.content && typeof turn.content === 'object') {
+        return (turn.content as any).narrative || null;
+      }
+      
+      // Fallback to meta.narrativeSummary
+      if (turn.meta && typeof turn.meta === 'object') {
+        return (turn.meta as any).narrativeSummary || null;
+      }
+      
+      return null;
     } catch (error) {
       console.error('Unexpected error in getInitializeNarrative:', error);
       return null;

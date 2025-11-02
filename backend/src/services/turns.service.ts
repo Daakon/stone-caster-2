@@ -144,7 +144,8 @@ export class TurnsService {
       // Ensure initial game state exists
       await this.ensureInitialGameState(game);
 
-      // Check if this is the first turn (turn_count = 0) and create initial prompt
+      // Check if this is the first turn (turn_count = 0 and no turns exist) and create initial prompt
+      // Always create initial prompt for turn_count = 0, regardless of entry point type
       if (game.turn_count === 0) {
         console.log(`[TURNS] Game ${gameId} has no turns, creating initial AI prompt with adventure start JSON`);
         
@@ -717,17 +718,25 @@ export class TurnsService {
    */
   private async ensureInitialGameState(game: any): Promise<void> {
     try {
-      // Check if game state already has content
-      if (game.state_snapshot && Object.keys(game.state_snapshot).length > 0) {
-        console.log(`[TURNS] Game ${game.id} already has state snapshot, skipping initialization`);
+      // Check if game state already has proper character and adventure data
+      // Don't skip just because metadata exists - we need character data
+      const hasCharacter = game.state_snapshot?.character && 
+                          Object.keys(game.state_snapshot.character).length > 0;
+      const hasAdventure = game.state_snapshot?.adventure && 
+                          Object.keys(game.state_snapshot.adventure).length > 0;
+      
+      // If we have both character and adventure data, we're good
+      // OR if we don't have a character_id, then character data isn't needed
+      if ((hasCharacter && hasAdventure) || (!game.character_id && hasAdventure)) {
+        console.log(`[TURNS] Game ${game.id} already has complete state snapshot, skipping initialization`);
         return;
       }
 
-      console.log(`[TURNS] Initializing game state for game ${game.id}`);
+      console.log(`[TURNS] Initializing/updating game state for game ${game.id}`);
       
-      // Load character data if available
-      let characterData = {};
-      if (game.character_id) {
+      // Load character data if available and not already present
+      let characterData = game.state_snapshot?.character || {};
+      if (game.character_id && !hasCharacter) {
         try {
           const characterResult = await supabaseAdmin
             .from('characters')
@@ -739,9 +748,17 @@ export class TurnsService {
             characterData = {
               id: characterResult.data.id,
               name: characterResult.data.name,
+              race: characterResult.data.race,
+              class: characterResult.data.class,
+              level: characterResult.data.level,
+              experience: characterResult.data.experience || 0,
+              attributes: characterResult.data.attributes || {},
               traits: characterResult.data.traits || {},
-              skills: characterResult.data.skills || {},
-              inventory: characterResult.data.inventory || []
+              skills: characterResult.data.skills || [],
+              inventory: characterResult.data.inventory || [],
+              world_data: characterResult.data.world_data || {},
+              current_health: characterResult.data.current_health,
+              max_health: characterResult.data.max_health,
             };
             console.log(`[TURNS] Loaded character data for ${characterResult.data.name}`);
           }
@@ -750,50 +767,51 @@ export class TurnsService {
         }
       }
 
-      // Load adventure data if available
-      let adventureData = {};
-      if (game.adventure_id) {
+      // Load entry point data if available (games use entry_point_id, not adventure_id)
+      let adventureData = game.state_snapshot?.adventure || {};
+      if (game.entry_point_id && !hasAdventure) {
         try {
-          const adventureResult = await supabaseAdmin
-            .from('adventures')
-            .select('*')
-            .eq('id', game.adventure_id)
+          const entryPointResult = await supabaseAdmin
+            .from('entry_points')
+            .select('id, name, title, slug, description, synopsis, type, world_id')
+            .eq('id', game.entry_point_id)
             .single();
           
-          if (adventureResult.data) {
+          if (entryPointResult.data) {
             adventureData = {
-              id: adventureResult.data.id,
-              name: adventureResult.data.name,
-              description: adventureResult.data.description,
-              scenes: adventureResult.data.scenes || [],
-              objectives: adventureResult.data.objectives || [],
-              npcs: adventureResult.data.npcs || [],
-              places: adventureResult.data.places || []
+              id: entryPointResult.data.id,
+              name: entryPointResult.data.name || entryPointResult.data.title,
+              slug: entryPointResult.data.slug,
+              description: entryPointResult.data.description,
+              synopsis: entryPointResult.data.synopsis,
+              type: entryPointResult.data.type,
             };
-            console.log(`[TURNS] Loaded adventure data for ${adventureResult.data.name}`);
+            console.log(`[TURNS] Loaded entry point data for ${entryPointResult.data.name || entryPointResult.data.title}`);
           }
         } catch (error) {
-          console.error('Error loading adventure data:', error);
+          console.error('Error loading entry point data:', error);
         }
       }
 
-      // Create initial state snapshot - no phantom defaults
+      // Merge with existing state_snapshot, preserving metadata and other fields
+      const existingState = game.state_snapshot || {};
       const initialState = {
-        // Only set essential metadata, no default scenes or time bands
+        ...existingState, // Preserve existing metadata and other fields
         character: characterData,
         adventure: adventureData,
         flags: {
+          ...existingState.flags,
           'game.initialized': true,
           'game.world': game.world_slug,
-          'game.adventure': game.adventure_id || null
+          'game.entry_point': game.entry_point_id || null,
         },
         ledgers: {
-          'game.turns': 0,
-          'game.scenes_visited': [],
-          'game.actions_taken': []
+          ...existingState.ledgers,
+          'game.turns': existingState.ledgers?.['game.turns'] || 0,
+          'game.scenes_visited': existingState.ledgers?.['game.scenes_visited'] || [],
+          'game.actions_taken': existingState.ledgers?.['game.actions_taken'] || [],
         },
-        // No default time band, presence, or scene - let DB content determine these
-        runtimeTicks: 0
+        runtimeTicks: existingState.runtimeTicks || 0,
       };
 
       // Update the game with the initial state
@@ -925,21 +943,33 @@ export class TurnsService {
       const openaiService = new OpenAIService();
       const aiResponseRaw = await openaiService.generateBufferedResponse(prompt);
 
-      // Parse and validate response
-      const parsed = openaiService.parseAIResponse(aiResponseRaw.content);
+      // Parse and validate response (handles markdown code blocks)
+      let parsed: any;
+      try {
+        parsed = openaiService.parseAIResponse(aiResponseRaw.content);
+      } catch (parseError) {
+        // If parsing fails, try repair
+        console.warn('[TURNS] Initial AI response parse failed, attempting repair...');
+        try {
+          parsed = await openaiService.repairJSONResponse(aiResponseRaw.content, prompt);
+        } catch (repairError) {
+          console.error('[TURNS] JSON repair also failed:', repairError);
+          throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        }
+      }
       
       // Validate critical response fields
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('AI response is not a valid JSON object');
       }
 
-      // Transform the response to TurnResponse format
+      // Transform the response to TurnResponse format (handle both AWF v1 and v2 formats)
       const aiResponse = {
-        narrative: parsed.txt || '',
+        narrative: parsed.txt || parsed.narrative || '',
         emotion: parsed.emotion || 'neutral',
         choices: parsed.choices || [],
         npcResponses: parsed.npcResponses || {},
-        scene: parsed.scn || updatedGame.state_snapshot?.currentScene || 'forest_meet',
+        scene: parsed.scn?.id || parsed.scene || updatedGame.state_snapshot?.currentScene || 'forest_meet',
       };
       const transformedResponse = await this.transformAWFToTurnResponse(aiResponse);
 

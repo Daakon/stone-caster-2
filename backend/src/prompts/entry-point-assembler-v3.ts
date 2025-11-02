@@ -489,7 +489,7 @@ export class EntryPointAssemblerV3 {
       .from('entry_points')
       .select('id, slug, type, world_id, content')
       .eq('id', entryPointId)
-      .eq('status', 'active')
+      .eq('lifecycle', 'active')  // entry_points use 'lifecycle', not 'status'
       .single();
 
     if (error || !data) {
