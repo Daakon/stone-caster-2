@@ -1247,6 +1247,7 @@ export class GamesService {
       promptMetadata?: any;
       aiResponseMetadata?: any;
       processingTimeMs?: number;
+      rawAiResponse?: unknown; // Raw AI response to store in content field
     }
   ): Promise<any> {
     try {
@@ -1292,11 +1293,12 @@ export class GamesService {
 
       // Build turn record - use 'content' column (jsonb) for AI response data
       // The turns table uses 'content' (jsonb) not 'ai_response'
+      // Store raw AI response if provided, otherwise store turnResult (for backward compatibility)
       const turnRecord: any = {
         game_id: gameId,
         turn_number: nextTurnNumber,
         role: 'narrator', // AI-generated turn
-        content: turnResult, // Store the full turn result in content (jsonb)
+        content: turnData?.rawAiResponse !== undefined ? turnData.rawAiResponse : turnResult, // Store raw AI response in content (jsonb)
         meta: v2Meta ? {
           included: v2Meta.included || [],
           dropped: v2Meta.dropped || [],

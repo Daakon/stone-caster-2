@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus, getTraceId } from '../utils/response.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { requireIdempotencyKey } from '../middleware/validation.js';
-import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema, SessionTurnsResponseSchema, GetTurnsQuerySchema, type TurnDTO } from '@shared';
+import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema, SessionTurnsResponseSchema, GetTurnsQuerySchema, type TurnDTO, TurnPostBodySchema, type TurnPostBody } from '@shared';
 import { GamesService } from '../services/games.service.js';
 import { turnsService, TurnsService } from '../services/turns.service.js';
 import { WalletService } from '../services/wallet.service.js';

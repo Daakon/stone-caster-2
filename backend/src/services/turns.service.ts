@@ -539,7 +539,8 @@ export class TurnsService {
         promptData: promptData,
         promptMetadata: promptMetadata,
         aiResponseMetadata: aiResponseMetadata,
-        processingTimeMs: Date.now() - turnStartTime
+        processingTimeMs: Date.now() - turnStartTime,
+        rawAiResponse: parsedAi, // Store raw AI response in content field
       });
       timer.end('persistMs');
       
@@ -992,6 +993,7 @@ export class TurnsService {
       const transformedResponse = await this.transformAWFToTurnResponse(aiResponse);
 
       // Apply the initial turn to the game with comprehensive turn data
+      // Store the raw parsed AI response in content field
       const turnRecord = await gamesService.applyTurn(updatedGame.id, transformedResponse, 'game_start', {
         userInput: 'game_start',
         userInputType: 'action',
@@ -1005,7 +1007,8 @@ export class TurnsService {
           validationPassed: true,
           timestamp: new Date().toISOString()
         },
-        processingTimeMs: 0
+        processingTimeMs: 0,
+        rawAiResponse: parsed, // Store raw parsed AI response in content field
       });
       
       console.log(`[TURNS] Initial AI prompt created and applied for game ${updatedGame.id}`);
