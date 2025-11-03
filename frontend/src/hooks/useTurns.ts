@@ -25,7 +25,7 @@ export function useLatestTurn(gameId: string | undefined) {
     enabled: !!gameId,
     refetchOnWindowFocus: false,
     staleTime: 10 * 1000, // 10 seconds cache
-    retry: 1,
+    retry: false, // No automatic retries - errors should be handled via user interaction
   });
 }
 
@@ -52,6 +52,7 @@ export function usePostChoice(gameId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['turns.latest', gameId] });
       queryClient.invalidateQueries({ queryKey: ['game', gameId] });
     },
+    retry: false, // No automatic retries - errors should be handled via user interaction
   });
 }
 
@@ -74,10 +75,12 @@ export function usePostTurn(gameId: string | undefined) {
       return result.data;
     },
     onSuccess: () => {
-      // Invalidate and refetch latest turn
+      // Invalidate and refetch latest turn and conversation history
       queryClient.invalidateQueries({ queryKey: ['turns.latest', gameId] });
+      queryClient.invalidateQueries({ queryKey: ['conversation.history', gameId] });
       queryClient.invalidateQueries({ queryKey: ['game', gameId] });
     },
+    retry: false, // No automatic retries - errors should be handled via user interaction
   });
 }
 

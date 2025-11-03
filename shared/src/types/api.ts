@@ -33,6 +33,9 @@ export enum ApiErrorCode {
   IDEMPOTENCY_CONFLICT = 'IDEMPOTENCY_CONFLICT',
   DB_CONFLICT = 'DB_CONFLICT',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
+  // Prompt builder errors
+  AWF_SESSION_MISSING = 'AWF_SESSION_MISSING',
+  ASSEMBLY_FAILED = 'ASSEMBLY_FAILED',
 }
 
 // Re-export as ErrorCode for convenience

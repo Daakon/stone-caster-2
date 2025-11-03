@@ -18,7 +18,9 @@ import {
   getCharacter, 
   getContentWorlds,
   getWallet,
+  getConversationHistory,
 } from '../lib/api';
+import type { ConversationEntry } from '@shared';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useGameTelemetry } from '../hooks/useGameTelemetry';
 import { useLatestTurn, usePostTurn } from '../hooks/useTurns';
@@ -106,6 +108,23 @@ export default function UnifiedGamePage() {
 
   // Load latest turn using React Query hook
   const { data: latestTurn, isLoading: isLoadingLatestTurn, error: latestTurnError } = useLatestTurn(actualGameId);
+
+  // Load conversation history
+  const { data: conversationHistory, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['conversation.history', actualGameId],
+    queryFn: async () => {
+      if (!actualGameId) throw new Error('No game ID available');
+      const result = await getConversationHistory(actualGameId, 20);
+      if (!result.ok) {
+        throw new Error(result.error.message || 'Failed to load conversation history');
+      }
+      return result.data;
+    },
+    enabled: !!actualGameId,
+    refetchOnWindowFocus: false,
+    staleTime: 10 * 1000, // 10 seconds cache
+    retry: false,
+  });
 
   // Character data is now included in the game response, no need for separate query
   const character = game ? {
@@ -464,7 +483,7 @@ export default function UnifiedGamePage() {
       <div className="grid gap-6 md:grid-cols-3">
         {/* Story and Choices - Main Content */}
         <div className="md:col-span-2 space-y-6">
-          {/* Story History */}
+          {/* Conversation History */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -474,23 +493,60 @@ export default function UnifiedGamePage() {
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {/* Render narrative from latest turn */}
-              {isLoadingLatestTurn ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
+            <CardContent className="max-h-[600px] overflow-y-auto">
+              {/* Render conversation history */}
+              {isLoadingHistory || isLoadingLatestTurn ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-3/4" />
                 </div>
-              ) : latestTurn ? (
-                <div className="prose prose-sm max-w-none">
-                  {/* Show warning if narrative is empty or fallback was used */}
-                  {latestTurn.narrative.length === 0 || latestTurn.meta?.warnings?.includes('AI_EMPTY_NARRATIVE') ? (
-                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                      <strong>Note:</strong> The narrative is temporarily unavailable, but you can still make choices to continue.
+              ) : conversationHistory && conversationHistory.entries.length > 0 ? (
+                <div className="space-y-4">
+                  {conversationHistory.entries.map((entry: ConversationEntry, index: number) => (
+                    <div key={`${entry.id}-${entry.type}-${index}`}>
+                      {/* Horizontal rule before each entry (except first) */}
+                      {index > 0 && (
+                        <hr className="my-4 border-t border-border/50" />
+                      )}
+                      
+                      {/* Entry content */}
+                      <div className={`rounded-lg p-4 ${
+                        entry.type === 'user' 
+                          ? 'bg-primary/5 border-l-4 border-primary' 
+                          : 'bg-muted/20 border-l-4 border-blue-500'
+                      }`}>
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-0.5">
+                            {entry.type === 'user' ? (
+                              <span className="text-xs font-semibold text-primary">You:</span>
+                            ) : (
+                              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Story:</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm whitespace-pre-wrap break-words">{entry.content}</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  ) : null}
-                  <p>{latestTurn.narrative}</p>
+                  ))}
+                  
+                  {/* Show latest turn choices if narrative is available */}
+                  {latestTurn && latestTurn.narrative.length > 0 && (
+                    <>
+                      <hr className="my-4 border-t border-border/50" />
+                      {latestTurn.meta?.warnings?.includes('AI_EMPTY_NARRATIVE') && (
+                        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                          <strong>Note:</strong> The narrative is temporarily unavailable, but you can still make choices to continue.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : conversationHistory && conversationHistory.entries.length === 0 ? (
+                <div className="text-muted-foreground text-center py-8">
+                  No conversation history yet. Start playing to see your adventure unfold!
                 </div>
               ) : latestTurnError ? (
                 <div className="text-muted-foreground">Failed to load story. Please try again.</div>

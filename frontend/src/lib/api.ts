@@ -557,6 +557,15 @@ export async function postTurn(
   });
 }
 
+// Get conversation history with user prompts and AI responses
+export async function getConversationHistory(
+  gameId: string,
+  limit?: number
+): Promise<{ ok: true; data: import('@shared').ConversationHistory } | { ok: false; error: AppError }> {
+  const url = `/api/games/${gameId}/turns/history${limit ? `?limit=${limit}` : ''}`;
+  return apiFetch<import('@shared').ConversationHistory>(url);
+}
+
 // Initial Prompt API
 export async function createInitialPrompt(
   gameId: string

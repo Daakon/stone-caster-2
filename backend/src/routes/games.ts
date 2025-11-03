@@ -1190,14 +1190,20 @@ router.get('/:id/turns/latest', optionalAuth, async (req: Request, res: Response
             const parsedAi = existingTurn1.content;
             
             const { aiToTurnDTO } = await import('../ai/ai-adapter.js');
-            // Ensure createdAt is ISO string format
-            const createdAt = existingTurn1.created_at instanceof Date 
-              ? existingTurn1.created_at.toISOString()
-              : typeof existingTurn1.created_at === 'string'
-                ? existingTurn1.created_at.endsWith('Z') || existingTurn1.created_at.includes('+')
-                  ? existingTurn1.created_at
-                  : new Date(existingTurn1.created_at).toISOString()
-                : new Date().toISOString();
+            // Ensure createdAt is ISO string format (Zod requires strict datetime)
+            let createdAt: string;
+            if (existingTurn1.created_at instanceof Date) {
+              createdAt = existingTurn1.created_at.toISOString();
+            } else if (typeof existingTurn1.created_at === 'string') {
+              const date = new Date(existingTurn1.created_at);
+              if (isNaN(date.getTime())) {
+                createdAt = new Date().toISOString();
+              } else {
+                createdAt = date.toISOString();
+              }
+            } else {
+              createdAt = new Date().toISOString();
+            }
             
             turnDTO = await aiToTurnDTO(parsedAi, {
               id: existingTurn1.turn_number,
@@ -1217,25 +1223,38 @@ router.get('/:id/turns/latest', optionalAuth, async (req: Request, res: Response
               emotion: 'neutral',
               choices: existingTurn1.content?.choices || [],
               actions: existingTurn1.content?.acts || [],
-              createdAt: existingTurn1.created_at instanceof Date 
-                ? existingTurn1.created_at.toISOString()
-                : typeof existingTurn1.created_at === 'string'
-                  ? existingTurn1.created_at.endsWith('Z') || existingTurn1.created_at.includes('+')
-                    ? existingTurn1.created_at
-                    : new Date(existingTurn1.created_at).toISOString()
-                  : new Date().toISOString(),
+              createdAt: (() => {
+                // Always convert to ISO string format (Zod requires strict datetime)
+                if (existingTurn1.created_at instanceof Date) {
+                  return existingTurn1.created_at.toISOString();
+                } else if (typeof existingTurn1.created_at === 'string') {
+                  const date = new Date(existingTurn1.created_at);
+                  if (isNaN(date.getTime())) {
+                    return new Date().toISOString();
+                  }
+                  return date.toISOString();
+                } else {
+                  return new Date().toISOString();
+                }
+              })(),
               castingStonesBalance: wallet.castingStones,
             };
           }
         } else {
           // No content - minimal fallback
-          const createdAt = existingTurn1.created_at instanceof Date 
-            ? existingTurn1.created_at.toISOString()
-            : typeof existingTurn1.created_at === 'string'
-              ? existingTurn1.created_at.endsWith('Z') || existingTurn1.created_at.includes('+')
-                ? existingTurn1.created_at
-                : new Date(existingTurn1.created_at).toISOString()
-              : new Date().toISOString();
+          let createdAt: string;
+          if (existingTurn1.created_at instanceof Date) {
+            createdAt = existingTurn1.created_at.toISOString();
+          } else if (typeof existingTurn1.created_at === 'string') {
+            const date = new Date(existingTurn1.created_at);
+            if (isNaN(date.getTime())) {
+              createdAt = new Date().toISOString();
+            } else {
+              createdAt = date.toISOString();
+            }
+          } else {
+            createdAt = new Date().toISOString();
+          }
           
           turnDTO = {
             id: existingTurn1.turn_number,
@@ -1408,25 +1427,13 @@ router.get('/:id/turns/latest', optionalAuth, async (req: Request, res: Response
           if (createdTurn?.created_at instanceof Date) {
             createdAt = createdTurn.created_at.toISOString();
           } else if (typeof createdTurn?.created_at === 'string') {
-            // If it already has Z or timezone, convert to ISO if needed
-            if (createdTurn.created_at.endsWith('Z')) {
-              createdAt = createdTurn.created_at;
-            } else if (createdTurn.created_at.includes('+') || createdTurn.created_at.includes('-', 10)) {
-              // Has timezone offset, convert to ISO
-              const date = new Date(createdTurn.created_at);
-              if (isNaN(date.getTime())) {
-                createdAt = new Date().toISOString();
-              } else {
-                createdAt = date.toISOString();
-              }
+            // Parse string date and convert to ISO (handles +00:00, Z, and other formats)
+            const date = new Date(createdTurn.created_at);
+            if (isNaN(date.getTime())) {
+              console.warn(`[TURNS_LATEST] Invalid date for turn ${validatedDTO.turnCount}: ${createdTurn.created_at}, using current time`);
+              createdAt = new Date().toISOString();
             } else {
-              // No timezone, assume UTC and add Z
-              const date = new Date(createdTurn.created_at);
-              if (isNaN(date.getTime())) {
-                createdAt = new Date().toISOString();
-              } else {
-                createdAt = date.toISOString();
-              }
+              createdAt = date.toISOString();
             }
           } else {
             createdAt = new Date().toISOString();
@@ -1555,14 +1562,22 @@ router.get('/:id/turns/latest', optionalAuth, async (req: Request, res: Response
         const parsedAi = latestTurnRecord.content;
         
         const { aiToTurnDTO } = await import('../ai/ai-adapter.js');
-        // Ensure createdAt is ISO string format
-        const createdAt = latestTurnRecord.created_at instanceof Date 
-          ? latestTurnRecord.created_at.toISOString()
-          : typeof latestTurnRecord.created_at === 'string'
-            ? latestTurnRecord.created_at.endsWith('Z') || latestTurnRecord.created_at.includes('+')
-              ? latestTurnRecord.created_at
-              : new Date(latestTurnRecord.created_at).toISOString()
-            : new Date().toISOString();
+        // Ensure createdAt is ISO string format (Zod requires strict datetime)
+        let createdAt: string;
+        if (latestTurnRecord.created_at instanceof Date) {
+          createdAt = latestTurnRecord.created_at.toISOString();
+        } else if (typeof latestTurnRecord.created_at === 'string') {
+          // Parse string date and convert to ISO (handles +00:00, Z, and other formats)
+          const date = new Date(latestTurnRecord.created_at);
+          if (isNaN(date.getTime())) {
+            console.warn(`[TURNS_LATEST] Invalid date for turn ${latestTurnRecord.turn_number}: ${latestTurnRecord.created_at}, using current time`);
+            createdAt = new Date().toISOString();
+          } else {
+            createdAt = date.toISOString();
+          }
+        } else {
+          createdAt = new Date().toISOString();
+        }
         
         turnDTO = await aiToTurnDTO(parsedAi, {
           id: latestTurnRecord.turn_number,
@@ -1582,25 +1597,38 @@ router.get('/:id/turns/latest', optionalAuth, async (req: Request, res: Response
           emotion: 'neutral',
           choices: latestTurnRecord.content?.choices || [],
           actions: latestTurnRecord.content?.acts || [],
-          createdAt: latestTurnRecord.created_at instanceof Date 
-            ? latestTurnRecord.created_at.toISOString()
-            : typeof latestTurnRecord.created_at === 'string'
-              ? latestTurnRecord.created_at.endsWith('Z') || latestTurnRecord.created_at.includes('+')
-                ? latestTurnRecord.created_at
-                : new Date(latestTurnRecord.created_at).toISOString()
-              : new Date().toISOString(),
+          createdAt: (() => {
+            // Always convert to ISO string format (Zod requires strict datetime)
+            if (latestTurnRecord.created_at instanceof Date) {
+              return latestTurnRecord.created_at.toISOString();
+            } else if (typeof latestTurnRecord.created_at === 'string') {
+              const date = new Date(latestTurnRecord.created_at);
+              if (isNaN(date.getTime())) {
+                return new Date().toISOString();
+              }
+              return date.toISOString();
+            } else {
+              return new Date().toISOString();
+            }
+          })(),
           castingStonesBalance: wallet.castingStones,
         };
       }
     } else {
       // No content - minimal fallback
-      const createdAt = latestTurnRecord.created_at instanceof Date 
-        ? latestTurnRecord.created_at.toISOString()
-        : typeof latestTurnRecord.created_at === 'string'
-          ? latestTurnRecord.created_at.endsWith('Z') || latestTurnRecord.created_at.includes('+')
-            ? latestTurnRecord.created_at
-            : new Date(latestTurnRecord.created_at).toISOString()
-          : new Date().toISOString();
+      let createdAt: string;
+      if (latestTurnRecord.created_at instanceof Date) {
+        createdAt = latestTurnRecord.created_at.toISOString();
+      } else if (typeof latestTurnRecord.created_at === 'string') {
+        const date = new Date(latestTurnRecord.created_at);
+        if (isNaN(date.getTime())) {
+          createdAt = new Date().toISOString();
+        } else {
+          createdAt = date.toISOString();
+        }
+      } else {
+        createdAt = new Date().toISOString();
+      }
       
       turnDTO = {
         id: latestTurnRecord.turn_number,
@@ -1628,6 +1656,144 @@ router.get('/:id/turns/latest', optionalAuth, async (req: Request, res: Response
     sendSuccess(res, shapedDTO, req);
   } catch (error) {
     console.error('Error loading latest turn:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Internal server error',
+      req
+    );
+  }
+});
+
+// GET /api/games/:id/turns/history - get conversation history with user prompts and AI responses
+router.get('/:id/turns/history', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const gameId = req.params.id;
+    const limit = parseInt(req.query.limit as string) || 20; // Default 20 entries (last 10 turns typically)
+    
+    // Resolve ownership context
+    const ownership = resolveOwnershipContext(req);
+    if (!ownership.ownerId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'Authentication required',
+        req
+      );
+    }
+
+    const ownerId = ownership.ownerId;
+
+    // Verify game exists and user has access
+    const gamesService = new GamesService();
+    const game = await gamesService.getGameById(gameId, ownerId, ownership.isGuestOwner, ownership.guestCookieId);
+    
+    if (!game) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Game not found',
+        req
+      );
+    }
+
+    // Fetch turns with user inputs from meta
+    const { data: turnsData, error: turnsError } = await supabaseAdmin
+      .from('turns')
+      .select('turn_number, role, content, meta, created_at')
+      .eq('game_id', gameId)
+      .order('turn_number', { ascending: false })
+      .limit(Math.ceil(limit / 2)); // Get turns (each turn has user input + AI response, so divide by 2)
+
+    if (turnsError) {
+      console.error('[TURNS_HISTORY] Error fetching turns:', turnsError);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to fetch conversation history',
+        req
+      );
+    }
+
+    // Build conversation entries: for each turn, create user entry (if exists) and AI entry
+    const { ConversationEntrySchema, ConversationHistorySchema } = await import('@shared');
+    const entries: any[] = [];
+
+    // Process turns in reverse order (oldest first for conversation flow)
+    const sortedTurns = (turnsData || []).sort((a, b) => a.turn_number - b.turn_number);
+
+    for (const turn of sortedTurns) {
+      const userInput = turn.meta?.userInput;
+      const content = turn.content || {};
+      
+      // Extract narrative from content
+      const narrative = content.txt || content.narrative || turn.meta?.narrativeSummary || '';
+      
+      // Ensure createdAt is ISO string (Zod requires strict datetime format)
+      let createdAt: string;
+      if (turn.created_at instanceof Date) {
+        createdAt = turn.created_at.toISOString();
+      } else if (typeof turn.created_at === 'string') {
+        // Parse the string to a Date object and convert to ISO
+        const date = new Date(turn.created_at);
+        if (isNaN(date.getTime())) {
+          // Invalid date string, use current time as fallback
+          console.warn(`[TURNS_HISTORY] Invalid date for turn ${turn.turn_number}: ${turn.created_at}, using current time`);
+          createdAt = new Date().toISOString();
+        } else {
+          // Valid date, convert to ISO string
+          createdAt = date.toISOString();
+        }
+      } else {
+        // No date provided, use current time
+        createdAt = new Date().toISOString();
+      }
+
+      // Add user prompt entry if it exists (skip for turn 1 initialization)
+      if (userInput && turn.turn_number > 1) {
+        const userEntry = ConversationEntrySchema.parse({
+          id: turn.turn_number,
+          gameId,
+          turnCount: turn.turn_number,
+          type: 'user',
+          content: userInput,
+          createdAt,
+        });
+        entries.push(userEntry);
+      }
+
+      // Add AI narrative entry if it exists
+      if (narrative && narrative.trim().length > 0) {
+        const aiEntry = ConversationEntrySchema.parse({
+          id: turn.turn_number,
+          gameId,
+          turnCount: turn.turn_number,
+          type: 'ai',
+          content: narrative,
+          createdAt,
+        });
+        entries.push(aiEntry);
+      }
+    }
+
+    // Check if there are more turns available
+    const { count } = await supabaseAdmin
+      .from('turns')
+      .select('*', { count: 'exact', head: true })
+      .eq('game_id', gameId);
+    
+    const totalTurns = count || 0;
+    const hasMore = totalTurns > Math.ceil(limit / 2);
+
+    const history = ConversationHistorySchema.parse({
+      entries,
+      hasMore,
+      totalTurns,
+    });
+
+    return sendSuccess(res, history, req);
+  } catch (error) {
+    console.error('Error fetching conversation history:', error);
     sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,

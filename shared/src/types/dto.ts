@@ -315,6 +315,27 @@ export type StonesPackDTO = z.infer<typeof StonesPackDTOSchema>;
 export type SubscriptionDTO = z.infer<typeof SubscriptionDTOSchema>;
 export type SearchResultDTO = z.infer<typeof SearchResultDTOSchema>;
 export type TurnDTO = z.infer<typeof TurnDTOSchema>;
+
+// Conversation history entry - includes both user prompts and AI responses
+export const ConversationEntrySchema = z.object({
+  id: z.number().int().min(1), // Turn number
+  gameId: z.string().uuid(),
+  turnCount: z.number().int().min(1),
+  type: z.enum(['user', 'ai']), // 'user' for user prompts, 'ai' for AI narrative
+  content: z.string().min(1), // User prompt text or AI narrative
+  createdAt: z.string().datetime(), // ISO string
+});
+
+export type ConversationEntry = z.infer<typeof ConversationEntrySchema>;
+
+// Conversation history response
+export const ConversationHistorySchema = z.object({
+  entries: z.array(ConversationEntrySchema),
+  hasMore: z.boolean().optional(), // If true, more entries available with pagination
+  totalTurns: z.number().int().min(0).optional(), // Total number of turns in game
+});
+
+export type ConversationHistory = z.infer<typeof ConversationHistorySchema>;
 export type TurnDTOWithDebug = z.infer<typeof TurnDTOWithDebugSchema>;
 export type ContentWorldDTO = z.infer<typeof ContentWorldDTOSchema>;
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
