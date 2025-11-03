@@ -205,17 +205,22 @@ export const UpdateProfileRequestSchema = z.object({
 });
 
 // Turn DTO (redacted from internal state) - Layer M3
+// First Release: Normalized AI response format
+// Note: Debug fields are NEVER included in base schema - use TurnDTOWithDebugSchema for admin responses
 export const TurnDTOSchema = z.object({
-  id: z.string().uuid(),
+  id: z.number().int().min(1), // Turn ID (matches turn_number in DB)
   gameId: z.string().uuid(),
-  turnCount: z.number().int().min(0),
-  narrative: z.string().min(1),
-  emotion: z.enum(['neutral', 'happy', 'sad', 'angry', 'fearful', 'surprised', 'excited']),
+  turnCount: z.number().int().min(1), // >= 1
+  narrative: z.string().min(1), // non-empty (enforced: must have at least 1 char, fallback provided if AI returns empty)
+  emotion: z.union([z.literal('neutral'), z.string()]), // 'neutral' | string
   choices: z.array(z.object({
-    id: z.string().uuid(),
-    label: z.string().min(1),
-    description: z.string().optional(),
+    id: z.string(), // Choice ID (string, not required to be UUID)
+    label: z.string().min(1), // Choice label
   })),
+  actions: z.array(z.unknown()), // array (may be empty)
+  createdAt: z.string().datetime(), // ISO string
+  castingStonesBalance: z.number().int().min(0),
+  // Optional fields (legacy support, may be removed later)
   npcResponses: z.array(z.object({
     npcId: z.string(),
     response: z.string(),
@@ -223,12 +228,20 @@ export const TurnDTOSchema = z.object({
   })).optional(),
   relationshipDeltas: z.record(z.string(), z.number()).optional(),
   factionDeltas: z.record(z.string(), z.number()).optional(),
-  castingStonesBalance: z.number().int().min(0),
-  createdAt: z.string().datetime(),
-  // Debug fields for development
-  debugPrompt: z.string().optional(),
-  promptTokenCount: z.number().int().min(0).optional(),
-  // Character and state data for debugging
+  // Meta field for warnings and trace info
+  meta: z.object({
+    warnings: z.array(z.string()).optional(),
+    traceId: z.string().optional(),
+  }).optional(),
+});
+
+// Turn DTO with debug fields (admin only, ?debug=1)
+export const TurnDTOWithDebugSchema = TurnDTOSchema.extend({
+  debug: z.object({
+    prompt: z.string().optional(),
+    rawAi: z.unknown().optional(),
+  }).optional(),
+  // Legacy debug fields for backward compatibility (admin only)
   debugCharacter: z.object({
     id: z.string().nullable(),
     name: z.string(),
@@ -302,5 +315,6 @@ export type StonesPackDTO = z.infer<typeof StonesPackDTOSchema>;
 export type SubscriptionDTO = z.infer<typeof SubscriptionDTOSchema>;
 export type SearchResultDTO = z.infer<typeof SearchResultDTOSchema>;
 export type TurnDTO = z.infer<typeof TurnDTOSchema>;
+export type TurnDTOWithDebug = z.infer<typeof TurnDTOWithDebugSchema>;
 export type ContentWorldDTO = z.infer<typeof ContentWorldDTOSchema>;
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;

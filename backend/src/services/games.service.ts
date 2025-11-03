@@ -1049,6 +1049,8 @@ export class GamesService {
     guestCookieId?: string
   ): Promise<GameDTO | null> {
     try {
+      // First, fetch the game to check ownership
+      // Handle legacy games where both owner_user_id and cookie_group_id are null
       let query = supabaseAdmin
         .from('games')
         .select(`
@@ -1057,28 +1059,74 @@ export class GamesService {
         `)
         .eq('id', gameId);
 
-      // For linked users, check both user_id and cookie_group_id
-      // This allows authenticated users to access games created by their linked guest account
-      // and vice versa, except for real money transactions
-      if (isGuest) {
-        query = query.eq('cookie_group_id', ownerId);
-      } else if (guestCookieId && guestCookieId !== ownerId) {
-        query = query.or(`user_id.eq.${ownerId},cookie_group_id.eq.${guestCookieId}`);
-      } else {
-        query = query.or(`user_id.eq.${ownerId},cookie_group_id.eq.${ownerId}`);
-      }
+      const { data: gameData, error: fetchError } = await query.single();
 
-      const { data, error } = await query.single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null; // Not found or not owned by user
+      if (fetchError) {
+        if (fetchError.code === 'PGRST116') {
+          // Game doesn't exist
+          console.warn('[GAMES_SERVICE] Game not found:', { gameId, errorCode: fetchError.code });
+          return null;
         }
-        console.error('Error fetching game:', error);
+        console.error('[GAMES_SERVICE] Error fetching game:', { gameId, error: fetchError.message });
         return null;
       }
 
-      return await this.mapGameToDTO(data);
+      // Check ownership - allow access if:
+      // 1. Ownership matches (user_id or cookie_group_id)
+      // 2. Both ownership fields are null (legacy game - allow access with warning)
+      const hasUserId = gameData.user_id !== null && gameData.user_id !== undefined;
+      const hasCookieGroupId = gameData.cookie_group_id !== null && gameData.cookie_group_id !== undefined;
+      const isLegacyGame = !hasUserId && !hasCookieGroupId;
+
+      if (isLegacyGame) {
+        // Legacy game with no ownership - allow access but log warning
+        console.warn('[GAMES_SERVICE] Accessing legacy game with null ownership:', {
+          gameId,
+          requestingOwnerId: ownerId,
+          requestingIsGuest: isGuest,
+          note: 'Legacy game access allowed',
+        });
+        return await this.mapGameToDTO(gameData);
+      }
+
+      // Check ownership for non-legacy games
+      let ownershipMatches = false;
+      if (isGuest) {
+        // Guest: check cookie_group_id matches
+        // Also allow if game has user_id but no cookie_group_id (legacy authenticated game)
+        // This handles games created before cookie_group tracking was added
+        ownershipMatches = gameData.cookie_group_id === ownerId ||
+                          (!gameData.cookie_group_id && !!gameData.user_id);
+        
+        if (!gameData.cookie_group_id && !!gameData.user_id) {
+          console.warn('[GAMES_SERVICE] Allowing guest access to authenticated game (legacy):', {
+            gameId,
+            gameUserId: gameData.user_id,
+            guestCookieId: ownerId,
+            note: 'Game created before cookie_group tracking',
+          });
+        }
+      } else {
+        // Authenticated user: check user_id or cookie_group_id (for linked accounts)
+        ownershipMatches = gameData.user_id === ownerId || 
+                          (guestCookieId && gameData.cookie_group_id === guestCookieId) ||
+                          gameData.cookie_group_id === ownerId;
+      }
+
+      if (!ownershipMatches) {
+        console.warn('[GAMES_SERVICE] Ownership mismatch:', {
+          gameId,
+          dbUserId: gameData.user_id,
+          dbCookieGroupId: gameData.cookie_group_id,
+          requestingOwnerId: ownerId,
+          requestingGuestCookieId: guestCookieId,
+          requestingIsGuest: isGuest,
+        });
+        return null;
+      }
+
+      // Ownership verified - return the game
+      return await this.mapGameToDTO(gameData);
     } catch (error) {
       console.error('Unexpected error in getGameById:', error);
       return null;

@@ -2,9 +2,10 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus, getTraceId } from '../utils/response.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { requireIdempotencyKey } from '../middleware/validation.js';
-import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema, SessionTurnsResponseSchema, GetTurnsQuerySchema } from '@shared';
+import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema, SessionTurnsResponseSchema, GetTurnsQuerySchema, type TurnDTO } from '@shared';
 import { GamesService } from '../services/games.service.js';
-import { turnsService } from '../services/turns.service.js';
+import { turnsService, TurnsService } from '../services/turns.service.js';
+import { WalletService } from '../services/wallet.service.js';
 // Legacy promptsService import removed - v3 assembler used instead
 import { supabaseAdmin } from '../services/supabase.js';
 import { z } from 'zod';
@@ -400,20 +401,39 @@ router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Reques
       );
     }
 
-    // Validate request body
-    const bodyValidation = GameTurnRequestSchema.safeParse(req.body);
-    if (!bodyValidation.success) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Invalid request data',
-        req,
-        bodyValidation.error.errors
-      );
+    // Validate request body - try new TurnPostBody format first, fallback to legacy
+    let userIntent: { t: 'choice' | 'text'; text: string } | null = null;
+    let optionId: string | undefined;
+    let userInput: string | undefined;
+    let userInputType: 'choice' | 'text' | 'action' | undefined;
+
+    const newBodyValidation = TurnPostBodySchema.safeParse(req.body);
+    if (newBodyValidation.success) {
+      // New format: { kind: 'choice' | 'text', text: string }
+      userIntent = {
+        t: newBodyValidation.data.kind === 'choice' ? 'choice' : 'text',
+        text: newBodyValidation.data.text.trim(),
+      };
+      userInput = userIntent.text;
+      userInputType = userIntent.t === 'choice' ? 'choice' : 'text';
+    } else {
+      // Legacy format: { optionId: uuid, userInput?, userInputType? }
+      const legacyBodyValidation = GameTurnRequestSchema.safeParse(req.body);
+      if (!legacyBodyValidation.success) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.VALIDATION_FAILED,
+          'Invalid request data - must be {kind:"choice"|"text", text:string} or legacy {optionId:uuid}',
+          req,
+          legacyBodyValidation.error.errors
+        );
+      }
+      optionId = legacyBodyValidation.data.optionId;
+      userInput = legacyBodyValidation.data.userInput;
+      userInputType = legacyBodyValidation.data.userInputType;
     }
 
     const { id: gameId } = paramValidation.data;
-    const { optionId, userInput, userInputType } = bodyValidation.data;
     const idempotencyKey = req.headers['idempotency-key'] as string;
     const ownership = resolveOwnershipContext(req, userId, isGuest);
     const ownerId = ownership.ownerId ?? userId;
@@ -427,15 +447,39 @@ router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Reques
       );
     }
 
+    // For new format, validate text is non-empty and <= 400 chars
+    if (userIntent) {
+      const trimmedText = userIntent.text.trim();
+      if (trimmedText.length === 0) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.VALIDATION_FAILED,
+          'Text cannot be empty',
+          req,
+          { code: 'INVALID_INPUT', traceId: getTraceId(req) }
+        );
+      }
+      if (trimmedText.length > 400) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.VALIDATION_FAILED,
+          'Text must be 400 characters or less',
+          req,
+          { code: 'INVALID_INPUT', traceId: getTraceId(req) }
+        );
+      }
+    }
+
     // Execute the turn
     const turnResult = await turnsService.runBufferedTurn({
       gameId,
-      optionId,
+      optionId: optionId || 'user_input', // Legacy fallback, new format doesn't need optionId
       owner: ownerId,
       idempotencyKey,
       isGuest: ownership.isGuestOwner,
-      userInput,
-      userInputType,
+      userInput: userIntent?.text || userInput,
+      userInputType: userIntent?.t || userInputType,
+      userIntent, // Pass the new UserIntent format
     });
 
     if (!turnResult.success) {
@@ -485,23 +529,70 @@ router.post('/:id/turn', optionalAuth, requireIdempotencyKey, async (req: Reques
       || ((latestTurn as any).content || '')
       || '';
 
-    const standardizedTurn = {
-      turn_number: latestTurn.turn_number || 0,
-      role: latestTurn.role || 'narrator',
-      content: turnContent,
-      meta: latestTurn.meta || {},
-      created_at: latestTurn.created_at || new Date().toISOString(),
-    };
+    // Return TurnDTO directly (no legacy standardization)
+    // Shape with conditional debug fields
+    const { shapeTurnDTOForResponse } = await import('../utils/turn-dto-shape.js');
+    
+    // Get parsed AI response if available
+    let parsedAi: unknown = null;
+    if (turnResult.details?.aiResponse) {
+      try {
+        parsedAi = typeof turnResult.details.aiResponse === 'string'
+          ? JSON.parse(turnResult.details.aiResponse)
+          : turnResult.details.aiResponse;
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    
+    // Validate TurnDTO against schema before sending
+    const { TurnDTOSchema } = await import('@shared');
+    const validationResult = TurnDTOSchema.safeParse(turnResult.turnDTO);
+    
+    if (!validationResult.success) {
+      console.error('[TURNS_POST] TurnDTO validation failed:', validationResult.error.errors);
+      const traceId = getTraceId(req);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Turn data validation failed',
+        req,
+        {
+          code: 'DTO_VALIDATION_FAILED',
+          errors: validationResult.error.errors,
+          traceId,
+        }
+      );
+    }
 
-    return res.json({
-      ok: true,
-      data: {
-        turn: standardizedTurn,
-      },
-      meta: {
-        traceId: getTraceId(req),
-      },
-    });
+    // Add traceId to meta
+    const validatedDTO = validationResult.data;
+    if (!validatedDTO.meta) {
+      validatedDTO.meta = {};
+    }
+    validatedDTO.meta.traceId = getTraceId(req);
+
+    const shapedDTO = await shapeTurnDTOForResponse(
+      validatedDTO,
+      req,
+      {
+        prompt: turnResult.debugMetadata?.assembler?.prompt,
+        rawAi: parsedAi,
+      }
+    );
+
+    // Log turn created metric
+    console.log(JSON.stringify({
+      event: 'turns_created_total',
+      game_id: gameId,
+      turn_count: shapedDTO.turnCount,
+      choices_count: shapedDTO.choices.length,
+      has_narrative: shapedDTO.narrative.length > 0,
+      narrative_length: shapedDTO.narrative.length,
+      timestamp: new Date().toISOString(),
+    }));
+
+    sendSuccess(res, shapedDTO, req);
   } catch (error) {
     console.error('Error executing turn:', error);
     sendErrorWithStatus(
@@ -941,6 +1032,611 @@ router.get('/:id/session-turns', optionalAuth, async (req: Request, res: Respons
   }
 });
 
+// GET /api/games/:id/turns/latest - get the latest turn for a game (returns TurnDTO)
+// Auto-initializes Turn 1 if no turns exist (idempotent)
+router.get('/:id/turns/latest', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest;
+
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'User context required',
+        req
+      );
+    }
+
+    // Validate game ID parameter
+    const paramValidation = IdParamSchema.safeParse(req.params);
+    if (!paramValidation.success) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'Invalid game ID',
+        req,
+        paramValidation.error.errors
+      );
+    }
+
+    const { id: gameId } = paramValidation.data;
+
+    // Get the game to validate ownership
+    const gamesService = new GamesService();
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
+    
+    // Log ownership context for debugging
+    console.log('[TURNS_LATEST] Ownership context:', {
+      gameId,
+      userId,
+      isGuest,
+      ownerId,
+      isGuestOwner: ownership.isGuestOwner,
+      guestCookieId: ownership.guestCookieId,
+      hasUserId: !!userId,
+      traceId: getTraceId(req),
+    });
+    
+    const game = await gamesService.getGameById(
+      gameId,
+      ownerId,
+      ownership.isGuestOwner,
+      ownership.guestCookieId
+    );
+
+    if (!game) {
+      // Log detailed error for debugging - check what's actually in the database
+      console.error('[TURNS_LATEST] Game not found - ownership mismatch:', {
+        gameId,
+        ownerId,
+        isGuestOwner: ownership.isGuestOwner,
+        guestCookieId: ownership.guestCookieId,
+        userId,
+        isGuest,
+        traceId: getTraceId(req),
+      });
+      
+      // Try to fetch game without ownership check to see if it exists
+      try {
+        const { data: gameExists, error: debugError } = await supabaseAdmin
+          .from('games')
+          .select('id, user_id, cookie_group_id')
+          .eq('id', gameId)
+          .single();
+        
+        if (gameExists) {
+          console.error('[TURNS_LATEST] Game exists in DB but ownership mismatch:', {
+            gameId,
+            dbUserId: gameExists.user_id,
+            dbCookieGroupId: gameExists.cookie_group_id,
+            requestOwnerId: ownerId,
+            requestGuestCookieId: ownership.guestCookieId,
+            requestIsGuest: ownership.isGuestOwner,
+          });
+        } else if (debugError) {
+          console.error('[TURNS_LATEST] Game does not exist in DB:', {
+            gameId,
+            error: debugError.message,
+          });
+        }
+      } catch (debugError) {
+        // Ignore debug query errors
+        console.error('[TURNS_LATEST] Error checking game existence:', debugError);
+      }
+      
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        'Game not found',
+        req
+      );
+    }
+
+    // Check if turns exist with a lightweight query to avoid triggering side effects
+    const { data: existingTurnsCheck, error: turnsCheckError } = await supabaseAdmin
+      .from('turns')
+      .select('turn_number')
+      .eq('game_id', gameId)
+      .order('turn_number', { ascending: false })
+      .limit(1);
+
+    if (turnsCheckError && turnsCheckError.code !== 'PGRST116') {
+      console.error('[TURNS_LATEST] Error checking for existing turns:', turnsCheckError);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to check game turns',
+        req
+      );
+    }
+
+    // If no turns exist, auto-initialize Turn 1 (idempotent)
+    if (!existingTurnsCheck || existingTurnsCheck.length === 0) {
+      console.log(`[TURNS_LATEST] No turns found for game ${gameId}, auto-initializing Turn 1`);
+      
+      // Check if Turn 1 already exists (race condition guard)
+      // Turns table uses 'content' (jsonb) not 'ai_response'
+      const { data: existingTurn1, error: turnCheckError } = await supabaseAdmin
+        .from('turns')
+        .select('id, turn_number, role, content, meta, created_at')
+        .eq('game_id', gameId)
+        .eq('turn_number', 1)
+        .single();
+
+      if (turnCheckError && turnCheckError.code !== 'PGRST116') {
+        // PGRST116 = not found, which is fine
+        console.error('[TURNS_LATEST] Error checking for existing Turn 1:', turnCheckError);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to check game state',
+          req
+        );
+      }
+
+      // If Turn 1 exists now (race condition), use it
+      if (existingTurn1) {
+        console.log(`[TURNS_LATEST] Turn 1 found after race check, using existing turn`);
+        const wallet = await WalletService.getWallet(ownerId, ownership.isGuestOwner, ownership.guestCookieId);
+        
+        // Convert to TurnDTO
+        // The 'content' field (jsonb) contains the AI response data
+        let turnDTO: TurnDTO;
+        if (existingTurn1.content) {
+          try {
+            // content is jsonb, contains the AI response structure
+            const parsedAi = existingTurn1.content;
+            
+            const { aiToTurnDTO } = await import('../ai/ai-adapter.js');
+            // Ensure createdAt is ISO string format
+            const createdAt = existingTurn1.created_at instanceof Date 
+              ? existingTurn1.created_at.toISOString()
+              : typeof existingTurn1.created_at === 'string'
+                ? existingTurn1.created_at.endsWith('Z') || existingTurn1.created_at.includes('+')
+                  ? existingTurn1.created_at
+                  : new Date(existingTurn1.created_at).toISOString()
+                : new Date().toISOString();
+            
+            turnDTO = await aiToTurnDTO(parsedAi, {
+              id: existingTurn1.turn_number,
+              gameId,
+              turnCount: existingTurn1.turn_number,
+              createdAt,
+              castingStonesBalance: wallet.castingStones,
+            });
+          } catch (error) {
+            // Fallback: extract narrative from content
+            const narrative = existingTurn1.content?.narrative || existingTurn1.content?.txt || 'Narrative not available';
+            turnDTO = {
+              id: existingTurn1.turn_number,
+              gameId,
+              turnCount: existingTurn1.turn_number,
+              narrative,
+              emotion: 'neutral',
+              choices: existingTurn1.content?.choices || [],
+              actions: existingTurn1.content?.acts || [],
+              createdAt: existingTurn1.created_at instanceof Date 
+                ? existingTurn1.created_at.toISOString()
+                : typeof existingTurn1.created_at === 'string'
+                  ? existingTurn1.created_at.endsWith('Z') || existingTurn1.created_at.includes('+')
+                    ? existingTurn1.created_at
+                    : new Date(existingTurn1.created_at).toISOString()
+                  : new Date().toISOString(),
+              castingStonesBalance: wallet.castingStones,
+            };
+          }
+        } else {
+          // No content - minimal fallback
+          const createdAt = existingTurn1.created_at instanceof Date 
+            ? existingTurn1.created_at.toISOString()
+            : typeof existingTurn1.created_at === 'string'
+              ? existingTurn1.created_at.endsWith('Z') || existingTurn1.created_at.includes('+')
+                ? existingTurn1.created_at
+                : new Date(existingTurn1.created_at).toISOString()
+              : new Date().toISOString();
+          
+          turnDTO = {
+            id: existingTurn1.turn_number,
+            gameId,
+            turnCount: existingTurn1.turn_number,
+            narrative: 'Narrative not available',
+            emotion: 'neutral',
+            choices: [],
+            actions: [],
+            createdAt,
+            castingStonesBalance: wallet.castingStones,
+          };
+        }
+
+        // Shape with conditional debug fields
+        const { shapeTurnDTOForResponse } = await import('../utils/turn-dto-shape.js');
+        const shapedDTO = await shapeTurnDTOForResponse(
+          turnDTO,
+          req,
+          existingTurn1.content ? {
+            rawAi: existingTurn1.content,
+          } : undefined
+        );
+
+        return sendSuccess(res, shapedDTO, req);
+      }
+
+      // No Turn 1 exists, create it
+      console.log(`[TURNS_LATEST] No Turn 1 found for game ${gameId}, creating initial turn`);
+      
+      const { TurnsService } = await import('../services/turns.service.js');
+      const turnsService = new TurnsService();
+      
+      const idempotencyKey = `latest-turn-auto-init-${gameId}-${Date.now()}`;
+      console.log(`[TURNS_LATEST] Creating initial prompt for game ${gameId} with optionId: game_start`);
+      
+      // Request debug metadata for detailed logging (server-side only, not exposed to client)
+      const turnResult = await turnsService.runBufferedTurn({
+        gameId,
+        optionId: 'game_start',
+        owner: ownerId,
+        idempotencyKey,
+        isGuest: ownership.isGuestOwner,
+        includeDebugMetadata: true, // Enable debug logging for auto-init
+      });
+
+      console.log(`[TURNS_LATEST] Turn result:`, {
+        success: turnResult.success,
+        hasTurnDTO: !!turnResult.turnDTO,
+        turnCount: turnResult.turnDTO?.turnCount,
+        narrativeLength: turnResult.turnDTO?.narrative?.length || 0,
+        choicesCount: turnResult.turnDTO?.choices?.length || 0,
+        hasDebugMetadata: !!turnResult.debugMetadata,
+      });
+
+      // Log detailed prompt and AI response information (server-side only)
+      if (turnResult.debugMetadata) {
+        console.log('=== [TURNS_LATEST] AUTO-INITIALIZATION DETAILS ===');
+        if (turnResult.debugMetadata.assembler) {
+          console.log('[TURNS_LATEST] Full Prompt:', turnResult.debugMetadata.assembler.prompt);
+          console.log('[TURNS_LATEST] Prompt Pieces:', turnResult.debugMetadata.assembler.pieces?.length || 0);
+          console.log('[TURNS_LATEST] Prompt Metadata:', {
+            model: turnResult.debugMetadata.assembler.meta?.model,
+            tokenPct: turnResult.debugMetadata.assembler.meta?.tokenEst?.pct,
+            policy: turnResult.debugMetadata.assembler.meta?.policy,
+          });
+        }
+        if (turnResult.debugMetadata.ai) {
+          console.log('[TURNS_LATEST] AI Request:', JSON.stringify(turnResult.debugMetadata.ai.request, null, 2));
+          console.log('[TURNS_LATEST] AI Raw Response:', JSON.stringify(turnResult.debugMetadata.ai.rawResponse, null, 2));
+          console.log('[TURNS_LATEST] AI Transformed:', JSON.stringify(turnResult.debugMetadata.ai.transformed, null, 2));
+        }
+        if (turnResult.debugMetadata.timings) {
+          console.log('[TURNS_LATEST] Timings:', turnResult.debugMetadata.timings);
+        }
+        console.log('===================================================');
+      }
+
+      // Also log from details if available
+      if (turnResult.details) {
+        console.log('[TURNS_LATEST] Turn Details:', {
+          hasPrompt: !!turnResult.details.prompt,
+          hasAiResponse: !!turnResult.details.aiResponse,
+          hasTransformedResponse: !!turnResult.details.transformedResponse,
+          error: turnResult.details.error,
+          timestamp: turnResult.details.timestamp,
+        });
+        if (turnResult.details.prompt) {
+          console.log('[TURNS_LATEST] Prompt from details:', turnResult.details.prompt);
+        }
+        if (turnResult.details.aiResponse) {
+          console.log('[TURNS_LATEST] AI Response from details:', turnResult.details.aiResponse);
+        }
+      }
+
+      if (!turnResult.success) {
+        console.error('[TURNS_LATEST] Failed to create initial turn:', {
+          error: turnResult.error,
+          message: turnResult.message,
+          details: turnResult.details,
+        });
+        return sendErrorWithStatus(
+          res,
+          turnResult.error || ApiErrorCode.INTERNAL_ERROR,
+          turnResult.message || 'Failed to initialize game',
+          req,
+          turnResult.details
+        );
+      }
+
+      // Extract raw AI response from debug metadata or details for debug field
+      let rawAiResponse: unknown = undefined;
+      if (turnResult.debugMetadata?.ai?.rawResponse) {
+        rawAiResponse = turnResult.debugMetadata.ai.rawResponse;
+      } else if (turnResult.details?.aiResponse) {
+        try {
+          rawAiResponse = typeof turnResult.details.aiResponse === 'string'
+            ? JSON.parse(turnResult.details.aiResponse)
+            : turnResult.details.aiResponse;
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
+      // If turnDTO has empty narrative but details has it, re-parse from details
+      let validatedDTO = turnResult.turnDTO;
+      if ((!validatedDTO.narrative || validatedDTO.narrative.length === 0) && turnResult.details?.aiResponse) {
+        console.warn('[TURNS_LATEST] TurnDTO has empty narrative but details.aiResponse has it, re-parsing...');
+        try {
+          let aiResponseFromDetails: unknown;
+          if (typeof turnResult.details.aiResponse === 'string') {
+            try {
+              aiResponseFromDetails = JSON.parse(turnResult.details.aiResponse);
+              console.log('[TURNS_LATEST] Parsed AI response from details string:', {
+                type: typeof aiResponseFromDetails,
+                hasNarrative: typeof (aiResponseFromDetails as any)?.narrative === 'string',
+                narrativeLength: typeof (aiResponseFromDetails as any)?.narrative === 'string'
+                  ? (aiResponseFromDetails as any).narrative.length
+                  : 'not a string',
+                keys: typeof aiResponseFromDetails === 'object' && aiResponseFromDetails !== null
+                  ? Object.keys(aiResponseFromDetails as object)
+                  : 'not an object',
+              });
+            } catch (parseError) {
+              console.error('[TURNS_LATEST] Failed to parse aiResponse string:', parseError);
+              throw parseError;
+            }
+          } else {
+            aiResponseFromDetails = turnResult.details.aiResponse;
+            console.log('[TURNS_LATEST] Using aiResponse directly (not a string):', {
+              type: typeof aiResponseFromDetails,
+              hasNarrative: typeof (aiResponseFromDetails as any)?.narrative === 'string',
+            });
+          }
+          
+          const { aiToTurnDTO } = await import('../ai/ai-adapter.js');
+          const { WalletService } = await import('../services/wallet.service.js');
+          const wallet = await WalletService.getWallet(ownerId, ownership.isGuestOwner, ownership.guestCookieId);
+          
+          // Get the actual turn record to get proper id and createdAt
+          const { data: createdTurn } = await supabaseAdmin
+            .from('turns')
+            .select('turn_number, created_at')
+            .eq('game_id', gameId)
+            .eq('turn_number', validatedDTO.turnCount)
+            .single();
+          
+          // Ensure createdAt is in ISO 8601 format (Zod requires strict datetime format)
+          let createdAt: string;
+          if (createdTurn?.created_at instanceof Date) {
+            createdAt = createdTurn.created_at.toISOString();
+          } else if (typeof createdTurn?.created_at === 'string') {
+            // If it already has Z or timezone, convert to ISO if needed
+            if (createdTurn.created_at.endsWith('Z')) {
+              createdAt = createdTurn.created_at;
+            } else if (createdTurn.created_at.includes('+') || createdTurn.created_at.includes('-', 10)) {
+              // Has timezone offset, convert to ISO
+              const date = new Date(createdTurn.created_at);
+              if (isNaN(date.getTime())) {
+                createdAt = new Date().toISOString();
+              } else {
+                createdAt = date.toISOString();
+              }
+            } else {
+              // No timezone, assume UTC and add Z
+              const date = new Date(createdTurn.created_at);
+              if (isNaN(date.getTime())) {
+                createdAt = new Date().toISOString();
+              } else {
+                createdAt = date.toISOString();
+              }
+            }
+          } else {
+            createdAt = new Date().toISOString();
+          }
+          
+          validatedDTO = await aiToTurnDTO(aiResponseFromDetails, {
+            id: createdTurn?.turn_number || validatedDTO.turnCount,
+            gameId,
+            turnCount: validatedDTO.turnCount,
+            createdAt,
+            castingStonesBalance: wallet.castingStones,
+          });
+          console.log('[TURNS_LATEST] Successfully re-parsed TurnDTO from details, narrative length:', validatedDTO.narrative.length);
+        } catch (reparseError) {
+          console.error('[TURNS_LATEST] Failed to re-parse TurnDTO from details:', reparseError);
+          // Continue with original turnDTO
+        }
+      }
+
+      // Validate TurnDTO against schema before sending
+      const { TurnDTOSchema } = await import('@shared');
+      const validationResult = TurnDTOSchema.safeParse(validatedDTO);
+      
+      if (!validationResult.success) {
+        console.error('[TURNS_LATEST] TurnDTO validation failed:', validationResult.error.errors);
+        console.error('[TURNS_LATEST] TurnDTO that failed validation:', {
+          narrative: validatedDTO.narrative?.substring(0, 100),
+          narrativeLength: validatedDTO.narrative?.length,
+          createdAt: validatedDTO.createdAt,
+          turnCount: validatedDTO.turnCount,
+        });
+        const traceId = getTraceId(req);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Turn data validation failed',
+          req,
+          {
+            code: 'DTO_VALIDATION_FAILED',
+            errors: validationResult.error.errors,
+            traceId,
+          }
+        );
+      }
+
+      // Get validated DTO (may have been re-parsed)
+      const finalValidatedDTO = validationResult.data;
+      if (!finalValidatedDTO.meta) {
+        finalValidatedDTO.meta = {};
+      }
+      if (!finalValidatedDTO.meta.traceId) {
+        finalValidatedDTO.meta.traceId = getTraceId(req);
+      }
+
+      // Shape TurnDTO with conditional debug fields
+      const { shapeTurnDTOForResponse } = await import('../utils/turn-dto-shape.js');
+      const shapedDTO = await shapeTurnDTOForResponse(
+        finalValidatedDTO,
+        req,
+        {
+          prompt: turnResult.debugMetadata?.assembler?.prompt || turnResult.details?.prompt,
+          rawAi: rawAiResponse,
+        }
+      );
+
+      // Log turn created metric with detailed information
+      console.log(JSON.stringify({
+        event: 'turns_created_total',
+        game_id: gameId,
+        turn_count: shapedDTO.turnCount,
+        choices_count: shapedDTO.choices.length,
+        has_narrative: shapedDTO.narrative.length > 0,
+        narrative_length: shapedDTO.narrative.length,
+        source: 'latest_turn_auto_init',
+        trace_id: shapedDTO.meta?.traceId,
+        timestamp: new Date().toISOString(),
+      }));
+
+      // Warn if narrative is empty or fallback was used
+      if (shapedDTO.narrative.length === 0 || shapedDTO.meta?.warnings?.includes('AI_EMPTY_NARRATIVE')) {
+        console.warn('[TURNS_LATEST] WARNING: Turn created with empty/fallback narrative!', {
+          gameId,
+          turnCount: shapedDTO.turnCount,
+          choicesCount: shapedDTO.choices.length,
+          narrativeLength: shapedDTO.narrative.length,
+          warnings: shapedDTO.meta?.warnings,
+          traceId: shapedDTO.meta?.traceId,
+        });
+      }
+
+      return sendSuccess(res, shapedDTO, req);
+    }
+
+    // Turns exist - fetch the latest turn record with full details
+    const { data: latestTurnsData, error: latestTurnError } = await supabaseAdmin
+      .from('turns')
+      .select('id, turn_number, role, content, meta, created_at')
+      .eq('game_id', gameId)
+      .order('turn_number', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (latestTurnError) {
+      console.error('[TURNS_LATEST] Error fetching latest turn:', latestTurnError);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to fetch latest turn',
+        req
+      );
+    }
+
+    const latestTurnRecord = latestTurnsData;
+
+    // Convert turn record to TurnDTO using ai-adapter if we have ai_response
+    const { WalletService } = await import('../services/wallet.service.js');
+    const wallet = await WalletService.getWallet(ownerId, ownership.isGuestOwner, ownership.guestCookieId);
+    
+    let turnDTO: TurnDTO;
+    
+    // Convert to TurnDTO using ai-adapter
+    // Turns table uses 'content' (jsonb) which contains the AI response
+    if (latestTurnRecord.content) {
+      try {
+        // content is jsonb, contains the AI response structure
+        const parsedAi = latestTurnRecord.content;
+        
+        const { aiToTurnDTO } = await import('../ai/ai-adapter.js');
+        // Ensure createdAt is ISO string format
+        const createdAt = latestTurnRecord.created_at instanceof Date 
+          ? latestTurnRecord.created_at.toISOString()
+          : typeof latestTurnRecord.created_at === 'string'
+            ? latestTurnRecord.created_at.endsWith('Z') || latestTurnRecord.created_at.includes('+')
+              ? latestTurnRecord.created_at
+              : new Date(latestTurnRecord.created_at).toISOString()
+            : new Date().toISOString();
+        
+        turnDTO = await aiToTurnDTO(parsedAi, {
+          id: latestTurnRecord.turn_number,
+          gameId,
+          turnCount: latestTurnRecord.turn_number,
+          createdAt,
+          castingStonesBalance: wallet.castingStones,
+        });
+      } catch (error) {
+        // Fallback: extract narrative from content
+        const narrative = latestTurnRecord.content?.narrative || latestTurnRecord.content?.txt || 'Narrative not available';
+        turnDTO = {
+          id: latestTurnRecord.turn_number,
+          gameId,
+          turnCount: latestTurnRecord.turn_number,
+          narrative,
+          emotion: 'neutral',
+          choices: latestTurnRecord.content?.choices || [],
+          actions: latestTurnRecord.content?.acts || [],
+          createdAt: latestTurnRecord.created_at instanceof Date 
+            ? latestTurnRecord.created_at.toISOString()
+            : typeof latestTurnRecord.created_at === 'string'
+              ? latestTurnRecord.created_at.endsWith('Z') || latestTurnRecord.created_at.includes('+')
+                ? latestTurnRecord.created_at
+                : new Date(latestTurnRecord.created_at).toISOString()
+              : new Date().toISOString(),
+          castingStonesBalance: wallet.castingStones,
+        };
+      }
+    } else {
+      // No content - minimal fallback
+      const createdAt = latestTurnRecord.created_at instanceof Date 
+        ? latestTurnRecord.created_at.toISOString()
+        : typeof latestTurnRecord.created_at === 'string'
+          ? latestTurnRecord.created_at.endsWith('Z') || latestTurnRecord.created_at.includes('+')
+            ? latestTurnRecord.created_at
+            : new Date(latestTurnRecord.created_at).toISOString()
+          : new Date().toISOString();
+      
+      turnDTO = {
+        id: latestTurnRecord.turn_number,
+        gameId,
+        turnCount: latestTurnRecord.turn_number,
+        narrative: 'Narrative not available',
+        emotion: 'neutral',
+        choices: [],
+        actions: [],
+        createdAt,
+        castingStonesBalance: wallet.castingStones,
+      };
+    }
+
+    // Shape with conditional debug fields
+    const { shapeTurnDTOForResponse } = await import('../utils/turn-dto-shape.js');
+    const shapedDTO = await shapeTurnDTOForResponse(
+      turnDTO,
+      req,
+      latestTurnRecord.content ? {
+        rawAi: latestTurnRecord.content,
+      } : undefined
+    );
+
+    sendSuccess(res, shapedDTO, req);
+  } catch (error) {
+    console.error('Error loading latest turn:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Internal server error',
+      req
+    );
+  }
+});
+
 // POST /api/games/:id/auto-initialize - automatically create initial prompt for games with 0 turns
 router.post('/:id/auto-initialize', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -990,25 +1686,18 @@ router.post('/:id/auto-initialize', optionalAuth, async (req: Request, res: Resp
       );
     }
 
-    // Only auto-initialize games with 0 turns
-    if (game.turnCount > 0) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Game has already been initialized',
-        req
-      );
-    }
-
-    // Double-check by querying turns table directly to prevent race conditions
-    const { data: existingTurns, error: turnsError } = await supabaseAdmin
+    // Idempotent check: Check if Turn 1 already exists (game_id, turn_count=1)
+    // Turns table uses 'content' (jsonb) not 'ai_response' or 'narrative_summary'
+    const { data: existingTurn1, error: turnCheckError } = await supabaseAdmin
       .from('turns')
-      .select('id, turn_number, role, created_at')
+      .select('id, turn_number, role, content, meta, created_at')
       .eq('game_id', gameId)
-      .order('turn_number', { ascending: true });
+      .eq('turn_number', 1)
+      .single();
 
-    if (turnsError) {
-      console.error('Error checking existing turns:', turnsError);
+    if (turnCheckError && turnCheckError.code !== 'PGRST116') {
+      // PGRST116 = not found, which is fine
+      console.error('[AUTO-INIT] Error checking for existing Turn 1:', turnCheckError);
       return sendErrorWithStatus(
         res,
         ApiErrorCode.INTERNAL_ERROR,
@@ -1017,46 +1706,96 @@ router.post('/:id/auto-initialize', optionalAuth, async (req: Request, res: Resp
       );
     }
 
-    console.log(`[AUTO-INIT] Checking turns for game ${gameId}:`, {
-      gameTurnCount: game.turnCount,
-      existingTurnsCount: existingTurns?.length || 0,
-      existingTurns: existingTurns
-    });
-
-    if (existingTurns && existingTurns.length > 0) {
-      console.log(`[AUTO-INIT] Game ${gameId} has data inconsistency: game.turnCount=${game.turnCount} but ${existingTurns.length} turns exist`);
-      console.log(`[AUTO-INIT] Existing turns:`, existingTurns);
+    // If Turn 1 exists, return it (idempotent)
+    if (existingTurn1) {
+      console.log(`[AUTO-INIT] Turn 1 already exists for game ${gameId}, returning existing turn`);
       
-      // If game record shows 0 turns but turns exist, this is a data inconsistency
-      // We should trust the game record and allow auto-initialization to proceed
-      if (game.turnCount === 0) {
-        console.log(`[AUTO-INIT] Data inconsistency detected - game record shows 0 turns but ${existingTurns.length} turns exist in database`);
-        console.log(`[AUTO-INIT] Cleaning up orphaned turns and proceeding with auto-initialization`);
-        
-        // Clean up orphaned turns
-        const { error: deleteError } = await supabaseAdmin
-          .from('turns')
-          .delete()
-          .eq('game_id', gameId);
-          
-        if (deleteError) {
-          console.error(`[AUTO-INIT] Error cleaning up orphaned turns:`, deleteError);
-          // Continue anyway - the applyTurn method will handle duplicates
-        } else {
-          console.log(`[AUTO-INIT] Successfully cleaned up ${existingTurns.length} orphaned turns`);
-        }
-        
-        // Continue with auto-initialization to fix the inconsistency
-      } else {
-        console.log(`[AUTO-INIT] Game ${gameId} already has ${existingTurns.length} turns, skipping auto-initialization`);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'Game has already been initialized',
-          req
-        );
-      }
+      // Convert existing turn record to TurnDTO
+      const wallet = await WalletService.getWallet(ownerId, ownership.isGuestOwner, ownership.guestCookieId);
+      
+            // Convert existing turn to TurnDTO using ai-adapter
+            // The 'content' field (jsonb) contains the AI response data
+            let turnDTO: TurnDTO;
+            if (existingTurn1.content) {
+              try {
+                // content is jsonb, contains the AI response structure
+                const parsedAi = existingTurn1.content;
+                
+                const { aiToTurnDTO } = await import('../ai/ai-adapter.js');
+                turnDTO = await aiToTurnDTO(parsedAi, {
+                  id: existingTurn1.turn_number,
+                  gameId,
+                  turnCount: existingTurn1.turn_number,
+                  createdAt: existingTurn1.created_at,
+                  castingStonesBalance: wallet.castingStones,
+                });
+              } catch (error) {
+                // Fallback: extract narrative from content
+                const narrative = existingTurn1.content?.narrative || existingTurn1.content?.txt || 'Narrative not available';
+                turnDTO = {
+                  id: existingTurn1.turn_number,
+                  gameId,
+                  turnCount: existingTurn1.turn_number,
+                  narrative,
+                  emotion: 'neutral',
+                  choices: existingTurn1.content?.choices || [],
+                  actions: existingTurn1.content?.acts || [],
+                  createdAt: existingTurn1.created_at,
+                  castingStonesBalance: wallet.castingStones,
+                };
+              }
+            } else {
+              // No content - minimal fallback
+              turnDTO = {
+                id: existingTurn1.turn_number,
+                gameId,
+                turnCount: existingTurn1.turn_number,
+                narrative: 'Narrative not available',
+                emotion: 'neutral',
+                choices: [],
+                actions: [],
+                createdAt: existingTurn1.created_at,
+                castingStonesBalance: wallet.castingStones,
+              };
+            }
+            
+            // Validate TurnDTO before returning
+            const { TurnDTOSchema } = await import('@shared');
+            const validationResult = TurnDTOSchema.safeParse(turnDTO);
+            if (!validationResult.success) {
+              console.error('[AUTO-INIT] TurnDTO validation failed:', validationResult.error.errors);
+              return sendErrorWithStatus(
+                res,
+                ApiErrorCode.INTERNAL_ERROR,
+                'Turn data validation failed',
+                req,
+                {
+                  code: 'DTO_VALIDATION_FAILED',
+                  errors: validationResult.error.errors,
+                  traceId: getTraceId(req),
+                }
+              );
+            }
+            
+            // Add traceId to meta
+            const validatedDTO = validationResult.data;
+            if (!validatedDTO.meta) {
+              validatedDTO.meta = {};
+            }
+            validatedDTO.meta.traceId = getTraceId(req);
+      
+            // Log idempotent hit metric
+            console.log(JSON.stringify({
+              event: 'turns_init_idempotent_hits_total',
+              gameId,
+              timestamp: new Date().toISOString(),
+            }));
+
+            return sendSuccess(res, validatedDTO, req);
     }
+
+    // No Turn 1 exists, proceed with initialization
+    console.log(`[AUTO-INIT] No Turn 1 found for game ${gameId}, creating initial turn`);
 
     // Create and process initial prompt automatically by submitting a special "game_start" turn
     const idempotencyKey = `auto-init-${gameId}-${Date.now()}`;
@@ -1082,7 +1821,56 @@ router.post('/:id/auto-initialize', optionalAuth, async (req: Request, res: Resp
       );
     }
 
-    sendSuccess(res, turnResult.turnDTO, req);
+      // Validate TurnDTO against schema before sending
+      const { TurnDTOSchema } = await import('@shared');
+      const validationResult = TurnDTOSchema.safeParse(turnResult.turnDTO);
+      
+      if (!validationResult.success) {
+        console.error('[AUTO-INIT] TurnDTO validation failed:', validationResult.error.errors);
+        const traceId = getTraceId(req);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Turn data validation failed',
+          req,
+          {
+            code: 'DTO_VALIDATION_FAILED',
+            errors: validationResult.error.errors,
+            traceId,
+          }
+        );
+      }
+
+      // Add traceId to meta
+      const validatedDTO = validationResult.data;
+      if (!validatedDTO.meta) {
+        validatedDTO.meta = {};
+      }
+      validatedDTO.meta.traceId = getTraceId(req);
+
+      // Shape TurnDTO with conditional debug fields
+      const { shapeTurnDTOForResponse } = await import('../utils/turn-dto-shape.js');
+      const shapedDTO = await shapeTurnDTOForResponse(
+        validatedDTO,
+        req,
+        {
+          prompt: turnResult.debugMetadata?.assembler?.prompt,
+          rawAi: parsedAi,
+        }
+      );
+
+      // Log turn created metric
+      console.log(JSON.stringify({
+        event: 'turns_created_total',
+        game_id: gameId,
+        turn_count: shapedDTO.turnCount,
+        choices_count: shapedDTO.choices.length,
+        has_narrative: shapedDTO.narrative.length > 0,
+        narrative_length: shapedDTO.narrative.length,
+        timestamp: new Date().toISOString(),
+      }));
+
+      sendSuccess(res, shapedDTO, req);
   } catch (error) {
     console.error('Error auto-initializing game:', error);
     sendErrorWithStatus(

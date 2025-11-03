@@ -22,23 +22,33 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Create a single Supabase client instance for OAuth flows only
-// Session reads (getSession) are local-only and don't hit the network
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Singleton Supabase client to prevent "Multiple GoTrueClient instances" warning
+// Only create once and reuse across the application
+let supabaseInstance: ReturnType<typeof createClient> | null = null;
 
-// Create an admin client that uses the Supabase URL for data operations
-export const adminSupabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    // Use the same auth as the main client
-    autoRefreshToken: true,
-    persistSession: true,
-  },
-  global: {
-    headers: {
-      'apikey': supabaseKey,
-    },
-  },
-});
+/**
+ * Get the singleton Supabase client instance
+ * IMPORTANT: All imports should use this function, never createClient() directly
+ */
+export function getSupabaseClient() {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        storageKey: 'stonecaster.auth.token', // Use a specific storage key to avoid conflicts
+      },
+    });
+  }
+  return supabaseInstance;
+}
+
+// Export the singleton instance for backward compatibility
+// Session reads (getSession) are local-only and don't hit the network
+export const supabase = getSupabaseClient();
+
+// Note: adminSupabase removed - use supabase singleton instead
+// If admin operations needed, they should go through the API server
 
 
 

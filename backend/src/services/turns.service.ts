@@ -14,14 +14,19 @@ import { ServiceError } from '../utils/serviceError.js';
 import { v4 as uuidv4 } from 'uuid';
 import { PerformanceTimer } from '../utils/timing.js';
 
+export type UserIntent =
+  | { t: 'choice'; text: string }  // Choice text from frontend
+  | { t: 'text'; text: string };  // Free-form text input
+
 export interface TurnRequest {
   gameId: string;
-  optionId: string;
+  optionId: string; // Legacy: UUID for choice lookup. New format: can be 'user_input' when userIntent is provided
   owner: string;
   idempotencyKey: string;
   isGuest: boolean;
-  userInput?: string;
-  userInputType?: 'choice' | 'text' | 'action';
+  userInput?: string; // Legacy field
+  userInputType?: 'choice' | 'text' | 'action'; // Legacy field
+  userIntent?: UserIntent; // New field: frontend sends choice/text directly
   includeDebugMetadata?: boolean; // Optional flag to include debug metadata
 }
 
@@ -437,102 +442,98 @@ export class TurnsService {
         };
       }
 
-      // Parse and validate AI response
-      let aiResponse: TurnResponse;
+      // Parse and normalize AI response using ai-adapter
+      let turnDTO: TurnDTO;
+      let parsedAi: unknown;
       try {
         if (!aiResponseText) {
           throw new Error('AI response text is null or undefined');
         }
         
         console.log(`[TURNS_SERVICE] Parsing AI response (${aiResponseText.length} characters)`);
-        console.log(`[TURNS_SERVICE] AI response preview: ${aiResponseText.substring(0, 200)}...`);
         
-        const parsedResponse = JSON.parse(aiResponseText);
-        console.log('[TURNS_SERVICE] Successfully parsed JSON, transforming AWF format...');
+        // Parse JSON once
+        parsedAi = JSON.parse(aiResponseText);
+        console.log('[TURNS_SERVICE] Successfully parsed JSON, normalizing with ai-adapter...');
         
-        // Transform AWF format to TurnResponseSchema format
-        const transformedResponse = await this.transformAWFToTurnResponse(parsedResponse);
-        console.log('[TURNS_SERVICE] Transformed response, validating schema...');
+        // Calculate turn number before creating turn record
+        const nextTurnCount = game.turn_count + 1;
+        const newBalance = wallet.castingStones - turnCost;
         
-        // Additional validation checks before schema validation
-        if (!transformedResponse.narrative || typeof transformedResponse.narrative !== 'string' || transformedResponse.narrative.trim().length === 0) {
-          console.error('[TURNS_SERVICE] AI response has empty or invalid narrative');
-          return {
-            success: false,
-            error: ApiErrorCode.VALIDATION_FAILED,
-            message: 'AI response has empty or invalid narrative',
-            details: {
-              prompt: gameContext,
-              aiResponse: aiResponseText,
-              transformedResponse: transformedResponse,
-              validationErrors: [{ message: 'Narrative is empty or invalid' }],
-              timestamp: new Date().toISOString()
-            }
-          };
+        // Normalize AI response to TurnDTO using adapter
+        // Note: We'll get the actual turn ID and createdAt from the persisted turn record
+        // For now, use placeholder values that will be replaced after persistence
+        const { aiToTurnDTO, AiNormalizationError } = await import('../ai/ai-adapter.js');
+        try {
+          turnDTO = await aiToTurnDTO(parsedAi, {
+            id: 0, // Placeholder - will be set from turnRecord
+            gameId,
+            turnCount: nextTurnCount,
+            createdAt: new Date().toISOString(), // Placeholder - will be set from turnRecord
+            castingStonesBalance: newBalance,
+          });
+        } catch (normalizationError) {
+          if (normalizationError instanceof AiNormalizationError) {
+            console.error('[TURNS_SERVICE] AI normalization failed:', normalizationError.message);
+            console.error('[TURNS_SERVICE] Normalization details:', normalizationError.details);
+            
+            // Log WARN with structured data
+            console.warn(JSON.stringify({
+              event: 'ai_normalization_fail',
+              gameId,
+              turnCount: nextTurnCount,
+              reason: normalizationError.message,
+              timestamp: new Date().toISOString(),
+            }));
+            
+            // Return 502 error per spec
+            return {
+              success: false,
+              error: ApiErrorCode.INTERNAL_ERROR, // 502 equivalent
+              message: 'AI output invalid',
+              details: {
+                code: 'AI_NORMALIZE_FAILED',
+                message: normalizationError.message,
+                timestamp: new Date().toISOString()
+              }
+            };
+          }
+          throw normalizationError;
         }
         
-        if (transformedResponse.narrative.trim().length < 10) {
-          console.error('[TURNS_SERVICE] AI response narrative is too short');
-          return {
-            success: false,
-            error: ApiErrorCode.VALIDATION_FAILED,
-            message: 'AI response narrative is too short',
-            details: {
-              prompt: gameContext,
-              aiResponse: aiResponseText,
-              transformedResponse: transformedResponse,
-              validationErrors: [{ message: 'Narrative is too short' }],
-              timestamp: new Date().toISOString()
-            }
-          };
-        }
+        console.log('[TURNS_SERVICE] Successfully normalized AI response to TurnDTO', {
+          hasNarrative: !!turnDTO.narrative,
+          narrativeLength: turnDTO.narrative.length,
+          choicesCount: turnDTO.choices.length,
+        });
         
-        // Add debug information if available
-        if (aiResult && aiResult.debug) {
-          transformedResponse.debug = aiResult.debug;
-        }
-        
-        const validationResult = TurnResponseSchema.safeParse(transformedResponse);
-        
-        if (!validationResult.success) {
-          console.error('[TURNS_SERVICE] AI response validation failed:', validationResult.error);
-          console.error('[TURNS_SERVICE] Raw AI response:', aiResponseText);
-          console.error('[TURNS_SERVICE] Transformed response:', JSON.stringify(transformedResponse, null, 0));
-          return {
-            success: false,
-            error: ApiErrorCode.VALIDATION_FAILED,
-            message: 'AI response validation failed',
-            details: {
-              prompt: gameContext,
-              aiResponse: aiResponseText,
-              transformedResponse: transformedResponse,
-              validationErrors: validationResult.error.errors,
-              timestamp: new Date().toISOString()
-            }
-          };
-        }
-        
-        console.log('[TURNS_SERVICE] Successfully validated AI response schema');
-        
-        aiResponse = validationResult.data;
       } catch (error) {
-        console.error('Invalid AI response JSON:', error);
+        console.error('[TURNS_SERVICE] Invalid AI response JSON or normalization failed:', error);
         return {
           success: false,
           error: ApiErrorCode.VALIDATION_FAILED,
           message: 'Invalid AI response format',
           details: {
-            prompt: gameContext,
-            aiResponse: aiResponseText,
             error: error instanceof Error ? error.message : String(error),
             timestamp: new Date().toISOString()
           }
         };
       }
 
+      // Convert TurnDTO to TurnResponse format for applyTurn (temporary bridge)
+      const turnResponseForApply: TurnResponse = {
+        narrative: turnDTO.narrative,
+        emotion: turnDTO.emotion as 'neutral' | 'happy' | 'sad' | 'angry' | 'fearful' | 'surprised' | 'excited',
+        choices: turnDTO.choices,
+        npcResponses: turnDTO.npcResponses,
+        relationshipDeltas: turnDTO.relationshipDeltas,
+        factionDeltas: turnDTO.factionDeltas,
+        worldStateChanges: undefined, // Not in TurnDTO spec, but applyTurn might expect it
+      };
+
       // Apply turn to game state with comprehensive turn data
       timer.start('persistMs');
-      const turnRecord = await gamesService.applyTurn(gameId, aiResponse, optionId, {
+      const turnRecord = await gamesService.applyTurn(gameId, turnResponseForApply, optionId, {
         userInput: userInput || optionId,
         userInputType: userInputType || 'choice',
         promptData: promptData,
@@ -541,6 +542,19 @@ export class TurnsService {
         processingTimeMs: Date.now() - turnStartTime
       });
       timer.end('persistMs');
+      
+      // Update turnDTO with actual turn record fields
+      turnDTO.id = turnRecord.turn_number || turnDTO.turnCount;
+      // Ensure createdAt is ISO string format
+      if (turnRecord.created_at) {
+        turnDTO.createdAt = turnRecord.created_at instanceof Date
+          ? turnRecord.created_at.toISOString()
+          : typeof turnRecord.created_at === 'string'
+            ? turnRecord.created_at.endsWith('Z') || turnRecord.created_at.includes('+')
+              ? turnRecord.created_at
+              : new Date(turnRecord.created_at).toISOString()
+            : turnDTO.createdAt; // Keep existing if conversion fails
+      }
 
       // Phase 6: Structured logging for turn creation
       const turnNumber = turnRecord.turn_number || game.turn_count + 1;
@@ -598,23 +612,20 @@ export class TurnsService {
         
       
       // Log state changes to debug service
-      const hasStateChanges = aiResponse.worldStateChanges || aiResponse.relationshipDeltas || aiResponse.factionDeltas;
+      const hasStateChanges = turnDTO.relationshipDeltas || turnDTO.factionDeltas;
       if (hasStateChanges) {
         const currentState = await gameStateService.loadGameState(gameId);
         const beforeState = game.state_snapshot;
         const afterState = currentState || {};
           
         
-        // Extract changes from the response
+        // Extract changes from TurnDTO
         const changes = [];
-        if (aiResponse.worldStateChanges) {
-          changes.push({ type: 'world_state', changes: aiResponse.worldStateChanges });
+        if (turnDTO.relationshipDeltas) {
+          changes.push({ type: 'relationships', changes: turnDTO.relationshipDeltas });
         }
-        if (aiResponse.relationshipDeltas) {
-          changes.push({ type: 'relationships', changes: aiResponse.relationshipDeltas });
-        }
-        if (aiResponse.factionDeltas) {
-          changes.push({ type: 'factions', changes: aiResponse.factionDeltas });
+        if (turnDTO.factionDeltas) {
+          changes.push({ type: 'factions', changes: turnDTO.factionDeltas });
         }
           
         
@@ -622,7 +633,7 @@ export class TurnsService {
           gameId,
           game.turn_count,
           'response-id', // TODO: Get actual response ID
-          [], // No actions in current schema
+          turnDTO.actions || [], // Use actions from TurnDTO
           changes,
           beforeState,
           afterState
@@ -648,8 +659,8 @@ export class TurnsService {
       }
 
 
-      // Create Turn DTO
-      const turnDTO = await this.createTurnDTO(turnRecord, aiResponse, game, wallet.castingStones - turnCost, aiResult.debug?.promptText);
+      // TurnDTO already created above with actual turn record fields updated
+      // No need to recreate it
 
 
       // Store idempotency record
@@ -668,12 +679,8 @@ export class TurnsService {
       const result: TurnResult = {
         success: true,
         turnDTO,
-        details: {
-          prompt: gameContext,
-          aiResponse: aiResponseText,
-          transformedResponse: aiResponse,
-          timestamp: new Date().toISOString()
-        }
+        // Note: details removed per spec - no debug leakage in user responses
+        // Debug info only available via ?debug=1 (admin only)
       };
 
       // Add debug metadata if requested

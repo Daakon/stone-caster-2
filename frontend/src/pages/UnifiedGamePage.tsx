@@ -15,17 +15,13 @@ import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, RefreshCw, AlertCircle } from 'lucide-react';
 import { 
   getGame, 
-  submitTurn, 
   getCharacter, 
   getContentWorlds,
   getWallet,
-  getGameTurns,
-  autoInitializeGame
 } from '../lib/api';
-import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useGameTelemetry } from '../hooks/useGameTelemetry';
-import type { TurnDTO } from '@shared';
+import { useLatestTurn, usePostTurn } from '../hooks/useTurns';
 import { useAuthStore } from '../store/auth';
 import { GuestCookieService } from '../services/guestCookie';
 
@@ -88,45 +84,8 @@ export default function UnifiedGamePage() {
   // Determine the actual gameId to use
   const actualGameId = gameId || characterForGame?.activeGameId;
 
-  // Game initialization state - use sessionStorage to prevent duplicate calls across page refreshes
-  const [hasInitializedGame, setHasInitializedGame] = useState(() => {
-    if (typeof window !== 'undefined' && actualGameId) {
-      return sessionStorage.getItem(`game-${actualGameId}-initialized`) === 'true';
-    }
-    return false;
-  });
-  const [isAutoInitializing, setIsAutoInitializing] = useState(false);
-  const [autoInitAttempted, setAutoInitAttempted] = useState(false);
-  const autoInitCalledRef = useRef(false);
-  
-  // Add a more robust check using sessionStorage for the actual call
-  const getAutoInitKey = (gameId: string) => `auto-init-${gameId}`;
-  const isAutoInitInProgress = (gameId: string) => {
-    if (typeof window === 'undefined') return false;
-    return sessionStorage.getItem(getAutoInitKey(gameId)) === 'true';
-  };
-  const setAutoInitInProgress = (gameId: string, inProgress: boolean) => {
-    if (typeof window === 'undefined') return;
-    if (inProgress) {
-      sessionStorage.setItem(getAutoInitKey(gameId), 'true');
-    } else {
-      sessionStorage.removeItem(getAutoInitKey(gameId));
-    }
-  };
-
-  // Clear sessionStorage flags on component mount to start fresh
-  useEffect(() => {
-    if (actualGameId && typeof window !== 'undefined') {
-      console.log('UnifiedGamePage: Clearing sessionStorage flags for fresh start');
-      sessionStorage.removeItem(`game-${actualGameId}-initialized`);
-      sessionStorage.removeItem(getAutoInitKey(actualGameId));
-      // Reset state flags too
-      setHasInitializedGame(false);
-      setIsAutoInitializing(false);
-      setAutoInitAttempted(false);
-      autoInitCalledRef.current = false;
-    }
-  }, [actualGameId]);
+  // Note: Auto-initialization is now handled by the latest turn endpoint
+  // No need for separate initialization state or logic
 
   // Load game data
   const { data: game, isLoading: isLoadingGame, error: gameError } = useQuery({
@@ -140,25 +99,13 @@ export default function UnifiedGamePage() {
       return result.data;
     },
     enabled: !!actualGameId,
-    staleTime: 30 * 1000, // 30 seconds cache
+    refetchOnWindowFocus: false,
+    staleTime: 30 * 1000,
     retry: 1,
   });
 
-  // Load game turns
-  const { data: gameTurns } = useQuery({
-    queryKey: ['game-turns', actualGameId],
-    queryFn: async () => {
-      if (!actualGameId) throw new Error('No game ID available');
-      const result = await getGameTurns(actualGameId);
-      if (!result.ok) {
-        throw new Error(result.error.message || 'Failed to load game turns');
-      }
-      return result.data;
-    },
-    enabled: !!actualGameId,
-    staleTime: 5 * 60 * 1000, // 5 minutes cache for game turns
-    retry: 1,
-  });
+  // Load latest turn using React Query hook
+  const { data: latestTurn, isLoading: isLoadingLatestTurn, error: latestTurnError } = useLatestTurn(actualGameId);
 
   // Character data is now included in the game response, no need for separate query
   const character = game ? {
@@ -231,48 +178,6 @@ export default function UnifiedGamePage() {
         currentTurn: game.turnCount
       }));
 
-      // Check if game needs initialization (turn count is 0, no existing turns, and not already initialized)
-      const hasExistingTurns = gameTurns && gameTurns.length > 0;
-      const shouldAutoInit = game.turnCount === 0 && 
-                            !hasExistingTurns &&
-                            !hasInitializedGame && 
-                            !isAutoInitializing && 
-                            !autoInitAttempted && 
-                            !autoInitCalledRef.current &&
-                            !isAutoInitInProgress(actualGameId);
-      
-      console.log('UnifiedGamePage: Auto-initialization check:', {
-        turnCount: game.turnCount,
-        hasExistingTurns,
-        gameTurnsLength: gameTurns?.length || 0,
-        hasInitializedGame,
-        isAutoInitializing,
-        autoInitAttempted,
-        autoInitCalledRef: autoInitCalledRef.current,
-        isAutoInitInProgress: isAutoInitInProgress(actualGameId),
-        shouldAutoInit,
-        gameId: actualGameId,
-        sessionStorage: {
-          initialized: typeof window !== 'undefined' ? sessionStorage.getItem(`game-${actualGameId}-initialized`) : 'N/A',
-          inProgress: typeof window !== 'undefined' ? sessionStorage.getItem(getAutoInitKey(actualGameId)) : 'N/A'
-        }
-      });
-      
-      if (shouldAutoInit) {
-        console.log('UnifiedGamePage: Game has turnCount: 0, triggering auto-initialization...');
-        console.log('UnifiedGamePage: Game data:', game);
-        console.log('UnifiedGamePage: Setting auto-init flags...');
-        
-        // Set all flags immediately to prevent duplicate calls
-        autoInitCalledRef.current = true;
-        setAutoInitInProgress(actualGameId, true);
-        setHasInitializedGame(true);
-        setIsAutoInitializing(true);
-        setAutoInitAttempted(true);
-        
-        handleAutoInitialize();
-      }
-
       // Initialize world rules if not set
       if (currentWorld && Object.keys(gameState.worldRules).length === 0) {
         const initialRules: Record<string, number> = {};
@@ -286,252 +191,133 @@ export default function UnifiedGamePage() {
         }));
       }
     }
-  }, [game, gameTurns, currentWorld, gameState.worldRules]);
+  }, [game, latestTurn, currentWorld, gameState.worldRules]);
 
   // Auto-scroll to bottom of history
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [gameState.history]);
 
-  // Load game turns into history and choices
+  // Update game state from latestTurn (TurnDTO)
   useEffect(() => {
-    if (gameTurns && gameTurns.length > 0) {
-      // Process all turns into history entries
-      const history = gameTurns.map((turn: any) => ({
-        id: turn.id,
-        timestamp: turn.created_at,
-        type: 'npc' as const,
-        content: turn.ai_response?.narrative || turn.narrative_summary || 'Turn completed',
-        character: turn.character_name || undefined,
-      }));
-      
-      // Get choices from the latest turn's ai_response field
-      const latestTurn = gameTurns[gameTurns.length - 1];
-      const aiResponse = latestTurn.ai_response;
-      const currentChoices = aiResponse?.choices || [];
-      
+    if (latestTurn) {
       setGameState(prev => ({
         ...prev,
-        history: history,
-        currentChoices: currentChoices
-      }));
-    }
-  }, [gameTurns]);
-
-  // Auto-initialize game with 0 turns
-  const handleAutoInitialize = async () => {
-    if (!actualGameId) {
-      console.log('No gameId available for auto-initialization');
-      return;
-    }
-    
-    if (isAutoInitializing) {
-      console.log('Auto-initialization already in progress');
-      return;
-    }
-    
-    try {
-      console.log(`UnifiedGamePage: Auto-initializing game ${actualGameId} with 0 turns...`);
-      const result = await autoInitializeGame(actualGameId);
-      
-      if (result.ok) {
-        console.log('Game auto-initialized successfully:', result.data);
-        
-        // Log full prompt and AI response details if available
-        if (result.data.details) {
-          console.log('=== AUTO-INITIALIZATION DETAILS ===');
-          console.log('Full Prompt:', result.data.details.prompt);
-          console.log('AI Response:', result.data.details.aiResponse);
-          console.log('Transformed Response:', result.data.details.transformedResponse);
-          console.log('Timestamp:', result.data.details.timestamp);
-          console.log('Cached:', result.data.details.cached || false);
-          console.log('=====================================');
-        }
-        
-        // Mark as initialized in sessionStorage to prevent duplicate calls
-        if (typeof window !== 'undefined' && actualGameId) {
-          sessionStorage.setItem(`game-${actualGameId}-initialized`, 'true');
-        }
-        // Clear the in-progress flag
-        setAutoInitInProgress(actualGameId, false);
-        // Refresh game turns to get the initial prompt result
-        queryClient.invalidateQueries({ queryKey: ['game-turns', actualGameId] });
-        // Refresh game data to get updated turn count
-        queryClient.invalidateQueries({ queryKey: ['game', actualGameId] });
-      } else {
-        console.error('Failed to auto-initialize game:', result.error);
-        console.error('Error details:', result.error.details);
-        setTurnError('Failed to initialize game. Please try again.');
-        // Clear the in-progress flag on error too
-        setAutoInitInProgress(actualGameId, false);
-      }
-    } catch (error) {
-      console.error('Error auto-initializing game:', error);
-      setTurnError('Failed to initialize game. Please try again.');
-      // Clear the in-progress flag on error too
-      setAutoInitInProgress(actualGameId, false);
-    } finally {
-      setIsAutoInitializing(false);
-    }
-  };
-
-  // Turn submission mutation
-  const submitTurnMutation = useMutation({
-    mutationFn: async (data: { optionId: string; userInput?: string; userInputType?: 'choice' | 'text' | 'action' }): Promise<TurnDTO> => {
-      if (!gameId) throw new Error('No game ID');
-      const idempotencyKey = generateIdempotencyKey();
-      const result = await submitTurn(gameId, data.optionId, idempotencyKey, data.userInput, data.userInputType);
-      if (!result.ok) {
-        const error = new Error(result.error.message || 'Failed to submit turn');
-        (error as any).code = result.error.code;
-        throw error;
-      }
-      return result.data as TurnDTO;
-    },
-    onSuccess: (turnData: TurnDTO) => {
-      // Track turn completion
-      if (turnStartTime) {
-        const duration = Date.now() - turnStartTime;
-        gameTelemetry.trackTurnCompleted(
-          gameId!,
-          character?.id || '',
-          game?.adventureSlug || '',
-          duration,
-          gameState.currentTurn + 1
-        );
-      }
-
-      // Track first turn
-      if (!hasTrackedFirstTurn && gameStartTime) {
-        const duration = Date.now() - gameStartTime;
-        telemetry.trackTimeToFirstTurn(
-          'existing', // characterType
-          game?.characterId || '',
-          game?.adventureSlug || '',
-          duration
-        );
-        setHasTrackedFirstTurn(true);
-      }
-
-      // Update game state with new turn data
-      setGameState(prev => ({
-        ...prev,
-        currentTurn: prev.currentTurn + 1,
+        currentTurn: latestTurn.turnCount,
+        currentChoices: latestTurn.choices || [],
         history: [
-          ...prev.history,
+          ...prev.history.filter(h => h.id !== `turn-${latestTurn.id}`),
           {
-            id: turnData.id,
-            timestamp: turnData.createdAt,
-            type: 'npc',
-            content: turnData.narrative,
-          }
+            id: `turn-${latestTurn.id}`,
+            timestamp: latestTurn.createdAt,
+            type: 'npc' as const,
+            content: latestTurn.narrative,
+          },
         ],
-        currentChoices: turnData.choices || []
       }));
+    }
+  }, [latestTurn]);
 
-      // Invalidate and refetch game data
-      queryClient.invalidateQueries({ queryKey: ['game', gameId] });
-      queryClient.invalidateQueries({ queryKey: ['wallet'] });
-      
+  // Submit turn mutation using React Query hook (new format: sends choice text directly)
+  const postTurnMutation = usePostTurn(actualGameId);
+  
+  // Wrap mutation to track telemetry and update local state
+  const submitTurnMutation = {
+    ...postTurnMutation,
+    mutate: (payload: { kind: 'choice' | 'text'; text: string }) => {
+      setIsSubmittingTurn(true);
       setTurnError(null);
       setTurnErrorCode(null);
-    },
-    onError: (error: any) => {
-      const errorCode = error.code || 'unknown_error';
-      setTurnError(error.message);
-      setTurnErrorCode(errorCode);
+      setTurnStartTime(Date.now());
       
-      gameTelemetry.trackTurnFailed(
-        gameId!,
+      // Track turn started
+      gameTelemetry.trackTurnStarted(
+        actualGameId!,
         character?.id || '',
         game?.adventureSlug || '',
-        errorCode,
-        'turn_submission'
+        payload.text
       );
+      
+      postTurnMutation.mutate(payload, {
+        onSuccess: (turnData) => {
+          // Track turn completion
+          if (turnStartTime) {
+            const duration = Date.now() - turnStartTime;
+            gameTelemetry.trackTurnCompleted(
+              actualGameId!,
+              character?.id || '',
+              game?.adventureSlug || '',
+              duration,
+              turnData.turnCount
+            );
+          }
+
+          // Track first turn
+          if (!hasTrackedFirstTurn && gameStartTime) {
+            const duration = Date.now() - gameStartTime;
+            telemetry.trackTimeToFirstTurn(
+              'existing',
+              game?.characterId || '',
+              game?.adventureSlug || '',
+              duration
+            );
+            setHasTrackedFirstTurn(true);
+          }
+
+          // Add player choice to history
+          setGameState(prev => ({
+            ...prev,
+            history: [
+              ...prev.history,
+              {
+                id: `player-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                type: 'player' as const,
+                content: payload.text,
+                character: character?.name || 'You'
+              }
+            ]
+          }));
+
+          setIsSubmittingTurn(false);
+          setTurnStartTime(null);
+        },
+        onError: (error: any) => {
+          const errorCode = error.code || 'unknown_error';
+          setTurnError(error.message);
+          setTurnErrorCode(errorCode);
+          
+          gameTelemetry.trackTurnFailed(
+            actualGameId!,
+            character?.id || '',
+            game?.adventureSlug || '',
+            errorCode,
+            'turn_submission'
+          );
+          
+          setIsSubmittingTurn(false);
+          setTurnStartTime(null);
+        },
+      });
     },
-    onSettled: () => {
-      setIsSubmittingTurn(false);
-      setTurnStartTime(null);
-    }
-  });
-
-  const handleTurnSubmit = async (action: string) => {
-    if (!action.trim() || isSubmittingTurn) return;
-    
-    setIsSubmittingTurn(true);
-    setTurnError(null);
-    setTurnErrorCode(null);
-    setTurnStartTime(Date.now());
-
-    // Track turn started
-    gameTelemetry.trackTurnStarted(
-      gameId!,
-      character?.id || '',
-      game?.adventureSlug || '',
-      action
-    );
-
-    // Add player action to history immediately
-    const optionId = generateOptionId(action);
-    setGameState(prev => ({
-      ...prev,
-      history: [
-        ...prev.history,
-        {
-          id: `player-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          type: 'player',
-          content: action,
-          character: character?.name || 'You'
-        }
-      ]
-    }));
-
-    // Submit turn with user input data
-    submitTurnMutation.mutate({
-      optionId,
-      userInput: action,
-      userInputType: 'text'
-    });
+    isPending: postTurnMutation.isPending,
   };
 
+  // Handler for choice selection (wired to ChoiceButtons component)
+  // New format: sends choice text directly instead of choiceId
   const handleChoiceSelect = (choice: { id: string; label: string; description?: string }) => {
-    if (isSubmittingTurn) return;
-    
-    setIsSubmittingTurn(true);
-    setTurnError(null);
-    setTurnErrorCode(null);
-    setTurnStartTime(Date.now());
-
-    // Track turn started
-    gameTelemetry.trackTurnStarted(
-      gameId!,
-      character?.id || '',
-      game?.adventureSlug || '',
-      choice.label
-    );
-
-    // Add player choice to history immediately
-    setGameState(prev => ({
-      ...prev,
-      history: [
-        ...prev.history,
-        {
-          id: `player-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          type: 'player',
-          content: choice.label,
-          character: character?.name || 'You'
-        }
-      ]
-    }));
-
-    // Submit turn with choice data
-    submitTurnMutation.mutate({
-      optionId: choice.id,
-      userInput: choice.label,
-      userInputType: 'choice'
-    });
+    if (isSubmittingTurn || submitTurnMutation.isPending) return;
+    submitTurnMutation.mutate({ kind: 'choice', text: choice.label });
+  };
+  
+  // Handler for text input (optional - may be removed if only using choices)
+  const handleTurnSubmit = (action: string) => {
+    if (isSubmittingTurn || submitTurnMutation.isPending) return;
+    if (!action.trim()) {
+      setTurnError('Text input cannot be empty');
+      return;
+    }
+    submitTurnMutation.mutate({ kind: 'text', text: action.trim() });
   };
 
   const handleRetryTurn = () => {
@@ -689,20 +475,49 @@ export default function UnifiedGamePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <HistoryFeed 
-                history={gameState.history}
-              />
+              {/* Render narrative from latest turn */}
+              {isLoadingLatestTurn ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              ) : latestTurn ? (
+                <div className="prose prose-sm max-w-none">
+                  {/* Show warning if narrative is empty or fallback was used */}
+                  {latestTurn.narrative.length === 0 || latestTurn.meta?.warnings?.includes('AI_EMPTY_NARRATIVE') ? (
+                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                      <strong>Note:</strong> The narrative is temporarily unavailable, but you can still make choices to continue.
+                    </div>
+                  ) : null}
+                  <p>{latestTurn.narrative}</p>
+                </div>
+              ) : latestTurnError ? (
+                <div className="text-muted-foreground">Failed to load story. Please try again.</div>
+              ) : (
+                <div className="text-muted-foreground">No story available yet.</div>
+              )}
               <div ref={messagesEndRef} />
             </CardContent>
           </Card>
 
-          {/* AI-Generated Choices */}
-          {gameState.currentChoices.length > 0 && (
+          {/* AI-Generated Choices - render from latestTurn */}
+          {isLoadingLatestTurn ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : latestTurn?.choices && latestTurn.choices.length > 0 ? (
             <ChoiceButtons
-              choices={gameState.currentChoices}
+              choices={latestTurn.choices.map(c => ({ id: c.id, label: c.label }))}
               onChoiceSelect={handleChoiceSelect}
-              disabled={isSubmittingTurn}
+              disabled={isSubmittingTurn || submitTurnMutation.isPending}
             />
+          ) : latestTurnError ? (
+            <div className="text-muted-foreground">Failed to load choices. Please try again.</div>
+          ) : (
+            <div className="text-muted-foreground">No choices available yet.</div>
           )}
 
           {/* Turn Input */}
