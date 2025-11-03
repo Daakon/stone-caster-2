@@ -33,6 +33,9 @@ export enum ApiErrorCode {
   IDEMPOTENCY_CONFLICT = 'IDEMPOTENCY_CONFLICT',
   DB_CONFLICT = 'DB_CONFLICT',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
+  // Prompt builder errors
+  AWF_SESSION_MISSING = 'AWF_SESSION_MISSING',
+  ASSEMBLY_FAILED = 'ASSEMBLY_FAILED',
 }
 
 // Re-export as ErrorCode for convenience
@@ -146,11 +149,26 @@ export const CreateGameRequestSchema = z.object({
   adventureSlug: z.string().trim().min(1).max(100).optional(),
 });
 
+// Legacy schema - kept for backward compatibility during migration
 export const GameTurnRequestSchema = z.object({
   optionId: z.string().uuid(),
   userInput: z.string().optional(),
   userInputType: z.enum(['choice', 'text', 'action']).optional(),
 });
+
+// New TurnPostBody schema - frontend sends choice text directly
+export const TurnPostBodySchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('choice'),
+    text: z.string().trim().min(1, 'Choice text is required').max(400, 'Choice text must be 400 characters or less'),
+  }),
+  z.object({
+    kind: z.literal('text'),
+    text: z.string().trim().min(1, 'Text input is required').max(400, 'Text input must be 400 characters or less'),
+  }),
+]);
+
+export type TurnPostBody = z.infer<typeof TurnPostBodySchema>;
 
 // Phase 8: Simple send-turn schema for playable loop
 export const SendTurnRequestSchema = z.object({
@@ -301,6 +319,7 @@ export type UpdateCharacterRequest = z.infer<typeof UpdateCharacterRequestSchema
 export type PremadeCharacterQuery = z.infer<typeof PremadeCharacterQuerySchema>;
 export type CreateGameRequest = z.infer<typeof CreateGameRequestSchema>;
 export type GameTurnRequest = z.infer<typeof GameTurnRequestSchema>;
+export type TurnPostBody = z.infer<typeof TurnPostBodySchema>;
 export type ConvertStonesRequest = z.infer<typeof ConvertStonesRequestSchema>;
 export type PurchaseStonesRequest = z.infer<typeof PurchaseStonesRequestSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;

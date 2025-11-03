@@ -14,14 +14,19 @@ import { ServiceError } from '../utils/serviceError.js';
 import { v4 as uuidv4 } from 'uuid';
 import { PerformanceTimer } from '../utils/timing.js';
 
+export type UserIntent =
+  | { t: 'choice'; text: string }  // Choice text from frontend
+  | { t: 'text'; text: string };  // Free-form text input
+
 export interface TurnRequest {
   gameId: string;
-  optionId: string;
+  optionId: string; // Legacy: UUID for choice lookup. New format: can be 'user_input' when userIntent is provided
   owner: string;
   idempotencyKey: string;
   isGuest: boolean;
-  userInput?: string;
-  userInputType?: 'choice' | 'text' | 'action';
+  userInput?: string; // Legacy field
+  userInputType?: 'choice' | 'text' | 'action'; // Legacy field
+  userIntent?: UserIntent; // New field: frontend sends choice/text directly
   includeDebugMetadata?: boolean; // Optional flag to include debug metadata
 }
 
@@ -68,7 +73,7 @@ export class TurnsService {
     const timer = new PerformanceTimer();
     timer.start('totalMs');
     
-    const { gameId, optionId, owner, idempotencyKey, isGuest, userInput, userInputType } = request;
+    const { gameId, optionId, owner, idempotencyKey, isGuest, userInput, userInputType, userIntent } = request;
     
       // Declare variables at method level for error handling
     let gameContext: any = null;
@@ -245,39 +250,39 @@ export class TurnsService {
         const includeDebug = process.env.NODE_ENV === 'development' || 
                            process.env.ENABLE_AI_DEBUG === 'true';
         
-        // Check AWF mode configuration
-        const { isAwfEnabled } = await import('../config/awf-mode.js');
-        const awfEnabled = isAwfEnabled({ sessionId: gameId });
+        // Determine which prompt builder to use (single decision, no fallbacks)
+        const promptBuilder = (process.env.PROMPT_BUILDER || 'V3').toUpperCase() as 'V3' | 'AWF';
+        if (promptBuilder !== 'V3' && promptBuilder !== 'AWF') {
+          throw new Error(`Invalid PROMPT_BUILDER value: ${promptBuilder}. Must be 'V3' or 'AWF'`);
+        }
         
-        if (awfEnabled) {
-          console.log(`[TURNS] AWF bundle path enabled for game ${gameId}`);
-          
+        // Generate trace ID for this turn
+        const { randomUUID } = await import('crypto');
+        const traceId = randomUUID();
+        
+        // Single builder path - no fallbacks
+        if (promptBuilder === 'AWF') {
+          // AWF path - if it fails, return error (no fallback to V3)
           try {
-            // Use AWF turn orchestrator
+            // Use userIntent.text if available (new format), otherwise userInput (legacy)
+            const inputText = userIntent?.text || userInput || '';
             const { runAwfTurn } = await import('../orchestrators/awf-turn-orchestrator.js');
             const awfResult = await runAwfTurn({
               sessionId: gameId,
-              inputText: userInput || ''
+              inputText
             });
             
-            // Convert AWF result to legacy format
+            // Convert AWF result
             aiResponseText = awfResult.txt;
             
-            // Create legacy-compatible response structure
-            const legacyResponse = {
+            // Create response structure
+            aiResult = {
               response: awfResult.txt,
               choices: awfResult.choices.map(choice => ({
                 id: choice.id,
                 text: choice.label
               })),
-              scene: awfResult.meta.scn
-            };
-            
-            // Set AI result to legacy format for compatibility
-            aiResult = {
-              response: legacyResponse.response,
-              choices: legacyResponse.choices,
-              scene: legacyResponse.scene,
+              scene: awfResult.meta.scn,
               model: 'awf-orchestrator',
               tokenCount: null,
               promptId: null,
@@ -285,24 +290,94 @@ export class TurnsService {
               promptMetadata: null
             };
             
-            console.log(`[TURNS] AWF turn completed for game ${gameId}`);
+            // Structured logging: ai.prompt event (before AI call)
+            console.log(JSON.stringify({
+              event: 'ai.prompt',
+              traceId,
+              builder: 'AWF',
+              gameId,
+              turnCount: game.turn_count + 1,
+              userIntent: userIntent ? { kind: userIntent.t, len: userIntent.text.length } : null,
+              promptPreview: '[AWF cached bundle]',
+            }));
+            
+            // Structured logging: ai.raw_response event (after AWF call)
+            console.log(JSON.stringify({
+              event: 'ai.raw_response',
+              traceId,
+              builder: 'AWF',
+              processingMs: 0, // AWF processing time not tracked separately
+              rawPreview: awfResult.txt.substring(0, 800),
+            }));
             
           } catch (awfError) {
-            console.error(`[TURNS] AWF turn failed for game ${gameId}, falling back to legacy:`, awfError);
-            // Fall through to legacy path
+            // Check if it's a session missing error
+            const errorMessage = awfError instanceof Error ? awfError.message : String(awfError);
+            if (errorMessage.includes('Session') && errorMessage.includes('not found')) {
+              return {
+                success: false,
+                error: ApiErrorCode.CONFLICT, // 409
+                message: 'AWF session not found',
+                details: {
+                  code: 'AWF_SESSION_MISSING',
+                  sessionId: gameId,
+                  message: errorMessage,
+                  timestamp: new Date().toISOString(),
+                },
+              };
+            }
+            
+            // Other AWF errors - return assembly failed
+            return {
+              success: false,
+              error: ApiErrorCode.INTERNAL_ERROR, // 500
+              message: 'Prompt assembly failed',
+              details: {
+                code: 'ASSEMBLY_FAILED',
+                builder: 'AWF',
+                message: errorMessage,
+                timestamp: new Date().toISOString(),
+              },
+            };
           }
-        }
-        
-        if (!awfEnabled) {
-          console.log(`[TURNS] Using V2 prompt assembler for ongoing turn ${game.turn_count + 1}`);
+        } else {
+          // V3 builder path (default)
 
           try {
-            // Phase 4.2: Use V2 assembler for ongoing turns
+            // Use V3 assembler for ongoing turns (includes state, conversation history, user intent)
             timer.start('assemblerMs');
-            const assembleResult = await this.buildPromptV2(game, optionId);
+            let assembleResult;
+            try {
+              assembleResult = await this.buildPromptV3(game, userIntent?.text || userInput || undefined);
+            } catch (assemblyError) {
+              // Assembly failed - return 500, no AI call
+              const errorMessage = assemblyError instanceof Error ? assemblyError.message : String(assemblyError);
+              return {
+                success: false,
+                error: ApiErrorCode.INTERNAL_ERROR, // 500
+                message: 'Prompt assembly failed',
+                details: {
+                  code: 'ASSEMBLY_FAILED',
+                  builder: 'V3',
+                  message: errorMessage,
+                  timestamp: new Date().toISOString(),
+                },
+              };
+            }
             timer.end('assemblerMs');
             assembleStartTime = timer.getDuration('assemblerMs') ? Date.now() - (timer.getDuration('assemblerMs') || 0) : Date.now();
             assembleEndTime = Date.now();
+            
+            // Structured logging: ai.prompt event (before AI call)
+            console.log(JSON.stringify({
+              event: 'ai.prompt',
+              traceId,
+              builder: 'V3',
+              gameId,
+              turnCount: game.turn_count + 1,
+              userIntent: userIntent ? { kind: userIntent.t, len: userIntent.text.length } : null,
+              promptPreview: assembleResult.prompt.substring(0, 800),
+            }));
             
             // Capture assembler result for debug if requested
             if (request.includeDebugMetadata) {
@@ -313,14 +388,25 @@ export class TurnsService {
               };
             }
             
-            // Use AI service with the assembled prompt
+            // Use AI service with the assembled prompt (no retries)
             timer.start('aiMs');
             aiStartTime = Date.now();
             const { OpenAIService } = await import('./openai.service.js');
             const openaiService = new OpenAIService();
-            const aiResponseObj = await openaiService.generateBufferedResponse(assembleResult.prompt);
+            // Generate response with maxRetries=0 (no retries for turn requests)
+            const aiResponseObj = await this.generateAIResponseNoRetries(openaiService, assembleResult.prompt);
             timer.end('aiMs');
             aiEndTime = Date.now();
+            
+            // Structured logging: ai.raw_response event (after AI call)
+            const processingMs = aiEndTime - (aiStartTime || Date.now());
+            console.log(JSON.stringify({
+              event: 'ai.raw_response',
+              traceId,
+              builder: 'V3',
+              processingMs,
+              rawPreview: aiResponseObj.content.substring(0, 800),
+            }));
             
             // Capture AI request/response for debug if requested
             if (request.includeDebugMetadata) {
@@ -331,8 +417,20 @@ export class TurnsService {
               aiRawResponse = aiResponseObj;
             }
             
-            // Parse AI response
-            const parsed = JSON.parse(aiResponseObj.content);
+            // Parse AI response (handles markdown code blocks)
+            let parsed: any;
+            try {
+              parsed = openaiService.parseAIResponse(aiResponseObj.content);
+            } catch (parseError) {
+              // If parsing fails, try repair
+              console.warn('[TURNS] AI response parse failed, attempting repair...');
+              try {
+                parsed = await openaiService.repairJSONResponse(aiResponseObj.content, assembleResult.prompt);
+              } catch (repairError) {
+                console.error('[TURNS] JSON repair also failed:', repairError);
+                throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+              }
+            }
             aiResponseText = JSON.stringify(parsed);
             
             // Capture v3 prompt metadata
@@ -350,7 +448,7 @@ export class TurnsService {
               model: assembleResult.meta.model,
               responseTime: aiEndTime - (aiStartTime || Date.now()),
               tokenCount: aiResponseObj.usage?.total_tokens || null,
-              promptId: `prompt-v2-${Date.now()}`,
+              promptId: `prompt-v3-${Date.now()}`,
               validationPassed: true,
               timestamp: new Date().toISOString(),
             };
@@ -368,7 +466,7 @@ export class TurnsService {
             debugService.logAiResponse(
               gameId,
               game.turn_count,
-              aiResponseMetadata.promptId || 'prompt-v2',
+              aiResponseMetadata.promptId || 'prompt-v3',
               aiResponseText,
               Date.now() - aiStartTime
             );
@@ -382,9 +480,9 @@ export class TurnsService {
               promptData,
               promptMetadata,
             };
-          } catch (v2Error) {
-            console.error('V2 prompt assembler or AI service error:', v2Error);
-            if (v2Error instanceof Error && v2Error.message === 'AI timeout') {
+          } catch (v3Error) {
+            console.error('V3 assembler or AI service error:', v3Error);
+            if (v3Error instanceof Error && v3Error.message === 'AI timeout') {
               return {
                 success: false,
                 error: ApiErrorCode.UPSTREAM_TIMEOUT,
@@ -392,7 +490,7 @@ export class TurnsService {
                 details: {
                   prompt: gameContext,
                   aiResponse: null,
-                  error: v2Error.message,
+                  error: v3Error.message,
                   timestamp: new Date().toISOString()
                 }
               };
@@ -400,11 +498,11 @@ export class TurnsService {
             return {
               success: false,
               error: ApiErrorCode.INTERNAL_ERROR,
-              message: v2Error instanceof Error ? v2Error.message : 'Turn processing error',
+              message: v3Error instanceof Error ? v3Error.message : 'Turn processing error',
               details: {
                 prompt: gameContext,
                 aiResponse: null,
-                error: v2Error instanceof Error ? v2Error.message : String(v2Error),
+                error: v3Error instanceof Error ? v3Error.message : String(v3Error),
                 timestamp: new Date().toISOString()
               }
             };
@@ -426,110 +524,128 @@ export class TurnsService {
         };
       }
 
-      // Parse and validate AI response
-      let aiResponse: TurnResponse;
+      // Parse AI response (normalization happens AFTER persistence when we have real DB id)
+      let parsedAi: unknown;
+      let turnResponseForApply: TurnResponse;
+      // Calculate turn number before creating turn record (needed after try block)
+      const nextTurnCount = game.turn_count + 1;
+      const newBalance = wallet.castingStones - turnCost;
+      
       try {
         if (!aiResponseText) {
           throw new Error('AI response text is null or undefined');
         }
         
         console.log(`[TURNS_SERVICE] Parsing AI response (${aiResponseText.length} characters)`);
-        console.log(`[TURNS_SERVICE] AI response preview: ${aiResponseText.substring(0, 200)}...`);
         
-        const parsedResponse = JSON.parse(aiResponseText);
-        console.log('[TURNS_SERVICE] Successfully parsed JSON, transforming AWF format...');
+        // Parse JSON once
+        parsedAi = JSON.parse(aiResponseText);
+        console.log('[TURNS_SERVICE] Successfully parsed JSON, preparing for persistence...');
         
-        // Transform AWF format to TurnResponseSchema format
-        const transformedResponse = await this.transformAWFToTurnResponse(parsedResponse);
-        console.log('[TURNS_SERVICE] Transformed response, validating schema...');
-        
-        // Additional validation checks before schema validation
-        if (!transformedResponse.narrative || typeof transformedResponse.narrative !== 'string' || transformedResponse.narrative.trim().length === 0) {
-          console.error('[TURNS_SERVICE] AI response has empty or invalid narrative');
-          return {
-            success: false,
-            error: ApiErrorCode.VALIDATION_FAILED,
-            message: 'AI response has empty or invalid narrative',
-            details: {
-              prompt: gameContext,
-              aiResponse: aiResponseText,
-              transformedResponse: transformedResponse,
-              validationErrors: [{ message: 'Narrative is empty or invalid' }],
-              timestamp: new Date().toISOString()
-            }
-          };
-        }
-        
-        if (transformedResponse.narrative.trim().length < 10) {
-          console.error('[TURNS_SERVICE] AI response narrative is too short');
-          return {
-            success: false,
-            error: ApiErrorCode.VALIDATION_FAILED,
-            message: 'AI response narrative is too short',
-            details: {
-              prompt: gameContext,
-              aiResponse: aiResponseText,
-              transformedResponse: transformedResponse,
-              validationErrors: [{ message: 'Narrative is too short' }],
-              timestamp: new Date().toISOString()
-            }
-          };
-        }
-        
-        // Add debug information if available
-        if (aiResult && aiResult.debug) {
-          transformedResponse.debug = aiResult.debug;
-        }
-        
-        const validationResult = TurnResponseSchema.safeParse(transformedResponse);
-        
-        if (!validationResult.success) {
-          console.error('[TURNS_SERVICE] AI response validation failed:', validationResult.error);
-          console.error('[TURNS_SERVICE] Raw AI response:', aiResponseText);
-          console.error('[TURNS_SERVICE] Transformed response:', JSON.stringify(transformedResponse, null, 0));
-          return {
-            success: false,
-            error: ApiErrorCode.VALIDATION_FAILED,
-            message: 'AI response validation failed',
-            details: {
-              prompt: gameContext,
-              aiResponse: aiResponseText,
-              transformedResponse: transformedResponse,
-              validationErrors: validationResult.error.errors,
-              timestamp: new Date().toISOString()
-            }
-          };
-        }
-        
-        console.log('[TURNS_SERVICE] Successfully validated AI response schema');
-        
-        aiResponse = validationResult.data;
+        // Convert parsed AI response to TurnResponse format for applyTurn (temporary bridge)
+        // We'll normalize to TurnDTO AFTER persistence when we have the real DB id
+        turnResponseForApply = {
+          narrative: parsedAi.txt || parsedAi.narrative || '',
+          emotion: (parsedAi.emotion || 'neutral') as 'neutral' | 'happy' | 'sad' | 'angry' | 'fearful' | 'surprised' | 'excited',
+          choices: Array.isArray(parsedAi.choices) ? parsedAi.choices.map((c: any) => ({
+            id: c.id || `choice_${Date.now()}`,
+            label: c.label || c.text || c.choice || '',
+          })) : [],
+          npcResponses: parsedAi.npcResponses,
+          relationshipDeltas: parsedAi.relationshipDeltas,
+          factionDeltas: parsedAi.factionDeltas,
+          worldStateChanges: undefined,
+        };
+
       } catch (error) {
-        console.error('Invalid AI response JSON:', error);
+        console.error('[TURNS_SERVICE] Invalid AI response JSON or parsing failed:', error);
         return {
           success: false,
           error: ApiErrorCode.VALIDATION_FAILED,
           message: 'Invalid AI response format',
           details: {
-            prompt: gameContext,
-            aiResponse: aiResponseText,
             error: error instanceof Error ? error.message : String(error),
             timestamp: new Date().toISOString()
           }
         };
       }
 
-      // Apply turn to game state with comprehensive turn data
+      // Apply turn to game state FIRST (before normalization)
       timer.start('persistMs');
-      const turnRecord = await gamesService.applyTurn(gameId, aiResponse, optionId, {
-        userInput: userInput || optionId,
-        userInputType: userInputType || 'choice',
+      const turnRecord = await gamesService.applyTurn(gameId, turnResponseForApply, optionId, {
+        userInput: userIntent?.text || userInput || optionId,
+        userInputType: userIntent?.t || userInputType || 'choice',
         promptData: promptData,
         promptMetadata: promptMetadata,
         aiResponseMetadata: aiResponseMetadata,
-        processingTimeMs: Date.now() - turnStartTime
+        processingTimeMs: Date.now() - turnStartTime,
+        rawAiResponse: parsedAi, // Store raw AI response in content field
       });
       timer.end('persistMs');
+
+      // NOW normalize to TurnDTO AFTER persistence (with real DB id)
+      const { aiToTurnDTO, AiNormalizationError } = await import('../ai/ai-adapter.js');
+      let turnDTO: TurnDTO;
+      try {
+        turnDTO = await aiToTurnDTO(parsedAi, {
+          id: turnRecord.turn_number || nextTurnCount, // Use real DB id (not placeholder)
+          gameId,
+          turnCount: nextTurnCount,
+          createdAt: (() => {
+            // Always convert to ISO string format (Zod requires strict datetime)
+            if (turnRecord.created_at instanceof Date) {
+              return turnRecord.created_at.toISOString();
+            } else if (typeof turnRecord.created_at === 'string') {
+              // Parse string date and convert to ISO (handles +00:00, Z, and other formats)
+              const date = new Date(turnRecord.created_at);
+              if (isNaN(date.getTime())) {
+                console.warn(`[TURNS_SERVICE] Invalid date for turn ${nextTurnCount}: ${turnRecord.created_at}, using current time`);
+                return new Date().toISOString();
+              }
+              return date.toISOString();
+            } else {
+              return new Date().toISOString();
+            }
+          })(),
+          castingStonesBalance: newBalance,
+        });
+        
+        console.log('[TURNS_SERVICE] Successfully normalized AI response to TurnDTO', {
+          hasNarrative: !!turnDTO.narrative,
+          narrativeLength: turnDTO.narrative.length,
+          choicesCount: turnDTO.choices.length,
+        });
+        
+      } catch (normalizationError) {
+        if (normalizationError instanceof AiNormalizationError) {
+          console.error('[TURNS_SERVICE] AI normalization failed:', normalizationError.message);
+          console.error('[TURNS_SERVICE] Normalization details:', normalizationError.details);
+          
+          // Log WARN with structured data
+          console.warn(JSON.stringify({
+            event: 'ai_normalization_fail',
+            gameId,
+            turnCount: nextTurnCount,
+            reason: normalizationError.message,
+            timestamp: new Date().toISOString(),
+          }));
+          
+          // Return 502 error per spec
+          return {
+            success: false,
+            error: ApiErrorCode.INTERNAL_ERROR, // 502 equivalent
+            message: 'AI output invalid',
+            details: {
+              code: 'AI_NORMALIZE_FAILED',
+              message: normalizationError.message,
+              timestamp: new Date().toISOString()
+            }
+          };
+        }
+        throw normalizationError;
+      }
+
+      // turnDTO already has correct id and createdAt from aiToTurnDTO call above (after persistence)
 
       // Phase 6: Structured logging for turn creation
       const turnNumber = turnRecord.turn_number || game.turn_count + 1;
@@ -587,23 +703,20 @@ export class TurnsService {
         
       
       // Log state changes to debug service
-      const hasStateChanges = aiResponse.worldStateChanges || aiResponse.relationshipDeltas || aiResponse.factionDeltas;
+      const hasStateChanges = turnDTO.relationshipDeltas || turnDTO.factionDeltas;
       if (hasStateChanges) {
         const currentState = await gameStateService.loadGameState(gameId);
         const beforeState = game.state_snapshot;
         const afterState = currentState || {};
           
         
-        // Extract changes from the response
+        // Extract changes from TurnDTO
         const changes = [];
-        if (aiResponse.worldStateChanges) {
-          changes.push({ type: 'world_state', changes: aiResponse.worldStateChanges });
+        if (turnDTO.relationshipDeltas) {
+          changes.push({ type: 'relationships', changes: turnDTO.relationshipDeltas });
         }
-        if (aiResponse.relationshipDeltas) {
-          changes.push({ type: 'relationships', changes: aiResponse.relationshipDeltas });
-        }
-        if (aiResponse.factionDeltas) {
-          changes.push({ type: 'factions', changes: aiResponse.factionDeltas });
+        if (turnDTO.factionDeltas) {
+          changes.push({ type: 'factions', changes: turnDTO.factionDeltas });
         }
           
         
@@ -611,7 +724,7 @@ export class TurnsService {
           gameId,
           game.turn_count,
           'response-id', // TODO: Get actual response ID
-          [], // No actions in current schema
+          turnDTO.actions || [], // Use actions from TurnDTO
           changes,
           beforeState,
           afterState
@@ -637,8 +750,8 @@ export class TurnsService {
       }
 
 
-      // Create Turn DTO
-      const turnDTO = await this.createTurnDTO(turnRecord, aiResponse, game, wallet.castingStones - turnCost, aiResult.debug?.promptText);
+      // TurnDTO already created above with actual turn record fields updated
+      // No need to recreate it
 
 
       // Store idempotency record
@@ -657,12 +770,8 @@ export class TurnsService {
       const result: TurnResult = {
         success: true,
         turnDTO,
-        details: {
-          prompt: gameContext,
-          aiResponse: aiResponseText,
-          transformedResponse: aiResponse,
-          timestamp: new Date().toISOString()
-        }
+        // Note: details removed per spec - no debug leakage in user responses
+        // Debug info only available via ?debug=1 (admin only)
       };
 
       // Add debug metadata if requested
@@ -929,8 +1038,8 @@ export class TurnsService {
         awfBundleEnabled,
       };
 
-      // Use buildPromptV2 to assemble the prompt with v3 assembler
-      const assembleResult = await this.buildPromptV2(updatedGame, 'game_start');
+      // Use V3 assembler for initial prompt (no state/conversation for initialization)
+      const assembleResult = await this.buildPromptV3(updatedGame);
       const prompt = assembleResult.prompt;
       const promptMetadata = {
         meta: assembleResult.meta,
@@ -974,6 +1083,7 @@ export class TurnsService {
       const transformedResponse = await this.transformAWFToTurnResponse(aiResponse);
 
       // Apply the initial turn to the game with comprehensive turn data
+      // Store the raw parsed AI response in content field
       const turnRecord = await gamesService.applyTurn(updatedGame.id, transformedResponse, 'game_start', {
         userInput: 'game_start',
         userInputType: 'action',
@@ -987,7 +1097,8 @@ export class TurnsService {
           validationPassed: true,
           timestamp: new Date().toISOString()
         },
-        processingTimeMs: 0
+        processingTimeMs: 0,
+        rawAiResponse: parsed, // Store raw parsed AI response in content field
       });
       
       console.log(`[TURNS] Initial AI prompt created and applied for game ${updatedGame.id}`);
@@ -1036,12 +1147,15 @@ export class TurnsService {
   }
 
   /**
-   * Phase 4.2: Build prompt using V2 assembler for ongoing turns
+   * Build prompt using V3 assembler for ongoing turns
    * @param game - Game data with entry_point_id, world_id, etc.
-   * @param optionId - Selected option ID
-   * @returns V2 assembler result with prompt, pieces, and meta
+   * @param userIntentText - User's choice/text input
+   * @returns V3 assembler result with prompt, pieces, and meta
    */
-  private async buildPromptV2(game: any, optionId: string): Promise<{
+  private async buildPromptV3(
+    game: any,
+    userIntentText?: string
+  ): Promise<{
     prompt: string;
     pieces: any[];
     meta: {
@@ -1064,25 +1178,24 @@ export class TurnsService {
     let entryPointId: string;
     let entryStartSlug: string | undefined;
 
-    if (game.entry_point_id) {
-      entryPointId = game.entry_point_id;
-      
-      // Load entry point to get entry_start_slug from doc if needed
-      const { data: entryPoint } = await supabaseAdmin
-        .from('entry_points')
-        .select('id, content')
-        .eq('id', entryPointId)
-        .single();
+    if (!game.entry_point_id) {
+      throw new Error('Game missing entry_point_id; V3 assembler requires entry point');
+    }
 
-      if (entryPoint) {
-        // Extract from doc or use slug
-        entryStartSlug = entryPoint.content?.doc?.entryStartSlug ||
-                        entryPoint.content?.entryStartSlug ||
-                        undefined;
-      }
-    } else {
-      // Legacy game without entry_point_id - cannot use v3 assembler
-      throw new Error('Game missing entry_point_id; v3 assembler requires entry point');
+    entryPointId = game.entry_point_id;
+    
+    // Load entry point to get entry_start_slug from doc if needed
+    const { data: entryPoint } = await supabaseAdmin
+      .from('entry_points')
+      .select('id, content')
+      .eq('id', entryPointId)
+      .single();
+
+    if (entryPoint) {
+      // Extract from doc or use slug
+      entryStartSlug = entryPoint.content?.doc?.entryStartSlug ||
+                      entryPoint.content?.entryStartSlug ||
+                      undefined;
     }
 
     const { EntryPointAssemblerV3 } = await import('../prompts/entry-point-assembler-v3.js');
@@ -1092,12 +1205,44 @@ export class TurnsService {
     const budgetTokens = config.prompt.tokenBudgetDefault;
     const model = config.prompt.modelDefault;
 
+    // Build conversation window from previous turns (last 3 turns)
+    let conversationWindow: Array<{
+      turnNumber: number;
+      narrative: string;
+      userChoice?: string;
+    }> = [];
+    
+    if (game.turn_count > 0) {
+      // Load previous turns for conversation context
+      const previousTurns = await gamesService.getGameTurns(game.id, {
+        limit: 3, // Last 3 turns
+      });
+      
+      conversationWindow = (previousTurns.turns || []).map((turn: any) => {
+        // Extract narrative from content (raw AI response)
+        const content = turn.content || {};
+        const narrative = content.txt || content.narrative || turn.meta?.narrativeSummary || '';
+        
+        // Extract user choice from meta
+        const userChoice = turn.meta?.userInput || undefined;
+        
+        return {
+          turnNumber: turn.turn_number,
+          narrative,
+          userChoice,
+        };
+      }).reverse(); // Most recent first
+    }
+
     // Assemble prompt using v3 assembler (ongoing turn)
     const assembleResult = await assembler.assemble({
       entryPointId,
       entryStartSlug,
       model,
       budgetTokens,
+      stateSnapshot: game.state_snapshot, // Current game state
+      conversationWindow, // Recent turns for context
+      userIntentText, // User's latest choice/text
     });
 
     return assembleResult;
@@ -1109,6 +1254,47 @@ export class TurnsService {
   private isValidUuid(str: string): boolean {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     return uuidRegex.test(str);
+  }
+
+  /**
+   * Generate AI response with no retries (for turn requests)
+   * @param openaiService - OpenAI service instance
+   * @param prompt - Prompt to send
+   * @returns AI response
+   */
+  private async generateAIResponseNoRetries(
+    openaiService: any,
+    prompt: string
+  ): Promise<{ content: string; usage?: { total_tokens?: number } }> {
+    // Import OpenAI client directly and make single attempt
+    const { configService } = await import('../config/index.js');
+    const env = configService.getEnv();
+    const OpenAI = (await import('openai')).default;
+    
+    const client = new OpenAI({
+      apiKey: env.openaiApiKey,
+    });
+
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.8,
+      max_tokens: 2000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('No response content from OpenAI');
+    }
+
+    return {
+      content,
+      usage: response.usage ? {
+        total_tokens: response.usage.total_tokens,
+      } : undefined,
+    };
   }
 
   /**

@@ -513,14 +513,57 @@ export async function postCreateGame(
   });
 }
 
-// Auto-initialize game API
+// Auto-initialize game API (returns TurnDTO)
 export async function autoInitializeGame(
   gameId: string
-): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
-  console.log(`[API] Calling auto-initialize for game ${gameId}`);
-  const result = await apiPost(`/api/games/${gameId}/auto-initialize`, {});
-  console.log(`[API] Auto-initialize result:`, result);
-  return result;
+): Promise<{ ok: true; data: import('@shared').TurnDTO } | { ok: false; error: AppError }> {
+  return apiPost<import('@shared').TurnDTO>(`/api/games/${gameId}/auto-initialize`, {});
+}
+
+// Get latest turn for a game (returns TurnDTO)
+export async function getLatestTurn(
+  gameId: string
+): Promise<{ ok: true; data: import('@shared').TurnDTO } | { ok: false; error: AppError }> {
+  return apiGet<import('@shared').TurnDTO>(`/api/games/${gameId}/turns/latest`);
+}
+
+// Submit a choice (returns TurnDTO)
+export async function postChoice(
+  gameId: string,
+  choiceId: string,
+  idempotencyKey: string
+): Promise<{ ok: true; data: import('@shared').TurnDTO } | { ok: false; error: AppError }> {
+  return submitTurn<import('@shared').TurnDTO>(
+    gameId,
+    choiceId,
+    idempotencyKey,
+    undefined,
+    'choice'
+  );
+}
+
+// Submit a turn with new format: sends choice/text directly
+export async function postTurn(
+  gameId: string,
+  payload: { kind: 'choice' | 'text'; text: string },
+  idempotencyKey: string
+): Promise<{ ok: true; data: import('@shared').TurnDTO } | { ok: false; error: AppError }> {
+  return apiFetch<import('@shared').TurnDTO>(`/api/games/${gameId}/turn`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Idempotency-Key': idempotencyKey,
+    },
+  });
+}
+
+// Get conversation history with user prompts and AI responses
+export async function getConversationHistory(
+  gameId: string,
+  limit?: number
+): Promise<{ ok: true; data: import('@shared').ConversationHistory } | { ok: false; error: AppError }> {
+  const url = `/api/games/${gameId}/turns/history${limit ? `?limit=${limit}` : ''}`;
+  return apiFetch<import('@shared').ConversationHistory>(url);
 }
 
 // Initial Prompt API

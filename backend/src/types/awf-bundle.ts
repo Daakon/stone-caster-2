@@ -3,13 +3,28 @@
  * Phase 3: Bundle Assembler - Type definitions for assembled bundles
  */
 
+import { CoreRulesetV1 } from './awf-core.js';
+
+// Act catalog entry type (from core contract)
+export interface AwfActCatalogEntry {
+  type: string;
+  mode: string;
+  target: string;
+}
+
 // AWF Bundle Structure
 export interface AwfBundle {
   awf_bundle: {
     meta: AwfBundleMeta;
     contract: AwfBundleContract;
-    world: AwfBundleWorld;
-    adventure: AwfBundleAdventure;
+    core: {
+      ruleset: CoreRulesetV1;
+      contract: {
+        acts_catalog?: AwfActCatalogEntry[];
+      };
+    };
+    world?: AwfBundleWorld;
+    adventure?: AwfBundleAdventure;
     scenario?: AwfBundleScenario | null;
     npcs: AwfBundleNpcs;
     player: AwfBundlePlayer;
@@ -28,6 +43,14 @@ export interface AwfBundleMeta {
   is_first_turn: boolean;
   locale?: string;
   timestamp: string;
+  // LiveOps levers (merged from effective config)
+  token_budget?: {
+    input_max?: number;
+    output_max?: number;
+  };
+  tool_quota?: {
+    max_calls?: number;
+  };
 }
 
 // Core contract

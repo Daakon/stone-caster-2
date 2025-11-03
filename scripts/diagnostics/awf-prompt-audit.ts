@@ -969,7 +969,61 @@ function evaluateLiveOpsAndLocalization(bundle: JsonObject): AuditCheckResult {
     locale && typeof locale === 'string' && /[a-z]{2,3}-[A-Z]{2}/.test(locale)
   );
 
+  // Check for token_budget and tool_quota in meta
+  const meta = getObjectProperty(awf, ['meta']);
+  const tokenBudget = getObjectProperty(meta, ['token_budget']);
+  const toolQuota = getObjectProperty(meta, ['tool_quota']);
+  const tokenBudgetPresent = tokenBudget ? Object.keys(tokenBudget).length > 0 : false;
+  const toolQuotaPresent = toolQuota ? Object.keys(toolQuota).length > 0 : false;
+
+  // Check core.ruleset
+  const core = getObjectProperty(awf, ['core']);
+  const ruleset = getObjectProperty(core, ['ruleset']);
+  const rulesetPresent = ruleset !== null;
+
+  // Check core.contract.acts_catalog
+  const coreContract = getObjectProperty(core, ['contract']);
+  const actsCatalog = getArrayProperty(coreContract, ['acts_catalog']);
+  const actsCatalogPresent = actsCatalog !== null && actsCatalog.length > 0;
+
   const issues: string[] = [];
+  const warnings: string[] = [];
+  const info: string[] = [];
+
+  // FAIL if ruleset is missing
+  if (!rulesetPresent) {
+    issues.push('CRITICAL: bundle.core.ruleset is missing');
+  }
+
+  // WARN if acts_catalog is empty when it should have entries
+  if (!actsCatalogPresent && coreContract) {
+    warnings.push('bundle.core.contract.acts_catalog is empty or missing (may be expected if contract has none)');
+  }
+
+  // INFO for LiveOps levers
+  if (tokenBudgetPresent) {
+    const inputMax = (tokenBudget as any).input_max;
+    const outputMax = (tokenBudget as any).output_max;
+    info.push(`token_budget: input_max=${inputMax}, output_max=${outputMax}`);
+  }
+
+  if (toolQuotaPresent) {
+    const maxCalls = (toolQuota as any).max_calls;
+    info.push(`tool_quota: max_calls=${maxCalls}`);
+  }
+
+  // Check i18n application when locale is non-English
+  if (locale && locale !== 'en-US') {
+    const world = getObjectProperty(awf, ['world']);
+    const adventure = getObjectProperty(awf, ['adventure']);
+    
+    // If world/adventure names exist, check if they differ from source (indicates i18n applied)
+    // This is informational - we can't verify source vs overlay without original docs
+    if (world && adventure) {
+      info.push(`i18n locale ${locale} detected; overlays should be applied in world/adventure names and synopses`);
+    }
+  }
+
   if (liveOpsPresent) {
     issues.push('LiveOps snapshot detected in bundle');
   }
@@ -977,18 +1031,30 @@ function evaluateLiveOpsAndLocalization(bundle: JsonObject): AuditCheckResult {
     issues.push('Localization one-language policy not enforced or locale missing');
   }
 
-  const status: CheckStatus = issues.length === 0 ? 'pass' : 'warning';
+  const status: CheckStatus = issues.length > 0 ? 'fail' : warnings.length > 0 ? 'warning' : 'pass';
 
+  const allDetails = [...issues, ...warnings, ...info];
+  
   return {
     id: 'liveops-localization',
     title: 'LiveOps and localization checks',
     status,
-    summary: status === 'pass' ? 'LiveOps and localization policies satisfied' : 'LiveOps/localization issues detected',
-    details: issues.length > 0 ? issues : undefined,
+    summary: status === 'fail'
+      ? `${issues.length} critical issues found`
+      : status === 'warning'
+        ? `${warnings.length} warnings detected`
+        : 'LiveOps and localization policies satisfied',
+    details: allDetails.length > 0 ? allDetails : undefined,
     data: {
       liveOpsPresent,
       locale,
-      oneLanguagePolicy
+      oneLanguagePolicy,
+      tokenBudgetPresent,
+      toolQuotaPresent,
+      rulesetPresent,
+      actsCatalogPresent,
+      tokenBudgetValues: tokenBudgetPresent ? tokenBudget : undefined,
+      toolQuotaValues: toolQuotaPresent ? toolQuota : undefined,
     }
   };
 }

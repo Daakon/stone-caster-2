@@ -25,7 +25,8 @@ const rulesetSchema = z.object({
   slug: z.string().min(1, 'Slug is required').max(50, 'Slug must be less than 50 characters')
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-  status: z.enum(['draft', 'active', 'archived'])
+  status: z.enum(['draft', 'active', 'archived']),
+  prompt: z.union([z.string(), z.object({}).passthrough(), z.record(z.any())]).optional()
 });
 
 type RulesetFormData = z.infer<typeof rulesetSchema>;
@@ -84,6 +85,17 @@ export default function RulesetEditPage() {
       setValue('slug', data.slug);
       setValue('description', data.description || '');
       setValue('status', data.status);
+      
+      // Handle prompt - if it's an object, stringify it; if it's a string or has text property, use that
+      if (data.prompt) {
+        if (typeof data.prompt === 'string') {
+          setValue('prompt', data.prompt);
+        } else if (data.prompt.text) {
+          setValue('prompt', data.prompt.text);
+        } else {
+          setValue('prompt', JSON.stringify(data.prompt, null, 2));
+        }
+      }
 
       // Load revisions
       const revisionData = await rulesetsService.getRulesetRevisions(id!);
@@ -103,8 +115,14 @@ export default function RulesetEditPage() {
       setError(null);
 
       if (ruleset.is_mutable) {
+        // Format prompt - if it's a string, convert to { text: string } format for consistency
+        const updateData = { ...data };
+        if (updateData.prompt && typeof updateData.prompt === 'string') {
+          updateData.prompt = { text: updateData.prompt };
+        }
+        
         // Update existing ruleset
-        const updated = await rulesetsService.updateRuleset(id!, data);
+        const updated = await rulesetsService.updateRuleset(id!, updateData);
         setRuleset(updated);
         setSuccess('Ruleset updated successfully');
       } else {
@@ -309,6 +327,24 @@ export default function RulesetEditPage() {
                   {errors.description && (
                     <p className="text-sm text-red-600 mt-1">{errors.description.message}</p>
                   )}
+                </div>
+
+                <div>
+                  <Label htmlFor="prompt">Prompt Content *</Label>
+                  <Textarea
+                    id="prompt"
+                    {...register('prompt')}
+                    disabled={!canEdit}
+                    rows={8}
+                    placeholder="Enter the ruleset's prompt content for AI generation. This is what will be used when assembling prompts for entry points using this ruleset."
+                    className={errors.prompt ? 'border-red-500' : ''}
+                  />
+                  {errors.prompt && (
+                    <p className="text-sm text-red-600 mt-1">{errors.prompt.message}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The prompt content defines how the AI should behave with this ruleset. This content is required for entry point assembly.
+                  </p>
                 </div>
 
                 <div>
