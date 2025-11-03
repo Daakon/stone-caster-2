@@ -64,6 +64,14 @@ export interface EntryPointAssemblerV3Input {
   entryStartSlug?: string; // Optional override from entry point doc
   model?: string;
   budgetTokens?: number;
+  // For ongoing turns (not initialization)
+  stateSnapshot?: any; // Current game state (JSON)
+  conversationWindow?: Array<{
+    turnNumber: number;
+    narrative: string;
+    userChoice?: string; // User's choice text from previous turn
+  }>; // Last N turns for context (default: last 3)
+  userIntentText?: string; // User's latest choice/text input
 }
 
 export interface EntryPointAssemblerV3Output {
@@ -414,6 +422,46 @@ export class EntryPointAssemblerV3 {
           }
         }
       }
+
+    // Add game state and conversation history for ongoing turns
+    if (input.stateSnapshot || input.conversationWindow || input.userIntentText) {
+      segments.push('# Current Game State\n');
+      
+      if (input.stateSnapshot) {
+        // Include minimal state snapshot (flags, ledgers, metadata)
+        const stateSummary = JSON.stringify({
+          flags: input.stateSnapshot.flags || {},
+          ledgers: input.stateSnapshot.ledgers || {},
+          metadata: input.stateSnapshot.metadata || {},
+          character: input.stateSnapshot.character ? {
+            id: input.stateSnapshot.character.id,
+            name: input.stateSnapshot.character.name,
+          } : undefined,
+          adventure: input.stateSnapshot.adventure ? {
+            id: input.stateSnapshot.adventure.id,
+            slug: input.stateSnapshot.adventure.slug,
+          } : undefined,
+        }, null, 2);
+        segments.push(`## State Snapshot\n\`\`\`json\n${stateSummary}\n\`\`\`\n`);
+      }
+      
+      if (input.conversationWindow && input.conversationWindow.length > 0) {
+        segments.push('## Recent Story History\n');
+        for (const turn of input.conversationWindow) {
+          if (turn.userChoice) {
+            segments.push(`**Turn ${turn.turnNumber} - Player:** ${turn.userChoice}`);
+          }
+          if (turn.narrative) {
+            segments.push(`**Turn ${turn.turnNumber} - Story:** ${turn.narrative}`);
+          }
+        }
+        segments.push(''); // Blank line after history
+      }
+      
+      if (input.userIntentText) {
+        segments.push(`## Player Action\n\nThe player chooses: "${input.userIntentText}"\n`);
+      }
+    }
 
     // Join with single blank line between scopes, add trailing newline
     const prompt = segments.join('\n\n') + '\n';

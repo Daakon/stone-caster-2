@@ -73,7 +73,7 @@ export class TurnsService {
     const timer = new PerformanceTimer();
     timer.start('totalMs');
     
-    const { gameId, optionId, owner, idempotencyKey, isGuest, userInput, userInputType } = request;
+    const { gameId, optionId, owner, idempotencyKey, isGuest, userInput, userInputType, userIntent } = request;
     
       // Declare variables at method level for error handling
     let gameContext: any = null;
@@ -254,15 +254,18 @@ export class TurnsService {
         const { isAwfEnabled } = await import('../config/awf-mode.js');
         const awfEnabled = isAwfEnabled({ sessionId: gameId });
         
+        let awfSucceeded = false;
         if (awfEnabled) {
           console.log(`[TURNS] AWF bundle path enabled for game ${gameId}`);
           
           try {
             // Use AWF turn orchestrator
+            // Use userIntent.text if available (new format), otherwise userInput (legacy)
+            const inputText = userIntent?.text || userInput || '';
             const { runAwfTurn } = await import('../orchestrators/awf-turn-orchestrator.js');
             const awfResult = await runAwfTurn({
               sessionId: gameId,
-              inputText: userInput || ''
+              inputText
             });
             
             // Convert AWF result to legacy format
@@ -291,31 +294,27 @@ export class TurnsService {
             };
             
             console.log(`[TURNS] AWF turn completed for game ${gameId}`);
+            awfSucceeded = true;
             
           } catch (awfError) {
-            console.error(`[TURNS] AWF turn failed for game ${gameId}, falling back to legacy:`, awfError);
-            // Fall through to legacy path
+            console.error(`[TURNS] AWF turn failed for game ${gameId}, falling back to V3 assembler:`, awfError);
+            // Fall back to V3 assembler (not legacy - V3 is the proper modern path)
+            awfSucceeded = false;
           }
         }
         
-        if (!awfEnabled) {
-          console.log(`[TURNS] Using V2 prompt assembler for ongoing turn ${game.turn_count + 1}`);
+        // Use V3 assembler if AWF is not enabled OR if AWF failed
+        if (!awfEnabled || !awfSucceeded) {
+          if (!awfEnabled) {
+            console.log(`[TURNS] Using V3 assembler for ongoing turn ${game.turn_count + 1}`);
+          } else {
+            console.log(`[TURNS] Using V3 assembler for ongoing turn ${game.turn_count + 1} (AWF fallback)`);
+          }
 
           try {
-            // Legacy isolation: Guard against legacy assembler usage when AWF is enabled
-            // This should never happen due to feature flag, but fail loudly if it does
-            const currentAwfCheck = isAwfEnabled({ sessionId: gameId });
-            if (currentAwfCheck) {
-              const errorMsg = `ILLEGAL_LEGACY_ASSEMBLER_PATH: AWF enabled but legacy buildPromptV2 called for session ${gameId}`;
-              console.error(`[TURNS] ${errorMsg}`);
-              // Log metric for monitoring
-              console.error(`[METRICS] legacy_assembler_called_when_awf_enabled: { sessionId: ${gameId}, gameId: ${gameId}, turn: ${game.turn_count} }`);
-              throw new Error(errorMsg);
-            }
-            
-            // Phase 4.2: Use V2 assembler for ongoing turns
+            // Use V3 assembler for ongoing turns (includes state, conversation history, user intent)
             timer.start('assemblerMs');
-            const assembleResult = await this.buildPromptV2(game, optionId);
+            const assembleResult = await this.buildPromptV3(game, userIntent?.text || userInput || undefined);
             timer.end('assemblerMs');
             assembleStartTime = timer.getDuration('assemblerMs') ? Date.now() - (timer.getDuration('assemblerMs') || 0) : Date.now();
             assembleEndTime = Date.now();
@@ -347,8 +346,20 @@ export class TurnsService {
               aiRawResponse = aiResponseObj;
             }
             
-            // Parse AI response
-            const parsed = JSON.parse(aiResponseObj.content);
+            // Parse AI response (handles markdown code blocks)
+            let parsed: any;
+            try {
+              parsed = openaiService.parseAIResponse(aiResponseObj.content);
+            } catch (parseError) {
+              // If parsing fails, try repair
+              console.warn('[TURNS] AI response parse failed, attempting repair...');
+              try {
+                parsed = await openaiService.repairJSONResponse(aiResponseObj.content, assembleResult.prompt);
+              } catch (repairError) {
+                console.error('[TURNS] JSON repair also failed:', repairError);
+                throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+              }
+            }
             aiResponseText = JSON.stringify(parsed);
             
             // Capture v3 prompt metadata
@@ -366,7 +377,7 @@ export class TurnsService {
               model: assembleResult.meta.model,
               responseTime: aiEndTime - (aiStartTime || Date.now()),
               tokenCount: aiResponseObj.usage?.total_tokens || null,
-              promptId: `prompt-v2-${Date.now()}`,
+              promptId: `prompt-v3-${Date.now()}`,
               validationPassed: true,
               timestamp: new Date().toISOString(),
             };
@@ -384,7 +395,7 @@ export class TurnsService {
             debugService.logAiResponse(
               gameId,
               game.turn_count,
-              aiResponseMetadata.promptId || 'prompt-v2',
+              aiResponseMetadata.promptId || 'prompt-v3',
               aiResponseText,
               Date.now() - aiStartTime
             );
@@ -398,9 +409,9 @@ export class TurnsService {
               promptData,
               promptMetadata,
             };
-          } catch (v2Error) {
-            console.error('V2 prompt assembler or AI service error:', v2Error);
-            if (v2Error instanceof Error && v2Error.message === 'AI timeout') {
+          } catch (v3Error) {
+            console.error('V3 assembler or AI service error:', v3Error);
+            if (v3Error instanceof Error && v3Error.message === 'AI timeout') {
               return {
                 success: false,
                 error: ApiErrorCode.UPSTREAM_TIMEOUT,
@@ -408,7 +419,7 @@ export class TurnsService {
                 details: {
                   prompt: gameContext,
                   aiResponse: null,
-                  error: v2Error.message,
+                  error: v3Error.message,
                   timestamp: new Date().toISOString()
                 }
               };
@@ -416,11 +427,11 @@ export class TurnsService {
             return {
               success: false,
               error: ApiErrorCode.INTERNAL_ERROR,
-              message: v2Error instanceof Error ? v2Error.message : 'Turn processing error',
+              message: v3Error instanceof Error ? v3Error.message : 'Turn processing error',
               details: {
                 prompt: gameContext,
                 aiResponse: null,
-                error: v2Error instanceof Error ? v2Error.message : String(v2Error),
+                error: v3Error instanceof Error ? v3Error.message : String(v3Error),
                 timestamp: new Date().toISOString()
               }
             };
@@ -948,8 +959,8 @@ export class TurnsService {
         awfBundleEnabled,
       };
 
-      // Use buildPromptV2 to assemble the prompt with v3 assembler
-      const assembleResult = await this.buildPromptV2(updatedGame, 'game_start');
+      // Use V3 assembler for initial prompt (no state/conversation for initialization)
+      const assembleResult = await this.buildPromptV3(updatedGame);
       const prompt = assembleResult.prompt;
       const promptMetadata = {
         meta: assembleResult.meta,
@@ -1057,12 +1068,15 @@ export class TurnsService {
   }
 
   /**
-   * Phase 4.2: Build prompt using V2 assembler for ongoing turns
+   * Build prompt using V3 assembler for ongoing turns
    * @param game - Game data with entry_point_id, world_id, etc.
-   * @param optionId - Selected option ID
-   * @returns V2 assembler result with prompt, pieces, and meta
+   * @param userIntentText - User's choice/text input
+   * @returns V3 assembler result with prompt, pieces, and meta
    */
-  private async buildPromptV2(game: any, optionId: string): Promise<{
+  private async buildPromptV3(
+    game: any,
+    userIntentText?: string
+  ): Promise<{
     prompt: string;
     pieces: any[];
     meta: {
@@ -1085,25 +1099,24 @@ export class TurnsService {
     let entryPointId: string;
     let entryStartSlug: string | undefined;
 
-    if (game.entry_point_id) {
-      entryPointId = game.entry_point_id;
-      
-      // Load entry point to get entry_start_slug from doc if needed
-      const { data: entryPoint } = await supabaseAdmin
-        .from('entry_points')
-        .select('id, content')
-        .eq('id', entryPointId)
-        .single();
+    if (!game.entry_point_id) {
+      throw new Error('Game missing entry_point_id; V3 assembler requires entry point');
+    }
 
-      if (entryPoint) {
-        // Extract from doc or use slug
-        entryStartSlug = entryPoint.content?.doc?.entryStartSlug ||
-                        entryPoint.content?.entryStartSlug ||
-                        undefined;
-      }
-    } else {
-      // Legacy game without entry_point_id - cannot use v3 assembler
-      throw new Error('Game missing entry_point_id; v3 assembler requires entry point');
+    entryPointId = game.entry_point_id;
+    
+    // Load entry point to get entry_start_slug from doc if needed
+    const { data: entryPoint } = await supabaseAdmin
+      .from('entry_points')
+      .select('id, content')
+      .eq('id', entryPointId)
+      .single();
+
+    if (entryPoint) {
+      // Extract from doc or use slug
+      entryStartSlug = entryPoint.content?.doc?.entryStartSlug ||
+                      entryPoint.content?.entryStartSlug ||
+                      undefined;
     }
 
     const { EntryPointAssemblerV3 } = await import('../prompts/entry-point-assembler-v3.js');
@@ -1113,12 +1126,44 @@ export class TurnsService {
     const budgetTokens = config.prompt.tokenBudgetDefault;
     const model = config.prompt.modelDefault;
 
+    // Build conversation window from previous turns (last 3 turns)
+    let conversationWindow: Array<{
+      turnNumber: number;
+      narrative: string;
+      userChoice?: string;
+    }> = [];
+    
+    if (game.turn_count > 0) {
+      // Load previous turns for conversation context
+      const previousTurns = await gamesService.getGameTurns(game.id, {
+        limit: 3, // Last 3 turns
+      });
+      
+      conversationWindow = (previousTurns.turns || []).map((turn: any) => {
+        // Extract narrative from content (raw AI response)
+        const content = turn.content || {};
+        const narrative = content.txt || content.narrative || turn.meta?.narrativeSummary || '';
+        
+        // Extract user choice from meta
+        const userChoice = turn.meta?.userInput || undefined;
+        
+        return {
+          turnNumber: turn.turn_number,
+          narrative,
+          userChoice,
+        };
+      }).reverse(); // Most recent first
+    }
+
     // Assemble prompt using v3 assembler (ongoing turn)
     const assembleResult = await assembler.assemble({
       entryPointId,
       entryStartSlug,
       model,
       budgetTokens,
+      stateSnapshot: game.state_snapshot, // Current game state
+      conversationWindow, // Recent turns for context
+      userIntentText, // User's latest choice/text
     });
 
     return assembleResult;
