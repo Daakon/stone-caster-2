@@ -136,17 +136,36 @@ export const GameSpawnErrorCode = {
 export type GameSpawnErrorCode = typeof GameSpawnErrorCode[keyof typeof GameSpawnErrorCode];
 
 // Game request schemas with improved validation
-export const CreateGameRequestSchema = z.object({
-  entry_point_id: z.string().trim().min(1, 'entry_point_id is required'),
-  world_id: z.string().uuid('world_id must be a valid UUID'),
-  entry_start_slug: z.string().trim().min(1, 'entry_start_slug is required'),
-  scenario_slug: z.string().trim().min(1).nullable().optional(),
-  ruleset_slug: z.string().trim().min(1).optional(),
-  model: z.string().trim().min(1).optional(),
-  characterId: z.string().uuid('characterId must be a valid UUID').optional(),
-  idempotency_key: z.string().trim().min(1).optional(), // Optional idempotency key in body
-  // Legacy support - allow adventureSlug for backward compatibility
-  adventureSlug: z.string().trim().min(1).max(100).optional(),
+// Support both new format (entry_point_id + world_id + entry_start_slug) and legacy format (adventureSlug)
+export const CreateGameRequestSchema = z.union([
+  // New format: all three fields required together
+  z.object({
+    entry_point_id: z.string().trim().min(1, 'entry_point_id is required'),
+    world_id: z.string().uuid('world_id must be a valid UUID'),
+    entry_start_slug: z.string().trim().min(1, 'entry_start_slug is required'),
+    scenario_slug: z.string().trim().min(1).nullable().optional(),
+    ruleset_slug: z.string().trim().min(1).optional(),
+    model: z.string().trim().min(1).optional(),
+    characterId: z.string().uuid('characterId must be a valid UUID').optional(),
+    idempotency_key: z.string().trim().min(1).optional(),
+    adventureSlug: z.string().trim().min(1).max(100).optional(), // Allow but ignore if new format is used
+  }),
+  // Legacy format: adventureSlug required
+  z.object({
+    adventureSlug: z.string().trim().min(1, 'adventureSlug is required (legacy format)'),
+    characterId: z.string().uuid('characterId must be a valid UUID').optional(),
+    entry_point_id: z.string().trim().min(1).optional(), // Allow but ignore if legacy format is used
+    world_id: z.string().uuid().optional(), // Allow but ignore if legacy format is used
+    entry_start_slug: z.string().trim().min(1).optional(), // Allow but ignore if legacy format is used
+    scenario_slug: z.string().trim().min(1).nullable().optional(),
+    ruleset_slug: z.string().trim().min(1).optional(),
+    model: z.string().trim().min(1).optional(),
+    idempotency_key: z.string().trim().min(1).optional(),
+  }),
+], {
+  errorMap: () => ({
+    message: 'Either provide entry_point_id + world_id + entry_start_slug (new format) or adventureSlug (legacy format)',
+  }),
 });
 
 // Legacy schema - kept for backward compatibility during migration

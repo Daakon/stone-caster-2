@@ -70,9 +70,13 @@ function CharacterSelectionPageContent() {
   const currentTier = mockDataService.getCurrentTier();
   const limits = mockDataService.getLimitsByTier(currentTier);
 
-  // Use React Query to load characters (prevents duplicate calls in StrictMode)
-  // Use world_id UUID directly - premade_characters table now supports both UUID and slug
-  const currentWorldId = worldSlug || adventure?.world_id || world?.id;
+  // Prefer world slug when available to maximize compatibility with endpoints
+  const currentWorldId =
+    worldSlug ||
+    adventure?.world_slug ||
+    world?.slug ||
+    adventure?.world_id ||
+    world?.id;
   
   const { data: userCharactersData, isLoading: isLoadingUserCharacters } = useQuery({
     queryKey: ['characters', currentWorldId],
@@ -223,7 +227,8 @@ function CharacterSelectionPageContent() {
   };
 
   const handleCreateNewCharacter = () => {
-    navigate(`/adventures/${adventure.id}/create-character`);
+    // Use new stories route (AdventureToStoryRedirect still handles old paths)
+    navigate(`/stories/${adventure.id}/create-character`);
   };
 
   const canCreateCharacter = userCharacters.length < limits.maxCharacters;

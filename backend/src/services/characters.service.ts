@@ -73,6 +73,7 @@ export interface CharacterQueryOptions {
   userId?: string;
   cookieId?: string;
   worldSlug?: string;
+  worldId?: string; // UUID for world_id
   limit?: number;
   offset?: number;
 }
@@ -91,7 +92,7 @@ export class CharactersService {
     isGuest: boolean = false
   ): Promise<Character> {
     try {
-      // Validate world slug using PremadeCharactersService (which has mock data fallback)
+      // Validate world slug using PremadeCharactersService
       const hasPremadeCharacters = await PremadeCharactersService.validateWorldSlug(input.worldSlug);
       if (!hasPremadeCharacters) {
         throw new Error(`Invalid world slug: ${input.worldSlug}`);
@@ -166,53 +167,6 @@ export class CharactersService {
   }
 
   /**
-   * Get mock premade character data (temporary fix)
-   */
-  private static getMockPremadeCharacter(worldSlug: string, archetypeKey: string): any {
-    // Mock data matching what the API endpoint returns
-    const mockPremadeCharacters = [
-      {
-        id: 'mock-1',
-        worldSlug: 'mystika',
-        archetypeKey: 'elven-court-guardian',
-        displayName: 'Thorne Shifter',
-        summary: 'A noble guardian of the elven courts, bound by ancient oaths to protect the realm.',
-        avatarUrl: null,
-        baseTraits: {
-          class: 'shifter_warden',
-          faction_alignment: 'shifter_tribes',
-          crystal_affinity: 'nature_bond',
-          personality_traits: ['wild', 'protective', 'intuitive']
-        },
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: 'mock-2',
-        worldSlug: 'mystika',
-        archetypeKey: 'crystalborn-scholar',
-        displayName: 'Lysara Brightmind',
-        summary: 'A brilliant scholar who studies the mysteries of the Veil and its effects on reality.',
-        avatarUrl: null,
-        baseTraits: {
-          class: 'crystalborn_scholar',
-          faction_alignment: 'crystalborn_academy',
-          crystal_affinity: 'knowledge_seeker',
-          personality_traits: ['curious', 'analytical', 'determined']
-        },
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ];
-
-    return mockPremadeCharacters.find(
-      char => char.worldSlug === worldSlug && char.archetypeKey === archetypeKey
-    ) || null;
-  }
-
-  /**
    * Create a new character from a premade template
    */
   static async createCharacterFromPremade(
@@ -221,7 +175,7 @@ export class CharactersService {
     isGuest: boolean = false
   ): Promise<Character> {
     try {
-      // Validate world slug using PremadeCharactersService (which has mock data fallback)
+      // Validate world slug using PremadeCharactersService
       const hasPremadeCharacters = await PremadeCharactersService.validateWorldSlug(input.worldSlug);
       if (!hasPremadeCharacters) {
         throw new Error(`Invalid world slug: ${input.worldSlug}`);
@@ -231,21 +185,15 @@ export class CharactersService {
         throw new Error('Archetype key is required when creating from premade');
       }
 
-      // Get the premade character template
-      // TEMPORARY FIX: Use mock data instead of database lookup
-      // TODO: Replace with actual database lookup when premade_characters table is set up
-      const premadeCharacter = this.getMockPremadeCharacter(input.worldSlug, input.archetypeKey);
+      // Get the premade character template from database
+      const premadeCharacter = await PremadeCharactersService.getPremadeCharacter(input.worldSlug, input.archetypeKey);
 
       if (!premadeCharacter) {
         throw new Error(`Premade character '${input.archetypeKey}' not found for world '${input.worldSlug}'`);
       }
 
-      // Extract base traits and create character data
-      const baseTraits = premadeCharacter.baseTraits as any;
-      const skills = baseTraits.skills || {};
-      
-      // Use provided name or fall back to premade display name
-      const characterName = input.name || premadeCharacter.displayName;
+      // Convert premade character to PlayerV3 format
+      const playerV3 = PremadeCharactersService.convertToPlayerV3(premadeCharacter, input.name);
 
       // Resolve world_id UUID from world_slug
       const { data: worldMapping, error: mappingError } = await supabaseAdmin
@@ -258,28 +206,32 @@ export class CharactersService {
         throw new Error(`World '${input.worldSlug}' not found in world_id_mapping`);
       }
 
-      // Create character data from premade template
+      // Create character data with PlayerV3 format stored in world_data
       const characterData = {
         id: uuidv4(),
-        name: characterName,
-        race: baseTraits.race || 'Unknown',
-        class: baseTraits.class || premadeCharacter.archetypeKey,
+        name: playerV3.name,
+        world_slug: input.worldSlug, // TEXT identifier for display
+        world_id: worldMapping.uuid_id, // UUID (source of truth)
+        world_data: {
+          playerV3: playerV3
+        },
+        // Legacy fields for backward compatibility (can be removed later if not needed)
+        race: playerV3.race,
+        class: playerV3.role,
         level: 1,
         experience: 0,
         attributes: {
-          strength: skills.strength || 10,
-          dexterity: skills.dexterity || 10,
-          constitution: skills.constitution || 10,
-          intelligence: skills.intelligence || 10,
-          wisdom: skills.wisdom || 10,
-          charisma: skills.charisma || 10,
+          strength: playerV3.skills.combat || 50,
+          dexterity: playerV3.skills.stealth || 50,
+          constitution: playerV3.skills.survival || 50,
+          intelligence: playerV3.skills.lore || 50,
+          wisdom: playerV3.skills.medicine || 50,
+          charisma: playerV3.skills.social || 50,
         },
-        skills: Object.keys(skills).filter(key => typeof skills[key] === 'string'),
-        inventory: [],
-        current_health: this.calculateMaxHealth(skills.constitution || 10),
-        max_health: this.calculateMaxHealth(skills.constitution || 10),
-        world_slug: input.worldSlug, // TEXT identifier for display
-        world_id: worldMapping.uuid_id, // UUID (source of truth)
+        skills: [],
+        inventory: playerV3.inventory || [],
+        current_health: 100,
+        max_health: 100,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         // Set owner based on user type
@@ -314,6 +266,14 @@ export class CharactersService {
     options: CharacterQueryOptions = {}
   ): Promise<Character[]> {
     try {
+      console.log('[CHARACTERS_GET] Query params:', {
+        ownerId,
+        isGuest,
+        options,
+        ownerIdLength: ownerId?.length,
+        ownerIdType: typeof ownerId
+      });
+
       let query = supabaseAdmin
         .from('characters')
         .select('*')
@@ -322,13 +282,32 @@ export class CharactersService {
       // Filter by owner
       if (isGuest) {
         query = query.eq('cookie_id', ownerId);
+        console.log('[CHARACTERS_GET] Filtering by cookie_id:', ownerId);
       } else {
         query = query.eq('user_id', ownerId);
+        console.log('[CHARACTERS_GET] Filtering by user_id:', ownerId);
       }
 
-      // Additional filters
+      // Additional filters - support both world_id (UUID) and world_slug (text)
       if (options.worldSlug) {
-        query = query.eq('world_slug', options.worldSlug);
+        // Check if it's a UUID (world_id) or a slug (world_slug)
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(options.worldSlug);
+        
+        if (isUUID) {
+          // Filter by world_id (UUID)
+          query = query.eq('world_id', options.worldSlug);
+          console.log('[CHARACTERS_GET] Filtering by world_id (UUID):', options.worldSlug);
+        } else {
+          // Filter by world_slug (text)
+          query = query.eq('world_slug', options.worldSlug);
+          console.log('[CHARACTERS_GET] Filtering by world_slug:', options.worldSlug);
+        }
+      }
+
+      // Also support explicit world_id if provided in options
+      if (options.worldId) {
+        query = query.eq('world_id', options.worldId);
+        console.log('[CHARACTERS_GET] Filtering by explicit world_id:', options.worldId);
       }
 
       if (options.limit) {
@@ -342,13 +321,18 @@ export class CharactersService {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error fetching characters:', error);
+        console.error('[CHARACTERS_GET] Database error:', error);
         throw new Error(`Failed to fetch characters: ${error.message}`);
       }
 
+      console.log('[CHARACTERS_GET] Query result:', {
+        count: data?.length || 0,
+        sampleIds: data?.slice(0, 3).map((c: any) => ({ id: c.id, name: c.name, user_id: c.user_id, world_id: c.world_id }))
+      });
+
       return (data || []).map(this.mapCharacterFromDb);
     } catch (error) {
-      console.error('CharactersService.getCharacters error:', error);
+      console.error('[CHARACTERS_GET] Unexpected error:', error);
       throw error;
     }
   }

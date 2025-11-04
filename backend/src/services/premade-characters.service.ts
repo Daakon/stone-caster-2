@@ -1,14 +1,7 @@
 import { supabaseAdmin } from './supabase.js';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { getWorldConfig } from '@shared/config/character-creation.config';
 import type { PlayerV3 } from '@shared';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 import { ApiErrorCode } from '@shared';
 
 export interface PremadeCharacterDTO {
@@ -24,38 +17,43 @@ export interface PremadeCharacterDTO {
 
 export class PremadeCharactersService {
   /**
-   * Load mock premade characters data from JSON file
+   * Normalize a world identifier (UUID or slug) to a slug if possible.
+   * If a UUID is provided, attempts to resolve via world_id_mapping; otherwise
+   * returns the identifier unchanged (treated as slug).
    */
-  private static loadMockPremadeCharacters(): any[] {
+  private static async resolveWorldSlug(worldIdentifier: string): Promise<string> {
     try {
-      // Path to the frontend mock data - try multiple possible locations
-      const possiblePaths = [
-        join(__dirname, '../../../frontend/src/mock/premadeCharacters.json'), // From backend/dist/services
-        join(__dirname, '../../../../frontend/src/mock/premadeCharacters.json'), // From backend/dist
-        join(process.cwd(), 'frontend/src/mock/premadeCharacters.json'), // From project root
-      ];
-      
-      let mockPath = '';
-      for (const path of possiblePaths) {
-        try {
-          readFileSync(path, 'utf-8');
-          mockPath = path;
-          break;
-        } catch (e) {
-          // Continue to next path
-        }
+      // If it's already a textual slug, return as-is
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(worldIdentifier);
+      if (!isUUID) return worldIdentifier;
+
+      // Current schema uses world_id_mapping(text_id, uuid_id)
+      const { data: mapRow, error: mapErr } = await supabaseAdmin
+        .from('world_id_mapping')
+        .select('text_id')
+        .eq('uuid_id', worldIdentifier)
+        .single();
+
+      if (!mapErr && mapRow?.text_id) {
+        return mapRow.text_id as string;
       }
-      
-      if (!mockPath) {
-        throw new Error(`Could not find premadeCharacters.json in any of the expected locations: ${possiblePaths.join(', ')}`);
+
+      // Fallback: worlds_admin view exposes slug and id (uuid)
+      const { data: adminWorld, error: adminErr } = await supabaseAdmin
+        .from('worlds_admin')
+        .select('slug')
+        .eq('id', worldIdentifier)
+        .single();
+
+      if (!adminErr && (adminWorld as any)?.slug) {
+        return (adminWorld as any).slug as string;
       }
-      
-      const mockData = readFileSync(mockPath, 'utf-8');
-      return JSON.parse(mockData);
-    } catch (error) {
-      console.error('Error loading mock premade characters:', error);
-      return [];
+    } catch {
+      // ignore and fall back
     }
+
+    // As a last resort, return the original identifier (may match world_id column)
+    return worldIdentifier;
   }
 
   /**
@@ -65,9 +63,10 @@ export class PremadeCharactersService {
    */
   static async getPremadeCharactersByWorld(worldIdentifier: string): Promise<PremadeCharacterDTO[]> {
     try {
-      // Check if worldIdentifier is a UUID (has dashes) or a slug
+      // Normalize UUID -> slug if possible
+      const normalized = await this.resolveWorldSlug(worldIdentifier);
       const isUUID = worldIdentifier.includes('-') && worldIdentifier.length === 36;
-      
+
       let query = supabaseAdmin
         .from('premade_characters')
         .select('*')
@@ -76,59 +75,29 @@ export class PremadeCharactersService {
 
       // Query by world_id (UUID) or world_slug (text)
       if (isUUID) {
-        query = query.eq('world_id', worldIdentifier);
+        // Prefer resolved slug when available to support slug-only datasets
+        if (normalized && normalized !== worldIdentifier) {
+          query = query.eq('world_slug', normalized);
+        } else {
+          query = query.eq('world_id', worldIdentifier);
+        }
       } else {
-        query = query.eq('world_slug', worldIdentifier);
+        query = query.eq('world_slug', normalized);
       }
 
       const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching premade characters from database:', error);
-        // Fall back to mock data
-        return this.getMockPremadeCharactersByWorld(worldIdentifier);
+        throw new Error(`Failed to fetch premade characters: ${error.message}`);
       }
 
       const dbCharacters = (data || []).map(this.mapToDTO);
-      
-      // If no characters found in database, try mock data
-      if (dbCharacters.length === 0) {
-        console.log(`No premade characters found in database for world '${worldIdentifier}', trying mock data`);
-        return this.getMockPremadeCharactersByWorld(worldIdentifier);
-      }
-
       return dbCharacters;
     } catch (error) {
       console.error('Unexpected error in getPremadeCharactersByWorld:', error);
-      // Fall back to mock data
-      return this.getMockPremadeCharactersByWorld(worldIdentifier);
+      throw error;
     }
-  }
-
-  /**
-   * Get mock premade characters for a specific world
-   */
-  private static getMockPremadeCharactersByWorld(worldSlug: string): PremadeCharacterDTO[] {
-    const mockCharacters = this.loadMockPremadeCharacters();
-    const worldCharacters = mockCharacters.filter(char => char.worldId === worldSlug);
-    
-    return worldCharacters.map(char => ({
-      id: char.id,
-      worldSlug: char.worldId,
-      archetypeKey: char.id, // Use the ID as archetype key for mock data
-      displayName: char.name,
-      summary: char.backstory,
-      avatarUrl: undefined,
-      baseTraits: {
-        class: char.class,
-        skills: char.skills,
-        worldSpecificData: char.worldSpecificData,
-        ...char
-      },
-      isActive: true,
-      createdAt: char.createdAt || new Date().toISOString(),
-      updatedAt: char.createdAt || new Date().toISOString()
-    }));
   }
 
   /**
@@ -170,50 +139,39 @@ export class PremadeCharactersService {
    */
   static async validateWorldSlug(worldIdentifier: string): Promise<boolean> {
     try {
-      // Check if worldIdentifier is a UUID (has dashes) or a slug
+      // Normalize to slug when possible
+      const normalized = await this.resolveWorldSlug(worldIdentifier);
       const isUUID = worldIdentifier.includes('-') && worldIdentifier.length === 36;
       
       let query = supabaseAdmin
         .from('premade_characters')
         .select('world_slug')
         .limit(1);
-
+      
       // Query by world_id (UUID) or world_slug (text)
       if (isUUID) {
-        query = query.eq('world_id', worldIdentifier);
+        if (normalized && normalized !== worldIdentifier) {
+          query = query.eq('world_slug', normalized);
+        } else {
+          query = query.eq('world_id', worldIdentifier);
+        }
       } else {
-        query = query.eq('world_slug', worldIdentifier);
+        query = query.eq('world_slug', normalized);
       }
 
       const { data, error } = await query;
 
       if (error) {
         console.error('Error validating world from database:', error);
-        // Fall back to mock data validation
-        return this.validateWorldSlugFromMock(worldIdentifier);
+        return false;
       }
 
       const hasDbCharacters = (data || []).length > 0;
-      
-      // If no characters in database, check mock data
-      if (!hasDbCharacters) {
-        return this.validateWorldSlugFromMock(worldIdentifier);
-      }
-
       return hasDbCharacters;
     } catch (error) {
       console.error('Unexpected error in validateWorldSlug:', error);
-      // Fall back to mock data validation
-      return this.validateWorldSlugFromMock(worldIdentifier);
+      return false;
     }
-  }
-
-  /**
-   * Validate world slug using mock data
-   */
-  private static validateWorldSlugFromMock(worldSlug: string): boolean {
-    const mockCharacters = this.loadMockPremadeCharacters();
-    return mockCharacters.some(char => char.worldId === worldSlug);
   }
 
   /**
