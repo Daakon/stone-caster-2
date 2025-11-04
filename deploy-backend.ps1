@@ -226,7 +226,8 @@ while (-not $deploySuccess -and $attempt -lt $maxRetries) {
     $oldEA = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     # Disable Depot remote builder to avoid registry 401s; use legacy remote builder
-    $deployOutput = & flyctl deploy --app $AppName --remote-only --now --depot=false 2>&1
+    $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $deployOutput = & flyctl deploy --app $AppName --remote-only --now --depot=false --build-arg "FORCE_REBUILD=$cacheBust" 2>&1
     $deployCode = $LASTEXITCODE
     $ErrorActionPreference = $oldEA
 
@@ -292,7 +293,8 @@ if (-not $deploySuccess) {
             # Ensure Docker registry creds are present for local push
             try { flyctl auth docker 2>&1 | Out-Null } catch { }
 
-            flyctl deploy --app $AppName --local-only --now
+            $cacheBustLocal = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+            flyctl deploy --app $AppName --local-only --now --build-arg "FORCE_REBUILD=$cacheBustLocal"
             if ($LASTEXITCODE -ne 0) { throw "Local deploy failed with exit code $LASTEXITCODE" }
             $deploySuccess = $true
         } catch {
@@ -312,7 +314,8 @@ if (-not $deploySuccess) {
             $oldEA = $ErrorActionPreference
             $ErrorActionPreference = "Continue"
             # Disable Depot on re-auth attempt as well
-            $deployOutput = & flyctl deploy --app $AppName --remote-only --now --depot=false 2>&1
+            $cacheBust2 = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+            $deployOutput = & flyctl deploy --app $AppName --remote-only --now --depot=false --build-arg "FORCE_REBUILD=$cacheBust2" 2>&1
             $deployCode = $LASTEXITCODE
             $ErrorActionPreference = $oldEA
             if ($deployCode -ne 0) {

@@ -1,49 +1,9 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode, ContentWorldDTO } from '@shared';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { supabaseAdmin } from '../services/supabase.js';
 
 const router = Router();
-
-// Load static world data
-function loadStaticWorlds() {
-  try {
-    // Path to the frontend mock data - try multiple possible locations
-    const possiblePaths = [
-      join(__dirname, '../../../frontend/src/mock/worlds.json'), // From backend/dist/routes
-      join(__dirname, '../../../../frontend/src/mock/worlds.json'), // From backend/dist
-      join(process.cwd(), 'frontend/src/mock/worlds.json'), // From project root
-      join(process.cwd(), '../frontend/src/mock/worlds.json'), // From backend directory
-    ];
-    
-    let worldsPath = '';
-    for (const path of possiblePaths) {
-      try {
-        readFileSync(path, 'utf-8');
-        worldsPath = path;
-        break;
-      } catch (e) {
-        // Continue to next path
-      }
-    }
-    
-    if (!worldsPath) {
-      throw new Error(`Could not find worlds.json in any of the expected locations: ${possiblePaths.join(', ')}`);
-    }
-    
-    const worldsData = readFileSync(worldsPath, 'utf-8');
-    return JSON.parse(worldsData);
-  } catch (error) {
-    console.error('Error loading static worlds data:', error);
-    return [];
-  }
-}
 
 // Load static adventure data
 function loadStaticAdventures() {
@@ -92,43 +52,49 @@ function transformAdventureToDTO(adventure: any) {
   };
 }
 
-// Transform world data to match Layer M0 ContentWorldDTO structure
-function transformWorldToContentDTO(world: any): ContentWorldDTO {
-  return {
-    title: world.title,
-    slug: world.id,
-    tags: world.tags || [],
-    scenarios: world.scenarios || [],
-    displayRules: {
-      allowMagic: world.rules?.allowMagic ?? true,
-      allowTechnology: world.rules?.allowTechnology ?? false,
-      difficultyLevel: world.rules?.difficultyLevel ?? 'medium',
-      combatSystem: world.rules?.combatSystem ?? 'd20',
-    },
-  };
-}
 
-// GET /api/content/worlds - Layer M0: Static content endpoint with proper DTO and traceId
+// GET /api/content/worlds - Layer M0: Content endpoint with proper DTO and traceId
+// Loads from database (worlds table) instead of static files for production compatibility
 router.get('/worlds', async (req: Request, res: Response) => {
   try {
-    const staticWorlds = loadStaticWorlds();
-    
-    if (staticWorlds.length === 0) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        'Failed to load world content',
-        req
-      );
+    // Query active worlds from database
+    const { data: worldsData, error } = await supabaseAdmin
+      .from('worlds')
+      .select('id, version, name, description, status, doc, created_at, updated_at')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[content/worlds] Database error:', error);
+      throw error;
     }
 
-    // Transform to Layer M0 ContentWorldDTO format
-    const worldDTOs: ContentWorldDTO[] = staticWorlds.map((world: any) => transformWorldToContentDTO(world));
+    if (!worldsData || worldsData.length === 0) {
+      // Return empty array instead of error - no worlds available yet
+      return sendSuccess(res, [], req);
+    }
+
+    // Transform database worlds to Layer M0 ContentWorldDTO format
+    const worldDTOs: ContentWorldDTO[] = worldsData.map((world: any) => {
+      const doc = (world.doc as Record<string, any>) || {};
+      return {
+        title: world.name || doc.title || world.id,
+        slug: doc.slug || world.id,
+        tags: doc.tags || [],
+        scenarios: doc.scenarios || [],
+        displayRules: {
+          allowMagic: doc.rules?.allowMagic ?? true,
+          allowTechnology: doc.rules?.allowTechnology ?? false,
+          difficultyLevel: doc.rules?.difficultyLevel ?? 'medium',
+          combatSystem: doc.rules?.combatSystem ?? 'd20',
+        },
+      };
+    });
     
     // Layer M0: Always carries traceId in response envelope
     sendSuccess(res, worldDTOs, req);
   } catch (error) {
-    console.error('Error fetching content worlds:', error);
+    console.error('[content/worlds] Error fetching content worlds:', error);
     sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,
