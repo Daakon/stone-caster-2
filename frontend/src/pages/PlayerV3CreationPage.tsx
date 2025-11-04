@@ -1,22 +1,22 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { PlayerV3Wizard } from '../components/character/PlayerV3Wizard';
-import { mockDataService } from '../services/mockData';
 import type { PlayerV3 } from '@shared';
+import { useStoryQuery } from '@/lib/queries';
 
 export default function PlayerV3CreationPage() {
-  const { adventureId } = useParams<{ adventureId: string }>();
+  // Support both legacy and new param names
+  const { storyId, adventureId, adventureSlug } = useParams<{
+    storyId?: string;
+    adventureId?: string;
+    adventureSlug?: string;
+  }>();
   const navigate = useNavigate();
 
-  // Get adventure data to determine world slug
-  const { data: adventure, isLoading } = useQuery({
-    queryKey: ['adventure', adventureId],
-    queryFn: async () => {
-      if (!adventureId) return null;
-      return mockDataService.getStoryById(adventureId);
-    },
-    enabled: !!adventureId,
-  });
+  const currentId = storyId || adventureId || adventureSlug || '';
+
+  // Load story via catalog API
+  const { data: storyResp, isLoading } = useStoryQuery(currentId);
+  const adventure = storyResp?.data;
 
   if (isLoading) {
     return (
@@ -29,34 +29,35 @@ export default function PlayerV3CreationPage() {
     );
   }
 
-  if (!adventure || !adventureId) {
+  if (!adventure || !currentId) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Adventure Not Found</h1>
+          <h1 className="text-2xl font-bold mb-4">Story Not Found</h1>
           <p className="text-muted-foreground mb-4">
-            The requested adventure could not be found.
+            The requested story could not be found.
           </p>
           <button 
-            onClick={() => navigate('/adventures')}
+            onClick={() => navigate('/stories')}
             className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
           >
-            Back to Adventures
+            Back to Stories
           </button>
         </div>
       </div>
     );
   }
 
-  const worldSlug = adventure.worldId || 'mystika';
+  // Prefer joined world.slug, then world_slug field, then safe default
+  const worldSlug = adventure.world?.slug || adventure.world_slug || 'mystika';
 
   const handleCharacterCreated = (_character: PlayerV3) => {
     // Navigate back to character selection
-    navigate(`/adventures/${adventureId}/characters`);
+    navigate(`/stories/${currentId}/characters`);
   };
 
   const handleCancel = () => {
-    navigate(`/adventures/${adventureId}/characters`);
+    navigate(`/stories/${currentId}/characters`);
   };
 
   return (

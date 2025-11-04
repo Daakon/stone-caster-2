@@ -557,22 +557,58 @@ export class EntryPointAssemblerV3 {
    * Load world from database
    */
   private async loadWorld(worldId: string): Promise<WorldData | null> {
-    const { data, error } = await supabaseAdmin
-      .from('worlds')
-      .select('id, version, doc')
-      .eq('id', worldId)
-      .eq('status', 'active')
-      .single();
+    // Accept either UUID (from world_id_mapping.uuid_id) or text id/slug
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(worldId);
 
-    if (error || !data) {
-      return null;
+    let worldTextId: string | null = null;
+
+    // If UUID: try to resolve to text_id via mapping
+    if (isUUID) {
+      const { data: mapping } = await supabaseAdmin
+        .from('world_id_mapping')
+        .select('text_id')
+        .eq('uuid_id', worldId)
+        .single();
+      worldTextId = mapping?.text_id || null;
+    } else {
+      worldTextId = worldId;
     }
 
-    return {
-      id: data.id,
-      version: data.version,
-      doc: (data.doc as Record<string, any>) || {},
-    };
+    // Primary lookup: worlds by id (text_id) and active
+    if (worldTextId) {
+      const { data, error } = await supabaseAdmin
+        .from('worlds')
+        .select('id, version, doc')
+        .or(`id.eq.${worldTextId},doc->>slug.eq.${worldTextId}`)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!error && data) {
+        return {
+          id: isUUID ? worldId : (worldTextId || data.id),
+          version: (data as any).version,
+          doc: ((data as any).doc as Record<string, any>) || {},
+        };
+      }
+    }
+
+    // Fallback: worlds_admin view by UUID id or slug
+    const { data: adminWorld } = await supabaseAdmin
+      .from('worlds_admin')
+      .select('id, slug, doc')
+      .or(`id.eq.${worldId},slug.eq.${worldTextId || worldId}`)
+      .maybeSingle();
+
+    if (adminWorld) {
+      return {
+        id: isUUID ? worldId : adminWorld.id,
+        version: (adminWorld as any).version || '1',
+        doc: ((adminWorld as any).doc as Record<string, any>) || {},
+      };
+    }
+
+    console.error(`[EntryPointAssemblerV3] World '${worldTextId || worldId}' (resolved from '${worldId}') not found or not active`);
+    return null;
   }
 
   /**

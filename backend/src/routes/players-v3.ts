@@ -195,14 +195,41 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
 
     const validatedPlayer = playerValidation.data;
 
+    // Resolve world_id UUID from world_slug
+    console.log('[PLAYERS-V3] Resolving world_id for worldSlug:', worldSlug);
+    const { data: worldMapping, error: mappingError } = await supabaseAdmin
+      .from('world_id_mapping')
+      .select('uuid_id')
+      .eq('text_id', worldSlug)
+      .single();
+    
+    if (mappingError || !worldMapping) {
+      console.error('[PLAYERS-V3] World mapping not found:', { worldSlug, error: mappingError });
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        `World '${worldSlug}' not found in world_id_mapping`,
+        req
+      );
+    }
+
+    console.log('[PLAYERS-V3] Resolved world_id:', worldMapping.uuid_id);
+
     // Check for duplicate names in the same world
-    const { data: existingPlayer, error: checkError } = await supabaseAdmin
-      .from('players_v3')
+    let duplicateQuery = supabaseAdmin
+      .from('characters')
       .select('id')
       .eq('name', validatedPlayer.name)
-      .eq('world_slug', worldSlug)
-      .or(`user_id.eq.${userId},cookie_id.eq.${cookieId}`)
-      .single();
+      .eq('world_slug', worldSlug);
+    
+    // Build owner filter based on user type
+    if (isGuest) {
+      duplicateQuery = duplicateQuery.eq('cookie_id', cookieId || userId);
+    } else {
+      duplicateQuery = duplicateQuery.eq('user_id', userId);
+    }
+    
+    const { data: existingPlayer } = await duplicateQuery.single();
 
     if (existingPlayer) {
       return sendErrorWithStatus(
@@ -213,37 +240,26 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       );
     }
 
-    // Create the player record
-    const playerData = {
-      id: validatedPlayer.id,
-      user_id: userId,
-      cookie_id: cookieId,
-      world_slug: worldSlug,
-      name: validatedPlayer.name,
-      role: validatedPlayer.role,
-      race: validatedPlayer.race,
-      essence: validatedPlayer.essence,
-      age: validatedPlayer.age,
-      build: validatedPlayer.build,
-      eyes: validatedPlayer.eyes,
-      traits: validatedPlayer.traits,
-      backstory: validatedPlayer.backstory,
-      motivation: validatedPlayer.motivation,
-      skills: validatedPlayer.skills,
-      inventory: validatedPlayer.inventory,
-      relationships: validatedPlayer.relationships,
-      goals: validatedPlayer.goals,
-      flags: validatedPlayer.flags,
-      reputation: validatedPlayer.reputation
-    };
+    // Determine the correct user identifier
+    // For guests, use cookieId; for authenticated users, use userId
+    const finalUserId = isGuest ? null : userId;
+    const finalCookieId = isGuest ? (cookieId || userId) : null;
 
-    console.log('[PLAYERS-V3] Inserting player data into characters table:', playerData);
+    console.log('[PLAYERS-V3] Inserting player data into characters table:', {
+      name: validatedPlayer.name,
+      worldSlug,
+      worldId: worldMapping.uuid_id,
+      userId: finalUserId,
+      cookieId: finalCookieId,
+      isGuest
+    });
     
     // Store PlayerV3 data in the existing characters table using world_data field
     const characterData = {
       id: validatedPlayer.id,
       name: validatedPlayer.name,
-      world_slug: worldSlug,
+      world_slug: worldSlug, // TEXT identifier for display
+      world_id: worldMapping.uuid_id, // UUID (source of truth)
       world_data: {
         playerV3: validatedPlayer,
         version: 3
@@ -273,7 +289,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       // Set owner based on user type - for guest users, use cookie_id, for real users use user_id
-      ...(isGuest ? { cookie_id: userId } : { user_id: userId })
+      ...(isGuest ? { cookie_id: finalCookieId } : { user_id: finalUserId })
     };
     
     const { data: createdPlayer, error: createError } = await supabaseAdmin

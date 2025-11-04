@@ -70,9 +70,25 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       );
     }
 
-    // Check if world filter is provided
-    const worldSlug = req.query.world as string;
-    const options = worldSlug ? { worldSlug } : {};
+    // Check if world filter is provided (can be either slug or UUID)
+    const worldFilter = req.query.world as string;
+    const worldId = req.query.worldId as string;
+    const options: any = {};
+    
+    if (worldFilter) {
+      options.worldSlug = worldFilter; // Service will detect if it's UUID or slug
+    }
+    if (worldId) {
+      options.worldId = worldId;
+    }
+
+    console.log('[CHARACTERS_ROUTE] GET request:', {
+      userId,
+      isGuest,
+      worldFilter,
+      worldId,
+      query: req.query
+    });
 
     const characters = await CharactersService.getCharacters(userId, isGuest, options);
     const characterDTOs = characters.map(toCharacterDTO);
