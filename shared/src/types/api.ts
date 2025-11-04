@@ -319,7 +319,6 @@ export type UpdateCharacterRequest = z.infer<typeof UpdateCharacterRequestSchema
 export type PremadeCharacterQuery = z.infer<typeof PremadeCharacterQuerySchema>;
 export type CreateGameRequest = z.infer<typeof CreateGameRequestSchema>;
 export type GameTurnRequest = z.infer<typeof GameTurnRequestSchema>;
-export type TurnPostBody = z.infer<typeof TurnPostBodySchema>;
 export type ConvertStonesRequest = z.infer<typeof ConvertStonesRequestSchema>;
 export type PurchaseStonesRequest = z.infer<typeof PurchaseStonesRequestSchema>;
 export type CreateSubscriptionRequest = z.infer<typeof CreateSubscriptionRequestSchema>;
