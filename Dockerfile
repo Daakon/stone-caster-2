@@ -1,56 +1,52 @@
 # syntax=docker/dockerfile:1
 
-############################
-# Build stage
-############################
+# ---- deps ----
+FROM node:20-alpine AS deps
+WORKDIR /app/backend
+
+# Install only backend deps (supports npm/yarn/pnpm)
+COPY backend/package.json ./
+COPY backend/package-lock.json* ./
+COPY backend/pnpm-lock.yaml* ./
+COPY backend/yarn.lock* ./
+
+RUN if [ -f pnpm-lock.yaml ]; then \
+      corepack enable && corepack prepare pnpm@latest --activate && pnpm i --frozen-lockfile; \
+    elif [ -f yarn.lock ]; then \
+      corepack enable && corepack prepare yarn@stable --activate && yarn install --frozen-lockfile; \
+    elif [ -f package-lock.json ]; then \
+      npm ci; \
+    else \
+      npm install; \
+    fi
+
+# ---- build ----
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# Copy all package files first
-COPY package.json package-lock.json ./
-COPY backend/package.json ./backend/
-COPY shared/package.json ./shared/
+COPY --from=deps /app/backend /app/backend
 
-# Install all dependencies (including workspace dependencies)
-RUN --mount=type=cache,target=/root/.npm npm ci
+COPY backend /app/backend
+COPY shared /app/shared
 
-# Copy source code
-COPY backend ./backend
-COPY shared ./shared
+WORKDIR /app/backend
 
-# Install dependencies in each workspace to ensure they're available
-RUN cd shared && npm install
-RUN cd backend && npm install
+# Try common build commands; fallback to tsc if available
+RUN if npm run | grep -q "build"; then npm run build; \
+    elif [ -f tsconfig.json ]; then npx tsc -p tsconfig.json; \
+    else echo "No build step needed"; fi
 
-# Build shared first, then backend
-RUN npm run build --workspace=shared
-RUN npm run build:server
+# ---- runtime ----
+FROM node:20-alpine AS runner
+WORKDIR /app/backend
 
-############################
-# Runtime stage
-############################
-FROM node:20-alpine AS runtime
-WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
-ENV SUPABASE_URL=http://localhost:54321
-ENV SUPABASE_SERVICE_KEY=service-local
-ENV SUPABASE_ANON_KEY=anon-local
-ENV OPENAI_API_KEY=openai-local
-ENV PRIMARY_AI_MODEL=gpt-4
-ENV SESSION_SECRET=dev-session-secret
 
-# Copy package.json files and install production dependencies
-COPY package.json package-lock.json ./
-COPY backend/package.json ./backend/
-COPY shared/package.json ./shared/
-RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --ignore-scripts
-
-# Bring in the built server, shared package, and node_modules
+COPY --from=deps /app/backend/node_modules ./node_modules
 COPY --from=build /app/backend/dist ./dist
-COPY --from=build /app/shared/dist ./shared/dist
-COPY --from=build /app/shared/package.json ./shared/
-COPY --from=build /app/backend/node_modules ./node_modules
+COPY backend/package.json ./package.json
 
 EXPOSE 8080
+
 CMD ["node", "dist/index.js"]

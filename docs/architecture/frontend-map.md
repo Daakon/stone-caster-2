@@ -624,3 +624,4 @@ No feature flag system currently implemented in frontend. Backend has `featureFl
 - **RPC**: Remote Procedure Call
 - **DTO**: Data Transfer Object
 
+

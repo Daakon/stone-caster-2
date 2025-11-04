@@ -145,7 +145,6 @@ router.get('/stories', async (req: Request, res: Response) => {
         lifecycle,
         visibility,
         prompt,
-        entry_id,
         created_at,
         updated_at
       `, { count: 'exact' });
@@ -262,7 +261,6 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
         lifecycle,
         visibility,
         prompt,
-        entry_id,
         created_at,
         updated_at
       `)
@@ -390,7 +388,8 @@ function computeIsPlayable(row: any): boolean {
   if (!row.prompt || (typeof row.prompt === 'object' && Object.keys(row.prompt).length === 0)) {
     return false;
   }
-  if (!row.entry_id) return false;
+  // entry_id column was removed - entry_points.id is now the primary identifier
+  if (!row.id) return false;
   return true;
 }
 
@@ -475,7 +474,6 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         lifecycle,
         visibility,
         prompt,
-        entry_id,
         created_at,
         updated_at
       `, { count: 'exact' });
@@ -587,7 +585,6 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
         lifecycle,
         visibility,
         prompt,
-        entry_id,
         created_at,
         updated_at
       `)

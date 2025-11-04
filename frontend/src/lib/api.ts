@@ -588,7 +588,7 @@ export async function approvePrompt(
 // CATALOG API - New Product Model (Stories, Worlds, NPCs, Rulesets)
 // ============================================================================
 
-import { httpGet } from './http';
+import { httpGet, httpPost } from './http';
 import type { World, NPC, Ruleset, Story, StoryWithJoins, ID, StoryKind } from '@/types/domain';
 
 export interface ListParamsBase { q?: string; limit?: number }
