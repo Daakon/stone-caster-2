@@ -164,7 +164,7 @@ export default function UnifiedGamePage() {
     staleTime: 10 * 1000, // 10 seconds cache
   });
 
-  // Find current world
+  // Find current world (content service shape). Optional – we can render without it.
   const currentWorld = worlds?.find(w => w.slug === game?.worldSlug);
 
   // Handle navigation and game start time
@@ -424,7 +424,8 @@ export default function UnifiedGamePage() {
     );
   }
 
-  if (!game || !character || !currentWorld) {
+  // Render as long as we have game data; character/world are optional and displayed with fallbacks
+  if (!game) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Breadcrumbs />
@@ -448,7 +449,9 @@ export default function UnifiedGamePage() {
           <div>
             <h1 className="text-2xl font-bold">{game.adventureTitle}</h1>
             <p className="text-muted-foreground">
-              Playing as {character.name} in {currentWorld.title}
+              Playing as {character?.name || 'You'} in {(
+                (currentWorld as any)?.title || (currentWorld as any)?.name || game.worldName || game.worldSlug || 'the world'
+              )}
             </p>
           </div>
           <div className="flex items-center gap-4">

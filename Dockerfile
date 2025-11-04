@@ -22,6 +22,7 @@ RUN if [ -f pnpm-lock.yaml ]; then \
 
 # ---- build ----
 FROM node:20-alpine AS build
+ARG FORCE_REBUILD=0
 WORKDIR /app
 
 COPY --from=deps /app/backend /app/backend
@@ -30,6 +31,9 @@ COPY backend /app/backend
 COPY shared /app/shared
 
 WORKDIR /app/backend
+
+# Cache-busting no-op to force rebuilds when needed
+RUN echo "force-rebuild=${FORCE_REBUILD}" > /dev/null
 
 # Try common build commands; fallback to tsc if available
 RUN if npm run | grep -q "build"; then npm run build; \
