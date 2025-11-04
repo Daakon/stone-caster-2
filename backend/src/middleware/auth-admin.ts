@@ -18,19 +18,32 @@ export async function isAdmin(req: Request): Promise<boolean> {
       return false;
     }
 
-    // Check user_profiles table for role
+    // Check profiles table for role (Phase 0: Early Access)
+    // Also check legacy user_profiles for backward compatibility
     const { data: profile, error } = await supabaseAdmin
-      .from('user_profiles')
+      .from('profiles')
       .select('role')
-      .eq('auth_user_id', userId)
+      .eq('id', userId)
       .single();
 
     if (error || !profile) {
-      return false;
+      // Fallback to legacy user_profiles table for backward compatibility
+      const { data: legacyProfile, error: legacyError } = await supabaseAdmin
+        .from('user_profiles')
+        .select('role')
+        .eq('auth_user_id', userId)
+        .single();
+
+      if (legacyError || !legacyProfile) {
+        return false;
+      }
+
+      // Admin roles: 'admin' or 'prompt_admin' (legacy)
+      return legacyProfile.role === 'admin' || legacyProfile.role === 'prompt_admin';
     }
 
-    // Admin roles: 'admin' or 'prompt_admin'
-    return profile.role === 'admin' || profile.role === 'prompt_admin';
+    // Check new profiles table role
+    return profile.role === 'admin';
   } catch (error) {
     console.error('[isAdmin] Error checking admin status:', error);
     return false;

@@ -1,8 +1,10 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toUserDTO } from '../utils/dto-mappers.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { ApiErrorCode } from '@shared';
+import { supabaseAdmin } from '../services/supabase.js';
+import type { AppRole } from '@shared/types/auth.js';
 
 const router = Router();
 
@@ -22,11 +24,29 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       return sendSuccess(res, guestIdentity, req);
     }
 
+    // Get role from profiles table if authenticated
+    let role: AppRole | null = null;
+    if (!isGuest && userId) {
+      try {
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .single();
+        
+        role = (profile?.role || 'pending') as AppRole;
+      } catch (error) {
+        // If profile doesn't exist, default to 'pending'
+        role = 'pending';
+      }
+    }
+
     // Return identity information based on authentication state
     const identity = {
       user: isGuest ? null : {
         id: user?.id || userId,
         email: user?.email,
+        role: role || undefined,
       },
       kind: isGuest ? 'guest' as const : 'user' as const,
     };
@@ -42,5 +62,6 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
     );
   }
 });
+
 
 export default router;
