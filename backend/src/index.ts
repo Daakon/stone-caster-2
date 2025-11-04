@@ -34,6 +34,7 @@ import devDebugRouter from './routes/dev.debug.js';
 import { devTestRouter } from './routes/dev.test.js';
 import healthRouter from './routes/health.js';
 import adminPreviewRouter from './routes/admin.preview.js';
+import internalFlagsRouter from './routes/internalFlags.js';
 
 const app = express();
 
@@ -123,6 +124,7 @@ app.use('/api/debug', debugRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/player', playerRouter);
 app.use('/api/health', healthRouter);
+app.use('/api/internal', internalFlagsRouter);
 
 // Admin preview routes (requires DEBUG_ROUTES_ENABLED + admin role)
 if (config.debug.routesEnabled) {

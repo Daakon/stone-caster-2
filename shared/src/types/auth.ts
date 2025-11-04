@@ -6,6 +6,9 @@ export enum AuthState {
   AUTHENTICATED = 'authenticated'
 }
 
+// Application roles for early access system
+export type AppRole = 'pending' | 'early_access' | 'member' | 'admin';
+
 export interface AuthUser {
   state: AuthState;
   id: string; // Always available - guest cookie ID, cookied ID, or auth user ID

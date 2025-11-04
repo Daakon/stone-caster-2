@@ -324,14 +324,192 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/catalog/npcs — placeholder (no public NPCs source yet)
-router.get('/npcs', async (req: Request, res: Response) => {
-  sendSuccess(res, [], req);
+// Schema for NPCs query parameters
+const NPCsQuerySchema = z.object({
+  q: z.string().optional(),
+  world: z.string().uuid().optional(),
+  activeOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val => val === '1' || val === 'true'),
+  limit: z.string().optional().transform(val => val ? parseInt(val, 10) : 20),
+  offset: z.string().optional().transform(val => val ? parseInt(val, 10) : 0),
 });
 
-// GET /api/catalog/npcs/:id — placeholder
+// GET /api/catalog/npcs
+router.get('/npcs', async (req: Request, res: Response) => {
+  try {
+    const queryValidation = NPCsQuerySchema.safeParse(req.query);
+    if (!queryValidation.success) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'Invalid query parameters',
+        req,
+        queryValidation.error.errors
+      );
+    }
+
+    const filters = queryValidation.data;
+
+    // Query NPCs table using regular supabase client (respects RLS)
+    let query = supabase
+      .from('npcs')
+      .select(`
+        id,
+        name,
+        slug,
+        description,
+        world_id,
+        status,
+        visibility,
+        archetype,
+        role_tags,
+        portrait_url,
+        doc,
+        created_at,
+        updated_at
+      `, { count: 'exact' });
+
+    // Filter by status if activeOnly is true (default to active)
+    if (filters.activeOnly !== false) {
+      query = query.eq('status', 'active');
+    }
+
+    // Filter by visibility - default to public (if column exists)
+    // RLS policies should handle visibility, but we filter here too for clarity
+    // Note: Some NPCs may not have visibility column, so we don't enforce it strictly
+    // The RLS policy will determine what users can actually see
+
+    // Filter by world if provided
+    if (filters.world) {
+      query = query.eq('world_id', filters.world);
+    }
+
+    // Search by name/description if query provided
+    if (filters.q) {
+      query = query.or(`name.ilike.%${filters.q}%,description.ilike.%${filters.q}%`);
+    }
+
+    // Order by created_at descending
+    query = query.order('created_at', { ascending: false });
+
+    // Pagination
+    const limit = Math.min(filters.limit || 20, 100);
+    const offset = filters.offset || 0;
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('[catalog/npcs] Supabase query error:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to fetch NPCs',
+        req
+      );
+    }
+
+    // Transform to DTO format
+    const npcs = (data || []).map((npc: any) => ({
+      id: npc.id,
+      name: npc.name,
+      slug: npc.slug,
+      description: npc.description,
+      worldId: npc.world_id,
+      status: npc.status,
+      visibility: npc.visibility,
+      archetype: npc.archetype,
+      roleTags: npc.role_tags || [],
+      portraitUrl: npc.portrait_url,
+      doc: npc.doc || {},
+      createdAt: npc.created_at,
+      updatedAt: npc.updated_at,
+    }));
+
+    sendSuccess(
+      res,
+      {
+        items: npcs,
+        total: count || 0,
+        limit,
+        offset,
+      },
+      req
+    );
+  } catch (error) {
+    console.error('[catalog/npcs] Error:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to fetch NPCs',
+      req
+    );
+  }
+});
+
+// GET /api/catalog/npcs/:id
 router.get('/npcs/:id', async (req: Request, res: Response) => {
-  return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'NPC not found', req);
+  try {
+    const { id } = req.params;
+
+    const { data: npc, error } = await supabase
+      .from('npcs')
+      .select(`
+        id,
+        name,
+        slug,
+        description,
+        world_id,
+        status,
+        visibility,
+        archetype,
+        role_tags,
+        portrait_url,
+        doc,
+        created_at,
+        updated_at
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'NPC not found', req);
+      }
+      console.error('[catalog/npcs/:id] Supabase query error:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to fetch NPC',
+        req
+      );
+    }
+
+    const npcDto = {
+      id: npc.id,
+      name: npc.name,
+      slug: npc.slug,
+      description: npc.description,
+      worldId: npc.world_id,
+      status: npc.status,
+      visibility: npc.visibility,
+      archetype: npc.archetype,
+      roleTags: npc.role_tags || [],
+      portraitUrl: npc.portrait_url,
+      doc: npc.doc || {},
+      createdAt: npc.created_at,
+      updatedAt: npc.updated_at,
+    };
+
+    sendSuccess(res, npcDto, req);
+  } catch (error) {
+    console.error('[catalog/npcs/:id] Error:', error);
+    sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Failed to fetch NPC',
+      req
+    );
+  }
 });
 
 // GET /api/catalog/rulesets — placeholder
