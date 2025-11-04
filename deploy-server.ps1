@@ -99,7 +99,8 @@ while ($retryCount -lt $maxRetries -and -not $deploySuccess) {
   
   try {
     # Run deploy and capture all output (stdout and stderr)
-    $deployOutput = & flyctl deploy -a $AppName --remote-only 2>&1
+    # Force legacy remote builder to avoid Depot registry 401s
+    $deployOutput = & flyctl deploy -a $AppName --remote-only --depot=false 2>&1
     $deployExitCode = $LASTEXITCODE
     
     # Convert error records to strings

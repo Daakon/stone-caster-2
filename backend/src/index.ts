@@ -51,22 +51,29 @@ app.use(cors({
       'https://stonecaster.ai', // Production frontend
       'https://www.stonecaster.ai', // Production frontend with www
     ];
+
+    // Also allow any subdomain of stonecaster.ai (e.g., preview hosts)
+    const stonecasterSubdomain = /^https:\/\/([a-z0-9-]+\.)*stonecaster\.ai$/i;
     
-    // Check if origin is allowed
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
+    // Add configured CORS origin if it exists and isn't already in the list
+    if (config.cors.origin && !allowedOrigins.includes(config.cors.origin)) {
+      allowedOrigins.push(config.cors.origin);
     }
     
-    // For development, also allow the configured origin
-    if (config.cors.origin && origin === config.cors.origin) {
+    // Check if origin is allowed
+    if (allowedOrigins.includes(origin) || stonecasterSubdomain.test(origin)) {
       return callback(null, true);
     }
     
     // Log the blocked origin for debugging
     console.log(`[CORS] Blocked origin: ${origin}`);
+    console.log(`[CORS] Allowed origins: ${allowedOrigins.join(', ')}`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
+  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
+  // Let cors echo back requested headers to avoid blocking custom ones (e.g., apikey, x-client-info)
+  optionsSuccessStatus: 200,
 }));
 const JSON_BODY_LIMIT = process.env.API_JSON_BODY_LIMIT ?? '1mb';
 app.use(express.json({
