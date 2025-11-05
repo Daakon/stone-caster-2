@@ -6,11 +6,9 @@ compatibility_date = "2025-08-18"
 directory = "frontend/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-# 👇 this actually binds the Worker to your hostname
-routes = [
-  { pattern = "stonecaster.ai/*" },
-  { pattern = "www.stonecaster.ai/*" }   # optional, if you want www too
-]
+
+# Routes are configured via Cloudflare dashboard, not in this file
+# To add routes, use: wrangler routes add <pattern> --zone-name=<zone>
 
 # Environment variables (Phase B1: Early Access)
 [vars]
@@ -18,8 +16,10 @@ EARLY_ACCESS_MODE = "on"
 API_BASE_URL = "https://stonecaster-api.fly.dev"
 
 # KV namespace for role caching (Phase B1)
-[[kv_namespaces]]
-binding = "ROLE_CACHE"
-id = "role_cache_prod"        # TODO: Replace with actual KV namespace ID from Cloudflare dashboard
-preview_id = "role_cache_dev"  # TODO: Replace with dev KV namespace ID
+# TODO: Create KV namespaces in Cloudflare dashboard and uncomment with actual IDs
+# To create: wrangler kv:namespace create "ROLE_CACHE"
+# [[kv_namespaces]]
+# binding = "ROLE_CACHE"
+# id = "<actual-namespace-id-from-dashboard>"
+# preview_id = "<actual-preview-namespace-id-from-dashboard>"
 

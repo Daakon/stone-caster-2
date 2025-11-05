@@ -163,14 +163,20 @@ export class AuthService {
   async signInWithOAuth(provider: 'google' | 'github' | 'discord'): Promise<void> {
     console.log('[AuthService] Starting OAuth flow for provider:', provider);
     
-    // Preserve the current path for redirect after OAuth
-    const currentPath = window.location.pathname;
-    const redirectTo = currentPath === '/auth' || currentPath === '/signin' || currentPath === '/signup' 
-      ? `${window.location.origin}` 
-      : `${window.location.origin}${currentPath}`;
-    
     // Store the intended route for post-OAuth redirect
+    const currentPath = window.location.pathname;
     RoutePreservationService.setIntendedRoute(currentPath);
+    
+    // Use environment-specific redirect URL (never hardcoded)
+    const { getRedirectUrl } = await import('@/lib/redirects');
+    const redirectTo = getRedirectUrl();
+    
+    console.log('[AuthService] ============================================');
+    console.log('[AuthService] OAuth Configuration:');
+    console.log('[AuthService]   Provider:', provider);
+    console.log('[AuthService]   Redirect URL (redirectTo):', redirectTo);
+    console.log('[AuthService]   Current path:', currentPath);
+    console.log('[AuthService] ============================================');
     
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: provider,
@@ -189,8 +195,68 @@ export class AuthService {
     }
 
     if (data.url) {
-      console.log('[AuthService] Redirecting to OAuth URL');
+      // Parse the OAuth URL to extract redirect_uri for debugging
+      try {
+        const oauthUrl = new URL(data.url);
+        const redirectUri = oauthUrl.searchParams.get('redirect_uri');
+        const redirectToParam = oauthUrl.searchParams.get('redirect_to');
+        const stateParam = oauthUrl.searchParams.get('state');
+        
+        console.log('[AuthService] ============================================');
+        console.log('[AuthService] OAuth URL Generated:');
+        console.log('[AuthService]   Full OAuth URL:', data.url);
+        console.log('[AuthService]   redirect_uri (from OAuth URL):', redirectUri || '(not found in URL)');
+        console.log('[AuthService]   redirect_to (from OAuth URL):', redirectToParam || '(not found in URL)');
+        console.log('[AuthService]   Expected redirectTo:', redirectTo);
+        
+        // Decode and inspect the state token (contains site_url)
+        if (stateParam) {
+          try {
+            // JWT state is base64url encoded, decode it
+            const parts = stateParam.split('.');
+            if (parts.length >= 2) {
+              // Decode the payload (second part)
+              const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+              console.log('[AuthService]   State token (JWT payload):', payload);
+              if (payload.site_url) {
+                console.log('[AuthService]   ⚠️  State token site_url:', payload.site_url);
+                if (payload.site_url !== redirectTo.split('/auth')[0]) {
+                  console.warn('[AuthService]   ⚠️  WARNING: State token site_url does not match redirectTo base URL!');
+                  console.warn('[AuthService]     State site_url:', payload.site_url);
+                  console.warn('[AuthService]     RedirectTo base:', redirectTo.split('/auth')[0]);
+                  console.warn('[AuthService]     This may cause redirects to production instead of localhost.');
+                }
+              }
+              if (payload.referrer) {
+                console.log('[AuthService]   State token referrer:', payload.referrer);
+              }
+            }
+          } catch (stateError) {
+            console.warn('[AuthService] Could not decode state token:', stateError);
+          }
+        }
+        
+        console.log('[AuthService] ============================================');
+        
+        // Verify redirect_uri matches what we expect (for Google OAuth)
+        if (provider === 'google' && redirectUri) {
+          const decodedRedirectUri = decodeURIComponent(redirectUri);
+          console.log('[AuthService] Google OAuth redirect_uri decoded:', decodedRedirectUri);
+          console.log('[AuthService] Expected redirectTo:', redirectTo);
+          if (decodedRedirectUri.includes('supabase.co/auth/v1/callback')) {
+            console.log('[AuthService] ✓ redirect_uri points to Supabase callback (correct)');
+          } else {
+            console.warn('[AuthService] ⚠ redirect_uri does not point to Supabase callback!');
+          }
+        }
+      } catch (parseError) {
+        console.warn('[AuthService] Could not parse OAuth URL:', parseError);
+      }
+      
+      console.log('[AuthService] Redirecting to OAuth provider...');
       window.location.assign(data.url);
+    } else {
+      console.error('[AuthService] No OAuth URL returned from Supabase');
     }
   }
 

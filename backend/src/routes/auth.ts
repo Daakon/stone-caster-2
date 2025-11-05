@@ -25,6 +25,7 @@ const MagicLinkVerifySchema = z.object({
 const OAuthStartSchema = z.object({
   provider: z.enum(['google', 'github', 'discord']),
   guestCookieId: z.string().uuid('Invalid guest cookie ID').optional(),
+  destination: z.enum(['web', 'api']).optional().default('web'),
 });
 
 const OAuthCallbackSchema = z.object({
@@ -43,7 +44,7 @@ router.post('/magic/start', async (req: Request, res: Response) => {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${config.frontend.url}/auth/callback`,
+        emailRedirectTo: `${config.web.baseUrl}/auth/callback`,
       },
     });
 
@@ -154,9 +155,10 @@ router.post('/magic/verify', async (req: Request, res: Response) => {
 router.get('/oauth/:provider/start', async (req: Request, res: Response) => {
   try {
     const { provider } = req.params;
-    const { guestCookieId } = OAuthStartSchema.parse({
+    const { guestCookieId, destination } = OAuthStartSchema.parse({
       provider,
       guestCookieId: req.query.guestCookieId,
+      destination: req.query.destination,
     });
 
     // Generate state parameter for CSRF protection
@@ -165,11 +167,37 @@ router.get('/oauth/:provider/start', async (req: Request, res: Response) => {
       timestamp: Date.now(),
     })).toString('base64');
 
+    // Build redirectTo based on destination
+    let redirectTo: string;
+    if (destination === 'api') {
+      redirectTo = `${config.apiBase.baseUrl}/api/auth/oauth/${provider}/callback`;
+    } else {
+      redirectTo = `${config.web.baseUrl}/auth/callback`;
+    }
+
+    // Guard: reject localhost in production
+    if (config.nodeEnv === 'production' && redirectTo.includes('localhost')) {
+      console.error('[auth] OAuth start: Rejected localhost redirect in production', {
+        redirectTo,
+        destination,
+        provider,
+      });
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Invalid OAuth configuration',
+        req
+      );
+    }
+
+    // Log OAuth start with redirectTo (required for observability)
+    console.log(`[auth] OAuth start: redirectTo=${redirectTo}, env=${config.nodeEnv}, provider=${provider}`);
+
     // Get OAuth URL from Supabase
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: provider as 'google' | 'github' | 'discord',
       options: {
-        redirectTo: `${config.api.url}/api/auth/oauth/${provider}/callback`,
+        redirectTo,
         queryParams: {
           state,
         },
@@ -265,12 +293,13 @@ router.get('/oauth/:provider/callback', async (req: Request, res: Response) => {
       );
     }
 
-    // Redirect to frontend with success
-    res.redirect(`${config.frontend.url}/auth/success?user=${encodeURIComponent(JSON.stringify({
+    // Redirect to frontend with success (use new webBaseUrl)
+    const successUrl = `${config.web.baseUrl}/auth/success?user=${encodeURIComponent(JSON.stringify({
       id: data.user.id,
       email: data.user.email,
       isGuest: false,
-    }))}`);
+    }))}`;
+    res.redirect(successUrl);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return sendErrorWithStatus(
@@ -283,7 +312,7 @@ router.get('/oauth/:provider/callback', async (req: Request, res: Response) => {
     }
 
     console.error('OAuth callback error:', error);
-    res.redirect(`${config.frontend.url}/auth/error?message=${encodeURIComponent('Authentication failed')}`);
+    res.redirect(`${config.web.baseUrl}/auth/error?message=${encodeURIComponent('Authentication failed')}`);
   }
 });
 
