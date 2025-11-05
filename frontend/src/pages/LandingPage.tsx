@@ -2,16 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { CatalogGrid } from '@/components/catalog/CatalogGrid';
-import { CatalogCard } from '@/components/catalog/CatalogCard';
-import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
 import { DrifterBubble } from '../components/guidance/DrifterBubble';
 import { Gem, Users, Zap, Shield, Brain, Globe } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
-import { useWorldsQuery, useStoriesQuery } from '@/lib/queries';
-import { trackCatalogCardClick } from '@/lib/analytics';
 import { EarlyAccessBanner } from '@/components/earlyAccess/EarlyAccessBanner';
 import { useQuery } from '@tanstack/react-query';
 import { publicAccessRequestsService } from '@/services/accessRequests';
@@ -23,12 +18,7 @@ export default function LandingPage() {
   const [email, setEmail] = useState('');
   const [showDrifter, setShowDrifter] = useState(false);
   
-  // Load featured worlds and stories from live API
-  const worldsQ = useWorldsQuery(undefined);
-  const storiesQ = useStoriesQuery({ limit: 6 });
-  
-  const worlds = (worldsQ.data?.ok ? worldsQ.data.data : []).slice(0, 3);
-  const stories = (storiesQ.data?.ok ? storiesQ.data.data : []).slice(0, 6);
+  // Removed legacy queries for worlds and stories to reduce API calls
 
   // Check access request status to determine if user has approved access
   // Share the same query key with EarlyAccessBanner to avoid duplicate calls
@@ -41,7 +31,10 @@ export default function LandingPage() {
   });
 
   // accessStatus is AccessRequestStatusResponse: { ok: true, data: AccessRequest | null }
-  const hasApprovedAccess = accessStatus?.ok && accessStatus.data?.status === 'approved';
+  const request = accessStatus?.ok ? accessStatus.data : null;
+  const requestStatus = request?.status;
+  const hasApprovedAccess = requestStatus === 'approved';
+  const needsEarlyAccess = user && (!requestStatus || requestStatus === 'pending' || requestStatus === 'denied');
 
   const handleOAuthCallback = useCallback(async () => {
     try {
@@ -124,14 +117,6 @@ export default function LandingPage() {
     }
   };
 
-  const handleWorldCardClick = (entity: string, idOrSlug: string) => {
-    trackCatalogCardClick('worlds', idOrSlug);
-  };
-
-  const handleStoryCardClick = (entity: string, idOrSlug: string) => {
-    trackCatalogCardClick('stories', idOrSlug);
-  };
-
   const features = [
     {
       icon: Brain,
@@ -183,7 +168,8 @@ export default function LandingPage() {
               Create characters, explore rich worlds, and shape epic adventures with friends.
             </p>
             
-            {!isAuthenticated && (
+            {/* Only show email form for unauthenticated users without access requirement */}
+            {!isAuthenticated && !needsEarlyAccess && (
               <div className="max-w-md mx-auto mb-8">
                 <form onSubmit={handleEmailSubmit} className="flex gap-2">
                   <Input
@@ -200,35 +186,38 @@ export default function LandingPage() {
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              {hasApprovedAccess ? (
-                <Button 
-                  size="lg" 
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
-                  onClick={() => navigate('/stories')}
-                >
-                  Explore Stories
-                </Button>
-              ) : (
-                <>
+            {/* Only show buttons if access is approved or user is not authenticated/doesn't need access */}
+            {!needsEarlyAccess && (
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                {hasApprovedAccess ? (
                   <Button 
                     size="lg" 
                     className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
-                    onClick={() => navigate('/worlds')}
+                    onClick={() => navigate('/stories')}
                   >
-                    Explore Worlds
+                    Explore Stories
                   </Button>
-                  <Button 
-                    size="lg" 
-                    variant="outline" 
-                    className="border-white/20 text-white hover:bg-white/10 px-8 py-3"
-                    onClick={() => navigate('/auth/signin')}
-                  >
-                    Sign In
-                  </Button>
-                </>
-              )}
-            </div>
+                ) : (
+                  <>
+                    <Button 
+                      size="lg" 
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
+                      onClick={() => navigate('/worlds')}
+                    >
+                      Explore Worlds
+                    </Button>
+                    <Button 
+                      size="lg" 
+                      variant="outline" 
+                      className="border-white/20 text-white hover:bg-white/10 px-8 py-3"
+                      onClick={() => navigate('/auth/signin')}
+                    >
+                      Sign In
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -271,133 +260,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Featured Worlds */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Featured Worlds
-            </h2>
-            <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-              Discover handcrafted worlds filled with rich lore, complex characters, 
-              and endless possibilities for adventure.
-            </p>
-          </div>
-          
-          {worldsQ.isLoading ? (
-            <CatalogGrid>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <CatalogSkeleton key={i} />
-              ))}
-            </CatalogGrid>
-          ) : (
-            <CatalogGrid>
-              {worlds.map((world) => (
-                <CatalogCard
-                  key={world.id}
-                  entity="world"
-                  idOrSlug={world.slug || world.id}
-                  title={world.name}
-                  description={world.description}
-                  imageUrl={world.cover_url}
-                  href={`/worlds/${world.slug || world.id}`}
-                  onCardClick={handleWorldCardClick}
-                />
-              ))}
-            </CatalogGrid>
-          )}
-          
-          <div className="text-center mt-12">
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="border-white/20 text-white hover:bg-white/10"
-              onClick={() => navigate('/worlds')}
-            >
-              View All Worlds
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Adventures */}
-      <section className="py-20 bg-slate-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Popular Adventures
-            </h2>
-            <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-              Jump into these trending adventures and see what the community is playing.
-            </p>
-          </div>
-          
-          {storiesQ.isLoading ? (
-            <CatalogGrid>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <CatalogSkeleton key={i} />
-              ))}
-            </CatalogGrid>
-          ) : (
-            <CatalogGrid>
-              {stories.map((story) => (
-                <CatalogCard
-                  key={story.id}
-                  entity="story"
-                  idOrSlug={story.slug || story.id}
-                  title={story.title}
-                  description={story.short_desc}
-                  imageUrl={story.hero_url}
-                  href={`/stories/${story.slug || story.id}`}
-                  chips={story.world?.name ? [{ label: story.world.name, variant: 'secondary' as const }] : undefined}
-                  onCardClick={handleStoryCardClick}
-                />
-              ))}
-            </CatalogGrid>
-          )}
-          
-          <div className="text-center mt-12">
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="border-white/20 text-white hover:bg-white/10"
-              onClick={() => navigate('/stories')}
-            >
-              Browse All Stories
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
-            Ready to Begin Your Adventure?
-          </h2>
-          <p className="text-xl text-slate-300 mb-8">
-            Join thousands of players already exploring the worlds of Stone Caster. 
-            Your epic story is just one click away.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
-              size="lg" 
-              className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
-              onClick={() => navigate('/character-creation')}
-            >
-              Create Character
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="border-white/20 text-white hover:bg-white/10 px-8 py-3"
-              onClick={() => navigate('/auth/signup')}
-            >
-              Sign Up Free
-            </Button>
-          </div>
-        </div>
-      </section>
 
       {/* Drifter Bubble */}
       {showDrifter && (
