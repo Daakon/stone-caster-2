@@ -24,20 +24,23 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       return sendSuccess(res, guestIdentity, req);
     }
 
-    // Get role from profiles table if authenticated
+    // Get role and role_version from profiles table if authenticated
     let role: AppRole | null = null;
+    let roleVersion: number = 1;
     if (!isGuest && userId) {
       try {
         const { data: profile } = await supabaseAdmin
           .from('profiles')
-          .select('role')
+          .select('role, role_version')
           .eq('id', userId)
           .single();
         
         role = (profile?.role || 'pending') as AppRole;
+        roleVersion = profile?.role_version || 1;
       } catch (error) {
         // If profile doesn't exist, default to 'pending'
         role = 'pending';
+        roleVersion = 1;
       }
     }
 
@@ -47,9 +50,16 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
         id: user?.id || userId,
         email: user?.email,
         role: role || undefined,
+        roleVersion,
       },
       kind: isGuest ? 'guest' as const : 'user' as const,
     };
+
+    // Set role headers for cache invalidation (Phase B3)
+    if (!isGuest && role) {
+      res.setHeader('x-role', role);
+      res.setHeader('x-role-version', String(roleVersion));
+    }
 
     sendSuccess(res, identity, req);
   } catch (error) {

@@ -1,79 +1,34 @@
 /**
- * Role Cache Interface for Cloudflare Worker KV
- * Phase 0: Interface and TODOs only - not implemented yet
- * 
- * Future implementation (Phase 2):
- * - Cache user roles in KV with TTL
- * - Fetch from /api/me on cache miss
- * - Invalidate cache on role updates
+ * KV Role Cache for Cloudflare Worker
+ * Phase B1: Cache user roles in KV with TTL to reduce /api/me calls
  */
 
-export interface RoleCacheEntry {
-  userId: string;
-  role: 'pending' | 'early_access' | 'member' | 'admin';
-  cachedAt: number;
-  ttl: number; // Time to live in seconds
-}
+export type AppRole = 'pending' | 'early_access' | 'member' | 'admin';
 
 /**
  * Get user role from KV cache
- * Phase 0: Not implemented - returns null
- * 
- * @param userId - User ID
  * @param kv - Cloudflare KV namespace
+ * @param userId - User ID (or bearer fingerprint key)
  * @returns Cached role or null if not cached/not found
  */
-export async function getCachedRole(
-  userId: string,
-  kv: KVNamespace | null
-): Promise<RoleCacheEntry | null> {
-  // TODO: Phase 2 - Implement KV cache lookup
-  // if (!kv) return null;
-  // const cached = await kv.get(`role:${userId}`);
-  // if (!cached) return null;
-  // return JSON.parse(cached) as RoleCacheEntry;
-  return null;
+export async function getRole(kv: KVNamespace, userId: string): Promise<AppRole | null> {
+  const cached = await kv.get(`role:${userId}`, 'text');
+  if (!cached) return null;
+  return cached as AppRole;
 }
 
 /**
  * Set user role in KV cache
- * Phase 0: Not implemented - no-op
- * 
- * @param userId - User ID
+ * @param kv - Cloudflare KV namespace
+ * @param userId - User ID (or bearer fingerprint key)
  * @param role - User role
- * @param kv - Cloudflare KV namespace
- * @param ttl - Time to live in seconds (default: 3600)
+ * @param ttlSeconds - Time to live in seconds (default: 30)
  */
-export async function setCachedRole(
+export async function setRole(
+  kv: KVNamespace,
   userId: string,
-  role: 'pending' | 'early_access' | 'member' | 'admin',
-  kv: KVNamespace | null,
-  ttl: number = 3600
+  role: AppRole,
+  ttlSeconds = 30
 ): Promise<void> {
-  // TODO: Phase 2 - Implement KV cache write
-  // if (!kv) return;
-  // const entry: RoleCacheEntry = {
-  //   userId,
-  //   role,
-  //   cachedAt: Date.now(),
-  //   ttl,
-  // };
-  // await kv.put(`role:${userId}`, JSON.stringify(entry), { expirationTtl: ttl });
+  await kv.put(`role:${userId}`, role, { expirationTtl: ttlSeconds });
 }
-
-/**
- * Invalidate cached role for a user
- * Phase 0: Not implemented - no-op
- * 
- * @param userId - User ID
- * @param kv - Cloudflare KV namespace
- */
-export async function invalidateCachedRole(
-  userId: string,
-  kv: KVNamespace | null
-): Promise<void> {
-  // TODO: Phase 2 - Implement KV cache invalidation
-  // if (!kv) return;
-  // await kv.delete(`role:${userId}`);
-}
-

@@ -19,31 +19,50 @@ export async function isAdmin(req: Request): Promise<boolean> {
     }
 
     // Check profiles table for role (Phase 0: Early Access)
-    // Also check legacy user_profiles for backward compatibility
     const { data: profile, error } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('id', userId)
       .single();
 
+    // Check profiles.role first (primary role)
+    if (profile && profile.role === 'admin') {
+      console.log('[isAdmin] Admin role found in profiles', { userId, role: profile.role });
+      return true;
+    }
+
+    // Check app_roles table (multiple roles per user)
+    const { data: appRoles, error: appRolesError } = await supabaseAdmin
+      .from('app_roles')
+      .select('role')
+      .eq('user_id', userId);
+
+    if (!appRolesError && appRoles && appRoles.length > 0) {
+      const hasAdmin = appRoles.some((r: { role: string }) => r.role === 'admin');
+      if (hasAdmin) {
+        console.log('[isAdmin] Admin role found in app_roles', { userId, roles: appRoles.map((r: { role: string }) => r.role) });
+        return true;
+      }
+    }
+
+    // Fallback to legacy user_profiles table for backward compatibility
     if (error || !profile) {
-      // Fallback to legacy user_profiles table for backward compatibility
+      console.log('[isAdmin] Checking legacy user_profiles', { userId, profileError: error?.message });
       const { data: legacyProfile, error: legacyError } = await supabaseAdmin
         .from('user_profiles')
         .select('role')
         .eq('auth_user_id', userId)
         .single();
 
-      if (legacyError || !legacyProfile) {
-        return false;
+      if (!legacyError && legacyProfile) {
+        const isAdminResult = legacyProfile.role === 'admin' || legacyProfile.role === 'prompt_admin';
+        console.log('[isAdmin] Legacy check result', { userId, role: legacyProfile.role, result: isAdminResult });
+        return isAdminResult;
       }
-
-      // Admin roles: 'admin' or 'prompt_admin' (legacy)
-      return legacyProfile.role === 'admin' || legacyProfile.role === 'prompt_admin';
     }
 
-    // Check new profiles table role
-    return profile.role === 'admin';
+    console.log('[isAdmin] No admin role found', { userId, profileRole: profile?.role, appRolesCount: appRoles?.length || 0 });
+    return false;
   } catch (error) {
     console.error('[isAdmin] Error checking admin status:', error);
     return false;

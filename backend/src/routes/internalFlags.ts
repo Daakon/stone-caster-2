@@ -7,8 +7,7 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
-import { requireAuth } from '../middleware/auth.js';
-import { isAdmin } from '../middleware/auth-admin.js';
+import { adminGuard } from '../middleware/auth-admin-guard.js';
 import { isEarlyAccessOn } from '../config/featureFlags.js';
 
 const router = Router();
@@ -19,18 +18,8 @@ const router = Router();
  * Requires: Admin role
  * Returns: { ok: true, data: { EARLY_ACCESS_MODE: 'on' | 'off' } }
  */
-router.get('/flags', requireAuth, async (req: Request, res: Response) => {
+router.get('/flags', adminGuard, async (req: Request, res: Response) => {
   try {
-    // Check if user is admin
-    const admin = await isAdmin(req);
-    if (!admin) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.FORBIDDEN,
-        'Admin access required',
-        req
-      );
-    }
 
     // Return feature flags
     const flags = {

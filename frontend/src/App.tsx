@@ -10,6 +10,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthRouter } from './components/AuthRouter';
 import { GuestCookieService } from './services/guestCookie';
+import { handleEarlyAccessRequired } from './lib/earlyAccessHandler';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
@@ -33,6 +34,7 @@ import UnifiedGamePage from './pages/UnifiedGamePage';
 import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
 import ScenarioPicker from './pages/player/ScenarioPicker';
+import RequestAccessPage from './pages/RequestAccessPage';
 import { AppAdminShell } from './admin/AppAdminShell';
 import NotFoundPage from './pages/NotFoundPage';
 import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
@@ -77,6 +79,23 @@ function App() {
     
     // Initialize auth store
     initialize();
+
+    // Handle EARLY_ACCESS_REQUIRED errors globally
+    const handleEarlyAccess = async (event: CustomEvent<{ path?: string }>) => {
+      const { useNavigate } = await import('react-router-dom');
+      // Use window.location for navigation since we're outside React Router context here
+      const currentPath = event.detail?.path || window.location.pathname;
+      if (currentPath !== '/') {
+        window.location.href = '/';
+      }
+      // The actual toast/message will be shown by EarlyAccessBanner component
+    };
+
+    window.addEventListener('earlyAccessRequired', handleEarlyAccess as EventListener);
+    
+    return () => {
+      window.removeEventListener('earlyAccessRequired', handleEarlyAccess as EventListener);
+    };
   }, [initialize]);
 
   if (loading) {
@@ -160,6 +179,7 @@ function App() {
                 <Route path="/auth/signin" element={<AuthPage mode="signin" />} />
                 <Route path="/auth/signup" element={<AuthPage mode="signup" />} />
                 <Route path="/auth/success" element={<AuthSuccessPage />} />
+                <Route path="/request-access" element={<RequestAccessPage />} />
                 <Route path="/admin/*" element={<AppAdminShell />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>

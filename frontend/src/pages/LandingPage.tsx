@@ -12,11 +12,14 @@ import { useAuthStore } from '../store/auth';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
 import { useWorldsQuery, useStoriesQuery } from '@/lib/queries';
 import { trackCatalogCardClick } from '@/lib/analytics';
+import { EarlyAccessBanner } from '@/components/earlyAccess/EarlyAccessBanner';
+import { useQuery } from '@tanstack/react-query';
+import { publicAccessRequestsService } from '@/services/accessRequests';
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { initialize, isAuthenticated } = useAuthStore();
+  const { initialize, isAuthenticated, user } = useAuthStore();
   const [email, setEmail] = useState('');
   const [showDrifter, setShowDrifter] = useState(false);
   
@@ -26,6 +29,19 @@ export default function LandingPage() {
   
   const worlds = (worldsQ.data?.ok ? worldsQ.data.data : []).slice(0, 3);
   const stories = (storiesQ.data?.ok ? storiesQ.data.data : []).slice(0, 6);
+
+  // Check access request status to determine if user has approved access
+  // Share the same query key with EarlyAccessBanner to avoid duplicate calls
+  const { data: accessStatus } = useQuery({
+    queryKey: ['access-request-status'],
+    queryFn: () => publicAccessRequestsService.getStatus(),
+    enabled: !!user,
+    refetchInterval: false, // Only fetch once, no polling
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // accessStatus is AccessRequestStatusResponse: { ok: true, data: AccessRequest | null }
+  const hasApprovedAccess = accessStatus?.ok && accessStatus.data?.status === 'approved';
 
   const handleOAuthCallback = useCallback(async () => {
     try {
@@ -151,6 +167,9 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="container mx-auto px-4 pt-4">
+        <EarlyAccessBanner />
+      </div>
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
@@ -182,21 +201,33 @@ export default function LandingPage() {
             )}
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                size="lg" 
-                className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
-                onClick={() => navigate('/worlds')}
-              >
-                Explore Worlds
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                className="border-white/20 text-white hover:bg-white/10 px-8 py-3"
-                onClick={() => navigate('/auth/signin')}
-              >
-                Sign In
-              </Button>
+              {hasApprovedAccess ? (
+                <Button 
+                  size="lg" 
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
+                  onClick={() => navigate('/stories')}
+                >
+                  Explore Stories
+                </Button>
+              ) : (
+                <>
+                  <Button 
+                    size="lg" 
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3"
+                    onClick={() => navigate('/worlds')}
+                  >
+                    Explore Worlds
+                  </Button>
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    className="border-white/20 text-white hover:bg-white/10 px-8 py-3"
+                    onClick={() => navigate('/auth/signin')}
+                  >
+                    Sign In
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

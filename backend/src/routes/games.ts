@@ -1,4 +1,7 @@
 import { Router, type Request, type Response } from 'express';
+
+// Protected health endpoint for Early Access testing
+// Phase B4: Non-destructive endpoint to test EA guard
 import { sendSuccess, sendErrorWithStatus, getTraceId } from '../utils/response.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { requireIdempotencyKey } from '../middleware/validation.js';
@@ -11,6 +14,19 @@ import { supabaseAdmin } from '../services/supabase.js';
 import { z } from 'zod';
 
 const router = Router();
+
+// Phase B4: Protected health endpoint for Early Access testing
+// This endpoint is protected by the earlyAccessGuard middleware
+router.get('/health', (req: Request, res: Response) => {
+  res.json({
+    ok: true,
+    data: {
+      up: true,
+      service: 'games',
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
 
 type OwnershipContext = {
   ownerId?: string;

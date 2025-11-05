@@ -68,6 +68,12 @@ const NAV_ITEMS = [
     href: '/admin/roles',
     roles: ['admin'] as const,
     icon: '🔐'
+  },
+  {
+    label: 'Early Access Requests',
+    href: '/admin/access-requests',
+    roles: ['admin'] as const,
+    icon: '🎟️'
   }
 ] as const;
 
