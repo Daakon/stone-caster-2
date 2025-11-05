@@ -2,7 +2,10 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toUserDTO } from '../utils/dto-mappers.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
+import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { ApiErrorCode } from '@shared';
+import { supabaseAdmin } from '../services/supabase.js';
+import type { AppRole } from '@shared/types/auth.js';
 import { supabaseAdmin } from '../services/supabase.js';
 import type { AppRole } from '@shared/types/auth.js';
 
@@ -72,6 +75,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
     );
   }
 });
+
 
 
 export default router;

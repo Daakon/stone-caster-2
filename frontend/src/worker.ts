@@ -25,6 +25,7 @@ export default {
 
     // For SPA routing, serve index.html for all non-asset requests
     const indexAsset = await env.ASSETS.fetch(new Request(new URL('/', taggedRequest.url)));
+    const indexAsset = await env.ASSETS.fetch(new Request(new URL('/', taggedRequest.url)));
     return indexAsset;
   },
 };

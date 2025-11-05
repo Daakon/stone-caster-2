@@ -21,7 +21,9 @@ export async function isAdmin(req: Request): Promise<boolean> {
     // Check profiles table for role (Phase 0: Early Access)
     const { data: profile, error } = await supabaseAdmin
       .from('profiles')
+      .from('profiles')
       .select('role')
+      .eq('id', userId)
       .eq('id', userId)
       .single();
 
