@@ -6,6 +6,7 @@ import { ApiErrorCode } from '@shared/types/api.js';
 import { AuthUser, AuthState } from '@shared/types/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import { CookieUserLinkingService } from '../services/cookie-user-linking.service.js';
+import { ensureProfile } from '../services/profileBootstrap.js';
 
 // Extend Request type to include user context
 // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -90,6 +91,14 @@ export async function jwtAuth(req: Request, res: Response, next: NextFunction): 
       },
     };
 
+    // Bootstrap profile row if it doesn't exist (idempotent)
+    try {
+      await ensureProfile(user.id);
+    } catch (error) {
+      // Log but don't fail the request - profile bootstrap is best-effort
+      console.error('[Auth] Failed to bootstrap profile:', error);
+    }
+
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -128,6 +137,15 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
             isGuest: false,
           },
         };
+        
+        // Bootstrap profile row if it doesn't exist (idempotent)
+        try {
+          await ensureProfile(user.id);
+        } catch (error) {
+          // Log but don't fail the request - profile bootstrap is best-effort
+          console.error('[Auth] Failed to bootstrap profile:', error);
+        }
+        
         return next();
       }
     }

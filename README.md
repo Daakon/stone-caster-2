@@ -99,6 +99,51 @@ cd stone-caster-2
 npm install
 ```
 
+### Early Access Setup
+
+The application supports an Early Access mode with role-based access control.
+
+#### Environment Variables
+
+Set the `EARLY_ACCESS_MODE` flag in both environments:
+
+**Backend (Fly.io):**
+```bash
+flyctl secrets set EARLY_ACCESS_MODE=on
+```
+
+**Frontend Worker (Cloudflare):**
+```bash
+wrangler secret put EARLY_ACCESS_MODE
+# Enter: on
+```
+
+#### Database Migration
+
+Run the Phase 0 migration to create the profiles table:
+
+```bash
+# Apply migration via Supabase CLI or dashboard
+supabase db push
+```
+
+#### Creating an Admin User
+
+See [supabase/seed/README.md](./supabase/seed/README.md) for detailed instructions on:
+- Creating the first admin user
+- Promoting users to early access
+- Managing roles via SQL
+
+Quick admin setup:
+```sql
+-- After creating a user via Supabase Auth
+UPDATE public.profiles
+SET role = 'admin',
+    approved_by = id,
+    approval_note = 'Initial admin setup'
+WHERE id = '<user-uuid>';
+```
+
 3. Set up environment variables:
 
 **Backend** (`backend/.env`):

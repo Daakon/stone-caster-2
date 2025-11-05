@@ -46,3 +46,4 @@ Write-Host "🔍 To verify the secrets were set:" -ForegroundColor Cyan
 Write-Host "   flyctl secrets list -a stonecaster-api" -ForegroundColor Gray
 Write-Host ""
 
+

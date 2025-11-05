@@ -12,3 +12,14 @@ routes = [
   { pattern = "www.stonecaster.ai/*" }   # optional, if you want www too
 ]
 
+# Environment variables (Phase B1: Early Access)
+[vars]
+EARLY_ACCESS_MODE = "on"
+API_BASE_URL = "https://stonecaster-api.fly.dev"
+
+# KV namespace for role caching (Phase B1)
+[[kv_namespaces]]
+binding = "ROLE_CACHE"
+id = "role_cache_prod"        # TODO: Replace with actual KV namespace ID from Cloudflare dashboard
+preview_id = "role_cache_dev"  # TODO: Replace with dev KV namespace ID
+

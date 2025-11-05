@@ -15,6 +15,7 @@ import meRouter from './routes/me.js';
 import profileRouter from './routes/profile.js';
 import adventuresRouter from './routes/adventures.js';
 import catalogRouter from './routes/catalog.js';
+import catalogNpcsRouter from './routes/catalogNpcs.js';
 import searchRouter from './routes/search.js';
 import stonesRouter from './routes/stones.js';
 import subscriptionRouter from './routes/subscription.js';
@@ -34,8 +35,14 @@ import devDebugRouter from './routes/dev.debug.js';
 import { devTestRouter } from './routes/dev.test.js';
 import healthRouter from './routes/health.js';
 import adminPreviewRouter from './routes/admin.preview.js';
+import internalFlagsRouter from './routes/internalFlags.js';
+import { openapiRouter } from './routes/openapi.js';
+import { earlyAccessGuard } from './middleware/earlyAccessGuard.js';
 
 const app = express();
+
+// Disable Express ETag middleware to use our custom ETag implementation
+app.set('etag', false);
 
 // Middleware
 app.use(cors({
@@ -97,6 +104,9 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Phase B2: Early Access Guard - mount BEFORE protected routers
+app.use(earlyAccessGuard);
+
 // API Routes
 app.use('/api/config', configRouter);
 app.use('/api/me', meRouter);
@@ -108,6 +118,7 @@ app.use('/api/games', gamesRouter);
 app.use('/api/worlds', worldsRouter);
 // Catalog routes (includes both legacy and new unified entry-points)
 app.use('/api/catalog', catalogRouter);
+app.use('/api/catalog', catalogNpcsRouter);
 app.use('/api/content', contentRouter);
 app.use('/api/adventures', adventuresRouter);
 app.use('/api/search', searchRouter);
@@ -123,6 +134,16 @@ app.use('/api/debug', debugRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/player', playerRouter);
 app.use('/api/health', healthRouter);
+app.use('/api/internal', internalFlagsRouter);
+
+// Access Requests (Phase B5)
+import accessRequestsPublicRouter from './routes/accessRequests.public.js';
+import accessRequestsAdminRouter from './routes/accessRequests.admin.js';
+app.use('/api/request-access', accessRequestsPublicRouter);
+app.use('/api/admin/access-requests', accessRequestsAdminRouter);
+
+// OpenAPI documentation (Phase A5)
+app.use('/api', openapiRouter);
 
 // Admin preview routes (requires DEBUG_ROUTES_ENABLED + admin role)
 if (config.debug.routesEnabled) {

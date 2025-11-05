@@ -26,6 +26,7 @@ import ReportsAdmin from '@/pages/admin/reports/index';
 import ReportDetailPage from '@/pages/admin/reports/id';
 import AnalyticsAdmin from '@/pages/admin/analytics/index';
 import RolesAdmin from '@/pages/admin/roles/index';
+import AccessRequestsAdmin from '@/pages/admin/access-requests/index';
 
 export function AdminRoutes() {
   return (
@@ -143,6 +144,14 @@ export function AdminRoutes() {
         element={
           <Guarded allow="admin">
             <RolesAdmin />
+          </Guarded>
+        } 
+      />
+      <Route 
+        path="/access-requests" 
+        element={
+          <Guarded allow="admin">
+            <AccessRequestsAdmin />
           </Guarded>
         } 
       />

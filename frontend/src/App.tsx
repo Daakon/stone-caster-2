@@ -7,9 +7,11 @@ import { ToastProvider } from './components/ui/toast-provider';
 import { SkipNavigation } from './components/ui/skip-navigation';
 import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { EarlyAccessRoute } from './components/auth/EarlyAccessRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthRouter } from './components/AuthRouter';
 import { GuestCookieService } from './services/guestCookie';
+import { handleEarlyAccessRequired } from './lib/earlyAccessHandler';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
@@ -33,6 +35,7 @@ import UnifiedGamePage from './pages/UnifiedGamePage';
 import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
 import ScenarioPicker from './pages/player/ScenarioPicker';
+import RequestAccessPage from './pages/RequestAccessPage';
 import { AppAdminShell } from './admin/AppAdminShell';
 import NotFoundPage from './pages/NotFoundPage';
 import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
@@ -77,6 +80,23 @@ function App() {
     
     // Initialize auth store
     initialize();
+
+    // Handle EARLY_ACCESS_REQUIRED errors globally
+    const handleEarlyAccess = async (event: CustomEvent<{ path?: string }>) => {
+      const { useNavigate } = await import('react-router-dom');
+      // Use window.location for navigation since we're outside React Router context here
+      const currentPath = event.detail?.path || window.location.pathname;
+      if (currentPath !== '/') {
+        window.location.href = '/';
+      }
+      // The actual toast/message will be shown by EarlyAccessBanner component
+    };
+
+    window.addEventListener('earlyAccessRequired', handleEarlyAccess as EventListener);
+    
+    return () => {
+      window.removeEventListener('earlyAccessRequired', handleEarlyAccess as EventListener);
+    };
   }, [initialize]);
 
   if (loading) {
@@ -118,49 +138,130 @@ function App() {
             <AppLayout>
               <AdventureToStoryRedirect />
               <Routes>
+                {/* Public routes - no early access required */}
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/stories" element={<StoriesPage />} />
-                <Route path="/stories/:id" element={<StoryDetailPage />} />
-                <Route path="/play/start" element={<StartStoryPage />} />
-                <Route path="/stories/:storyId/characters" element={<CharacterSelectionPage />} />
-                <Route path="/stories/:storyId/create-character" element={<PlayerV3CreationPage />} />
-                <Route path="/worlds" element={<WorldsPage />} />
-                <Route path="/worlds/:slug" element={<WorldDetailPage />} />
-                <Route path="/npcs" element={<NPCsPage />} />
-                <Route path="/npcs/:id" element={<NPCDetailPage />} />
-                <Route path="/rulesets" element={<RulesetsPage />} />
-                <Route path="/rulesets/:id" element={<RulesetDetailPage />} />
-                <Route path="/character-creation" element={<CharacterCreationPage />} />
-                <Route path="/character-creator" element={<CharacterCreatorPage />} />
-                <Route path="/wallet" element={
-                  <ProtectedRoute>
-                    <WalletPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/payments" element={
-                  <ProtectedRoute>
-                    <PaymentsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/profile" element={
-                  <ProtectedRoute>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/support" element={<SupportPage pageType="faq" />} />
-                <Route path="/scenarios" element={
-                  <ProtectedRoute>
-                    <ScenarioPicker />
-                  </ProtectedRoute>
-                } />
-                <Route path="/game/:id" element={<GamePage />} />
-                <Route path="/play/:gameId" element={<UnifiedGamePage />} />
-                <Route path="/unified-game/:id" element={<UnifiedGamePage />} />
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/auth/signin" element={<AuthPage mode="signin" />} />
                 <Route path="/auth/signup" element={<AuthPage mode="signup" />} />
                 <Route path="/auth/success" element={<AuthSuccessPage />} />
+                <Route path="/request-access" element={<RequestAccessPage />} />
+                <Route path="/support" element={<SupportPage pageType="faq" />} />
+                
+                {/* Protected routes - require early access approval */}
+                <Route path="/stories" element={
+                  <EarlyAccessRoute>
+                    <StoriesPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/stories/:id" element={
+                  <EarlyAccessRoute>
+                    <StoryDetailPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/play/start" element={
+                  <EarlyAccessRoute>
+                    <StartStoryPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/stories/:storyId/characters" element={
+                  <EarlyAccessRoute>
+                    <CharacterSelectionPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/stories/:storyId/create-character" element={
+                  <EarlyAccessRoute>
+                    <PlayerV3CreationPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/worlds" element={
+                  <EarlyAccessRoute>
+                    <WorldsPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/worlds/:slug" element={
+                  <EarlyAccessRoute>
+                    <WorldDetailPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/npcs" element={
+                  <EarlyAccessRoute>
+                    <NPCsPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/npcs/:id" element={
+                  <EarlyAccessRoute>
+                    <NPCDetailPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/rulesets" element={
+                  <EarlyAccessRoute>
+                    <RulesetsPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/rulesets/:id" element={
+                  <EarlyAccessRoute>
+                    <RulesetDetailPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/character-creation" element={
+                  <EarlyAccessRoute>
+                    <CharacterCreationPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/character-creator" element={
+                  <EarlyAccessRoute>
+                    <CharacterCreatorPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/game/:id" element={
+                  <EarlyAccessRoute>
+                    <GamePage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/play/:gameId" element={
+                  <EarlyAccessRoute>
+                    <UnifiedGamePage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/unified-game/:id" element={
+                  <EarlyAccessRoute>
+                    <UnifiedGamePage />
+                  </EarlyAccessRoute>
+                } />
+                
+                {/* Protected routes - require authentication + early access */}
+                <Route path="/wallet" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <WalletPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/payments" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <PaymentsPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <ProfilePage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/scenarios" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <ScenarioPicker />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                
+                {/* Admin routes - separate guard */}
                 <Route path="/admin/*" element={<AppAdminShell />} />
+                
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </AppLayout>

@@ -56,6 +56,32 @@ export async function apiFetch<T = unknown>(
         if (json.meta?.traceId) {
           error.traceId = json.meta.traceId;
         }
+        
+        // Handle EARLY_ACCESS_REQUIRED error code
+        if (error.code === 'EARLY_ACCESS_REQUIRED' || json.code === 'EARLY_ACCESS_REQUIRED') {
+          // Trigger global early access handler
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('earlyAccessRequired', {
+                detail: { path: window.location.pathname },
+              })
+            );
+          }
+        }
+        
+        return { ok: false, error };
+      }
+
+      // Handle legacy error responses with EARLY_ACCESS_REQUIRED code
+      if (json && (json.code === 'EARLY_ACCESS_REQUIRED' || json.message?.includes('Early access'))) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('earlyAccessRequired', {
+              detail: { path: window.location.pathname },
+            })
+          );
+        }
+        const error = toAppError(resp.status, json.message || 'Early access required', 'forbidden');
         return { ok: false, error };
       }
 
