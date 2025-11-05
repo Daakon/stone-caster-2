@@ -36,7 +36,7 @@ import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
 import ScenarioPicker from './pages/player/ScenarioPicker';
 import RequestAccessPage from './pages/RequestAccessPage';
-import { AppAdminShell } from './admin/AppAdminShell';
+import { AdminRouteGuard } from './admin/AdminRouteGuard';
 import NotFoundPage from './pages/NotFoundPage';
 import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
 
@@ -259,8 +259,8 @@ function App() {
                   </ProtectedRoute>
                 } />
                 
-                {/* Admin routes - separate guard */}
-                <Route path="/admin/*" element={<AppAdminShell />} />
+                {/* Admin routes - protected by AdminRouteGuard */}
+                <Route path="/admin/*" element={<AdminRouteGuard />} />
                 
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
