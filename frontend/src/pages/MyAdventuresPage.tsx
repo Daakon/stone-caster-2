@@ -1,16 +1,13 @@
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { CalendarClock, Play, RotateCcw } from 'lucide-react';
-import { getMyAdventures } from '@/lib/api';
-import type { AppError } from '@/lib/errors';
-import type { GameListDTO } from '@shared';
+import { useMyAdventures } from '@/lib/queries/index';
+import { useAccessStatusContext } from '@/providers/AccessStatusProvider';
 import { useAuthStore } from '@/store/auth';
-import { publicAccessRequestsService } from '@/services/accessRequests';
 
 function LoadingPlaceholder() {
   return (
@@ -33,43 +30,18 @@ function LoadingPlaceholder() {
 
 export default function MyAdventuresPage() {
   const { user } = useAuthStore();
-
-  // Check early access status - same query key as EarlyAccessRoute
-  const { data: accessStatus, isLoading: isLoadingAccess } = useQuery({
-    queryKey: ['access-request-status'],
-    queryFn: () => publicAccessRequestsService.getStatus(),
-    enabled: !!user,
-    refetchInterval: false,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-  });
-
-  // Determine if user has approved early access
-  // Wait for access status to load before enabling the adventures query
-  const request = accessStatus?.ok ? accessStatus.data : null;
-  const hasApprovedAccess = request?.status === 'approved';
-  const accessStatusLoaded = accessStatus !== undefined; // Query has completed (success or error)
-
+  const { hasApprovedAccess, isLoading: isLoadingAccess } = useAccessStatusContext();
+  
+  // Only fetch adventures if user has approved access
   const {
     data: adventures,
     isLoading,
     isError,
     error,
     refetch,
-  } = useQuery<GameListDTO[], AppError>({
-    queryKey: ['my-adventures'],
-    queryFn: async () => {
-      const result = await getMyAdventures();
-      if (!result.ok) {
-        throw result.error;
-      }
-      return result.data;
-    },
-    // Only enable query if user exists, access status has loaded, and user has approved early access
-    enabled: !!user && accessStatusLoaded && hasApprovedAccess,
-    retry: false, // Disable automatic retries - we handle errors explicitly
-  });
+  } = useMyAdventures();
 
-  const appError = isError ? error : null;
+  const appError = isError ? (error as any) : null;
   const isUnauthorized = appError?.code === 'UNAUTHORIZED';
   const isEarlyAccessRequired = appError?.code === 'EARLY_ACCESS_REQUIRED';
   const items = adventures ?? [];

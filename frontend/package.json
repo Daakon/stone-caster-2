@@ -13,6 +13,7 @@
     "test:ci": "vitest run --coverage --passWithNoTests",
     "test:e2e": "playwright test --reporter=list",
     "test:e2e:ci": "playwright test --reporter=list",
+    "test:e2e:budget": "playwright test e2e/network-budget.spec.ts --reporter=list",
     "test:a11y": "playwright test --grep='Accessibility Tests' --reporter=list",
     "e2e:a11y": "lighthouse-ci --config=frontend/.lighthouserc.js",
     "type-check": "tsc --noEmit",

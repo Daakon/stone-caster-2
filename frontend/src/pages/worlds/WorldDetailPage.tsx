@@ -9,7 +9,8 @@ import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
 import { EmptyState } from '@/components/catalog/EmptyState';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
-import { useWorldQuery, useStoriesQuery, useNPCsQuery } from '@/lib/queries';
+import { useWorld, useStories } from '@/lib/queries/index';
+import { useNPCsQuery } from '@/lib/queries';
 import { track } from '@/lib/analytics';
 import { ExternalLink, Users, BookOpen } from 'lucide-react';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty, injectJSONLD } from '@/lib/meta';
@@ -19,14 +20,11 @@ export default function WorldDetailPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'stories' | 'npcs'>('stories');
 
-  const { data: worldData, isLoading: worldLoading, error: worldError } = useWorldQuery(slug || '');
-  const world = worldData?.data;
-
-  const { data: storiesData, isLoading: storiesLoading } = useStoriesQuery(
-    { world: world?.id },
-    { enabled: !!world?.id }
-  );
-  const stories = storiesData?.data || [];
+  const { data: world, isLoading: worldLoading, error: worldError } = useWorld(slug || '');
+  
+  const { data: stories = [], isLoading: storiesLoading } = useStories({
+    worldId: world?.id,
+  });
 
   const { data: npcsData, isLoading: npcsLoading } = useNPCsQuery(
     { world: world?.id },

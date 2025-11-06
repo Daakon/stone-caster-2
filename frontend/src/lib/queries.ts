@@ -137,13 +137,7 @@ export const useCreateGuestToken = () => {
 };
 
 // ============================================================================
-// TEMP DEPRECATED ALIASES - Remove in Phase 2
-// ============================================================================
-
-/**
- * @deprecated Use useStoriesQuery instead. This alias will be removed in Phase 2.
- */
-export const useEntriesQuery = useStoriesQuery;
+// PR10: Removed deprecated useEntriesQuery alias - use useStories from @/lib/queries instead
 
 /**
  * @deprecated Use useStoryQuery instead. This alias will be removed in Phase 2.

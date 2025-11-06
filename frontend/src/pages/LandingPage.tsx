@@ -8,8 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
 import { EarlyAccessBanner } from '@/components/earlyAccess/EarlyAccessBanner';
-import { useQuery } from '@tanstack/react-query';
-import { publicAccessRequestsService } from '@/services/accessRequests';
+import { useAccessStatusContext } from '@/providers/AccessStatusProvider';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -20,20 +19,9 @@ export default function LandingPage() {
   
   // Removed legacy queries for worlds and stories to reduce API calls
 
-  // Check access request status to determine if user has approved access
-  // Share the same query key with EarlyAccessBanner to avoid duplicate calls
-  const { data: accessStatus } = useQuery({
-    queryKey: ['access-request-status'],
-    queryFn: () => publicAccessRequestsService.getStatus(),
-    enabled: !!user,
-    refetchInterval: false, // Only fetch once, no polling
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-  });
-
-  // accessStatus is AccessRequestStatusResponse: { ok: true, data: AccessRequest | null }
-  const request = accessStatus?.ok ? accessStatus.data : null;
-  const requestStatus = request?.status;
-  const hasApprovedAccess = requestStatus === 'approved';
+  // Use AccessStatusProvider context instead of duplicate query
+  const { accessStatus, hasApprovedAccess } = useAccessStatusContext();
+  const requestStatus = accessStatus?.status;
   const needsEarlyAccess = user && (!requestStatus || requestStatus === 'pending' || requestStatus === 'denied');
 
   const handleOAuthCallback = useCallback(async () => {

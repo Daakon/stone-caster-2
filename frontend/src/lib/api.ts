@@ -7,10 +7,24 @@ import { API_BASE } from './apiBase';
 // Use centralized API_BASE from apiBase.ts
 const BASE = API_BASE;
 
+export type ApiResponse<T> = 
+  | {
+      ok: true;
+      data: T;
+      meta?: {
+        etag?: string;
+        lastModified?: string;
+      };
+    }
+  | {
+      ok: false;
+      error: AppError;
+    };
+
 export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
-): Promise<{ ok: true; data: T } | { ok: false; error: AppError }> {
+): Promise<ApiResponse<T>> {
   const url = `${BASE}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = new Headers(init.headers || {});
 
@@ -39,6 +53,11 @@ export async function apiFetch<T = unknown>(
   try {
     const resp = await fetch(url, { ...init, headers });
     const text = await resp.text();
+    
+    // Extract cache headers (PR11-A)
+    const etag = resp.headers.get('etag');
+    const lastModified = resp.headers.get('last-modified');
+    const meta = etag || lastModified ? { etag: etag || undefined, lastModified: lastModified || undefined } : undefined;
 
     let json: any;
     try {
@@ -131,15 +150,18 @@ export async function apiFetch<T = unknown>(
       
       return { 
         ok: true, 
-        data: normalizedData as T
+        data: normalizedData as T,
+        meta,
       };
     }
     
     // For other paginated responses (have count/hasMore), return the full response object
     if (json && typeof json === 'object' && ('count' in json || 'hasMore' in json)) {
-      return { ok: true, data: json as T };
+      // Success response with cache metadata (PR11-A)
+      return { ok: true, data: json as T, meta };
     }
-    return { ok: true, data: (json?.data ?? json ?? null) as T };
+    // Success response with cache metadata (PR11-A)
+    return { ok: true, data: (json?.data ?? json ?? null) as T, meta };
   } catch (e: any) {
     const error = toAppError(0, e?.message || 'Network error', 'network_error');
     return { ok: false, error };

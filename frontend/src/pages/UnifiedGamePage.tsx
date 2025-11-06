@@ -17,7 +17,6 @@ import {
   getGame, 
   getCharacter, 
   getContentWorlds,
-  getWallet,
   getConversationHistory,
 } from '../lib/api';
 import type { ConversationEntry } from '@shared';
@@ -26,6 +25,8 @@ import { useGameTelemetry } from '../hooks/useGameTelemetry';
 import { useLatestTurn, usePostTurn } from '../hooks/useTurns';
 import { useAuthStore } from '../store/auth';
 import { GuestCookieService } from '../services/guestCookie';
+import { useWalletContext } from '../providers/WalletProvider';
+import { subscribeToGameEvents } from '../lib/events';
 
 interface GameState {
   worldRules: Record<string, number>;
@@ -48,6 +49,7 @@ export default function UnifiedGamePage() {
   const { gameId, characterId } = useParams<{ gameId?: string; characterId?: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { wallet, balance } = useWalletContext();
   const { user } = useAuthStore();
   
   const [gameState, setGameState] = useState<GameState>({
@@ -108,6 +110,14 @@ export default function UnifiedGamePage() {
 
   // Load latest turn using React Query hook
   const { data: latestTurn, isLoading: isLoadingLatestTurn, error: latestTurnError } = useLatestTurn(actualGameId);
+  
+  // Subscribe to game events for real-time updates (PR7)
+  useEffect(() => {
+    if (!actualGameId) return;
+    
+    const unsubscribe = subscribeToGameEvents(queryClient, actualGameId);
+    return unsubscribe;
+  }, [actualGameId, queryClient]);
 
   // Load conversation history
   const { data: conversationHistory, isLoading: isLoadingHistory } = useQuery({
@@ -151,18 +161,8 @@ export default function UnifiedGamePage() {
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 
-  // Load wallet data
-  const { data: wallet } = useQuery({
-    queryKey: ['wallet'],
-    queryFn: async () => {
-      const result = await getWallet();
-      if (!result.ok) {
-        throw new Error(result.error.message || 'Failed to load wallet');
-      }
-      return result.data;
-    },
-    staleTime: 10 * 1000, // 10 seconds cache
-  });
+  // Wallet data is provided by WalletProvider in layout
+  // No need to query here - use useWalletContext() if wallet data is needed
 
   // Find current world (content service shape). Optional – we can render without it.
   const currentWorld = worlds?.find(w => w.slug === game?.worldSlug);
@@ -461,7 +461,7 @@ export default function UnifiedGamePage() {
             {wallet && (
               <div className="flex items-center gap-2">
                 <Gem className="h-4 w-4" />
-                <span className="font-medium">{wallet.balance || 0}</span>
+                <span className="font-medium">{balance}</span>
               </div>
             )}
           </div>
@@ -668,7 +668,7 @@ export default function UnifiedGamePage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {wallet.balance || 0}
+                  {balance}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Available for actions

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
 import { useAuthStore } from './store/auth';
 import { ThemeProvider } from './contexts/theme-context-provider';
 import { ToastProvider } from './components/ui/toast-provider';
@@ -12,6 +13,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthRouter } from './components/AuthRouter';
 import { GuestCookieService } from './services/guestCookie';
 import { handleEarlyAccessRequired } from './lib/earlyAccessHandler';
+import { AccessStatusProvider } from './providers/AccessStatusProvider';
+import { WalletProvider } from './providers/WalletProvider';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
@@ -41,21 +44,6 @@ import { AdminRouteGuard } from './admin/AdminRouteGuard';
 import NotFoundPage from './pages/NotFoundPage';
 import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
-      retry: 1,
-      refetchOnWindowFocus: false,
-      refetchOnMount: true,
-      refetchOnReconnect: true,
-    },
-    mutations: {
-      retry: 1,
-    },
-  },
-});
 
 function App() {
   const { loading, initialize } = useAuthStore();
@@ -111,12 +99,14 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true
-            }}
-          >
+          <AccessStatusProvider>
+            <WalletProvider>
+              <BrowserRouter
+                future={{
+                  v7_startTransition: true,
+                  v7_relativeSplatPath: true
+                }}
+              >
             {(() => {
               return null;
             })()}
@@ -266,7 +256,9 @@ function App() {
               </Routes>
             </AppLayout>
             <ToastProvider />
-          </BrowserRouter>
+              </BrowserRouter>
+            </WalletProvider>
+          </AccessStatusProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>

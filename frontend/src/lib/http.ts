@@ -53,12 +53,18 @@ export function buildURL(path: string, params?: Record<string, any>): string {
 export { apiGet, apiPost, apiPut, apiPatch, apiDelete, type AppError };
 
 // Catalog-specific methods with activeOnly=1 enforcement
+// Use apiClient for in-flight request deduplication
 export async function httpGet<T = unknown>(
   path: string,
   params?: Record<string, any>
 ): Promise<{ ok: true; data: T } | { ok: false; error: AppError }> {
+  // buildURL already includes params in the URL, so we pass the built URL directly
+  // apiClient will use the full URL for deduplication
   const url = buildURL(path, params);
-  return apiGet<T>(url);
+  // Use apiClient for deduplication instead of direct apiGet
+  const { apiClient } = await import('./apiClient');
+  // Pass empty params since they're already in the URL
+  return apiClient.get<T>(url, {});
 }
 
 export async function httpPost<T = unknown>(

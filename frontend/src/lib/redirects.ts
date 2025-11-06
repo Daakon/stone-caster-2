@@ -13,3 +13,4 @@ export function getRedirectUrl(): string {
   return `${webBaseUrl}/auth/callback`;
 }
 
+

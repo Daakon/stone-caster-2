@@ -16,7 +16,8 @@ import { DebugDrawer } from '../components/debug/DebugDrawer';
 import { debugStore } from '../lib/debugStore';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, Settings, Save } from 'lucide-react';
-import { submitTurn, sendTurn, getGame, getStoryById, getCharacter, getWorldById, getWallet, getGameTurns, autoInitializeGame } from '../lib/api';
+import { submitTurn, sendTurn, getGame, getStoryById, getCharacter, getWorldById, getGameTurns, autoInitializeGame } from '../lib/api';
+import { useWalletContext } from '../providers/WalletProvider';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { generateIdempotencyKeyV4 } from '../lib/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
@@ -184,19 +185,9 @@ export default function GamePage() {
     retry: 1,
   });
 
-  // Load wallet data
-  const { data: walletData, isLoading: isLoadingWallet } = useQuery({
-    queryKey: ['wallet'],
-    queryFn: async () => {
-      const result = await getWallet();
-      if (!result.ok) {
-        throw new Error(result.error.message || 'Failed to load wallet');
-      }
-      return result.data;
-    },
-    staleTime: 30 * 1000, // 30 seconds cache for wallet data
-    retry: 1,
-  });
+  // Load wallet data - use WalletProvider context instead of duplicate query
+  // Wallet is already fetched in WalletProvider at layout level
+  const { wallet: walletData, isLoading: isLoadingWallet } = useWalletContext();
 
   // Phase 5: Load game turns with pagination (using new API)
   // Note: Keeping gameTurns query for legacy compatibility, but we'll use TurnsList component

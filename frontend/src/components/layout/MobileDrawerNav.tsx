@@ -15,8 +15,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
-import { useQuery } from '@tanstack/react-query';
-import { getWallet } from '../../lib/api';
+import { useWalletContext } from '../../providers/WalletProvider';
 
 interface MobileDrawerNavProps {
   children: React.ReactNode;
@@ -26,19 +25,7 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   const { user, signOut } = useAuthStore();
-
-  // Load wallet data for stone balance display
-  const { data: wallet } = useQuery({
-    queryKey: ['wallet'],
-    queryFn: async () => {
-      const result = await getWallet();
-      if (!result.ok) {
-        return null;
-      }
-      return result.data;
-    },
-    staleTime: 10 * 1000, // 10 seconds cache
-  });
+  const { wallet, balance } = useWalletContext();
 
   const navigation = [
     { 
@@ -119,7 +106,7 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
             {wallet && (
               <div className="flex items-center gap-1 text-sm">
                 <Gem className="h-4 w-4" />
-                <span className="font-medium">{wallet.balance || 0}</span>
+                <span className="font-medium">{balance}</span>
               </div>
             )}
 
@@ -177,7 +164,7 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
                           {item.name}
                           {item.name === 'Wallet' && wallet && (
                             <Badge variant="secondary" className="ml-auto text-xs">
-                              {wallet.balance || 0}
+                              {balance}
                             </Badge>
                           )}
                         </Link>
@@ -254,7 +241,7 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
                     {item.name}
                     {item.name === 'Wallet' && wallet && (
                       <Badge variant="secondary" className="ml-auto text-xs">
-                        {wallet.balance || 0}
+                        {balance}
                       </Badge>
                     )}
                   </Link>
