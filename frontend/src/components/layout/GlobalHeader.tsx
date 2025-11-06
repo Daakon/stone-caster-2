@@ -23,7 +23,6 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
     { name: 'Stories', href: '/stories' },
     { name: 'Worlds', href: '/worlds' },
     { name: 'NPCs', href: '/npcs' },
-    { name: 'Rulesets', href: '/rulesets' },
   ];
 
   // Authenticated-only navigation items

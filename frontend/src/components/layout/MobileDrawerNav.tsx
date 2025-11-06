@@ -59,12 +59,6 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
       show: true
     },
     { 
-      name: 'Rulesets', 
-      href: '/rulesets', 
-      icon: Gem,
-      show: true
-    },
-    { 
       name: 'Wallet', 
       href: '/wallet', 
       icon: Wallet,
