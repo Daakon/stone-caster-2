@@ -3,7 +3,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { DrifterBubble } from '../components/guidance/DrifterBubble';
-import { Gem, Users, Zap, Shield, Brain, Globe } from 'lucide-react';
+import { Brain, BookOpen, Users, Zap, Globe, Sparkles } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
@@ -85,7 +85,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     const title = makeTitle(['StoneCaster — Cast your stone and begin a story']);
-    const desc = makeDescription('Discover interactive stories, choose your character, and begin your adventure on StoneCaster.');
+    const desc = makeDescription('Discover handcrafted Worlds, Scenarios, and Adventures on StoneCaster. Choose a story level ruleset, explore unique world mechanics, build relationships with NPCs, and shape consistent, adaptive stories enhanced by AI.');
     const url = absoluteUrl('/');
     const image = absoluteUrl('/og/home');
     document.title = title;
@@ -107,34 +107,34 @@ export default function LandingPage() {
 
   const features = [
     {
-      icon: Brain,
-      title: 'AI-Powered Storytelling',
-      description: 'Experience dynamic narratives that adapt to your choices and create unique adventures every time you play.'
+      icon: Sparkles,
+      title: 'Choices & Consequences',
+      description: 'Every decision you make ripples through a living story. Outcomes reflect world state, logic, and past choices, so each playthrough feels personal and meaningful.'
+    },
+    {
+      icon: BookOpen,
+      title: 'Rule Driven Stories',
+      description: 'Rules are picked at the story level using a chosen ruleset. These rules guide outcomes, ensure consistency, and define how skills, factions, and progression influence your journey.'
     },
     {
       icon: Users,
-      title: 'Multiplayer Adventures',
-      description: 'Join friends in shared worlds where your decisions impact everyone\'s story and create lasting memories together.'
+      title: 'Dynamic Relationship Systems',
+      description: 'Form bonds, rivalries, and trust with NPCs who remember your actions. Social and emotional choices shape how characters respond over time.'
+    },
+    {
+      icon: Brain,
+      title: 'AI Powered Storytelling',
+      description: 'StoneCaster stories begin with detailed, custom written content created by humans. AI enhances these stories by adapting them to your choices and keeping the world consistent from scene to scene.'
     },
     {
       icon: Zap,
       title: 'Instant Character Creation',
-      description: 'Jump into the action with our streamlined character creation that gets you playing in minutes, not hours.'
-    },
-    {
-      icon: Shield,
-      title: 'Safe & Inclusive',
-      description: 'Play in a welcoming environment with content moderation and community guidelines that ensure everyone has fun.'
-    },
-    {
-      icon: Gem,
-      title: 'Rich World Building',
-      description: 'Explore meticulously crafted worlds with deep lore, complex characters, and endless possibilities for adventure.'
+      description: 'Start fast with guided character creation that fits each world\'s lore and tone. Build a background that connects to the story and matters in play.'
     },
     {
       icon: Globe,
-      title: 'Cross-Platform',
-      description: 'Play anywhere, anytime - on your phone, tablet, or computer. Your adventures sync seamlessly across all devices.'
+      title: 'Play Anywhere',
+      description: 'Continue your story across devices with synced progress on desktop, tablet, or mobile.'
     }
   ];
 
@@ -152,8 +152,7 @@ export default function LandingPage() {
               Your Story Awaits
             </h1>
             <p className="text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
-              Enter a world where AI-powered storytelling meets your imagination. 
-              Create characters, explore rich worlds, and shape epic adventures with friends.
+              Enter handcrafted worlds powered by adaptive AI and deep storytelling systems. Worlds, Scenarios, Adventures, NPCs, and Rulesets are all custom built; rules are chosen at the story level, and each world includes unique mechanics that can interact with those rules.
             </p>
             
             {/* Only show email form for unauthenticated users without access requirement */}
@@ -211,15 +210,14 @@ export default function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 bg-slate-800/50">
+      <section id="why-stonecaster" className="py-20 bg-slate-800/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Why Choose Stone Caster?
+              Why Choose StoneCaster?
             </h2>
             <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-              Experience the future of role-playing games with cutting-edge AI technology 
-              and innovative gameplay mechanics.
+              Experience immersive storytelling shaped by handcrafted content, story level rulesets, and adaptive AI. Worlds contribute unique mechanics, enabling advanced relationships, skill systems, progression, and factions across your adventures.
             </p>
           </div>
           
@@ -245,6 +243,11 @@ export default function LandingPage() {
               );
             })}
           </div>
+          
+          {/* Footnote */}
+          <p className="text-center mt-8 text-sm text-slate-400">
+            Stories are curated and community reviewed, but AI output may vary. Please report any issues so we can keep improving.
+          </p>
         </div>
       </section>
 
@@ -252,7 +255,7 @@ export default function LandingPage() {
       {/* Drifter Bubble */}
       {showDrifter && (
         <DrifterBubble
-          message="Welcome to Stone Caster! I'm here to help you get started. Click on any world or adventure to begin your journey!"
+          message="Welcome to StoneCaster! I'm here to help you get started. Click on any world or adventure to begin your journey!"
           onDismiss={() => setShowDrifter(false)}
         />
       )}
