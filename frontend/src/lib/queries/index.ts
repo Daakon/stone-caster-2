@@ -4,7 +4,7 @@
  * All hooks follow query policy: docs/frontend/query-policy.md
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
 import { z } from 'zod';
 import { ProfileService } from '@/services/profile';
@@ -109,8 +109,15 @@ export type Profile = z.infer<typeof ProfileSchema>;
 // ============================================================================
 
 export function useAdminRoles(userId: string | null) {
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.adminUserRoles(userId);
+  
+  // Check if data already exists in cache - if so, don't fetch
+  const cachedData = queryClient.getQueryData<string[]>(queryKey);
+  const hasCachedData = cachedData !== undefined;
+  
   return useQuery({
-    queryKey: queryKeys.adminUserRoles(userId),
+    queryKey,
     queryFn: async () => {
       if (!userId) return [];
       const result = await apiClient.get<string[]>('/api/admin/user/roles');
@@ -119,10 +126,16 @@ export function useAdminRoles(userId: string | null) {
       }
       return result.data;
     },
-    enabled: !!userId,
+    // Only fetch if userId exists AND we don't have cached data
+    // This prevents duplicate fetches when data is already in cache
+    enabled: !!userId && !hasCachedData,
     staleTime: 15 * 60 * 1000, // 15 minutes
     gcTime: 15 * 60 * 1000,
     refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    // Use cached data if available
+    initialData: cachedData,
   });
 }
 
@@ -138,17 +151,9 @@ export function useAccessStatus() {
     queryFn: async () => {
       const result = await publicAccessRequestsService.getStatus();
       
-      // Debug logging
-      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-        console.log('[useAccessStatus] API result:', result);
-      }
-      
       if (!result.ok) {
         // Return null for unauthorized (not an error state)
         if (result.code === 'UNAUTHORIZED') {
-          if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-            console.log('[useAccessStatus] UNAUTHORIZED - returning null');
-          }
           return null;
         }
         throw new Error(result.message || 'Failed to fetch access status');
@@ -157,18 +162,12 @@ export function useAccessStatus() {
       // API returns { request: AccessRequest | null }
       // The service already transforms it to { ok: true, data: AccessRequest | null }
       if (!result.data) {
-        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-          console.log('[useAccessStatus] No data - returning null');
-        }
         return null;
       }
       
       // Validate the access request data
       try {
         const validated = AccessRequestSchema.parse(result.data);
-        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-          console.log('[useAccessStatus] Validated access status:', validated);
-        }
         return validated;
       } catch (error) {
         if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -311,11 +310,6 @@ export function useStories(params: {
   // PR11-G: React Query automatically cancels previous requests when queryKey changes
   const queryKey = queryKeys.stories(normalizedParams);
   
-  // Debug: Log query key to check for duplicates
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('[useStories] Query key:', JSON.stringify(queryKey));
-  }
-  
   return useQuery({
     queryKey,
     queryFn: async ({ signal }) => {
@@ -327,19 +321,9 @@ export function useStories(params: {
       if (normalizedParams.ruleset) listParams.ruleset = normalizedParams.ruleset;
       if (normalizedParams.tags && normalizedParams.tags.length > 0) listParams.tags = normalizedParams.tags;
       
-      // Debug: Log when query function is called
-      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-        console.log('[useStories] Query function called with params:', listParams);
-      }
-      
       const result = await listStories(listParams);
       if (!result.ok) {
         throw new Error(result.error.message || 'Failed to fetch stories');
-      }
-      
-      // Debug logging for validation issues
-      if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-        console.log('[useStories] API result:', result);
       }
       
       // Validate response with Zod and transform to match expected shape
@@ -418,8 +402,17 @@ export function useMyAdventures() {
         throw new Error(result.error.message || 'Failed to fetch adventures');
       }
       // Validate each game in the list
-      const validated = z.array(GameListDTOSchema).parse(result.data);
-      return validated;
+      // Use safeParse to handle validation errors gracefully
+      const parseResult = z.array(GameListDTOSchema).safeParse(result.data);
+      if (!parseResult.success) {
+        // Log validation errors in development
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+          console.error('[useMyAdventures] Validation error:', parseResult.error);
+          console.error('[useMyAdventures] Raw data:', result.data);
+        }
+        throw new Error('Invalid adventures data format');
+      }
+      return parseResult.data;
     },
     enabled: !!user, // Access check is handled by EarlyAccessRoute
     staleTime: 5 * 60 * 1000, // 5 minutes

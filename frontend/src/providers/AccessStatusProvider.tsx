@@ -22,20 +22,6 @@ export function AccessStatusProvider({ children }: { children: ReactNode }) {
   // If isLoading, we don't know yet
   const hasApprovedAccess = accessStatus?.status === 'approved';
   
-  // Debug logging
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('[AccessStatusProvider]', {
-      accessStatus,
-      accessStatusStatus: accessStatus?.status,
-      accessStatusKeys: accessStatus ? Object.keys(accessStatus) : [],
-      accessStatusFull: accessStatus, // Log full object to see structure
-      isLoading,
-      isError,
-      hasApprovedAccess,
-      statusCheck: accessStatus?.status === 'approved',
-    });
-  }
-  
   const value: AccessStatusContextValue = {
     accessStatus: accessStatus ?? null,
     isLoading,

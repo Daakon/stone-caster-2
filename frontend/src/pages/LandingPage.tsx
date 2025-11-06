@@ -26,8 +26,6 @@ export default function LandingPage() {
 
   const handleOAuthCallback = useCallback(async () => {
     try {
-      console.log('[LandingPage] Processing OAuth callback...');
-      
       // The AuthService will handle the OAuth callback automatically
       // Just re-initialize to get the updated auth state
       await initialize();
@@ -38,10 +36,8 @@ export default function LandingPage() {
       // Check if user is now authenticated
       const { isAuthenticated } = useAuthStore.getState();
       if (isAuthenticated) {
-        console.log('[LandingPage] OAuth successful, user authenticated');
         navigate('/');
       } else {
-        console.log('[LandingPage] OAuth failed or user not authenticated');
         navigate('/auth/signin');
       }
     } catch (error) {
@@ -51,10 +47,6 @@ export default function LandingPage() {
   }, [initialize, navigate]);
 
   useEffect(() => {
-    // Debug: Log all URL parameters
-    console.log('[LandingPage] Current URL:', window.location.href);
-    console.log('[LandingPage] Search params:', Object.fromEntries(searchParams.entries()));
-    
     // Check for OAuth callback
     const code = searchParams.get('code');
     const state = searchParams.get('state');
@@ -62,17 +54,12 @@ export default function LandingPage() {
     
     if (error) {
       console.error('[LandingPage] OAuth error detected:', error);
-      console.error('[LandingPage] Error code:', searchParams.get('error_code'));
-      console.error('[LandingPage] Error description:', searchParams.get('error_description'));
       // Don't return here, let the page load normally
     }
     
     if (code && state) {
-      console.log('[LandingPage] OAuth callback detected, handling...');
       handleOAuthCallback();
       return;
-    } else {
-      console.log('[LandingPage] No OAuth callback detected, loading normal content');
     }
 
     // Show drifter bubble after a delay
@@ -101,7 +88,6 @@ export default function LandingPage() {
     e.preventDefault();
     if (email) {
       // TODO: Implement email signup
-      console.log('Email signup:', email);
     }
   };
 

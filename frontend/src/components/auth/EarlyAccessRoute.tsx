@@ -30,20 +30,6 @@ export function EarlyAccessRoute({ children }: EarlyAccessRouteProps) {
   const { data: adminRoles = [], isLoading: isLoadingRoles } = useAdminRoles(user?.id || null);
   const isAdmin = adminRoles.includes('admin');
 
-  // Debug logging
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('[EarlyAccessRoute]', {
-      hasUser: !!user,
-      userId: user?.id,
-      isLoading,
-      hasApprovedAccess,
-      accessStatus,
-      accessStatusStatus: accessStatus?.status,
-      isAdmin,
-      adminRoles,
-    });
-  }
-
   // If not authenticated, allow access (they can sign in)
   if (!user) {
     return <>{children}</>;
@@ -66,9 +52,6 @@ export function EarlyAccessRoute({ children }: EarlyAccessRouteProps) {
 
   // If not approved, redirect to landing page
   if (!hasApprovedAccess) {
-    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-      console.log('[EarlyAccessRoute] Redirecting to / - hasApprovedAccess is false, isAdmin is', isAdmin);
-    }
     return <Navigate to="/" replace />;
   }
 

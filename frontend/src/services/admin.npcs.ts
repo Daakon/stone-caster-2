@@ -27,6 +27,10 @@ export interface CreateNPCData {
   description?: string;
   status?: 'draft' | 'active' | 'archived';
   prompt?: any; // JSONB - can be any structured data (will be added via migration)
+  world_id?: string;
+  visibility?: 'private' | 'public';
+  author_name?: string;
+  author_type?: 'user' | 'original' | 'system';
 }
 
 export interface UpdateNPCData extends Partial<CreateNPCData> {}
@@ -104,6 +108,22 @@ export class NPCsService {
       insertData.prompt = data.prompt;
     }
 
+    if (data.world_id) {
+      insertData.world_id = data.world_id;
+    }
+
+    if (data.visibility) {
+      insertData.visibility = data.visibility;
+    }
+
+    if (data.author_type) {
+      insertData.author_type = data.author_type;
+    }
+
+    if (data.author_name) {
+      insertData.author_name = data.author_name;
+    }
+
     const result = await apiPost<NPC>('/api/admin/npcs', insertData);
     
     if (!result.ok) {
@@ -137,6 +157,22 @@ export class NPCsService {
     
     if (data.prompt !== undefined) {
       updateData.prompt = data.prompt;
+    }
+
+    if (data.world_id !== undefined) {
+      updateData.world_id = data.world_id;
+    }
+
+    if (data.visibility !== undefined) {
+      updateData.visibility = data.visibility;
+    }
+
+    if (data.author_type !== undefined) {
+      updateData.author_type = data.author_type;
+    }
+
+    if (data.author_name !== undefined) {
+      updateData.author_name = data.author_name;
     }
 
     const result = await apiPut<NPC>(`/api/admin/npcs/${id}`, updateData);

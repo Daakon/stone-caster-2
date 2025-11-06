@@ -41,7 +41,7 @@ const endpointToResource: Record<string, string> = {
   '/api/catalog/stories': 'stories',
   '/api/catalog/stories/': 'story',
   '/api/characters': 'characters',
-  '/api/games': 'my-adventures',
+  '/api/games': 'my-stories',
   '/api/games/': 'game',
   '/api/games/': 'turns.latest', // /api/games/:id/turns/latest
 };
@@ -210,8 +210,8 @@ test.describe('Network Budgets', () => {
     
     networkCalls.length = 0;
     
-    // Navigate to my adventures
-    await page.click('a[href*="/my-adventures"]');
+    // Navigate to my stories
+    await page.click('a[href*="/my-stories"]');
     await page.waitForLoadState('networkidle');
     
     const counts: Record<string, number> = {};
@@ -219,7 +219,7 @@ test.describe('Network Budgets', () => {
       counts[call.resource] = (counts[call.resource] || 0) + 1;
     });
     
-    expect(counts['my-adventures'] || 0).toBeLessThanOrEqual(1);
+    expect(counts['my-stories'] || 0).toBeLessThanOrEqual(1);
     expect(counts.stories || 0).toBeLessThanOrEqual(0);
     
     console.log('Stories → My Stories network calls:', counts);

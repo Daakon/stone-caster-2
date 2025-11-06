@@ -27,7 +27,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
 
   // Authenticated-only navigation items
   const authenticatedNavigation = [
-    { name: 'My Stories', href: '/my-adventures' },
+    { name: 'My Stories', href: '/my-stories' },
     { name: 'Wallet', href: '/wallet' },
     { name: 'Profile', href: '/profile' },
   ];

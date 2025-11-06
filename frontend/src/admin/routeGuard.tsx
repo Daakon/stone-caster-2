@@ -3,10 +3,11 @@
  * Phase 2: Role-gated admin navigation
  */
 
-import { createContext, useContext, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import { queryKeys } from '@/lib/queryKeys';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Home } from 'lucide-react';
@@ -45,10 +46,27 @@ export function AppRolesProvider({
   initialRoles?: AppRole[];
 }) {
   const { user, isAuthenticated } = useAuthStore();
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.adminUserRoles(user?.id || null);
+  
+  // CRITICAL: Set query data synchronously BEFORE the query is created
+  // This ensures the cache is populated immediately and prevents any network calls
+  const hasInitialRoles = initialRoles !== undefined;
+  if (hasInitialRoles) {
+    // Set data in cache synchronously - this happens before useQuery runs
+    queryClient.setQueryData(queryKey, initialRoles, {
+      updatedAt: Date.now(), // Mark as fresh
+    });
+  }
+  
+  // Check if data already exists in cache (either from initialRoles or previous fetch)
+  const cachedData = queryClient.getQueryData<AppRole[]>(queryKey);
+  const hasCachedData = cachedData !== undefined;
   
   // Use React Query for roles with caching to prevent duplicate calls
-  const { data: roles = initialRoles || [], isLoading: loading, error: queryError } = useQuery({
-    queryKey: ['admin-user-roles', user?.id],
+  // When initialRoles are provided OR cache has data, the query is disabled
+  const { data: roles = cachedData ?? initialRoles ?? [], isLoading: loading, error: queryError } = useQuery({
+    queryKey,
     queryFn: async () => {
       // Check if we have a session token, even if auth store says not authenticated
       const { supabase } = await import('@/lib/supabase');
@@ -119,10 +137,19 @@ export function AppRolesProvider({
       
       return userRoles;
     },
-    enabled: !!user || !!isAuthenticated, // Only fetch if user is authenticated
+    // CRITICAL: Disable query completely when:
+    // 1. We have initialRoles (passed from AdminRouteGuard)
+    // 2. OR data already exists in cache
+    // This prevents ANY network calls when we already have the data
+    enabled: (!!user || !!isAuthenticated) && !hasInitialRoles && !hasCachedData,
     staleTime: 5 * 60 * 1000, // 5 minutes - roles don't change often
     gcTime: 10 * 60 * 1000, // 10 minutes
-    initialData: initialRoles, // Use initial roles if provided
+    // Use cached data or initialRoles as initial data
+    initialData: cachedData ?? initialRoles,
+    // Prevent all refetching when we have data
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const error = queryError instanceof Error ? queryError.message : null;

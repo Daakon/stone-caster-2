@@ -10,6 +10,7 @@ import { WorldRuleMeters } from '../components/gameplay/WorldRuleMeters';
 import { TurnInput } from '../components/gameplay/TurnInput';
 import { HistoryFeed } from '../components/gameplay/HistoryFeed';
 import { TurnErrorHandler } from '../components/gameplay/TurnErrorHandler';
+import { InsufficientStonesDialog } from '../components/gameplay/InsufficientStonesDialog';
 import { ChoiceButtons } from '../components/gameplay/ChoiceButtons';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, RefreshCw, AlertCircle } from 'lucide-react';
@@ -27,6 +28,7 @@ import { useAuthStore } from '../store/auth';
 import { GuestCookieService } from '../services/guestCookie';
 import { useWalletContext } from '../providers/WalletProvider';
 import { subscribeToGameEvents } from '../lib/events';
+import { queryKeys } from '../lib/queryKeys';
 
 interface GameState {
   worldRules: Record<string, number>;
@@ -61,13 +63,25 @@ export default function UnifiedGamePage() {
   const [isSubmittingTurn, setIsSubmittingTurn] = useState(false);
   const [turnError, setTurnError] = useState<string | null>(null);
   const [turnErrorCode, setTurnErrorCode] = useState<string | null>(null);
+  const [actualStoneCost, setActualStoneCost] = useState<number>(1); // Default to 1, will be updated from error or config
+  const [showInsufficientStonesDialog, setShowInsufficientStonesDialog] = useState(false);
   const [gameStartTime, setGameStartTime] = useState<number | null>(null);
   const [hasTrackedFirstTurn, setHasTrackedFirstTurn] = useState(false);
   const [turnStartTime, setTurnStartTime] = useState<number | null>(null);
+  const [pendingChoice, setPendingChoice] = useState<string | null>(null);
+  const [pendingNarrativeId, setPendingNarrativeId] = useState<string | null>(null);
+  // Track displayed entries to prevent duplicates and append new turns
+  const [displayedEntries, setDisplayedEntries] = useState<ConversationEntry[]>([]);
+  const [displayedLatestTurnId, setDisplayedLatestTurnId] = useState<number | null>(null);
   
   const telemetry = useAdventureTelemetry();
   const gameTelemetry = useGameTelemetry();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const storyContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
+  const userHasScrolled = useRef(false);
+  const lastEntryCount = useRef(0);
+  const shouldAutoScroll = useRef(true);
 
   // Load character data first if we have characterId but no gameId
   const { data: characterForGame, isLoading: isLoadingCharacterForGame } = useQuery({
@@ -119,9 +133,9 @@ export default function UnifiedGamePage() {
     return unsubscribe;
   }, [actualGameId, queryClient]);
 
-  // Load conversation history
+  // Load conversation history - ONLY on initial load, not after each turn
   const { data: conversationHistory, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['conversation.history', actualGameId],
+    queryKey: queryKeys.conversationHistory(actualGameId),
     queryFn: async () => {
       if (!actualGameId) throw new Error('No game ID available');
       const result = await getConversationHistory(actualGameId, 20);
@@ -132,9 +146,52 @@ export default function UnifiedGamePage() {
     },
     enabled: !!actualGameId,
     refetchOnWindowFocus: false,
-    staleTime: 10 * 1000, // 10 seconds cache
+    refetchOnMount: false, // Only fetch on initial load
+    staleTime: Infinity, // Never consider stale - we'll append new turns manually
     retry: false,
   });
+  
+  // Initialize displayed entries from conversation history on load
+  // Always sync with conversationHistory when it loads (but don't overwrite if we have newer entries)
+  useEffect(() => {
+    if (conversationHistory && conversationHistory.entries.length > 0) {
+      // If we have no displayed entries, initialize from history
+      if (displayedEntries.length === 0) {
+        setDisplayedEntries(conversationHistory.entries);
+      } else {
+        // If we have displayed entries, merge them with history to ensure we have all entries
+        // This handles the case where history loads after we've already started displaying
+        setDisplayedEntries(prev => {
+          // Create a map of existing entries by turnCount and type
+          const existingMap = new Map<string, ConversationEntry>();
+          prev.forEach(entry => {
+            const key = `${entry.turnCount}-${entry.type}`;
+            existingMap.set(key, entry);
+          });
+          
+          // Add all history entries
+          conversationHistory.entries.forEach(entry => {
+            const key = `${entry.turnCount}-${entry.type}`;
+            if (!existingMap.has(key)) {
+              existingMap.set(key, entry);
+            }
+          });
+          
+          // Convert back to array and sort by turnCount
+          const merged = Array.from(existingMap.values());
+          merged.sort((a, b) => {
+            // Sort by turnCount, then by type (user before ai for same turn)
+            if (a.turnCount !== b.turnCount) {
+              return a.turnCount - b.turnCount;
+            }
+            return a.type === 'user' ? -1 : 1;
+          });
+          
+          return merged;
+        });
+      }
+    }
+  }, [conversationHistory]);
 
   // Character data is now included in the game response, no need for separate query
   const character = game ? {
@@ -174,7 +231,15 @@ export default function UnifiedGamePage() {
       return;
     }
     setGameStartTime(Date.now());
-  }, [user, navigate]);
+    // Reset scroll state when game changes
+    isInitialLoad.current = true;
+    userHasScrolled.current = false;
+    shouldAutoScroll.current = true;
+    lastEntryCount.current = 0;
+    // Reset displayed entries when game changes
+    setDisplayedEntries([]);
+    setDisplayedLatestTurnId(null);
+  }, [user, navigate, actualGameId]);
 
   // Track game loaded
   useEffect(() => {
@@ -212,30 +277,135 @@ export default function UnifiedGamePage() {
     }
   }, [game, latestTurn, currentWorld, gameState.worldRules]);
 
-  // Auto-scroll to bottom of history
+  // Track user scroll to disable auto-scroll if they manually scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [gameState.history]);
+    const container = storyContainerRef.current;
+    if (!container) return;
 
-  // Update game state from latestTurn (TurnDTO)
+    const handleScroll = () => {
+      // Check if user scrolled up (not at bottom)
+      const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+      if (!isAtBottom) {
+        userHasScrolled.current = true;
+        shouldAutoScroll.current = false;
+      } else {
+        // If user scrolls back to bottom, re-enable auto-scroll
+        userHasScrolled.current = false;
+        shouldAutoScroll.current = true;
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll only when user submits a choice (pending content), not when turn completes
   useEffect(() => {
-    if (latestTurn) {
+    const hasPendingContent = pendingChoice || pendingNarrativeId;
+    
+    // Skip scroll on initial load
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      lastEntryCount.current = displayedEntries.length;
+      return;
+    }
+
+    // Only scroll if:
+    // 1. Pending content appeared (user just submitted a choice)
+    // 2. User hasn't manually scrolled away
+    // 3. Auto-scroll is enabled
+    // Do NOT scroll when turn completes (when pending content disappears and new entry appears)
+    const shouldScroll = hasPendingContent && shouldAutoScroll.current && !userHasScrolled.current;
+    
+    if (shouldScroll) {
+      // Use requestAnimationFrame to ensure DOM is updated
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      });
+    }
+
+    // Update entry count for tracking, but don't use it to trigger scroll
+    lastEntryCount.current = displayedEntries.length;
+  }, [pendingChoice, pendingNarrativeId, displayedEntries.length]);
+
+  // Update game state and displayed entries from latestTurn (TurnDTO)
+  // Append new turn to displayed entries when it arrives
+  useEffect(() => {
+    if (latestTurn && latestTurn.id !== displayedLatestTurnId) {
+      // Clear pending state when new narrative arrives
+      if (pendingNarrativeId && latestTurn.narrative && latestTurn.narrative.length > 0) {
+        setPendingChoice(null);
+        setPendingNarrativeId(null);
+      }
+      
+      // Update game state
       setGameState(prev => ({
         ...prev,
         currentTurn: latestTurn.turnCount,
         currentChoices: latestTurn.choices || [],
-        history: [
-          ...prev.history.filter(h => h.id !== `turn-${latestTurn.id}`),
-          {
-            id: `turn-${latestTurn.id}`,
-            timestamp: latestTurn.createdAt,
-            type: 'npc' as const,
-            content: latestTurn.narrative,
-          },
-        ],
       }));
+      
+      // Append new turn entries to displayed entries
+      // Update the user choice entry with correct turn count if needed
+      if (pendingChoice) {
+        setDisplayedEntries(prev => {
+          // Check if we already have this user entry
+          const hasUserEntry = prev.some(e => e.turnCount === latestTurn.turnCount && e.type === 'user' && e.content === pendingChoice);
+          if (hasUserEntry) {
+            // Just update the turn count if needed
+            return prev.map(entry => {
+              if (entry.type === 'user' && entry.content === pendingChoice && entry.turnCount !== latestTurn.turnCount) {
+                return {
+                  ...entry,
+                  id: latestTurn.turnCount,
+                  turnCount: latestTurn.turnCount,
+                };
+              }
+              return entry;
+            });
+          } else {
+            // Add the user choice entry
+            const userEntry: ConversationEntry = {
+              id: latestTurn.turnCount,
+              gameId: actualGameId || '',
+              turnCount: latestTurn.turnCount,
+              type: 'user',
+              content: pendingChoice,
+              createdAt: new Date().toISOString(),
+            };
+            return [...prev, userEntry].sort((a, b) => {
+              if (a.turnCount !== b.turnCount) return a.turnCount - b.turnCount;
+              return a.type === 'user' ? -1 : 1;
+            });
+          }
+        });
+      }
+      
+      // Add the AI narrative
+      if (latestTurn.narrative && latestTurn.narrative.length > 0) {
+        const aiEntry: ConversationEntry = {
+          id: latestTurn.turnCount,
+          gameId: actualGameId || '',
+          turnCount: latestTurn.turnCount,
+          type: 'ai',
+          content: latestTurn.narrative,
+          createdAt: latestTurn.createdAt || new Date().toISOString(),
+        };
+        setDisplayedEntries(prev => {
+          // Check if this turn is already displayed (prevent duplicates)
+          const exists = prev.some(e => e.turnCount === latestTurn.turnCount && e.type === 'ai');
+          if (exists) return prev;
+          // Add and sort to maintain chronological order
+          return [...prev, aiEntry].sort((a, b) => {
+            if (a.turnCount !== b.turnCount) return a.turnCount - b.turnCount;
+            return a.type === 'user' ? -1 : 1;
+          });
+        });
+      }
+      
+      setDisplayedLatestTurnId(latestTurn.id); // TurnDTO.id is a number
     }
-  }, [latestTurn]);
+  }, [latestTurn, pendingNarrativeId, pendingChoice, displayedLatestTurnId, actualGameId]);
 
   // Submit turn mutation using React Query hook (new format: sends choice text directly)
   const postTurnMutation = usePostTurn(actualGameId);
@@ -249,6 +419,23 @@ export default function UnifiedGamePage() {
       setTurnErrorCode(null);
       setTurnStartTime(Date.now());
       
+      // Optimistically show the user's choice immediately and add it to displayed entries
+      setPendingChoice(payload.text);
+      // Generate a temporary ID for the pending narrative
+      const tempNarrativeId = `pending-${Date.now()}`;
+      setPendingNarrativeId(tempNarrativeId);
+      
+      // Immediately add the user's choice to displayed entries
+      const userEntry: ConversationEntry = {
+        id: (gameState.currentTurn + 1), // Next turn number
+        gameId: actualGameId || '',
+        turnCount: gameState.currentTurn + 1,
+        type: 'user',
+        content: payload.text,
+        createdAt: new Date().toISOString(),
+      };
+      setDisplayedEntries(prev => [...prev, userEntry]);
+      
       // Track turn started
       gameTelemetry.trackTurnStarted(
         actualGameId!,
@@ -259,6 +446,8 @@ export default function UnifiedGamePage() {
       
       postTurnMutation.mutate(payload, {
         onSuccess: (turnData) => {
+          // The turn data is already in the cache via setQueryData in usePostTurn
+          // The useEffect watching latestTurn will append it to displayedEntries
           // Track turn completion
           if (turnStartTime) {
             const duration = Date.now() - turnStartTime;
@@ -303,8 +492,28 @@ export default function UnifiedGamePage() {
         },
         onError: (error: any) => {
           const errorCode = error.code || 'unknown_error';
-          setTurnError(error.message);
+          const errorMessage = error.message || '';
+          
+          // Parse actual cost from error message if it's insufficient stones
+          if (errorCode === 'INSUFFICIENT_STONES') {
+            // Error format: "Insufficient casting stones. Have 1, need 2"
+            const needMatch = errorMessage.match(/need (\d+)/i);
+            if (needMatch) {
+              const cost = parseInt(needMatch[1], 10);
+              if (!isNaN(cost)) {
+                setActualStoneCost(cost);
+              }
+            }
+            setShowInsufficientStonesDialog(true);
+            // Don't set turnError for insufficient stones - it's handled by dialog
+          } else {
+            setTurnError(errorMessage);
+          }
+          
           setTurnErrorCode(errorCode);
+          // Clear pending state on error
+          setPendingChoice(null);
+          setPendingNarrativeId(null);
           
           gameTelemetry.trackTurnFailed(
             actualGameId!,
@@ -468,8 +677,8 @@ export default function UnifiedGamePage() {
         </div>
       </div>
 
-      {/* Error Handler */}
-      {turnError && (
+      {/* Error Handler - only show non-insufficient-stones errors inline */}
+      {turnError && turnErrorCode !== 'INSUFFICIENT_STONES' && (
         <div className="mb-6">
           <TurnErrorHandler
             error={turnError}
@@ -481,6 +690,15 @@ export default function UnifiedGamePage() {
           />
         </div>
       )}
+
+      {/* Insufficient Stones Dialog - overlay upsell */}
+      <InsufficientStonesDialog
+        open={showInsufficientStonesDialog}
+        onOpenChange={setShowInsufficientStonesDialog}
+        currentBalance={wallet?.balance || 0}
+        requiredCost={actualStoneCost}
+        onGoToWallet={handleGoToWallet}
+      />
 
       {/* Main Game Layout */}
       <div className="grid gap-6 md:grid-cols-3">
@@ -496,7 +714,10 @@ export default function UnifiedGamePage() {
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent className="max-h-[600px] overflow-y-auto">
+            <CardContent 
+              ref={storyContainerRef}
+              className="max-h-[600px] overflow-y-auto"
+            >
               {/* Render conversation history */}
               {isLoadingHistory || isLoadingLatestTurn ? (
                 <div className="space-y-4">
@@ -504,9 +725,9 @@ export default function UnifiedGamePage() {
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-3/4" />
                 </div>
-              ) : conversationHistory && conversationHistory.entries.length > 0 ? (
+              ) : displayedEntries.length > 0 ? (
                 <div className="space-y-4">
-                  {conversationHistory.entries.map((entry: ConversationEntry, index: number) => (
+                  {displayedEntries.map((entry: ConversationEntry, index: number) => (
                     <div key={`${entry.id}-${entry.type}-${index}`}>
                       {/* Horizontal rule before each entry (except first) */}
                       {index > 0 && (
@@ -535,19 +756,28 @@ export default function UnifiedGamePage() {
                     </div>
                   ))}
                   
-                  {/* Show latest turn choices if narrative is available */}
-                  {latestTurn && latestTurn.narrative.length > 0 && (
+                  {/* Show pending narrative loader */}
+                  {pendingNarrativeId && (
                     <>
                       <hr className="my-4 border-t border-border/50" />
-                      {latestTurn.meta?.warnings?.includes('AI_EMPTY_NARRATIVE') && (
-                        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                          <strong>Note:</strong> The narrative is temporarily unavailable, but you can still make choices to continue.
+                      <div className="rounded-lg p-4 bg-muted/20 border-l-4 border-blue-500">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 mt-0.5">
+                            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Story:</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <RefreshCw className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+                              <p className="text-sm text-muted-foreground italic">The story continues...</p>
+                            </div>
+                          </div>
                         </div>
-                      )}
+                      </div>
                     </>
                   )}
+                  
                 </div>
-              ) : conversationHistory && conversationHistory.entries.length === 0 ? (
+              ) : displayedEntries.length === 0 ? (
                 <div className="text-muted-foreground text-center py-8">
                   No conversation history yet. Start playing to see your adventure unfold!
                 </div>
@@ -589,7 +819,7 @@ export default function UnifiedGamePage() {
                 onSubmit={handleTurnSubmit}
                 disabled={isSubmittingTurn}
                 placeholder="What do you do?"
-                stoneCost={1}
+                stoneCost={actualStoneCost}
                 hasChoices={gameState.currentChoices.length > 0}
               />
             </CardContent>

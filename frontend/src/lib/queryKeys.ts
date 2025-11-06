@@ -7,7 +7,7 @@
 export const queryKeys = {
   profile: () => ['profile'] as const,
   
-  adminUserRoles: (userId: string) => ['admin-user-roles', userId] as const,
+  adminUserRoles: (userId: string | null) => ['admin-user-roles', userId] as const,
   
   accessRequestStatus: () => ['access-request-status'] as const,
   
@@ -40,7 +40,7 @@ export const queryKeys = {
   characters: (params: { worldId?: string | null } = {}) =>
     ['characters', { worldId: params.worldId ?? null }] as const,
   
-  myAdventures: () => ['my-adventures'] as const,
+  myAdventures: () => ['my-stories'] as const,
   
   game: (gameId: string) => ['game', gameId] as const,
   

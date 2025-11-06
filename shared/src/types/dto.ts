@@ -61,7 +61,7 @@ export const GameListDTOSchema = z.object({
   worldName: z.string(),
   turnCount: z.number().int().min(0),
   status: z.enum(['active', 'completed', 'paused', 'abandoned']),
-  lastPlayedAt: z.string().datetime(),
+  lastPlayedAt: z.string(), // Accept any string format - backend may return incomplete datetime strings
 });
 
 // World DTO (redacted from internal state)

@@ -6,9 +6,11 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
+import { queryKeys } from '@/lib/queryKeys';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Shield, AlertTriangle } from 'lucide-react';
@@ -32,6 +34,7 @@ interface RoleVerificationState {
 export function AdminRouteGuard() {
   const navigate = useNavigate();
   const { isAuthenticated, user, signOut, initialize } = useAuthStore();
+  const queryClient = useQueryClient();
   const [state, setState] = useState<RoleVerificationState>({
     loading: true,
     hasAccess: false,
@@ -122,6 +125,13 @@ export function AdminRouteGuard() {
           });
           return;
         }
+
+        // CRITICAL: Set roles in React Query cache BEFORE rendering AppRolesProvider
+        // This ensures all components see the cached data and don't trigger duplicate fetches
+        const queryKey = queryKeys.adminUserRoles(user?.id || null);
+        queryClient.setQueryData(queryKey, userRoles, {
+          updatedAt: Date.now(),
+        });
 
         // Access granted
         setState({

@@ -49,12 +49,18 @@ export function usePostChoice(gameId: string | undefined) {
       }
       return result.data;
     },
-    onSuccess: () => {
-      // Precise invalidations - only affected queries
-      if (gameId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.latestTurn(gameId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.game(gameId) });
+    onSuccess: (data) => {
+      // Use the returned turn data directly - don't refetch latestTurn or game
+      if (gameId && data) {
+        // Update latestTurn cache directly with the returned data (no network call)
+        queryClient.setQueryData(queryKeys.latestTurn(gameId), data);
+        
+        // Invalidate conversation history to get the new entry
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversationHistory(gameId) });
       }
+      
+      // Note: We don't invalidate game query - it's only needed on page load
+      // We don't invalidate latestTurn either - we use the returned data directly
     },
     retry: false, // No automatic retries - errors should be handled via user interaction
   });
@@ -111,16 +117,25 @@ export function usePostTurn(gameId: string | undefined) {
       }
     },
     onSuccess: (data) => {
-      // Precise invalidations - only affected queries
-      if (gameId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.latestTurn(gameId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.game(gameId) });
+      // Use the returned turn data directly - don't refetch latestTurn, game, or history
+      // The mutation response contains all the data we need
+      if (gameId && data) {
+        // Update latestTurn cache directly with the returned data (no network call)
+        queryClient.setQueryData(queryKeys.latestTurn(gameId), data);
+        
+        // Don't invalidate conversation history - we'll append the new turn manually
+        // History is only fetched on initial page load
       }
       
       // If stones were spent, invalidate wallet to get fresh data
       if (data.stonesSpent && data.stonesSpent > 0) {
         queryClient.invalidateQueries({ queryKey: queryKeys.wallet() });
       }
+      
+      // Note: We don't invalidate game query - it's only needed on page load
+      // We don't invalidate latestTurn either - we use the returned data directly
+      // We don't invalidate conversationHistory - we append new turns manually
+      // latestTurn and conversationHistory are only fetched on initial page load
     },
     retry: false, // No automatic retries - errors should be handled via user interaction
   });

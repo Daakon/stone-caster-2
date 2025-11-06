@@ -42,7 +42,7 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
     },
     { 
       name: 'My Stories', 
-      href: '/my-adventures', 
+      href: '/my-stories', 
       icon: BookOpen,
       show: !!user
     },

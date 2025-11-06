@@ -388,8 +388,8 @@ test.describe('Games E2E Tests', () => {
       });
 
       // Navigate to games page
-      await page.click('text=My Adventures');
-      await expect(page).toHaveURL(/.*my-adventures/);
+      await page.click('text=My Stories');
+      await expect(page).toHaveURL(/.*my-stories/);
 
       // Verify games are listed
       await expect(page.locator('text=The Mystika Tutorial')).toBeVisible();
@@ -454,8 +454,8 @@ test.describe('Games E2E Tests', () => {
       });
 
       // Navigate to games page
-      await page.click('text=My Adventures');
-      await expect(page).toHaveURL(/.*my-adventures/);
+      await page.click('text=My Stories');
+      await expect(page).toHaveURL(/.*my-stories/);
 
       // Click on existing game
       await page.click('text=The Mystika Tutorial');
