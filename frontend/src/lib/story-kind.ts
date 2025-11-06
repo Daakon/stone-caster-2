@@ -29,7 +29,6 @@ export const guardStoryKind = (value: any): StoryKind => {
   if (isValidStoryKind(value)) {
     return value;
   }
-  console.warn(`Invalid StoryKind: ${value}. Falling back to ${DEFAULT_STORY_KIND}`);
   return DEFAULT_STORY_KIND;
 };
 

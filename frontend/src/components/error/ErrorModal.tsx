@@ -20,7 +20,6 @@ export function ErrorModal({ isOpen, onClose, error, onRetry }: ErrorModalProps)
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy error:', err);
     }
   };
 
@@ -84,7 +83,4 @@ export function ErrorModal({ isOpen, onClose, error, onRetry }: ErrorModalProps)
     </Dialog>
   );
 }
-
-
-
 

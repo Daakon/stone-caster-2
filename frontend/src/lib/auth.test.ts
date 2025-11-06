@@ -36,10 +36,3 @@ describe('ensureGuestToken', () => {
 	});
 });
 
-
-
-
-
-
-
-

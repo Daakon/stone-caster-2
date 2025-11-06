@@ -48,7 +48,6 @@ export function EntryRulesetsPicker({
       const rulesets = await rulesetsService.getActiveRulesets();
       setAvailableRulesets(rulesets);
     } catch (error) {
-      console.error('Failed to load rulesets:', error);
       toast.error('Failed to load rulesets');
     } finally {
       setIsLoading(false);
@@ -208,7 +207,4 @@ export function EntryRulesetsPicker({
     </Card>
   );
 }
-
-
-
 

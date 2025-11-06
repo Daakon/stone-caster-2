@@ -87,15 +87,12 @@ export function NPCsStep({ entry, data, onUpdate, onComplete }: NPCsStepProps) {
     
     try {
       // TODO: Save NPC bindings
-      console.log('Saving NPC bindings:', formData);
-      
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       onUpdate({ npcIds: formData.npcIds });
       onComplete(formData);
     } catch (error) {
-      console.error('Error saving NPC bindings:', error);
     } finally {
       setIsSubmitting(false);
     }

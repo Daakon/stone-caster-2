@@ -43,7 +43,6 @@ export default function EntryPointEditPage() {
       setEntryPoint(data);
     } catch (error) {
       toast.error('Failed to load story');
-      console.error('Error loading story:', error);
       navigate('/admin/entry-points');
     } finally {
       setLoading(false);
@@ -65,7 +64,6 @@ export default function EntryPointEditPage() {
       }
     } catch (error) {
       toast.error('Failed to save story');
-      console.error('Error saving story:', error);
     } finally {
       setSaving(false);
     }
@@ -84,7 +82,6 @@ export default function EntryPointEditPage() {
       loadEntryPoint(); // Reload to get updated lifecycle
     } catch (error) {
       toast.error('Failed to submit for review');
-      console.error('Error submitting for review:', error);
     }
   };
 

@@ -85,10 +85,3 @@ export function injectJSONLD(obj: unknown) {
 	el.text = JSON.stringify(obj);
 }
 
-
-
-
-
-
-
-

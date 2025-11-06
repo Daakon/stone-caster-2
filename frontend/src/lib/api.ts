@@ -28,7 +28,6 @@ export async function apiFetch<T = unknown>(
       headers.set('Authorization', `Bearer ${token}`);
     }
   } catch (error) {
-    console.warn('Failed to get auth token:', error);
   }
 
   // Attach guest cookie for guest users
@@ -209,7 +208,6 @@ export async function getGame(
 ): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
   return apiGet(`/api/games/${gameId}`);
 }
-
 
 // List current user's adventures (active games)
 export async function getMyAdventures(
@@ -624,8 +622,11 @@ export interface ListNPCsParams extends ListParamsBase { world?: ID }
 // Worlds
 export const listWorlds = (p?: ListParamsBase) => httpGet<World[]>('/api/catalog/worlds', p);
 
-// NPCs
+// NPCs - Public NPCs only (cached)
 export const listNPCs = (p?: ListNPCsParams) => httpGet<NPC[]>('/api/catalog/npcs', p);
+
+// User's private NPCs (requires authentication, no caching)
+export const listMyNPCs = (p?: ListNPCsParams) => apiGet<{ items: NPC[]; total: number; limit: number; offset: number }>('/api/npcs/my', p);
 
 // Rulesets
 export const listRulesets = (p?: ListParamsBase) => httpGet<Ruleset[]>('/api/catalog/rulesets', p);
@@ -670,5 +671,4 @@ export const createSession = (
 // Guest authentication
 export const createGuestToken = () =>
   httpPost<{ token: string }>('/auth/guest', {});
-
 

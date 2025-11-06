@@ -95,7 +95,7 @@ export default function AwfCoreContractsAdmin() {
   // Load contracts on mount
   useEffect(() => {
     if (hasLoaded.current) {
-      console.log('Core contracts already loaded, skipping duplicate call');
+
       return;
     }
     
@@ -104,7 +104,7 @@ export default function AwfCoreContractsAdmin() {
 
   const loadContracts = async () => {
     if (hasLoaded.current) {
-      console.log('Core contracts load already in progress, skipping');
+
       return;
     }
     
@@ -114,14 +114,14 @@ export default function AwfCoreContractsAdmin() {
       // Check if we have cached data first
       const cachedContracts = getCachedCoreContracts();
       if (cachedContracts.length > 0) {
-        console.log('Using cached core contracts');
+
         return;
       }
 
       // Fetch fresh data if no cache
       await fetchCoreContracts();
     } catch (error) {
-      console.error('Error loading contracts:', error);
+
       toast.error('Failed to load contracts');
       hasLoaded.current = false; // Reset on error so we can retry
     }
@@ -291,7 +291,7 @@ export default function AwfCoreContractsAdmin() {
         }
       }
     } catch (error) {
-      console.error('Error saving contract:', error);
+
       toast.error('Failed to save contract');
     }
   };
@@ -306,7 +306,7 @@ export default function AwfCoreContractsAdmin() {
         toast.error(response.error || 'Failed to activate contract');
       }
     } catch (error) {
-      console.error('Error activating contract:', error);
+
       toast.error('Failed to activate contract');
     }
   };
@@ -556,5 +556,4 @@ export default function AwfCoreContractsAdmin() {
     </div>
   );
 }
-
 

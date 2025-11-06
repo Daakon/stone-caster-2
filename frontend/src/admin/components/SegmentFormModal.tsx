@@ -100,7 +100,6 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
       setDuplicates([]);
       setShowDuplicateWarning(false);
     } catch (error) {
-      console.error('Error checking duplicates:', error);
     }
   };
 
@@ -124,7 +123,6 @@ export function SegmentFormModal({ isOpen, onClose, segment, onSave }: SegmentFo
       onSave();
     } catch (error) {
       toast.error('Failed to save segment');
-      console.error('Error saving segment:', error);
     } finally {
       setLoading(false);
     }

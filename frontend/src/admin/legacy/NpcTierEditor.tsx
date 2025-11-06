@@ -71,7 +71,6 @@ export default function NpcTierEditor({ npcId, segments, onSegmentChange, canEdi
       onSegmentChange();
     } catch (error) {
       toast.error('Failed to create segment');
-      console.error('Error creating segment:', error);
     }
   };
 
@@ -97,7 +96,6 @@ export default function NpcTierEditor({ npcId, segments, onSegmentChange, canEdi
       onSegmentChange();
     } catch (error) {
       toast.error('Failed to update segment');
-      console.error('Error updating segment:', error);
     }
   };
 
@@ -110,7 +108,6 @@ export default function NpcTierEditor({ npcId, segments, onSegmentChange, canEdi
       onSegmentChange();
     } catch (error) {
       toast.error('Failed to delete segment');
-      console.error('Error deleting segment:', error);
     }
   };
 
@@ -121,7 +118,6 @@ export default function NpcTierEditor({ npcId, segments, onSegmentChange, canEdi
       onSegmentChange();
     } catch (error) {
       toast.error('Failed to clone segment');
-      console.error('Error cloning segment:', error);
     }
   };
 
@@ -132,7 +128,6 @@ export default function NpcTierEditor({ npcId, segments, onSegmentChange, canEdi
       onSegmentChange();
     } catch (error) {
       toast.error('Failed to change segment tier');
-      console.error('Error changing tier:', error);
     }
   };
 
@@ -613,7 +608,4 @@ export default function NpcTierEditor({ npcId, segments, onSegmentChange, canEdi
     </div>
   );
 }
-
-
-
 

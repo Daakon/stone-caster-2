@@ -8,8 +8,7 @@ import AwfAdventuresAdmin from '@/pages/admin/AwfAdventuresAdmin';
 import AwfAdventureStartsAdmin from '@/pages/admin/AwfAdventureStartsAdmin';
 
 export function AdminRouter() {
-  console.log('AdminRouter: Rendering admin router - START');
-  console.log('AdminRouter: Current location:', window.location.pathname);
+
   return (
     <AdminLayout>
       <Routes>

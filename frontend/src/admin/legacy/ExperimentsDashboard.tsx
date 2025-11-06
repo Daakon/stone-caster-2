@@ -190,7 +190,6 @@ export default function ExperimentsDashboard() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Export failed:', err);
     }
   };
 

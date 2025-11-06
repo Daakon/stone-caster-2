@@ -81,7 +81,6 @@ export const PlayerV3Wizard: React.FC<PlayerV3WizardProps> = ({
     setErrors({});
   }, []);
 
-
   const handleNext = () => {
     const step = STEPS[currentStep];
     const newErrors: Record<string, string> = {};

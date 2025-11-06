@@ -40,7 +40,6 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
       setBindings(data);
     } catch (error) {
       toast.error('Failed to load NPC bindings');
-      console.error('Error loading bindings:', error);
     } finally {
       setLoading(false);
     }
@@ -52,7 +51,6 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
       setNpcs(data);
     } catch (error) {
       toast.error('Failed to load NPCs');
-      console.error('Error loading NPCs:', error);
     }
   };
 
@@ -72,7 +70,6 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
       await loadNPCs();
     } catch (error) {
       toast.error('Failed to create NPC binding');
-      console.error('Error creating binding:', error);
     }
   };
 
@@ -89,7 +86,6 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
       await loadNPCs();
     } catch (error) {
       toast.error('Failed to update NPC binding');
-      console.error('Error updating binding:', error);
     }
   };
 
@@ -107,7 +103,6 @@ export function EntryPointNpcsTab({ entryPointId, worldId }: EntryPointNpcsTabPr
       await loadNPCs();
     } catch (error) {
       toast.error('Failed to delete NPC binding');
-      console.error('Error deleting binding:', error);
     }
   };
 
@@ -290,7 +285,6 @@ function BindingDialog({ isOpen, onClose, binding, npcs, onSave }: BindingDialog
       }
     } catch (error) {
       toast.error('Failed to save NPC binding');
-      console.error('Error saving binding:', error);
     } finally {
       setSaving(false);
     }
@@ -363,14 +357,4 @@ function BindingDialog({ isOpen, onClose, binding, npcs, onSave }: BindingDialog
     </Dialog>
   );
 }
-
-
-
-
-
-
-
-
-
-
 

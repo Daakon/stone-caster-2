@@ -118,7 +118,6 @@ export default function OpsDashboard() {
         setHealthData(result.data);
       }
     } catch (err) {
-      console.error('Failed to fetch health data:', err);
     }
   };
 

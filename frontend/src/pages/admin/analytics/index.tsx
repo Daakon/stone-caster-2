@@ -56,7 +56,6 @@ export default function AnalyticsDashboard() {
       });
       setDailySeries(series);
     } catch (error) {
-      console.error('Failed to load analytics:', error);
       toast.error('Failed to load analytics data');
     } finally {
       setLoading(false);
@@ -384,18 +383,4 @@ export default function AnalyticsDashboard() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

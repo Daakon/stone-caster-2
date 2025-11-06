@@ -11,7 +11,8 @@ import {
   Wallet, 
   Settings,
   Gem,
-  X
+  X,
+  BookOpen
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { useQuery } from '@tanstack/react-query';
@@ -51,6 +52,12 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
       href: '/stories', 
       icon: Gamepad2,
       show: true
+    },
+    { 
+      name: 'My Stories', 
+      href: '/my-adventures', 
+      icon: BookOpen,
+      show: !!user
     },
     { 
       name: 'Worlds', 
@@ -302,5 +309,4 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
     </div>
   );
 }
-
 

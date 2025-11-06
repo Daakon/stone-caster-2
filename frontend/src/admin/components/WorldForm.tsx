@@ -75,7 +75,6 @@ export function WorldForm({ world, onSubmit, onCancel, loading = false }: WorldF
       await onSubmit(data);
       toast.success(world ? 'World updated successfully' : 'World created successfully');
     } catch (error) {
-      console.error('Failed to save world:', error);
       toast.error(world ? 'Failed to update world' : 'Failed to create world');
     } finally {
       setIsSubmitting(false);

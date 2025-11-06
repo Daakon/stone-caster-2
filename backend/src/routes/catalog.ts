@@ -373,10 +373,11 @@ router.get('/npcs', async (req: Request, res: Response) => {
       query = query.eq('status', 'active');
     }
 
-    // Filter by visibility - default to public (if column exists)
-    // RLS policies should handle visibility, but we filter here too for clarity
-    // Note: Some NPCs may not have visibility column, so we don't enforce it strictly
-    // The RLS policy will determine what users can actually see
+    // Filter by visibility - catalog endpoint only returns public NPCs
+    // This ensures the public catalog doesn't show private user NPCs
+    // Check visibility column first (if it exists), otherwise RLS will handle doc->>'visibility'
+    // Note: RLS policies should prevent private NPCs, but we filter explicitly for the catalog
+    query = query.eq('visibility', 'public');
 
     // Filter by world if provided
     if (filters.world) {

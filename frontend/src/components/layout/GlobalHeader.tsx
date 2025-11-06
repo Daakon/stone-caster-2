@@ -28,6 +28,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
 
   // Authenticated-only navigation items
   const authenticatedNavigation = [
+    { name: 'My Stories', href: '/my-adventures' },
     { name: 'Wallet', href: '/wallet' },
     { name: 'Profile', href: '/profile' },
   ];
@@ -42,7 +43,6 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
     setIsOpen(false);
     // Redirect to a safe route after sign out
     const safeRoute = RoutePreservationService.getSafeSignoutRoute(location.pathname);
-    console.log(`[REDIRECT] from=${location.pathname} to=${safeRoute} trigger=signout`);
     window.location.href = safeRoute;
   };
 
@@ -179,8 +179,4 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
     </header>
   );
 }
-
-
-
-
 

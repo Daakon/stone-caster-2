@@ -39,7 +39,6 @@ export function DebugDrawer({ gameId, open, onOpenChange }: DebugDrawerProps) {
   useEffect(() => {
     if (open && gameId) {
       debugStore.hydrateTraces(gameId).catch(err => {
-        console.error('[DEBUG_DRAWER] Failed to hydrate traces:', err);
       });
     }
   }, [open, gameId]);

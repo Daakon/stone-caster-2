@@ -105,7 +105,6 @@ export default function TestLab() {
         setRunResults(results.data || []);
       }
     } catch (error) {
-      console.error('Failed to load run results:', error);
     }
   };
 
@@ -123,8 +122,6 @@ export default function TestLab() {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('Matrix run started:', result);
-        
         // Simulate progress updates
         const interval = setInterval(() => {
           setProgress(prev => {
@@ -142,7 +139,6 @@ export default function TestLab() {
         throw new Error('Failed to start matrix run');
       }
     } catch (error) {
-      console.error('Failed to start matrix run:', error);
       setIsRunning(false);
       setCurrentRun(null);
     }
@@ -158,7 +154,6 @@ export default function TestLab() {
         setCurrentRun(null);
         setProgress(0);
       } catch (error) {
-        console.error('Failed to stop run:', error);
       }
     }
   };
@@ -178,7 +173,6 @@ export default function TestLab() {
         document.body.removeChild(a);
       }
     } catch (error) {
-      console.error('Failed to download artifact:', error);
     }
   };
 
@@ -193,7 +187,6 @@ export default function TestLab() {
         setBaselineComparisons(prev => [...prev, comparison.data]);
       }
     } catch (error) {
-      console.error('Failed to compare with baseline:', error);
     }
   };
 

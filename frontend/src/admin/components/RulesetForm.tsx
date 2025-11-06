@@ -75,7 +75,6 @@ export function RulesetForm({ ruleset, onSubmit, onCancel, loading = false }: Ru
       await onSubmit(data);
       toast.success(ruleset ? 'Ruleset updated successfully' : 'Ruleset created successfully');
     } catch (error) {
-      console.error('Failed to save ruleset:', error);
       toast.error(ruleset ? 'Failed to update ruleset' : 'Failed to create ruleset');
     } finally {
       setIsSubmitting(false);
@@ -184,7 +183,4 @@ export function RulesetForm({ ruleset, onSubmit, onCancel, loading = false }: Ru
     </Card>
   );
 }
-
-
-
 

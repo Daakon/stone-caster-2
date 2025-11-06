@@ -32,28 +32,23 @@ try {
   // If config returned placeholders but we have direct env access, use direct access
   if ((supabaseUrl === 'https://placeholder.supabase.co' && directSupabaseUrl) ||
       (supabaseKey === 'placeholder-anon-key' && directSupabaseKey)) {
-    console.warn('[Supabase] Config returned placeholders, but env vars found directly. Using direct access.');
+
     if (directSupabaseUrl) supabaseUrl = directSupabaseUrl;
     if (directSupabaseKey) supabaseKey = directSupabaseKey;
   }
   
   // Warn if still using placeholders
   if (supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-anon-key') {
-    console.warn(
-      '[Supabase] Using placeholder credentials. OAuth will not work.\n' +
-      'Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.\n' +
-      'Note: You may need to restart the Vite dev server after adding .env variables.'
-    );
+
   }
 } catch (error) {
-  console.error('[Supabase] Failed to load config:', error);
+
   // Use direct import.meta.env access as fallback
   supabaseUrl = directSupabaseUrl || 'https://placeholder.supabase.co';
   supabaseKey = directSupabaseKey || 'placeholder-anon-key';
   
   if (supabaseUrl === 'https://placeholder.supabase.co' || supabaseKey === 'placeholder-anon-key') {
-    console.warn('[Supabase] Using fallback config. Create .env file with VITE_SUPABASE_* variables.');
-    console.warn('[Supabase] Note: Restart the Vite dev server after adding .env variables.');
+
   }
 }
 
@@ -94,7 +89,7 @@ export function getSupabaseClient() {
     
     // Log the configuration for debugging
     if (redirectUrl) {
-      console.debug('[Supabase] Client initialized with redirectTo:', redirectUrl);
+
     }
   }
   return supabaseInstance;
@@ -106,16 +101,4 @@ export const supabase = getSupabaseClient();
 
 // Note: adminSupabase removed - use supabase singleton instead
 // If admin operations needed, they should go through the API server
-
-
-
-
-
-
-
-
-
-
-
-
 

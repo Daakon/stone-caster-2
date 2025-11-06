@@ -73,15 +73,12 @@ export function BasicsStep({ entry, data, onUpdate, onComplete }: BasicsStepProp
     try {
       // TODO: Save entry basics
       // This would typically call an API to update the entry
-      console.log('Saving entry basics:', formData);
-      
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       onUpdate(formData);
       onComplete(formData);
     } catch (error) {
-      console.error('Error saving entry basics:', error);
     } finally {
       setIsSubmitting(false);
     }

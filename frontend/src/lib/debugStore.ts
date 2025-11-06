@@ -118,7 +118,6 @@ class DebugStore {
       const debugToken = import.meta.env.VITE_DEBUG_ROUTES_TOKEN;
       
       if (!debugToken) {
-        console.warn('[DEBUG_STORE] No debug token configured, skipping trace fetch');
         return;
       }
 
@@ -129,7 +128,6 @@ class DebugStore {
       });
 
       if (!response.ok) {
-        console.warn('[DEBUG_STORE] Failed to fetch traces:', response.statusText);
         return;
       }
 
@@ -159,7 +157,6 @@ class DebugStore {
         }
       }
     } catch (error) {
-      console.error('[DEBUG_STORE] Error hydrating traces:', error);
     }
   }
 }

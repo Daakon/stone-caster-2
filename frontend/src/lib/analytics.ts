@@ -78,7 +78,7 @@ interface AnalyticsProvider {
 // Default console provider for development
 class ConsoleAnalyticsProvider implements AnalyticsProvider {
   track(event: string, properties?: Record<string, any>) {
-    console.log('[Analytics]', event, properties);
+
   }
 }
 
@@ -87,8 +87,7 @@ class ProductionAnalyticsProvider implements AnalyticsProvider {
   track(event: string, properties?: Record<string, any>) {
     // TODO: Integrate with actual analytics service (e.g., Google Analytics, Mixpanel, etc.)
     // For now, we'll use console in production as well
-    console.log('[Analytics]', event, properties);
-    
+
     // Example integration points:
     // - Google Analytics: gtag('event', event, properties)
     // - Mixpanel: mixpanel.track(event, properties)
@@ -117,7 +116,7 @@ export function track(event: string, properties?: Record<string, any>): void {
       userAgent: navigator.userAgent
     });
   } catch (error) {
-    console.error('[Analytics] Failed to track event:', event, error);
+
   }
 }
 
@@ -283,7 +282,7 @@ export function trackFunnelStage(payload: FunnelStageEvent) {
 	const event = { ...payload, timestamp: payload.timestamp ?? Date.now() };
 	if (ANALYTICS_DEBUG) {
 		// eslint-disable-next-line no-console
-		console.log('[Analytics] funnel_stage', event);
+
 	}
 	// existing sink
 	track('funnel_stage', event as any);
@@ -296,7 +295,7 @@ export function startSessionHeartbeat(sessionId: string) {
 		const event: SessionHeartbeatEvent = { session_id: sessionId, timestamp: Date.now() };
 		if (ANALYTICS_DEBUG) {
 			// eslint-disable-next-line no-console
-			console.log('[Analytics] session_heartbeat', event);
+
 		}
 		track('session_heartbeat', event as any);
 	};

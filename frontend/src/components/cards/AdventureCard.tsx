@@ -13,7 +13,6 @@ interface AdventureCardProps {
   isInvited: boolean;
 }
 
-
 export const AdventureCard: React.FC<AdventureCardProps> = ({
   adventure,
   world,

@@ -26,22 +26,16 @@ export function AuthRouter() {
     const mode = isAuthenticated ? 'member' : 'guest';
     const userStatus = isAuthenticated ? 'present' : 'absent';
     const guestIdStatus = (isGuest || isCookied) ? 'present' : 'absent';
-    
-    console.log(`[AUTH] mode=${mode} user=${userStatus} guestId=${guestIdStatus}`);
-
     // If user is authenticated and we're on an auth page, redirect to intended route
     if (isAuthenticated && location.pathname.startsWith('/auth')) {
       // Guard against double navigation
       if (hasRedirectedRef.current) {
-        console.log(`[REDIRECT] already redirected, skipping`);
         return;
       }
       
       const intendedRoute = RoutePreservationService.getAndClearIntendedRoute();
       const fallbackRoute = location.state?.from ?? '/';
       const redirectTo = intendedRoute || fallbackRoute;
-      
-      console.log(`[REDIRECT] from=${location.pathname} to=${redirectTo} trigger=signin`);
       hasRedirectedRef.current = true;
       navigate(redirectTo, { replace: true });
     }
@@ -49,7 +43,6 @@ export function AuthRouter() {
     // If user is not authenticated and we're on an auth page, allow them to stay
     // This prevents the redirect loop that was bouncing guests back to /
     if (!isAuthenticated && location.pathname.startsWith('/auth')) {
-      console.log(`[AUTH] allowing guest to stay on auth page: ${location.pathname}`);
       // Reset redirect guard when not authenticated
       hasRedirectedRef.current = false;
       // No redirect - let the auth page render

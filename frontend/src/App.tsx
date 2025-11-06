@@ -36,6 +36,7 @@ import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
 import ScenarioPicker from './pages/player/ScenarioPicker';
 import RequestAccessPage from './pages/RequestAccessPage';
+import MyAdventuresPage from './pages/MyAdventuresPage';
 import { AdminRouteGuard } from './admin/AdminRouteGuard';
 import NotFoundPage from './pages/NotFoundPage';
 import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
@@ -65,16 +66,9 @@ function App() {
       import.meta.env.VITE_COMMIT_SHA ??
       import.meta.env.VITE_APP_VERSION ??
       'local-dev';
-
-    console.log('[BUILD]', {
-      mode: import.meta.env.MODE,
-      buildId,
-    });
   }, []);
 
   useEffect(() => {
-    console.log('[BOOT] App mounted');
-    
     // Initialize guest cookie for anonymous users
     GuestCookieService.getOrCreateGuestCookie();
     
@@ -124,7 +118,6 @@ function App() {
             }}
           >
             {(() => {
-              console.log('[BOOT] Router provider mounted');
               return null;
             })()}
             <AuthRouter />
@@ -251,6 +244,13 @@ function App() {
                     </EarlyAccessRoute>
                   </ProtectedRoute>
                 } />
+                <Route path="/my-adventures" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <MyAdventuresPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
                 <Route path="/scenarios" element={
                   <ProtectedRoute>
                     <EarlyAccessRoute>
@@ -274,5 +274,4 @@ function App() {
 }
 
 export default App;
-
 

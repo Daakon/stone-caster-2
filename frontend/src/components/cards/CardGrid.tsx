@@ -32,5 +32,3 @@ export const CardGrid: React.FC<CardGridProps> = ({
   );
 };
 
-
-

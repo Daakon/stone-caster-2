@@ -18,7 +18,6 @@ export function useGameTelemetry() {
   const trackEvent = useCallback(async (event: GameTelemetryEvent) => {
     // Disable telemetry during testing
     if (process.env.NODE_ENV === 'development' || process.env.DISABLE_TELEMETRY === 'true') {
-      console.log('Telemetry disabled:', event.event);
       return;
     }
 
@@ -33,7 +32,6 @@ export function useGameTelemetry() {
       );
       
       if (recentEvents.length > 0) {
-        console.log('Skipping duplicate telemetry event:', event.event);
         return;
       }
 
@@ -63,7 +61,6 @@ export function useGameTelemetry() {
       });
     } catch (error) {
       // Silently fail - telemetry should never break the user experience
-      console.warn('Game telemetry tracking failed:', error);
     }
   }, []);
 

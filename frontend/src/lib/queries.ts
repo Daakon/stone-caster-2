@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listWorlds, listNPCs, listRulesets, listStories, getStory, getWorld, getNPC, getRuleset, listCharacters, createCharacter, createSession, createGuestToken, getSession, getSessionMessages, findExistingSession } from '@/lib/api';
+import { listWorlds, listNPCs, listMyNPCs, listRulesets, listStories, getStory, getWorld, getNPC, getRuleset, listCharacters, createCharacter, createSession, createGuestToken, getSession, getSessionMessages, findExistingSession } from '@/lib/api';
 import type { ID, StoryKind } from '@/types/domain';
 
 export const useWorldsQuery = (q?: string) =>
@@ -17,10 +17,29 @@ export const useWorldsQuery = (q?: string) =>
 
 export const useNPCsQuery = (p: { q?: string; world?: ID }) =>
   useQuery({ 
-    queryKey: ['npcs', p], 
+    queryKey: ['npcs', 'public', p], 
     queryFn: () => listNPCs(p),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+  });
+
+// Query for user's private NPCs (requires auth, no caching)
+export const useMyNPCsQuery = (
+  p: { q?: string; world?: ID; status?: 'draft' | 'active' | 'archived' },
+  enabled: boolean = false
+) =>
+  useQuery({ 
+    queryKey: ['npcs', 'my', p], 
+    queryFn: async () => {
+      const result = await listMyNPCs(p);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    },
+    staleTime: 0, // No caching for private NPCs
+    gcTime: 0,
+    enabled, // Enable when user is authenticated and tab is active
   });
 
 export const useRulesetsQuery = (q?: string) =>

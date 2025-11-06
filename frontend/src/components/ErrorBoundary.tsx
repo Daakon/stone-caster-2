@@ -20,12 +20,10 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    console.error('[ERROR-BOUNDARY] Caught error:', error);
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[ERROR-BOUNDARY] Error details:', error, errorInfo);
   }
 
   handleRetry = () => {
@@ -73,15 +71,4 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
 

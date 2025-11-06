@@ -27,19 +27,16 @@ export function ModerationButtons({
 
   const handleApprove = () => {
     // TODO: Implement in Phase 5
-    console.log('Approve entry point:', entryPointId);
     onModerationAction?.('approve');
   };
 
   const handleReject = () => {
     // TODO: Implement in Phase 5
-    console.log('Reject entry point:', entryPointId);
     onModerationAction?.('reject');
   };
 
   const handleRequestChanges = () => {
     // TODO: Implement in Phase 5
-    console.log('Request changes for entry point:', entryPointId);
     onModerationAction?.('request_changes');
   };
 
@@ -84,7 +81,4 @@ export function ModerationButtons({
     </div>
   );
 }
-
-
-
 

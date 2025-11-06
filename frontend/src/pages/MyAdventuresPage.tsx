@@ -9,6 +9,8 @@ import { CalendarClock, Play, RotateCcw } from 'lucide-react';
 import { getMyAdventures } from '@/lib/api';
 import type { AppError } from '@/lib/errors';
 import type { GameListDTO } from '@shared';
+import { useAuthStore } from '@/store/auth';
+import { publicAccessRequestsService } from '@/services/accessRequests';
 
 function LoadingPlaceholder() {
   return (
@@ -30,6 +32,23 @@ function LoadingPlaceholder() {
 }
 
 export default function MyAdventuresPage() {
+  const { user } = useAuthStore();
+
+  // Check early access status - same query key as EarlyAccessRoute
+  const { data: accessStatus, isLoading: isLoadingAccess } = useQuery({
+    queryKey: ['access-request-status'],
+    queryFn: () => publicAccessRequestsService.getStatus(),
+    enabled: !!user,
+    refetchInterval: false,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // Determine if user has approved early access
+  // Wait for access status to load before enabling the adventures query
+  const request = accessStatus?.ok ? accessStatus.data : null;
+  const hasApprovedAccess = request?.status === 'approved';
+  const accessStatusLoaded = accessStatus !== undefined; // Query has completed (success or error)
+
   const {
     data: adventures,
     isLoading,
@@ -45,16 +64,14 @@ export default function MyAdventuresPage() {
       }
       return result.data;
     },
-    retry: (failureCount, fetchError) => {
-      if (fetchError?.code === 'UNAUTHORIZED') {
-        return false;
-      }
-      return failureCount < 2;
-    },
+    // Only enable query if user exists, access status has loaded, and user has approved early access
+    enabled: !!user && accessStatusLoaded && hasApprovedAccess,
+    retry: false, // Disable automatic retries - we handle errors explicitly
   });
 
   const appError = isError ? error : null;
   const isUnauthorized = appError?.code === 'UNAUTHORIZED';
+  const isEarlyAccessRequired = appError?.code === 'EARLY_ACCESS_REQUIRED';
   const items = adventures ?? [];
   const hasAdventures = items.length > 0;
 
@@ -62,26 +79,40 @@ export default function MyAdventuresPage() {
     <div className="container max-w-screen-xl space-y-8 py-6" id="main-content">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Adventures</h1>
+          <h1 className="text-3xl font-bold tracking-tight">My Stories</h1>
           <p className="text-muted-foreground">
             Pick up where you left off or dive back into an unfinished story.
           </p>
         </div>
         <Button asChild>
-          <Link to="/adventures" aria-label="Start a new adventure">
-            <Play className="mr-2 h-4 w-4" /> New Adventure
+          <Link to="/stories" aria-label="Start a new story">
+            <Play className="mr-2 h-4 w-4" /> New Story
           </Link>
         </Button>
       </div>
 
-      {isLoading && <LoadingPlaceholder />}
+      {(isLoading || isLoadingAccess) && <LoadingPlaceholder />}
 
-      {!isLoading && isUnauthorized && (
-        <Alert data-testid="my-adventures-unauthorized">
-          <AlertTitle>Sign in to see your adventures</AlertTitle>
+      {!isLoading && !isLoadingAccess && isEarlyAccessRequired && (
+        <Alert data-testid="my-adventures-early-access">
+          <AlertTitle>Early Access Required</AlertTitle>
           <AlertDescription>
-            We could not load your saved adventures. Sign in to resume a story, or start a new one from the
-            adventures library.
+            StoneCaster is currently in Early Access. You need to request and receive approval to access your stories.
+          </AlertDescription>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button asChild>
+              <Link to="/request-access">Request Access</Link>
+            </Button>
+          </div>
+        </Alert>
+      )}
+
+      {!isLoading && !isLoadingAccess && !isEarlyAccessRequired && isUnauthorized && (
+        <Alert data-testid="my-adventures-unauthorized">
+          <AlertTitle>Sign in to see your stories</AlertTitle>
+          <AlertDescription>
+            We could not load your saved stories. Sign in to resume a story, or start a new one from the
+            stories library.
           </AlertDescription>
           <div className="mt-4 flex flex-wrap gap-3">
             <Button asChild>
@@ -94,23 +125,23 @@ export default function MyAdventuresPage() {
         </Alert>
       )}
 
-      {!isLoading && !isUnauthorized && !hasAdventures && (
+      {!isLoading && !isLoadingAccess && !isEarlyAccessRequired && !isUnauthorized && !hasAdventures && (
         <Card data-testid="my-adventures-empty">
           <CardHeader>
-            <CardTitle>No adventures yet</CardTitle>
+            <CardTitle>No stories yet</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              When you start an adventure, it will appear here so you can resume it later.
+              When you start a story, it will appear here so you can resume it later.
             </p>
             <Button asChild>
-              <Link to="/adventures">Browse Adventures</Link>
+              <Link to="/stories">Browse Stories</Link>
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {!isLoading && !isUnauthorized && hasAdventures && (
+      {!isLoading && !isLoadingAccess && !isEarlyAccessRequired && !isUnauthorized && hasAdventures && (
         <div className="grid gap-4 md:grid-cols-2" data-testid="my-adventures-list">
           {adventures!.map((adventure) => (
             <Card key={adventure.id} className="h-full">

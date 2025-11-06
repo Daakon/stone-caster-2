@@ -42,17 +42,41 @@ export async function resolveRole(req: Request): Promise<{ role: AppRole | null;
   // Fast path: if req.ctx.userId is already set by auth middleware, use it
   if (req.ctx?.userId && !req.ctx.isGuest) {
     try {
-      const { data, error } = await supabaseAdmin
+      // Get user profile
+      const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .select('role')
         .eq('id', req.ctx.userId)
         .single();
 
-      if (error || !data) {
+      if (profileError || !profile) {
         return { role: 'pending', authed: true }; // fail-safe: treat as pending
       }
 
-      const role = (data.role as AppRole) || 'pending';
+      let role = (profile.role as AppRole) || 'pending';
+
+      // If profile role is 'pending', check for approved access request
+      // This handles cases where access was approved by email before user signed up
+      if (role === 'pending') {
+        // Get user email from auth.users
+        const userEmail = req.ctx.user?.email;
+        
+        if (userEmail) {
+          // Check for approved access request by userId or email
+          const { data: accessRequest } = await supabaseAdmin
+            .from('access_requests')
+            .select('status')
+            .or(`user_id.eq.${req.ctx.userId},email.eq.${userEmail.toLowerCase()}`)
+            .eq('status', 'approved')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (accessRequest) {
+            role = 'early_access';
+          }
+        }
+      }
 
       // Cache result if we have a bearer token
       if (bearer) {
@@ -81,17 +105,39 @@ export async function resolveRole(req: Request): Promise<{ role: AppRole | null;
     }
 
     // Get role from profiles table
-    const { data, error } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
 
-    if (error || !data) {
+    if (profileError || !profile) {
       return { role: 'pending', authed: true }; // fail-safe: treat as pending
     }
 
-    const role = (data.role as AppRole) || 'pending';
+    let role = (profile.role as AppRole) || 'pending';
+
+    // If profile role is 'pending', check for approved access request
+    // This handles cases where access was approved by email before user signed up
+    if (role === 'pending') {
+      const userEmail = user.email;
+      
+      if (userEmail) {
+        // Check for approved access request by userId or email
+        const { data: accessRequest } = await supabaseAdmin
+          .from('access_requests')
+          .select('status')
+          .or(`user_id.eq.${user.id},email.eq.${userEmail.toLowerCase()}`)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (accessRequest) {
+          role = 'early_access';
+        }
+      }
+    }
 
     // Cache result
     const key = 'bf:' + bearerKey(bearer);

@@ -16,6 +16,7 @@ import profileRouter from './routes/profile.js';
 import adventuresRouter from './routes/adventures.js';
 import catalogRouter from './routes/catalog.js';
 import catalogNpcsRouter from './routes/catalogNpcs.js';
+import npcsRouter from './routes/npcs.js';
 import searchRouter from './routes/search.js';
 import stonesRouter from './routes/stones.js';
 import subscriptionRouter from './routes/subscription.js';
@@ -119,6 +120,8 @@ app.use('/api/worlds', worldsRouter);
 // Catalog routes (includes both legacy and new unified entry-points)
 app.use('/api/catalog', catalogRouter);
 app.use('/api/catalog', catalogNpcsRouter);
+// User NPCs routes (private NPCs, requires auth)
+app.use('/api/npcs', npcsRouter);
 app.use('/api/content', contentRouter);
 app.use('/api/adventures', adventuresRouter);
 app.use('/api/search', searchRouter);

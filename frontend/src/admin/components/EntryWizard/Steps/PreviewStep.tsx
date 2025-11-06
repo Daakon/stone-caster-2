@@ -97,7 +97,6 @@ export function PreviewStep({ entry, data, onUpdate, onComplete }: PreviewStepPr
       const data = await response.json();
       setPreviewData(data);
     } catch (error) {
-      console.error('Error loading preview:', error);
     } finally {
       setIsLoading(false);
     }
@@ -120,10 +119,8 @@ export function PreviewStep({ entry, data, onUpdate, onComplete }: PreviewStepPr
   const handleStartTestChat = async () => {
     try {
       // TODO: Create game with entry_id and redirect to chat
-      console.log('Starting test chat for entry:', entry.id);
       // This would typically call the create game API and redirect
     } catch (error) {
-      console.error('Error starting test chat:', error);
     }
   };
   

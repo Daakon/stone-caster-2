@@ -50,7 +50,6 @@ export function AdminRouteGuard() {
         if (!session?.access_token) {
           // No session token - check if auth store says authenticated
           if (!isAuthenticated || !user) {
-            console.log('[AdminRouteGuard] No session token and not authenticated, redirecting to sign in');
             setState({
               loading: false,
               hasAccess: false,
@@ -64,22 +63,18 @@ export function AdminRouteGuard() {
 
         // If we have a session but auth store is out of sync, re-initialize
         if (session?.user && (!isAuthenticated || !user)) {
-          console.log('[AdminRouteGuard] Session exists but auth store out of sync, re-initializing...');
           try {
             await initialize();
           } catch (initErr) {
-            console.warn('[AdminRouteGuard] Failed to re-initialize auth store:', initErr);
+            // Silently fail auth store re-initialization
           }
         }
 
         // Now fetch roles - this will fail if user doesn't have access
-        console.log('[AdminRouteGuard] Fetching user roles to verify admin access...');
         let result = await apiGet<AppRole[]>('/api/admin/user/roles');
 
         // If UNAUTHORIZED, try refreshing token
         if (!result.ok && result.error.code === 'UNAUTHORIZED') {
-          console.log('[AdminRouteGuard] Token expired, attempting refresh...');
-          
           const currentSession = session || (await supabase.auth.getSession()).data.session;
           
           if (currentSession?.refresh_token) {
@@ -88,12 +83,11 @@ export function AdminRouteGuard() {
             });
             
             if (!refreshError && refreshData.session) {
-              console.log('[AdminRouteGuard] Token refreshed, retrying role fetch...');
               // Re-initialize auth store after refresh
               try {
                 await initialize();
               } catch (initErr) {
-                console.warn('[AdminRouteGuard] Failed to re-initialize after refresh:', initErr);
+                // Silently fail auth store re-initialization
               }
               
               result = await apiGet<AppRole[]>('/api/admin/user/roles');
@@ -103,7 +97,6 @@ export function AdminRouteGuard() {
 
         // Check if roles fetch succeeded
         if (!result.ok) {
-          console.error('[AdminRouteGuard] Failed to fetch roles:', result.error);
           setState({
             loading: false,
             hasAccess: false,
@@ -115,13 +108,11 @@ export function AdminRouteGuard() {
         }
 
         const userRoles = (result.data || []).map(role => role as AppRole);
-        console.log('[AdminRouteGuard] User roles verified:', userRoles);
 
         // User must have at least 'creator' role to access admin
         const hasAccess = userRoles.length > 0;
         
         if (!hasAccess) {
-          console.log('[AdminRouteGuard] User has no admin roles, access denied');
           setState({
             loading: false,
             hasAccess: false,
@@ -141,7 +132,6 @@ export function AdminRouteGuard() {
         });
 
       } catch (err) {
-        console.error('[AdminRouteGuard] Error verifying admin access:', err);
         setState({
           loading: false,
           hasAccess: false,
@@ -222,8 +212,9 @@ export function AdminRouteGuard() {
   }
 
   // Access granted - render admin shell with roles provider
+  // Pass pre-fetched roles to avoid duplicate API call
   return (
-    <AppRolesProvider>
+    <AppRolesProvider initialRoles={state.roles}>
       <AppAdminShell />
     </AppRolesProvider>
   );

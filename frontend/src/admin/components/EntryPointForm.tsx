@@ -91,7 +91,6 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
       setWorlds(worldsData);
     } catch (error) {
       toast.error('Failed to load worlds');
-      console.error('Error loading worlds:', error);
     }
   };
 
@@ -101,7 +100,6 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
       setRulesets(rulesetsData);
     } catch (error) {
       toast.error('Failed to load rulesets');
-      console.error('Error loading rulesets:', error);
     }
   };
 
@@ -122,7 +120,6 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
     try {
       await onSave(data);
     } catch (error) {
-      console.error('Error saving entry point:', error);
     }
   };
 
@@ -479,14 +476,4 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
     </form>
   );
 }
-
-
-
-
-
-
-
-
-
-
 

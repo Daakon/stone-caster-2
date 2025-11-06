@@ -15,7 +15,6 @@ export function useAdventureTelemetry() {
   const trackEvent = useCallback(async (event: AdventureTelemetryEvent) => {
     // Disable telemetry during testing
     if (process.env.NODE_ENV === 'development' || process.env.DISABLE_TELEMETRY === 'true') {
-      console.log('Telemetry disabled:', event.event);
       return;
     }
 
@@ -34,7 +33,6 @@ export function useAdventureTelemetry() {
       });
     } catch (error) {
       // Silently fail - telemetry should never break the user experience
-      console.warn('Telemetry tracking failed:', error);
     }
   }, []);
 

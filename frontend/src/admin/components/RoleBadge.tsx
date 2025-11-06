@@ -9,11 +9,6 @@ import { useAppRoles } from '../routeGuard';
 export function RoleBadge() {
   const { isCreator, isModerator, isAdmin, roles, loading } = useAppRoles();
 
-  // Debug: log roles to console
-  if (!loading && roles.length > 0) {
-    console.log('[RoleBadge] User roles:', roles);
-  }
-
   if (loading) {
     return <Badge variant="secondary">Loading...</Badge>;
   }
@@ -54,18 +49,4 @@ export function RoleBadge() {
 
   return <Badge variant="outline">Guest</Badge>;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

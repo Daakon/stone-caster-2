@@ -9,7 +9,6 @@ type ThemeProviderProps = {
   storageKey?: string;
 };
 
-
 export function ThemeProvider({
   children,
   defaultTheme = 'system',

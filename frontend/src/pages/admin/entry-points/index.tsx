@@ -3,8 +3,9 @@
  * Phase 3: Full CRUD interface for stories management
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,11 +20,8 @@ import { useAppRoles } from '@/admin/routeGuard';
 
 export default function EntryPointsAdmin() {
   const { isCreator, isModerator, isAdmin } = useAppRoles();
-  const [entryPoints, setEntryPoints] = useState<EntryPoint[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<EntryPointFilters>({});
   const [search, setSearch] = useState('');
-  const [worlds, setWorlds] = useState<Array<{ id: string; name: string }>>([]);
 
   // Memoize filters to prevent unnecessary re-renders
   const memoizedFilters = useMemo(() => ({
@@ -31,40 +29,31 @@ export default function EntryPointsAdmin() {
     search: search || undefined
   }), [filters.lifecycle, filters.visibility, filters.world_id, filters.type, search]);
 
-  // Load entry points with useCallback to prevent recreation on each render
-  const loadEntryPoints = useCallback(async () => {
-    try {
-      setLoading(true);
+  // Use React Query for entry points with caching
+  const { data: entryPointsData, isLoading: loadingEntryPoints, refetch: refetchEntryPoints } = useQuery({
+    queryKey: ['admin-entry-points', memoizedFilters],
+    queryFn: async () => {
       const response = await entryPointsService.listEntryPoints(memoizedFilters);
-      setEntryPoints(response.data || []);
-    } catch (error) {
-      toast.error('Failed to load stories');
-      console.error('Error loading stories:', error);
-      setEntryPoints([]); // Reset to empty array on error
-    } finally {
-      setLoading(false);
-    }
-  }, [memoizedFilters]);
+      return response;
+    },
+    staleTime: 30 * 1000, // 30 seconds - cache for short time
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-  // Load worlds once on mount
-  const loadWorlds = useCallback(async () => {
-    try {
-      const worldsData = await entryPointsService.getWorlds();
-      setWorlds(worldsData);
-    } catch (error) {
-      console.error('Error loading worlds:', error);
-    }
-  }, []);
+  const entryPoints = entryPointsData?.data || [];
+  const loading = loadingEntryPoints;
 
-  // Load data on mount and when filters change
-  useEffect(() => {
-    loadEntryPoints();
-  }, [loadEntryPoints]);
+  // Use React Query for worlds with caching to prevent duplicate calls
+  const { data: worldsData } = useQuery({
+    queryKey: ['admin-worlds-list'], // Shared cache key
+    queryFn: async () => {
+      return await entryPointsService.getWorlds();
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes - worlds don't change often
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
 
-  // Load worlds once on mount
-  useEffect(() => {
-    loadWorlds();
-  }, [loadWorlds]);
+  const worlds = worldsData || [];
 
   const handleSubmitForReview = async (id: string, title: string) => {
     if (!confirm(`Submit '${title}' for moderation?`)) {
@@ -74,10 +63,9 @@ export default function EntryPointsAdmin() {
     try {
       await entryPointsService.submitForReview(id);
       toast.success('Story submitted for review');
-      loadEntryPoints();
+      refetchEntryPoints();
     } catch (error) {
       toast.error('Failed to submit for review');
-      console.error('Error submitting for review:', error);
     }
   };
 
