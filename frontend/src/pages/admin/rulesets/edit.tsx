@@ -18,7 +18,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { rulesetsService } from '@/services/admin.rulesets';
-import { ArrowLeft, Save, Eye, Copy, Download, Upload, History, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Copy, Download, Upload, History, AlertTriangle, Info } from 'lucide-react';
+import { ExtrasForm } from '@/components/admin/ExtrasForm';
+import { PromptAuthoringSection } from '@/components/admin/prompt-authoring/PromptAuthoringSection';
+import { ContextChips } from '@/components/admin/prompt-authoring/ContextChips';
+import { isAdminPromptFormsEnabled, isLegacyPromptTextareaRetired } from '@/lib/feature-flags';
+import { trackAdminEvent } from '@/lib/admin-telemetry';
 
 const rulesetSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
@@ -329,23 +334,26 @@ export default function RulesetEditPage() {
                   )}
                 </div>
 
-                <div>
-                  <Label htmlFor="prompt">Prompt Content *</Label>
-                  <Textarea
-                    id="prompt"
-                    {...register('prompt')}
-                    disabled={!canEdit}
-                    rows={8}
-                    placeholder="Enter the ruleset's prompt content for AI generation. This is what will be used when assembling prompts for entry points using this ruleset."
-                    className={errors.prompt ? 'border-red-500' : ''}
-                  />
-                  {errors.prompt && (
-                    <p className="text-sm text-red-600 mt-1">{errors.prompt.message}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    The prompt content defines how the AI should behave with this ruleset. This content is required for entry point assembly.
-                  </p>
-                </div>
+                {/* Legacy Prompt Textarea - shown only when feature flag is off AND retirement flag is off */}
+                {!isAdminPromptFormsEnabled() && !isLegacyPromptTextareaRetired() && (
+                  <div>
+                    <Label htmlFor="prompt">Prompt Content *</Label>
+                    <Textarea
+                      id="prompt"
+                      {...register('prompt')}
+                      disabled={!canEdit}
+                      rows={8}
+                      placeholder="Enter the ruleset's prompt content for AI generation. This is what will be used when assembling prompts for entry points using this ruleset."
+                      className={errors.prompt ? 'border-red-500' : ''}
+                    />
+                    {errors.prompt && (
+                      <p className="text-sm text-red-600 mt-1">{errors.prompt.message}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The prompt content defines how the AI should behave with this ruleset. This content is required for entry point assembly.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <Label htmlFor="status">Status</Label>
@@ -389,6 +397,82 @@ export default function RulesetEditPage() {
               </form>
             </CardContent>
           </Card>
+
+          {/* Prompt Authoring Section - shown when feature flag is on */}
+          {isAdminPromptFormsEnabled() && id && ruleset && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Prompt Authoring (Preview)</CardTitle>
+                <CardDescription>
+                  Preview and analyze the prompt that will be generated for this ruleset
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <ContextChips
+                    context={{
+                      rulesetId: id,
+                    }}
+                    rulesetName={ruleset.name}
+                    showTemplatesLink={true}
+                  />
+                </div>
+                <Alert className="mb-4">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Partial context:</strong> Only ruleset data is available. For a complete preview, provide a world ID in the context.
+                  </AlertDescription>
+                </Alert>
+                <PromptAuthoringSection
+                  initialContext={{
+                    rulesetId: id,
+                    // templatesVersion can be added later when story/game pin is available
+                  }}
+                  initialExtrasOverrides={{
+                    ruleset: (ruleset as any)?.extras || {},
+                  }}
+                  onResult={async (result) => {
+                    const contextFlags = {
+                      hasWorld: false,
+                      hasRuleset: true,
+                      hasScenario: false,
+                      npcCount: 0,
+                      templatesVersion: undefined, // TODO: Get from story/game if available
+                    };
+
+                    if (!result.data) {
+                      if (result.type === 'preview') {
+                        await trackAdminEvent('ruleset.promptAuthoring.preview.failed', {
+                          rulesetId: id,
+                          ...contextFlags,
+                        });
+                      } else if (result.type === 'budget') {
+                        await trackAdminEvent('ruleset.promptAuthoring.budget.failed', {
+                          rulesetId: id,
+                          ...contextFlags,
+                        });
+                      }
+                      return;
+                    }
+
+                    if (result.type === 'preview') {
+                      await trackAdminEvent('ruleset.promptAuthoring.preview.success', {
+                        rulesetId: id,
+                        ...contextFlags,
+                      });
+                    } else if (result.type === 'budget') {
+                      await trackAdminEvent('ruleset.promptAuthoring.budget.success', {
+                        rulesetId: id,
+                        ...contextFlags,
+                        tokensBefore: result.data?.tokens?.before,
+                        tokensAfter: result.data?.tokens?.after,
+                      });
+                    }
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Publish Tab */}
@@ -534,6 +618,18 @@ export default function RulesetEditPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Extras Form */}
+      {id && (
+        <ExtrasForm
+          packType="ruleset"
+          packId={id}
+          initialExtras={(ruleset as any)?.extras || null}
+          onSuccess={() => {
+            loadRuleset(); // Reload to get updated extras
+          }}
+        />
+      )}
     </div>
   );
 }

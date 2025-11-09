@@ -6,10 +6,15 @@
  */
 
 import { Router } from 'express';
+import budgetRouter from './admin-budget.js';
+import telemetryRouter from './admin-telemetry.js';
+import healthRouter from './admin-health.js';
 import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validateRequest } from '../middleware/validation.js';
+import { requireRole } from '../middleware/rbac.js';
+import { rateLimit } from '../middleware/rate-limit.js';
 import { IdParamSchema } from '@shared';
 import { 
   WorldDocSchema, 
@@ -28,6 +33,15 @@ import {
 import { computeDocumentHash } from '../utils/awf-hashing.js';
 
 const router = Router();
+
+// Mount budget report routes
+router.use(budgetRouter);
+
+// Mount telemetry routes
+router.use('/telemetry', telemetryRouter);
+
+// Mount health routes
+router.use(healthRouter);
 
 type PromptRecord = {
   content?: string | null;
@@ -4274,6 +4288,2163 @@ router.delete('/entry-points/:id', authenticateToken, requireAdminRole, async (r
     res.status(500).json({
       ok: false,
       error: 'Failed to delete entry point',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/prompt-snapshots/{id}:
+ *   get:
+ *     summary: Get prompt snapshot by ID
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Prompt snapshot retrieved successfully
+ *       404:
+ *         description: Snapshot not found
+ */
+router.get('/prompt-snapshots/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { getPromptSnapshot } = await import('../services/prompt-snapshots.service.js');
+    
+    const snapshot = await getPromptSnapshot(id);
+    
+    if (!snapshot) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Snapshot not found'
+      });
+    }
+    
+    res.json({
+      ok: true,
+      data: snapshot
+    });
+  } catch (error) {
+    console.error('Error getting prompt snapshot:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to get prompt snapshot',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/templates/publish:
+ *   post:
+ *     summary: Publish a new version of a template
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - type
+ *               - slot
+ *               - body
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 enum: [world, ruleset, npc, scenario, module, ux]
+ *               slot:
+ *                 type: string
+ *               body:
+ *                 type: string
+ *               baseVersion:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Template published successfully
+ */
+router.post('/templates/publish', 
+  authenticateToken, 
+  requireAdminRole,
+  requireRole('publisher'),
+  rateLimit({ maxRequests: 10, windowMs: 3600000 }), // 10 per hour
+  async (req, res) => {
+  try {
+    const { type, slot, body, baseVersion } = req.body;
+    
+    if (!type || !slot || !body) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: type, slot, body'
+      });
+    }
+
+    const { publishNewVersion } = await import('../services/templates.service.js');
+    const userId = req.user?.id;
+    
+    const template = await publishNewVersion({
+      type,
+      slot,
+      body,
+      baseVersion,
+      created_by: userId,
+    });
+    
+    res.json({
+      ok: true,
+      data: { version: template.version }
+    });
+  } catch (error) {
+    console.error('Error publishing template:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to publish template',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/templates/:type/:slot/history:
+ *   get:
+ *     summary: Get template history for a specific slot
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: type
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: slot
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template history retrieved successfully
+ */
+router.get('/templates/:type/:slot/history', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { type, slot } = req.params;
+    
+    const { getTemplateHistory } = await import('../services/templates.service.js');
+    const history = await getTemplateHistory(type as any, slot);
+    
+    res.json({
+      ok: true,
+      data: history
+    });
+  } catch (error) {
+    console.error('Error getting template history:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to get template history',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/templates/active:
+ *   get:
+ *     summary: Get active templates
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: templatesVersion
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Active templates retrieved successfully
+ */
+router.get('/templates/active', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const type = req.query.type as string | undefined;
+    const templatesVersion = req.query.templatesVersion 
+      ? parseInt(req.query.templatesVersion as string, 10)
+      : undefined;
+    
+    const { getActiveTemplates } = await import('../services/templates.service.js');
+    const templates = await getActiveTemplates(
+      type as any,
+      templatesVersion
+    );
+    
+    res.json({
+      ok: true,
+      data: templates
+    });
+  } catch (error) {
+    console.error('Error getting active templates:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to get active templates',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/prompt-preview:
+ *   post:
+ *     summary: Preview TurnPacketV3 and linearized prompt
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               gameId:
+ *                 type: string
+ *               worldId:
+ *                 type: string
+ *               rulesetId:
+ *                 type: string
+ *               scenarioId:
+ *                 type: string
+ *               npcIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               templatesVersion:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Preview generated successfully
+ */
+router.post('/prompt-preview', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { 
+      gameId, 
+      worldId, 
+      rulesetId, 
+      scenarioId, 
+      npcIds, 
+      templatesVersion, 
+      moduleParamsOverrides,
+      extrasOverrides,
+      verbose
+    } = req.body;
+
+    const hasOverrides = !!(moduleParamsOverrides || extrasOverrides);
+    const warnings: string[] = [];
+
+    // Validate module params overrides
+    if (moduleParamsOverrides) {
+      const { validateModuleParams } = await import('../services/module-params.service.js');
+      for (const [moduleId, params] of Object.entries(moduleParamsOverrides)) {
+        const validation = await validateModuleParams(moduleId, params as Record<string, unknown>);
+        if (!validation.valid) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Invalid module params overrides',
+            details: {
+              moduleId,
+              errors: validation.errors,
+            },
+          });
+        }
+      }
+    }
+
+    // Validate extras overrides
+    if (extrasOverrides) {
+      const { validateExtras } = await import('../services/extras.service.js');
+      
+      if (extrasOverrides.world) {
+        const validation = await validateExtras('world', extrasOverrides.world);
+        if (!validation.ok) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Invalid world extras overrides',
+            details: validation.errors,
+          });
+        }
+      }
+      
+      if (extrasOverrides.ruleset) {
+        const validation = await validateExtras('ruleset', extrasOverrides.ruleset);
+        if (!validation.ok) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Invalid ruleset extras overrides',
+            details: validation.errors,
+          });
+        }
+      }
+      
+      if (extrasOverrides.scenario) {
+        const validation = await validateExtras('scenario', extrasOverrides.scenario);
+        if (!validation.ok) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Invalid scenario extras overrides',
+            details: validation.errors,
+          });
+        }
+      }
+      
+      if (extrasOverrides.npcs) {
+        for (const [npcId, npcExtras] of Object.entries(extrasOverrides.npcs)) {
+          const validation = await validateExtras('npc', npcExtras as Record<string, unknown>);
+          if (!validation.ok) {
+            return res.status(400).json({
+              ok: false,
+              error: `Invalid NPC extras overrides for ${npcId}`,
+              details: validation.errors,
+            });
+          }
+        }
+      }
+    }
+    
+    // Load extras from database if IDs provided
+    const extrasMap: Record<string, Record<string, unknown>> = {};
+    
+    if (worldId) {
+      const { data: world } = await supabase
+        .from('worlds')
+        .select('extras')
+        .eq('id', worldId)
+        .single();
+      if (world?.extras) {
+        extrasMap.world = world.extras as Record<string, unknown>;
+      }
+    }
+    
+    if (rulesetId) {
+      const { data: ruleset } = await supabase
+        .from('rulesets')
+        .select('extras')
+        .eq('id', rulesetId)
+        .single();
+      if (ruleset?.extras) {
+        extrasMap.ruleset = ruleset.extras as Record<string, unknown>;
+      }
+    }
+    
+    if (scenarioId) {
+      const { data: scenario } = await supabase
+        .from('scenarios')
+        .select('extras')
+        .eq('id', scenarioId)
+        .single();
+      if (scenario?.extras) {
+        extrasMap.scenario = scenario.extras as Record<string, unknown>;
+      }
+    }
+    
+    if (npcIds && Array.isArray(npcIds)) {
+      const { data: npcs } = await supabase
+        .from('npcs')
+        .select('id, extras')
+        .in('id', npcIds);
+      if (npcs) {
+        for (const npc of npcs) {
+          if (npc.extras) {
+            extrasMap[`npc_${npc.id}`] = npc.extras as Record<string, unknown>;
+          }
+        }
+      }
+    }
+    
+    // Build TurnPacketV3 from provided context
+    const { buildTurnPacketV3FromV3 } = await import('../adapters/turn-packet-v3-adapter.js');
+    const { buildLinearizedPrompt } = await import('../utils/linearized-prompt.js');
+    const { lintTemplates } = await import('../utils/template-lint.js');
+    const { CORE_PROMPT } = await import('../prompts/entry-point-assembler-v3.js');
+    
+    // For preview, we need to construct a minimal V3 output
+    // This is a simplified version - in production you'd load actual data
+    const mockV3Output = {
+      prompt: '',
+      pieces: [],
+      meta: {
+        worldId: worldId || 'preview-world',
+        worldSlug: worldId || 'preview-world',
+        rulesetSlug: rulesetId || 'preview-ruleset',
+        entryPointId: 'preview-entry',
+        entryPointSlug: 'preview-entry',
+        entryStartSlug: 'preview-start',
+        tokenEst: { input: 0, budget: 8000, pct: 0 },
+        model: 'gpt-4o-mini',
+        source: 'preview',
+        version: 'v3',
+        npcTrimmedCount: 0,
+        selectionContext: {} as any,
+      },
+      extras: extrasMap, // Include extras for template rendering
+    };
+    
+    // Build overrides object
+    const overrides = hasOverrides ? {
+      moduleParamsOverrides,
+      extrasOverrides,
+    } : undefined;
+
+    const tp = await buildTurnPacketV3FromV3(
+      mockV3Output as any,
+      CORE_PROMPT,
+      {},
+      'Preview input',
+      'preview-build',
+      templatesVersion,
+      overrides
+    );
+    
+    // Build linearized sections
+    const { buildLinearizedSections } = await import('../utils/linearized-prompt.js');
+    const sections = await buildLinearizedSections(tp);
+    
+    // Apply budget if maxTokens provided
+    const maxTokens = req.body.maxTokens || undefined;
+    let linearized: string;
+    let tokenInfo: { before: number; after?: number; trimPlan?: Array<{ key: string; removedTokens: number }> } | undefined;
+    
+    if (maxTokens) {
+      const { applyBudget } = await import('../budget/budget-engine.js');
+      const budgetResult = await applyBudget({
+        linearSections: sections,
+        maxTokens,
+      });
+      linearized = budgetResult.sections.map(s => s.text).join('\n\n');
+      tokenInfo = {
+        before: budgetResult.totalTokensBefore,
+        after: budgetResult.totalTokensAfter,
+        trimPlan: budgetResult.trims.map(t => ({ key: t.key, removedTokens: t.removedTokens })),
+      };
+    } else {
+      linearized = sections.map(s => s.text).join('\n\n');
+      if (verbose) {
+        const { estimateTokens } = await import('../budget/tokenizer.js');
+        const before = await estimateTokens(linearized);
+        tokenInfo = {
+          before,
+        };
+      }
+    }
+    
+    // Run lint checks
+    const lintWarnings = await lintTemplates(templatesVersion);
+    
+    // Check for scenario graph warnings
+    const scenarioWarnings: string[] = [];
+    if (scenarioId && tp.scenario) {
+      try {
+        const { getGraph } = await import('../services/scenario-graph.service.js');
+        const graph = await getGraph(scenarioId);
+        if (graph) {
+          const entryNode = graph.entry_node || graph.nodes[0]?.id;
+          if (entryNode && !graph.nodes.find(n => n.id === entryNode)) {
+            scenarioWarnings.push('entry_node not found; using first node');
+          }
+          if (!tp.scenario.reachability) {
+            scenarioWarnings.push('scenario graph present but reachability not computed');
+          }
+        }
+      } catch (err) {
+        // Silently fail
+      }
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        source: hasOverrides ? 'preview-overrides' : 'preview',
+        tp,
+        linearized,
+        warnings: [
+          ...lintWarnings.filter(w => w.severity === 'warning').map(w => w.message),
+          ...scenarioWarnings,
+        ],
+        errors: lintWarnings.filter(w => w.severity === 'error').map(w => w.message),
+        ...(tokenInfo ? { tokens: tokenInfo } : {}),
+      }
+    });
+  } catch (error) {
+    console.error('Error generating preview:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to generate preview',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/prompt-snapshots:
+ *   get:
+ *     summary: List prompt snapshots
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: gameId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Snapshots retrieved successfully
+ */
+router.get('/prompt-snapshots', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const gameId = req.query.gameId as string | undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    
+    const { supabaseAdmin } = await import('../services/supabase.js');
+    
+    let query = supabaseAdmin
+      .from('prompt_snapshots')
+      .select('id, snapshot_id, created_at, source, templates_version, game_id, turn_id')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    
+    if (gameId) {
+      query = query.eq('game_id', gameId);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      throw error;
+    }
+    
+    res.json({
+      ok: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Error listing snapshots:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to list snapshots',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/prompt-snapshots/:id/diff/:otherId:
+ *   get:
+ *     summary: Get diff between two snapshots
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: otherId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Diff generated successfully
+ */
+router.get('/prompt-snapshots/:id/diff/:otherId', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id, otherId } = req.params;
+    
+    const { diffSnapshots } = await import('../utils/snapshot-diff.js');
+    const diff = await diffSnapshots(id, otherId);
+    
+    res.json({
+      ok: true,
+      data: diff
+    });
+  } catch (error) {
+    console.error('Error generating diff:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to generate diff',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/prompt-snapshots/{id}/override:
+ *   post:
+ *     summary: Create manual override snapshot with safeguards
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tp
+ *               - linearized_prompt_text
+ *               - reason
+ *             properties:
+ *               tp:
+ *                 type: object
+ *               linearized_prompt_text:
+ *                 type: string
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Override snapshot created successfully
+ *       400:
+ *         description: Invalid request body or validation failed
+ *       404:
+ *         description: Original snapshot not found
+ */
+router.post('/prompt-snapshots/:id/override', 
+  authenticateToken, 
+  requireAdminRole,
+  requireRole('publisher'),
+  rateLimit({ maxRequests: 5, windowMs: 3600000 }), // 5 per hour
+  async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tp, linearized_prompt_text, reason } = req.body;
+    
+    if (!tp || !linearized_prompt_text || !reason) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing required fields: tp, linearized_prompt_text, reason'
+      });
+    }
+
+    // Validate TurnPacketV3
+    const { TurnPacketV3Schema } = await import('../validators/turn-packet-v3.schema.js');
+    const validationResult = TurnPacketV3Schema.safeParse(tp);
+    
+    if (!validationResult.success) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid TurnPacketV3',
+        details: validationResult.error.errors
+      });
+    }
+
+    // Additional validation: contract and version
+    if (validationResult.data.contract !== 'awf.v1') {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid contract: must be "awf.v1"'
+      });
+    }
+
+    if (validationResult.data.tp_version !== '3') {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid tp_version: must be "3"'
+      });
+    }
+
+    const { getPromptSnapshot, createPromptSnapshot } = await import('../services/prompt-snapshots.service.js');
+    const userId = req.user?.id;
+    
+    // Get original snapshot
+    const original = await getPromptSnapshot(id);
+    if (!original) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Original snapshot not found'
+      });
+    }
+
+    // Create new snapshot with parent_id
+    const snapshot = await createPromptSnapshot({
+      templates_version: original.templates_version,
+      pack_versions: original.pack_versions,
+      tp: validationResult.data,
+      linearized_prompt_text,
+      awf_contract: 'awf.v1',
+      source: 'manual',
+      created_by: userId,
+      game_id: original.game_id,
+      turn_id: original.turn_id,
+      parent_id: original.id,
+    });
+    
+    res.json({
+      ok: true,
+      data: {
+        originalSnapshotId: original.snapshot_id,
+        overrideSnapshotId: snapshot.snapshot_id,
+        reason,
+      }
+    });
+  } catch (error) {
+    console.error('Error creating override snapshot:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to create override snapshot',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/templates/lint:
+ *   get:
+ *     summary: Lint templates for health checks
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: templatesVersion
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Lint results
+ */
+router.get('/templates/lint', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const templatesVersion = req.query.templatesVersion
+      ? parseInt(req.query.templatesVersion as string, 10)
+      : undefined;
+    
+    const { lintTemplates } = await import('../utils/template-lint.js');
+    const warnings = await lintTemplates(templatesVersion);
+    
+    res.json({
+      ok: true,
+      data: {
+        warnings: warnings.filter(w => w.severity === 'warning'),
+        errors: warnings.filter(w => w.severity === 'error'),
+        summary: {
+          total: warnings.length,
+          errors: warnings.filter(w => w.severity === 'error').length,
+          warnings: warnings.filter(w => w.severity === 'warning').length,
+        },
+      }
+    });
+  } catch (error) {
+    console.error('Error linting templates:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to lint templates',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/games/{id}:
+ *   patch:
+ *     summary: Update game settings (templates_version pinning)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               templates_version:
+ *                 type: integer
+ *                 nullable: true
+ *     responses:
+ *       200:
+ *         description: Game updated successfully
+ */
+router.patch('/games/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { templates_version } = req.body;
+    
+    const { supabaseAdmin } = await import('../services/supabase.js');
+    
+    const { data, error } = await supabaseAdmin
+      .from('games')
+      .update({ templates_version: templates_version || null })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'Game not found'
+        });
+      }
+      throw error;
+    }
+    
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error updating game:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to update game',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/prompt-snapshots/create:
+ *   post:
+ *     summary: Create manual snapshot from preview
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tp
+ *               - linearized_prompt_text
+ *             properties:
+ *               tp:
+ *                 type: object
+ *               linearized_prompt_text:
+ *                 type: string
+ *               templates_version:
+ *                 type: string
+ *               pack_versions:
+ *                 type: object
+ *               game_id:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Snapshot created successfully
+ */
+router.post('/prompt-snapshots/create', 
+  authenticateToken, 
+  requireAdminRole,
+  requireRole('publisher'),
+  async (req, res) => {
+    try {
+      const { tp, linearized_prompt_text, templates_version, pack_versions, game_id } = req.body;
+      
+      if (!tp || !linearized_prompt_text) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Missing required fields: tp and linearized_prompt_text'
+        });
+      }
+
+      // Validate TurnPacketV3
+      const { TurnPacketV3Schema } = await import('../validators/turn-packet-v3.schema.js');
+      const validationResult = TurnPacketV3Schema.safeParse(tp);
+      
+      if (!validationResult.success) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Invalid TurnPacketV3',
+          details: validationResult.error.errors
+        });
+      }
+
+      const { createPromptSnapshot } = await import('../services/prompt-snapshots.service.js');
+      const userId = req.user?.id;
+      
+      const snapshot = await createPromptSnapshot({
+        templates_version,
+        pack_versions,
+        tp: validationResult.data,
+        linearized_prompt_text,
+        awf_contract: 'awf.v1',
+        source: 'manual',
+        created_by: userId,
+        game_id: game_id || null,
+      });
+      
+      res.json({
+        ok: true,
+        data: snapshot
+      });
+    } catch (error) {
+      console.error('Error creating snapshot:', error);
+      res.status(500).json({
+        ok: false,
+        error: 'Failed to create snapshot',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/admin/templates/versions:
+ *   get:
+ *     summary: Get distinct template versions
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of distinct versions
+ */
+router.get('/templates/versions', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { supabaseAdmin } = await import('../services/supabase.js');
+    
+    const { data, error } = await supabaseAdmin
+      .from('templates')
+      .select('version')
+      .eq('status', 'published')
+      .order('version', { ascending: false });
+    
+    if (error) {
+      throw error;
+    }
+    
+    // Get distinct versions
+    const versions = [...new Set((data || []).map(t => t.version))].sort((a, b) => b - a);
+    
+    res.json({
+      ok: true,
+      data: versions
+    });
+  } catch (error) {
+    console.error('Error getting template versions:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to get template versions',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/field-defs:
+ *   get:
+ *     summary: List field definitions
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: packType
+ *         schema:
+ *           type: string
+ *           enum: [world, ruleset, npc, scenario]
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, deprecated]
+ *     responses:
+ *       200:
+ *         description: Field definitions list
+ */
+router.get('/field-defs', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { packType, status } = req.query;
+    const { listFieldDefs } = await import('../services/field-defs.service.js');
+    
+    const defs = await listFieldDefs(
+      packType as any,
+      status as 'active' | 'deprecated' | undefined
+    );
+    
+    res.json({
+      ok: true,
+      data: defs
+    });
+  } catch (error) {
+    console.error('Error listing field definitions:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to list field definitions',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/field-defs:
+ *   post:
+ *     summary: Create or update field definition
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - pack_type
+ *               - key
+ *               - label
+ *               - schema_json
+ *             properties:
+ *               pack_type:
+ *                 type: string
+ *                 enum: [world, ruleset, npc, scenario]
+ *               key:
+ *                 type: string
+ *               label:
+ *                 type: string
+ *               group_label:
+ *                 type: string
+ *               schema_json:
+ *                 type: object
+ *               default_json:
+ *                 type: any
+ *               help:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [active, deprecated]
+ *     responses:
+ *       200:
+ *         description: Field definition created/updated
+ */
+router.post('/field-defs', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { upsertFieldDef } = await import('../services/field-defs.service.js');
+    const userId = req.user?.id;
+    
+    // Validate schema_json is valid JSON Schema
+    const { schema_json } = req.body;
+    if (!schema_json || typeof schema_json !== 'object') {
+      return res.status(400).json({
+        ok: false,
+        error: 'schema_json must be a valid JSON object'
+      });
+    }
+
+    // Quick validation: check for required JSON Schema fields
+    if (!schema_json.type && !schema_json.$ref) {
+      return res.status(400).json({
+        ok: false,
+        error: 'schema_json must have a type or $ref property'
+      });
+    }
+
+    const def = await upsertFieldDef({
+      ...req.body,
+      created_by: userId,
+    });
+    
+    res.json({
+      ok: true,
+      data: def
+    });
+  } catch (error) {
+    console.error('Error upserting field definition:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to upsert field definition',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/field-defs/{packType}/{key}/deprecate:
+ *   post:
+ *     summary: Deprecate a field definition
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: packType
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: key
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Field definition deprecated
+ */
+router.post('/field-defs/:packType/:key/deprecate', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { packType, key } = req.params;
+    const { deprecateFieldDef } = await import('../services/field-defs.service.js');
+    
+    const def = await deprecateFieldDef(packType as any, key);
+    
+    res.json({
+      ok: true,
+      data: def
+    });
+  } catch (error) {
+    console.error('Error deprecating field definition:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to deprecate field definition',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/{packType}/{id}/extras:
+ *   post:
+ *     summary: Save extras for a pack
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: packType
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               extras:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Extras saved successfully
+ */
+router.post('/:packType/:id/extras', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { packType, id } = req.params;
+    const { extras } = req.body;
+    
+    if (!['world', 'ruleset', 'npc', 'scenario'].includes(packType)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Invalid pack type'
+      });
+    }
+
+    const { validateExtras, mergeDefaults } = await import('../services/extras.service.js');
+    
+    // Merge defaults
+    const extrasWithDefaults = await mergeDefaults(packType as any, extras);
+    
+    // Validate
+    const validation = await validateExtras(packType as any, extrasWithDefaults);
+    if (!validation.ok) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Validation failed',
+        details: validation.errors
+      });
+    }
+
+    // Update pack table
+    const tableName = packType === 'world' ? 'worlds' : packType === 'ruleset' ? 'rulesets' : packType === 'npc' ? 'npcs' : 'scenarios';
+    
+    // Handle world ID mapping if needed
+    let updateId = id;
+    if (packType === 'world') {
+      // Check if id is UUID
+      if (id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        const { data: mapping } = await supabase
+          .from('world_id_mapping')
+          .select('text_id')
+          .eq('uuid_id', id)
+          .single();
+        if (mapping) {
+          updateId = mapping.text_id;
+        }
+      }
+    }
+
+    const { data, error } = await supabase
+      .from(tableName)
+      .update({ extras: extrasWithDefaults })
+      .eq('id', updateId)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: `${packType} not found`
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error saving extras:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to save extras',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/scenarios/{id}/graph:
+ *   get:
+ *     summary: Get scenario graph
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Scenario graph retrieved
+ */
+router.get('/scenarios/:id/graph', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { getGraph } = await import('../services/scenario-graph.service.js');
+    
+    const graph = await getGraph(id);
+    
+    if (!graph) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Scenario not found'
+      });
+    }
+    
+    res.json({
+      ok: true,
+      data: graph
+    });
+  } catch (error) {
+    console.error('Error getting scenario graph:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to get scenario graph',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/scenarios/{id}/graph:
+ *   put:
+ *     summary: Update scenario graph
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               scene_graph:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Graph updated successfully
+ */
+router.put('/scenarios/:id/graph', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scene_graph } = req.body;
+    
+    if (!scene_graph) {
+      return res.status(400).json({
+        ok: false,
+        error: 'scene_graph is required'
+      });
+    }
+
+    const { setGraph } = await import('../services/scenario-graph.service.js');
+    
+    const graph = await setGraph(id, scene_graph);
+    
+    res.json({
+      ok: true,
+      data: graph
+    });
+  } catch (error) {
+    console.error('Error updating scenario graph:', error);
+    res.status(400).json({
+      ok: false,
+      error: 'Failed to update scenario graph',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/scenarios/{id}/graph/reachable:
+ *   post:
+ *     summary: Compute reachable nodes
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stateSlice:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Reachable nodes computed
+ */
+router.post('/scenarios/:id/graph/reachable', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stateSlice } = req.body;
+    
+    const { getGraph, reachableNodes } = await import('../services/scenario-graph.service.js');
+    const guardEval = await import('../services/guard-eval.js');
+    
+    const graph = await getGraph(id);
+    
+    if (!graph) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Scenario not found'
+      });
+    }
+    
+    // Build guard context from stateSlice
+    const ctx: guardEval.GuardContext = {
+      rel: stateSlice?.rel || {},
+      inv: stateSlice?.inv || {},
+      currency: stateSlice?.currency || {},
+      flag: stateSlice?.flag || {},
+      state: stateSlice?.state || {},
+    };
+    
+    const reachable = reachableNodes(graph, ctx);
+    
+    res.json({
+      ok: true,
+      data: {
+        nodes: reachable
+      }
+    });
+  } catch (error) {
+    console.error('Error computing reachable nodes:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to compute reachable nodes',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// ============================================================================
+// Modules endpoints
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/admin/modules:
+ *   get:
+ *     summary: List all modules
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: state_slice
+ *         schema:
+ *           type: string
+ *         description: Filter by state slice
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search in title, description
+ *     responses:
+ *       200:
+ *         description: List of modules
+ */
+router.get('/modules', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { state_slice, search } = req.query;
+    
+    let query = supabase
+      .from('modules')
+      .select('id, base_id, version, title, description, state_slice, exports, created_at')
+      .order('created_at', { ascending: false });
+
+    if (state_slice) {
+      query = query.eq('state_slice', state_slice);
+    }
+
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    // Transform to include action count
+    const transformed = (data || []).map(module => ({
+      ...module,
+      actionCount: (module.exports as any)?.actions?.length || 0,
+    }));
+
+    res.json({
+      ok: true,
+      data: transformed,
+    });
+  } catch (error) {
+    console.error('Error fetching modules:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch modules',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/modules/{id}:
+ *   get:
+ *     summary: Get module detail
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Module manifest
+ */
+router.get('/modules/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('modules')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'Module not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data,
+    });
+  } catch (error) {
+    console.error('Error fetching module:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch module',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/stories/{id}/modules:
+ *   get:
+ *     summary: Get attached modules for a story
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of attached modules
+ */
+router.get('/stories/:id/modules', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('story_modules')
+      .select(`
+        module_id,
+        modules (*)
+      `)
+      .eq('story_id', id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: (data || []).map((row: any) => ({
+        ...row.modules,
+        params: row.params, // Include params in response
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching story modules:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch story modules',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/stories/{id}/modules:
+ *   post:
+ *     summary: Attach a module to a story
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [moduleId]
+ *             properties:
+ *               moduleId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Module attached successfully
+ */
+router.post('/stories/:id/modules', 
+  authenticateToken, 
+  requireRole('editor'),
+  rateLimit({ windowMs: 60 * 60 * 1000, max: 30 }), // 30 per hour
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { moduleId } = req.body;
+      
+      if (!moduleId) {
+        return res.status(400).json({
+          ok: false,
+          error: 'moduleId is required'
+        });
+      }
+
+      // Verify module exists
+      const { data: module, error: moduleError } = await supabase
+        .from('modules')
+        .select('id')
+        .eq('id', moduleId)
+        .single();
+
+      if (moduleError || !module) {
+        return res.status(404).json({
+          ok: false,
+          error: 'Module not found'
+        });
+      }
+
+      // Validate params if provided
+      const { params, params_meta } = req.body;
+      if (params) {
+        const { validateModuleParams } = await import('../services/module-params.service.js');
+        const validation = await validateModuleParams(moduleId, params);
+        if (!validation.valid) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Invalid params',
+            details: validation.errors,
+          });
+        }
+
+        // Size guard: reject params > 8KB
+        const paramsSize = JSON.stringify(params).length;
+        if (paramsSize > 8192) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Params too large (max 8KB)',
+          });
+        }
+      }
+
+      // Insert relationship
+      const { error: insertError } = await supabase
+        .from('story_modules')
+        .insert({
+          story_id: id,
+          module_id: moduleId,
+          params: params || null,
+          params_meta: params_meta || null,
+        });
+
+      if (insertError) {
+        if (insertError.code === '23505') { // Unique violation
+          return res.status(409).json({
+            ok: false,
+            error: 'Module already attached to this story'
+          });
+        }
+        throw insertError;
+      }
+
+      res.json({
+        ok: true,
+        data: { moduleId },
+      });
+    } catch (error) {
+      console.error('Error attaching module:', error);
+      res.status(500).json({
+        ok: false,
+        error: 'Failed to attach module',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/admin/stories/{id}/modules/{moduleId}:
+ *   delete:
+ *     summary: Detach a module from a story
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: moduleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Module detached successfully
+ */
+router.delete('/stories/:id/modules/:moduleId',
+  authenticateToken,
+  requireRole('editor'),
+  rateLimit({ windowMs: 60 * 60 * 1000, max: 30 }), // 30 per hour
+  async (req, res) => {
+    try {
+      const { id, moduleId } = req.params;
+      
+      const { error } = await supabase
+        .from('story_modules')
+        .delete()
+        .eq('story_id', id)
+        .eq('module_id', moduleId);
+
+      if (error) {
+        throw error;
+      }
+
+      res.json({
+        ok: true,
+        data: { moduleId },
+      });
+    } catch (error) {
+      console.error('Error detaching module:', error);
+      res.status(500).json({
+        ok: false,
+        error: 'Failed to detach module',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/admin/stories/{id}/modules/{moduleId}:
+ *   patch:
+ *     summary: Update module params for a story
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: moduleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               params:
+ *                 type: object
+ *               params_meta:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Params updated successfully
+ */
+router.patch('/stories/:id/modules/:moduleId',
+  authenticateToken,
+  requireRole('editor'),
+  rateLimit({ windowMs: 60 * 60 * 1000, max: 60 }), // 60 per hour
+  async (req, res) => {
+    try {
+      const { id, moduleId } = req.params;
+      const { params, params_meta } = req.body;
+
+      // Validate params if provided
+      if (params !== undefined) {
+        const { validateModuleParams } = await import('../services/module-params.service.js');
+        const validation = await validateModuleParams(moduleId, params);
+        if (!validation.valid) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Invalid params',
+            details: validation.errors,
+          });
+        }
+
+        // Size guard
+        const paramsSize = JSON.stringify(params).length;
+        if (paramsSize > 8192) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Params too large (max 8KB)',
+          });
+        }
+      }
+
+      // Update params
+      const updateData: any = {};
+      if (params !== undefined) {
+        updateData.params = params;
+      }
+      if (params_meta !== undefined) {
+        updateData.params_meta = params_meta;
+      }
+
+      const { error } = await supabase
+        .from('story_modules')
+        .update(updateData)
+        .eq('story_id', id)
+        .eq('module_id', moduleId);
+
+      if (error) {
+        throw error;
+      }
+
+      res.json({
+        ok: true,
+        data: { moduleId },
+      });
+    } catch (error) {
+      console.error('Error updating module params:', error);
+      res.status(500).json({
+        ok: false,
+        error: 'Failed to update module params',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/admin/loadouts:
+ *   get:
+ *     summary: List all loadouts
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of loadouts
+ */
+router.get('/loadouts', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('loadouts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data: data || [],
+    });
+  } catch (error) {
+    console.error('Error fetching loadouts:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch loadouts',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/loadouts/{id}:
+ *   get:
+ *     summary: Get loadout detail
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Loadout detail
+ */
+router.get('/loadouts/:id', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('loadouts')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'Loadout not found'
+        });
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      data,
+    });
+  } catch (error) {
+    console.error('Error fetching loadout:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to fetch loadout',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/admin/stories/{id}/apply-loadout:
+ *   post:
+ *     summary: Apply a loadout to a story
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [loadoutId]
+ *             properties:
+ *               loadoutId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Loadout applied successfully
+ */
+router.post('/stories/:id/apply-loadout',
+  authenticateToken,
+  requireRole('editor'),
+  rateLimit({ windowMs: 60 * 60 * 1000, max: 30 }), // 30 per hour
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { loadoutId } = req.body;
+
+      if (!loadoutId) {
+        return res.status(400).json({
+          ok: false,
+          error: 'loadoutId is required'
+        });
+      }
+
+      // Load loadout
+      const { data: loadout, error: loadoutError } = await supabase
+        .from('loadouts')
+        .select('*')
+        .eq('id', loadoutId)
+        .single();
+
+      if (loadoutError || !loadout) {
+        return res.status(404).json({
+          ok: false,
+          error: 'Loadout not found'
+        });
+      }
+
+      // Check compatibility
+      const modules = loadout.modules as string[];
+      const overrides = (loadout.overrides || {}) as Record<string, { params?: Record<string, unknown> }>;
+      
+      // Check ruleset compatibility for each module
+      const compatIssues: string[] = [];
+      for (const moduleId of modules) {
+        // Extract base_id from moduleId
+        const match = moduleId.match(/^module\.(.+)\.v\d+$/);
+        if (match) {
+          const moduleBaseId = `module.${match[1]}`;
+          const { data: compat } = await supabase
+            .from('ruleset_module_compat')
+            .select('status')
+            .eq('ruleset_id', loadout.ruleset_id)
+            .eq('module_base_id', moduleBaseId)
+            .single();
+
+          if (compat && compat.status === 'forbidden') {
+            compatIssues.push(`Module ${moduleId} is forbidden for ruleset ${loadout.ruleset_id}`);
+          }
+        }
+      }
+
+      if (compatIssues.length > 0) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Loadout incompatible with ruleset',
+          details: compatIssues,
+        });
+      }
+
+      // Apply loadout: update ruleset, attach modules, set params
+      // Note: This is a simplified implementation; in production you might want transactions
+      
+      // 1. Update entry_point ruleset (if needed)
+      // This would require entry_point_rulesets table updates - simplified for now
+      
+      // 2. Attach modules and set params
+      for (const moduleId of modules) {
+        const moduleOverrides = overrides[moduleId];
+        
+        // Check if already attached
+        const { data: existing } = await supabase
+          .from('story_modules')
+          .select('module_id')
+          .eq('story_id', id)
+          .eq('module_id', moduleId)
+          .single();
+
+        if (existing) {
+          // Update params if overrides exist
+          if (moduleOverrides?.params) {
+            await supabase
+              .from('story_modules')
+              .update({ params: moduleOverrides.params })
+              .eq('story_id', id)
+              .eq('module_id', moduleId);
+          }
+        } else {
+          // Insert new attachment
+          await supabase
+            .from('story_modules')
+            .insert({
+              story_id: id,
+              module_id: moduleId,
+              params: moduleOverrides?.params || null,
+            });
+        }
+      }
+
+      res.json({
+        ok: true,
+        data: { loadoutId },
+      });
+    } catch (error) {
+      console.error('Error applying loadout:', error);
+      res.status(500).json({
+        ok: false,
+        error: 'Failed to apply loadout',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/admin/modules/lint:
+ *   get:
+ *     summary: Lint modules for issues
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: moduleId
+ *         schema:
+ *           type: string
+ *         description: Optional module ID to lint specific module
+ *     responses:
+ *       200:
+ *         description: Lint warnings
+ */
+router.get('/modules/lint', authenticateToken, requireAdminRole, async (req, res) => {
+  try {
+    const { moduleId } = req.query;
+    
+    const { lintModules } = await import('../services/modules-lint.service.js');
+    const warnings = await lintModules(moduleId as string | undefined);
+
+    res.json({
+      ok: true,
+      data: {
+        warnings,
+      },
+    });
+  } catch (error) {
+    console.error('Error linting modules:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to lint modules',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

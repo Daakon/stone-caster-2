@@ -12,6 +12,7 @@
     "start:local": "node scripts/dev-with-default-env.js",
     "test": "vitest run --passWithNoTests",
     "test:ci": "vitest run --coverage --passWithNoTests",
+    "test:template-lint": "vitest run template-lint.test.ts",
     "type-check": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx,js}\"",
     "check:file-prompts": "node scripts/check-file-prompt-references.js",

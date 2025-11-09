@@ -1,0 +1,80 @@
+{
+  "id": "module.relationships.v3",
+  "base_id": "module.relationships",
+  "version": 3,
+  "title": "Relationships",
+  "description": "Track warmth, trust, respect, desire, and awe between player and NPCs",
+  "state_slice": "relationships",
+  "exports": {
+    "capabilities": ["STATE:relationships"],
+    "actions": [
+      {
+        "type": "relationship.delta",
+        "payload_schema": "zod:RelationshipDelta"
+      },
+      {
+        "type": "relationship.set",
+        "payload_schema": "zod:RelationshipSet"
+      }
+    ]
+  },
+  "ai_hints": [
+    "Describe emotional shifts without numbers",
+    "Emit acts for actual stat changes",
+    "Use relationship.delta for gradual changes, relationship.set for explicit values"
+  ],
+  "slots": ["module.hints", "module.actions"],
+  "extras": {},
+  "params": {
+    "schema": "zod:RelationshipsParams",
+    "defaults": {
+      "romance": {
+        "allowed": true,
+        "sameSex": true,
+        "poly": false
+      },
+      "minTrustToRomance": 6,
+      "gainCurve": {
+        "scale": 1.0,
+        "softCap": 12,
+        "hardCap": 20
+      },
+      "cooldowns": {
+        "perNpcTurns": 1,
+        "perTopicTurns": 2
+      },
+      "visibility": {
+        "showNumbers": false,
+        "showDescriptors": true
+      },
+      "consent": {
+        "requireMutual": true,
+        "powerDynamicsBlocked": true
+      }
+    },
+    "presets": [
+      {
+        "id": "slow_burn",
+        "label": "Slow Burn",
+        "overrides": {
+          "gainCurve": {
+            "scale": 0.6
+          }
+        }
+      },
+      {
+        "id": "spicy",
+        "label": "Spicy",
+        "overrides": {
+          "gainCurve": {
+            "scale": 1.5
+          },
+          "cooldowns": {
+            "perNpcTurns": 0
+          }
+        }
+      }
+    ]
+  }
+}
+

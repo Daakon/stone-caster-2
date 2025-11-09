@@ -11,6 +11,7 @@ export default defineConfig({
   minify: false,
   splitting: false,
   dts: false, // We'll use tsc for type checking
+  external: ['ajv-formats'], // Mark as external to avoid bundling issues
   esbuildOptions(options) {
     options.alias = {
       '@shared': path.resolve(__dirname, '../shared/src'),

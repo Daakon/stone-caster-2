@@ -6,10 +6,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, Save, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { npcsService, type UpdateNPCData, type NPC } from '@/services/admin.npcs';
 import { worldsService, type World } from '@/services/admin.worlds';
+import { ExtrasForm } from '@/components/admin/ExtrasForm';
+import { PromptAuthoringSection, type PromptAuthoringContext } from '@/components/admin/prompt-authoring/PromptAuthoringSection';
+import { ContextChips } from '@/components/admin/prompt-authoring/ContextChips';
+import { isAdminPromptFormsEnabled, isLegacyPromptTextareaRetired } from '@/lib/feature-flags';
+import { trackAdminEvent } from '@/lib/admin-telemetry';
 
 // Extended NPC type to include fields that may be returned from API
 interface ExtendedNPC extends NPC {
@@ -58,7 +64,7 @@ export default function EditNPCPage() {
     
     try {
       setLoadingNPC(true);
-      const npcData = await npcsService.getNPC(id) as ExtendedNPC;
+      const npcData = await npcsService.getNPC(id) as ExtendedNPC & { extras?: Record<string, unknown> };
       setNPC(npcData);
       
       // Parse the prompt if it exists
@@ -330,19 +336,22 @@ export default function EditNPCPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="prompt">Prompt</Label>
-              <Textarea
-                id="prompt"
-                value={typeof formData.prompt === 'string' ? formData.prompt : JSON.stringify(formData.prompt, null, 2)}
-                onChange={(e) => handleChange('prompt', e.target.value)}
-                placeholder="Enter NPC prompt/instructions for the AI"
-                rows={6}
-              />
-              <p className="text-sm text-muted-foreground">
-                This is the AI prompt that will be used when this NPC appears in the game.
-              </p>
-            </div>
+            {/* Legacy Prompt Textarea - shown only when feature flag is off AND retirement flag is off */}
+            {!isAdminPromptFormsEnabled() && !isLegacyPromptTextareaRetired() && (
+              <div className="space-y-2">
+                <Label htmlFor="prompt">Prompt</Label>
+                <Textarea
+                  id="prompt"
+                  value={typeof formData.prompt === 'string' ? formData.prompt : JSON.stringify(formData.prompt, null, 2)}
+                  onChange={(e) => handleChange('prompt', e.target.value)}
+                  placeholder="Enter NPC prompt/instructions for the AI"
+                  rows={6}
+                />
+                <p className="text-sm text-muted-foreground">
+                  This is the AI prompt that will be used when this NPC appears in the game.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2">
               <Button
@@ -363,6 +372,102 @@ export default function EditNPCPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Extras Form - shown when feature flag is off, or as part of PromptAuthoringSection when on */}
+      {!isAdminPromptFormsEnabled() && id && (
+        <ExtrasForm
+          packType="npc"
+          packId={id}
+          initialExtras={(npc as any)?.extras || null}
+          onSuccess={() => {
+            loadNPC(); // Reload to get updated extras
+          }}
+        />
+      )}
+
+      {/* Prompt Authoring Section - shown when feature flag is on */}
+      {isAdminPromptFormsEnabled() && id && npc && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Prompt Authoring (Preview)</CardTitle>
+            <CardDescription>
+              Preview and analyze the prompt that will be generated for this NPC
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <ContextChips
+                context={{
+                  npcIds: [id],
+                  worldId: npc.world_id || undefined,
+                }}
+                npcNames={{ [id]: npc.name }}
+                showTemplatesLink={true}
+              />
+            </div>
+            {(!npc.world_id) && (
+              <Alert className="mb-4">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Partial context:</strong> Only NPC data is available. For a complete preview, assign this NPC to a world.
+                </AlertDescription>
+              </Alert>
+            )}
+            <PromptAuthoringSection
+              initialContext={{
+                npcIds: [id],
+                worldId: npc.world_id || undefined,
+                // templatesVersion can be added later when story/game pin is available
+              }}
+              initialExtrasOverrides={{
+                npcs: {
+                  [id]: (npc as any)?.extras || {},
+                },
+              }}
+              onResult={async (result) => {
+                const contextFlags = {
+                  hasWorld: !!npc.world_id,
+                  hasRuleset: false, // NPCs don't have direct ruleset
+                  hasScenario: false,
+                  npcCount: 1,
+                  templatesVersion: undefined, // TODO: Get from story/game if available
+                };
+
+                if (!result.data) {
+                  // Error case
+                  if (result.type === 'preview') {
+                    await trackAdminEvent('npc.promptAuthoring.preview.failed', {
+                      npcId: id,
+                      ...contextFlags,
+                    });
+                  } else if (result.type === 'budget') {
+                    await trackAdminEvent('npc.promptAuthoring.budget.failed', {
+                      npcId: id,
+                      ...contextFlags,
+                    });
+                  }
+                  return;
+                }
+
+                // Success case
+                if (result.type === 'preview') {
+                  await trackAdminEvent('npc.promptAuthoring.preview.success', {
+                    npcId: id,
+                    ...contextFlags,
+                  });
+                } else if (result.type === 'budget') {
+                  await trackAdminEvent('npc.promptAuthoring.budget.success', {
+                    npcId: id,
+                    ...contextFlags,
+                    tokensBefore: result.data?.tokens?.before,
+                    tokensAfter: result.data?.tokens?.after,
+                  });
+                }
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

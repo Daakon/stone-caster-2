@@ -27,6 +27,7 @@ import ReportDetailPage from '@/pages/admin/reports/id';
 import AnalyticsAdmin from '@/pages/admin/analytics/index';
 import RolesAdmin from '@/pages/admin/roles/index';
 import AccessRequestsAdmin from '@/pages/admin/access-requests/index';
+import TemplatesManager from '@/pages/admin/TemplatesManager';
 
 export function AdminRoutes() {
   return (
@@ -153,7 +154,17 @@ export function AdminRoutes() {
           <Guarded allow="admin">
             <AccessRequestsAdmin />
           </Guarded>
-        } 
+        }
+      />
+      
+      {/* Template management routes */}
+      <Route 
+        path="/templates" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <TemplatesManager />
+          </Guarded>
+        }
       />
       
       {/* Catch-all redirect */}

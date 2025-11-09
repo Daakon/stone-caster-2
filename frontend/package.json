@@ -48,6 +48,8 @@
     "@tanstack/react-query": "^5.8.0",
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^1.6.1",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^2.1.1",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

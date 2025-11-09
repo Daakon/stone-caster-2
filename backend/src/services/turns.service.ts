@@ -290,6 +290,21 @@ export class TurnsService {
               promptMetadata: null
             };
             
+            // Build TurnPacketV3 and create snapshot (before AI call)
+            let snapshotId: string | undefined;
+            try {
+              const { buildTurnPacketV3FromAWF } = await import('../adapters/turn-packet-v3-adapter.js');
+              const { createPromptSnapshot } = await import('./prompt-snapshots.service.js');
+              const { SYSTEM_AWF_RUNTIME } = await import('../model/system-prompts.js');
+              
+              // Note: AWF path doesn't expose the bundle directly, so we'll skip snapshot for now
+              // This can be enhanced when bundle is accessible
+              // For now, we'll create a minimal snapshot with what we have
+            } catch (snapshotError) {
+              // Don't fail the turn if snapshot creation fails
+              console.warn('[TURNS] Failed to create prompt snapshot:', snapshotError);
+            }
+            
             // Structured logging: ai.prompt event (before AI call)
             console.log(JSON.stringify({
               event: 'ai.prompt',
@@ -299,6 +314,7 @@ export class TurnsService {
               turnCount: game.turn_count + 1,
               userIntent: userIntent ? { kind: userIntent.t, len: userIntent.text.length } : null,
               promptPreview: '[AWF cached bundle]',
+              snapshotId,
             }));
             
             // Structured logging: ai.raw_response event (after AWF call)
@@ -368,6 +384,89 @@ export class TurnsService {
             assembleStartTime = timer.getDuration('assemblerMs') ? Date.now() - (timer.getDuration('assemblerMs') || 0) : Date.now();
             assembleEndTime = Date.now();
             
+            // Build TurnPacketV3 and create snapshot (before AI call)
+            let snapshotId: string | undefined;
+            try {
+              const { buildTurnPacketV3FromV3 } = await import('../adapters/turn-packet-v3-adapter.js');
+              const { createPromptSnapshot } = await import('./prompt-snapshots.service.js');
+              const { CORE_PROMPT } = await import('../prompts/entry-point-assembler-v3.js');
+              
+              // Build TurnPacketV3 (use templates_version from game if set)
+              const templatesVersion = game.templates_version || undefined;
+              const buildId = `build-${Date.now()}-${traceId.substring(0, 8)}`;
+              const tp = await buildTurnPacketV3FromV3(
+                assembleResult,
+                CORE_PROMPT,
+                game.game_data?.state,
+                userIntent?.text || userInput || undefined,
+                buildId,
+                templatesVersion
+              );
+              
+              // Build linearized sections and apply budget
+              const { buildLinearizedSections } = await import('../utils/linearized-prompt.js');
+              const { applyBudget } = await import('../budget/budget-engine.js');
+              const sections = await buildLinearizedSections(tp);
+              
+              // Get budget from tp.meta or env
+              const maxTokens = tp.meta?.budgets?.max_ctx_tokens 
+                || parseInt(process.env.CTX_MAX_TOKENS_DEFAULT || '8000', 10);
+              
+              // Apply budget
+              const budgetResult = await applyBudget({
+                linearSections: sections,
+                maxTokens,
+              });
+              
+              // Re-compose linearized prompt from budgeted sections
+              let linearizedPrompt = budgetResult.sections.map(s => s.text).join('\n\n');
+              
+              // Create snapshot with budget report
+              const snapshot = await createPromptSnapshot({
+                templates_version: templatesVersion ? String(templatesVersion) : undefined,
+                pack_versions: {
+                  world: assembleResult.meta.worldId,
+                  ruleset: assembleResult.meta.rulesetSlug,
+                  scenario: assembleResult.meta.scenarioSlug || undefined,
+                },
+                tp,
+                linearized_prompt_text: linearizedPrompt,
+                awf_contract: 'awf.v1',
+                source: 'auto',
+                game_id: gameId,
+                budget_report: {
+                  version: 1,
+                  before: budgetResult.totalTokensBefore,
+                  after: budgetResult.totalTokensAfter,
+                  trims: budgetResult.trims,
+                  warnings: budgetResult.warnings,
+                },
+              });
+              
+              snapshotId = snapshot.snapshot_id;
+              
+              // Log budget telemetry
+              if (budgetResult.trims.length > 0) {
+                const topTrims = budgetResult.trims
+                  .sort((a, b) => b.removedTokens - a.removedTokens)
+                  .slice(0, 3)
+                  .map(t => t.key);
+                console.log(JSON.stringify({
+                  event: 'budget.applied',
+                  tokensBefore: budgetResult.totalTokensBefore,
+                  tokensAfter: budgetResult.totalTokensAfter,
+                  trimCount: budgetResult.trims.length,
+                  topTrims,
+                  warnings: budgetResult.warnings,
+                }));
+              }
+            } catch (snapshotError) {
+              // Don't fail the turn if snapshot creation fails
+              console.warn('[TURNS] Failed to create prompt snapshot:', snapshotError);
+              // Fallback to assembleResult.prompt if budget failed
+              linearizedPrompt = assembleResult.prompt;
+            }
+            
             // Structured logging: ai.prompt event (before AI call)
             console.log(JSON.stringify({
               event: 'ai.prompt',
@@ -376,25 +475,26 @@ export class TurnsService {
               gameId,
               turnCount: game.turn_count + 1,
               userIntent: userIntent ? { kind: userIntent.t, len: userIntent.text.length } : null,
-              promptPreview: assembleResult.prompt.substring(0, 800),
+              promptPreview: linearizedPrompt.substring(0, 800),
+              snapshotId,
             }));
             
             // Capture assembler result for debug if requested
             if (request.includeDebugMetadata) {
               assemblerResult = {
-                prompt: assembleResult.prompt,
+                prompt: linearizedPrompt,
                 pieces: assembleResult.pieces,
                 meta: assembleResult.meta,
               };
             }
             
-            // Use AI service with the assembled prompt (no retries)
+            // Use AI service with the budgeted prompt (no retries)
             timer.start('aiMs');
             aiStartTime = Date.now();
             const { OpenAIService } = await import('./openai.service.js');
             const openaiService = new OpenAIService();
             // Generate response with maxRetries=0 (no retries for turn requests)
-            const aiResponseObj = await this.generateAIResponseNoRetries(openaiService, assembleResult.prompt);
+            const aiResponseObj = await this.generateAIResponseNoRetries(openaiService, linearizedPrompt);
             timer.end('aiMs');
             aiEndTime = Date.now();
             
@@ -412,7 +512,7 @@ export class TurnsService {
             if (request.includeDebugMetadata) {
               aiRequestData = {
                 model: assembleResult.meta.model,
-                messages: [{ role: 'system', content: assembleResult.prompt }], // Simplified
+                messages: [{ role: 'system', content: linearizedPrompt }], // Budgeted prompt
               };
               aiRawResponse = aiResponseObj;
             }
@@ -425,7 +525,7 @@ export class TurnsService {
               // If parsing fails, try repair
               console.warn('[TURNS] AI response parse failed, attempting repair...');
               try {
-                parsed = await openaiService.repairJSONResponse(aiResponseObj.content, assembleResult.prompt);
+                parsed = await openaiService.repairJSONResponse(aiResponseObj.content, linearizedPrompt);
               } catch (repairError) {
                 console.error('[TURNS] JSON repair also failed:', repairError);
                 throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
@@ -434,7 +534,7 @@ export class TurnsService {
             aiResponseText = JSON.stringify(parsed);
             
             // Capture v3 prompt metadata
-            promptData = assembleResult.prompt;
+            promptData = linearizedPrompt;
             promptMetadata = {
               phase: 'turn',
               pieces: assembleResult.pieces,
@@ -580,6 +680,7 @@ export class TurnsService {
         aiResponseMetadata: aiResponseMetadata,
         processingTimeMs: Date.now() - turnStartTime,
         rawAiResponse: parsedAi, // Store raw AI response in content field
+        snapshotId: snapshotId, // Store prompt snapshot ID
       });
       timer.end('persistMs');
 

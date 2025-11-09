@@ -85,6 +85,7 @@ export interface EntryPointAssemblerV3Output {
     worldId: string;
     worldSlug: string;
     rulesetSlug: string;
+    scenarioSlug?: string | null;
     entryPointId: string;
     entryPointSlug: string;
     entryStartSlug: string;

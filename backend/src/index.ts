@@ -39,8 +39,14 @@ import adminPreviewRouter from './routes/admin.preview.js';
 import internalFlagsRouter from './routes/internalFlags.js';
 import { openapiRouter } from './routes/openapi.js';
 import { earlyAccessGuard } from './middleware/earlyAccessGuard.js';
+import { initializeActionRegistry } from './actions/boot.js';
 
 const app = express();
+
+// Initialize action registry on startup
+initializeActionRegistry().catch(err => {
+  console.error('[Startup] Failed to initialize action registry:', err);
+});
 
 // Disable Express ETag middleware to use our custom ETag implementation
 app.set('etag', false);
@@ -197,6 +203,18 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 // Start server only if not in test environment
 if (process.env.NODE_ENV !== 'test') {
   const port = config.port;
+  
+  // Seed slots and templates on boot if empty
+  (async () => {
+    try {
+      const { seedIfEmpty } = await import('./scripts/seed-slots-templates.js');
+      await seedIfEmpty();
+    } catch (error) {
+      console.error('[Boot] Failed to seed slots/templates:', error);
+      // Don't fail startup if seeding fails
+    }
+  })();
+  
   app.listen(port, () => {
     console.log(`🎲 Stonecaster API server running on port ${port}`);
     console.log(`📍 Health check: http://localhost:${port}/health`);

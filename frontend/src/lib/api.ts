@@ -694,3 +694,12 @@ export const createSession = (
 export const createGuestToken = () =>
   httpPost<{ token: string }>('/auth/guest', {});
 
+// API client object for convenience (matches usage in admin components)
+export const api = {
+  get: <T = unknown>(url: string) => apiGet<T>(url),
+  post: <T = unknown>(url: string, body?: unknown) => apiPost<T>(url, body),
+  put: <T = unknown>(url: string, body?: unknown) => apiPut<T>(url, body),
+  patch: <T = unknown>(url: string, body?: unknown) => apiPatch<T>(url, body),
+  delete: <T = unknown>(url: string) => apiDelete<T>(url),
+};
+

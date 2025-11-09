@@ -6,7 +6,8 @@
   "private": true,
   "workspaces": [
     "frontend",
-    "backend"
+    "backend",
+    "tools/author-cli"
   ],
   "scripts": {
     "dev": "npm run dev:clean",
