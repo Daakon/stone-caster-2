@@ -16,6 +16,9 @@ import { PromptAuthoringSection, type PromptAuthoringContext } from '@/component
 import { ContextChips } from '@/components/admin/prompt-authoring/ContextChips';
 import { isAdminPromptFormsEnabled, isLegacyPromptTextareaRetired } from '@/lib/feature-flags';
 import { trackAdminEvent } from '@/lib/admin-telemetry';
+import { PublishButton } from '@/components/publishing/PublishButton';
+import { PreflightPanel } from '@/components/publishing/PreflightPanel';
+import { isPublishingWizardEnabled } from '@/lib/feature-flags';
 
 // Extended NPC type to include fields that may be returned from API
 interface ExtendedNPC extends NPC {
@@ -354,6 +357,25 @@ export default function EditNPCPage() {
             )}
 
             <div className="flex justify-end gap-2">
+              {id && npc && (
+                <>
+                  {isPublishingWizardEnabled() && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate(`/publishing/wizard?type=npc&id=${id}`)}
+                    >
+                      Open Wizard
+                    </Button>
+                  )}
+                  <PublishButton
+                    type="npc"
+                    id={id}
+                    worldId={npc.world_id}
+                    worldName={npc.world_id} // TODO: Get actual world name
+                  />
+                </>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -372,6 +394,9 @@ export default function EditNPCPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Phase 6: Preflight Panel */}
+      {id && <PreflightPanel type="npc" id={id} />}
 
       {/* Extras Form - shown when feature flag is off, or as part of PromptAuthoringSection when on */}
       {!isAdminPromptFormsEnabled() && id && (

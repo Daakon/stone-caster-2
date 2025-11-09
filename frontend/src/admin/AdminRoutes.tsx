@@ -28,6 +28,9 @@ import AnalyticsAdmin from '@/pages/admin/analytics/index';
 import RolesAdmin from '@/pages/admin/roles/index';
 import AccessRequestsAdmin from '@/pages/admin/access-requests/index';
 import TemplatesManager from '@/pages/admin/TemplatesManager';
+import PublishingAdmin from '@/pages/admin/publishing/index';
+import PublishingAudit from '@/pages/admin/publishing/audit';
+import PublishingWizard from '@/pages/publishing/wizard';
 
 export function AdminRoutes() {
   return (
@@ -163,6 +166,34 @@ export function AdminRoutes() {
         element={
           <Guarded allow={['creator', 'moderator', 'admin']}>
             <TemplatesManager />
+          </Guarded>
+        }
+      />
+      
+      {/* Publishing routes (Phase 0/1) */}
+      <Route 
+        path="/publishing" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <PublishingAdmin />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/publishing/audit" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <PublishingAudit />
+          </Guarded>
+        }
+      />
+      
+      {/* Publishing wizard (Phase 7) */}
+      <Route 
+        path="/publishing/wizard" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <PublishingWizard />
           </Guarded>
         }
       />

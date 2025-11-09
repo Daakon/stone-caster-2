@@ -16,6 +16,9 @@ import { EntryPointSegmentsTab } from '@/admin/components/EntryPointSegmentsTab'
 import { EntryPointNpcsTab } from '@/admin/components/EntryPointNpcsTab';
 import { SubmitForReviewButton } from '@/admin/components/SubmitForReviewButton';
 import { useAppRoles } from '@/admin/routeGuard';
+import { PublishButton } from '@/components/publishing/PublishButton';
+import { PreflightPanel } from '@/components/publishing/PreflightPanel';
+import { isPublishingWizardEnabled } from '@/lib/feature-flags';
 
 export default function EntryPointEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -162,13 +165,29 @@ export default function EntryPointEditPage() {
               onSubmitted={loadEntryPoint}
             />
           )}
-          
+          {isPublishingWizardEnabled() && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/publishing/wizard?type=story&id=${entryPoint.id}`)}
+            >
+              Open Wizard
+            </Button>
+          )}
+          <PublishButton
+            type="story"
+            id={entryPoint.id}
+            worldId={entryPoint.world_id}
+            worldName={entryPoint.world_id} // TODO: Get actual world name
+          />
           <Button variant="outline" disabled>
             <Eye className="h-4 w-4 mr-2" />
             Preview
           </Button>
         </div>
       </div>
+
+      {/* Phase 6: Preflight Panel */}
+      {entryPoint.id && <PreflightPanel type="story" id={entryPoint.id} />}
 
       <Tabs defaultValue="details" className="space-y-6">
         <TabsList>

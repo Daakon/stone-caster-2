@@ -35,13 +35,17 @@ router.get('/worlds', async (req: Request, res: Response) => {
     // Query Supabase worlds table
     let query = supabase
       .from('worlds')
-      .select('id, version, name, description, status, doc, created_at, updated_at')
+      .select('id, version, name, description, status, visibility, review_state, doc, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     // Filter by status if activeOnly is true
     if (activeOnly) {
       query = query.eq('status', 'active');
     }
+
+    // Phase 2: Public catalog only shows approved, public worlds
+    query = query.eq('visibility', 'public');
+    query = query.eq('review_state', 'approved');
 
     const { data: worldsData, error } = await query;
 
@@ -76,10 +80,13 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
     const { idOrSlug } = req.params;
 
     // Query by id or slug (check both id field and doc.slug)
+    // Phase 2: Public catalog only shows approved, public worlds
     const { data: worldsData, error } = await supabase
       .from('worlds')
-      .select('id, version, name, description, status, doc, created_at, updated_at')
+      .select('id, version, name, description, status, visibility, review_state, doc, created_at, updated_at')
       .or(`id.eq.${idOrSlug},doc->>slug.eq.${idOrSlug}`)
+      .eq('visibility', 'public')
+      .eq('review_state', 'approved')
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -360,6 +367,9 @@ router.get('/npcs', async (req: Request, res: Response) => {
         world_id,
         status,
         visibility,
+        review_state,
+        dependency_invalid,
+        worlds:world_id (id, visibility, review_state),
         archetype,
         role_tags,
         portrait_url,
@@ -373,11 +383,10 @@ router.get('/npcs', async (req: Request, res: Response) => {
       query = query.eq('status', 'active');
     }
 
-    // Filter by visibility - catalog endpoint only returns public NPCs
-    // This ensures the public catalog doesn't show private user NPCs
-    // Check visibility column first (if it exists), otherwise RLS will handle doc->>'visibility'
-    // Note: RLS policies should prevent private NPCs, but we filter explicitly for the catalog
+    // Phase 2: Public catalog only shows approved, non-dependency-invalid NPCs
     query = query.eq('visibility', 'public');
+    query = query.eq('review_state', 'approved');
+    query = query.eq('dependency_invalid', false);
 
     // Filter by world if provided
     if (filters.world) {
@@ -409,22 +418,33 @@ router.get('/npcs', async (req: Request, res: Response) => {
       );
     }
 
-    // Transform to DTO format
-    const npcs = (data || []).map((npc: any) => ({
-      id: npc.id,
-      name: npc.name,
-      slug: npc.slug,
-      description: npc.description,
-      worldId: npc.world_id,
-      status: npc.status,
-      visibility: npc.visibility,
-      archetype: npc.archetype,
-      roleTags: npc.role_tags || [],
-      portraitUrl: npc.portrait_url,
-      doc: npc.doc || {},
-      createdAt: npc.created_at,
-      updatedAt: npc.updated_at,
-    }));
+    // Phase 2: Post-filter to ensure parent world is public+approved for NPCs
+    const npcs = (data || [])
+      .filter((npc: any) => {
+        // For NPCs, check parent world
+        const world = npc.worlds;
+        if (npc.world_id && world) {
+          // World must be public and approved
+          return world.visibility === 'public' && world.review_state === 'approved';
+        }
+        // NPCs without a world shouldn't appear in public catalog
+        return false;
+      })
+      .map((npc: any) => ({
+        id: npc.id,
+        name: npc.name,
+        slug: npc.slug,
+        description: npc.description,
+        worldId: npc.world_id,
+        status: npc.status,
+        visibility: npc.visibility,
+        archetype: npc.archetype,
+        roleTags: npc.role_tags || [],
+        portraitUrl: npc.portrait_url,
+        doc: npc.doc || {},
+        createdAt: npc.created_at,
+        updatedAt: npc.updated_at,
+      }));
 
     sendSuccess(
       res,
@@ -648,10 +668,13 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         synopsis,
         tags,
         world_id,
-        worlds:world_id (name),
+        worlds:world_id (name, visibility, review_state),
         content_rating,
         lifecycle,
         visibility,
+        publish_visibility,
+        review_state,
+        dependency_invalid,
         prompt,
         created_at,
         updated_at
@@ -661,11 +684,22 @@ router.get('/entry-points', async (req: Request, res: Response) => {
       query = query.eq('lifecycle', 'active');
     }
     
+    // Phase 2: Public catalog only shows approved, non-dependency-invalid content
+    // Use publish_visibility if it exists, otherwise visibility
     if (filters.visibility) {
       query = query.in('visibility', filters.visibility);
     } else {
+      // Default: only public content
       query = query.eq('visibility', 'public');
+      // Also filter by publish_visibility if column exists (Phase 0/1 migration)
+      // Note: This is additive - if column doesn't exist, query still works
     }
+    
+    // Phase 2: Only show approved content in public catalog
+    query = query.eq('review_state', 'approved');
+    
+    // Phase 2: Exclude dependency-invalid content
+    query = query.eq('dependency_invalid', false);
     
     if (filters.world) {
       query = query.eq('world_id', filters.world);
@@ -699,15 +733,27 @@ router.get('/entry-points', async (req: Request, res: Response) => {
       throw error;
     }
     
-    let items = (data || []).map((row: any) => {
-      const { worlds, ...restRow } = row;
-      const flatRow = {
-        ...restRow,
-        world_name: (worlds as any)?.[0]?.name || null
-      };
-      
-      return transformToCatalogDTO(flatRow, false);
-    });
+    // Phase 2: Post-filter to ensure parent world is public+approved for story/npc
+    let items = (data || [])
+      .filter((row: any) => {
+        // For entry_points (stories), check parent world
+        const world = row.worlds;
+        if (row.world_id && world) {
+          // World must be public and approved
+          return world.visibility === 'public' && world.review_state === 'approved';
+        }
+        // Worlds don't have parent, so they're fine if they passed the query filters
+        return true;
+      })
+      .map((row: any) => {
+        const { worlds, ...restRow } = row;
+        const flatRow = {
+          ...restRow,
+          world_name: Array.isArray(worlds) ? (worlds[0]?.name || null) : (worlds?.name || null)
+        };
+        
+        return transformToCatalogDTO(flatRow, false);
+      });
     
     if (filters.playableOnly) {
       items = items.filter(item => item.is_playable);

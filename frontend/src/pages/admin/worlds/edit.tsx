@@ -19,6 +19,9 @@ import { ContextChips } from '@/components/admin/prompt-authoring/ContextChips';
 import { isAdminPromptFormsEnabled, isLegacyPromptTextareaRetired } from '@/lib/feature-flags';
 import { trackAdminEvent } from '@/lib/admin-telemetry';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PublishButton } from '@/components/publishing/PublishButton';
+import { PreflightPanel } from '@/components/publishing/PreflightPanel';
+import { isPublishingWizardEnabled } from '@/lib/feature-flags';
 
 export default function WorldEditPage() {
   const navigate = useNavigate();
@@ -245,6 +248,20 @@ export default function WorldEditPage() {
             )}
 
             <div className="flex justify-end gap-2">
+              {id && (
+                <>
+                  {isPublishingWizardEnabled() && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate(`/publishing/wizard?type=world&id=${id}`)}
+                    >
+                      Open Wizard
+                    </Button>
+                  )}
+                  <PublishButton type="world" id={id} />
+                </>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -263,6 +280,9 @@ export default function WorldEditPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Phase 6: Preflight Panel */}
+      {id && <PreflightPanel type="world" id={id} />}
 
       {/* Prompt Authoring Section - shown when feature flag is on */}
       {isAdminPromptFormsEnabled() && id && world && (

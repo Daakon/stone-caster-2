@@ -6,6 +6,7 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppRoles } from '../routeGuard';
+import { isPublishingWizardEntryEnabled, isPublishingAuditViewerEnabled } from '@/lib/feature-flags';
 
 // Navigation configuration
 const NAV_ITEMS = [
@@ -74,6 +75,20 @@ const NAV_ITEMS = [
     href: '/admin/access-requests',
     roles: ['admin'] as const,
     icon: '🎟️'
+  },
+  {
+    label: 'Publishing (beta)',
+    href: '/admin/publishing',
+    roles: ['moderator', 'admin'] as const,
+    icon: '📤',
+    featureFlag: 'publishingWizardEntry' as const,
+  },
+  {
+    label: 'Audit (beta)',
+    href: '/admin/publishing/audit',
+    roles: ['moderator', 'admin'] as const,
+    icon: '📋',
+    featureFlag: 'publishingAuditViewer' as const,
   }
 ] as const;
 
@@ -81,6 +96,16 @@ export function AdminNav() {
   const { isCreator, isModerator, isAdmin } = useAppRoles();
 
   const visibleItems = NAV_ITEMS.filter(item => {
+    // Check feature flag if present
+    if ('featureFlag' in item) {
+      if (item.featureFlag === 'publishingWizardEntry' && !isPublishingWizardEntryEnabled()) {
+        return false;
+      }
+      if (item.featureFlag === 'publishingAuditViewer' && !isPublishingAuditViewerEnabled()) {
+        return false;
+      }
+    }
+
     // Check if user has access to this item
     if (item.roles === 'any') {
       return isCreator;

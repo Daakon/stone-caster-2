@@ -151,6 +151,14 @@ import accessRequestsAdminRouter from './routes/accessRequests.admin.js';
 app.use('/api/request-access', accessRequestsPublicRouter);
 app.use('/api/admin/access-requests', accessRequestsAdminRouter);
 
+// Publishing Routes (Phase 0/1)
+import publishingPublicRouter from './routes/publishing.public.js';
+import publishingAdminRouter from './routes/publishing.admin.js';
+import publishingWizardRouter from './routes/publishing.wizard.js';
+app.use('/api/publish', publishingPublicRouter);
+app.use('/api/admin/publishing', publishingAdminRouter);
+app.use('/api/publishing/wizard', publishingWizardRouter);
+
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);
 
@@ -218,6 +226,17 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(port, () => {
     console.log(`🎲 Stonecaster API server running on port ${port}`);
     console.log(`📍 Health check: http://localhost:${port}/health`);
+    
+    // Phase 4: Start dependency monitor cron job (if enabled)
+    (async () => {
+      try {
+        const { startDependencyMonitor } = await import('./jobs/dependencyMonitor.job.js');
+        startDependencyMonitor();
+      } catch (error) {
+        console.error('[Boot] Failed to start dependency monitor:', error);
+        // Don't fail startup if monitor fails to start
+      }
+    })();
   });
 }
 
