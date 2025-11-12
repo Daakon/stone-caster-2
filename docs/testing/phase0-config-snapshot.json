@@ -1,0 +1,47 @@
+﻿{
+    "generatedAtUtc":  "2025-11-09T20:49:12.9380774Z",
+    "files":  [
+                  {
+                      "path":  "tsconfig.paths.json",
+                      "size":  157,
+                      "lastWriteUtc":  "2025-11-08T16:55:00.3532969Z",
+                      "sha256":  "1F2BAB59217351B837FD7F6ADC24F9FEF311896D4E96F9F825343AB3CBA32EDC"
+                  },
+                  {
+                      "path":  "backend/tsconfig.json",
+                      "size":  548,
+                      "lastWriteUtc":  "2025-11-08T16:55:00.3973938Z",
+                      "sha256":  "BD6D41964F4496FA06C2CE77B25237A2C2B1D0DCCDA916BA9CA0C4966B245C2C"
+                  },
+                  {
+                      "path":  "backend/vitest.config.ts",
+                      "size":  392,
+                      "lastWriteUtc":  "2025-10-21T19:47:53.2345072Z",
+                      "sha256":  "7ED4863BB32B6E9A492453B6DB297C8C3E6ABDE712BD0B209FA48D58B5489AF3"
+                  },
+                  {
+                      "path":  "frontend/tsconfig.json",
+                      "size":  321,
+                      "lastWriteUtc":  "2025-10-06T16:09:55.0444639Z",
+                      "sha256":  "85F4F73A1E1D09B84F9ABA83B947C464207D7767662E0B2CE50E595EB3B802B3"
+                  },
+                  {
+                      "path":  "frontend/tsconfig.app.json",
+                      "size":  1019,
+                      "lastWriteUtc":  "2025-10-06T16:09:55.0444639Z",
+                      "sha256":  "F61C610BECBF22A5620E655BCFFACAD1C6704EF9EBC6386F072920C91F1E0A52"
+                  },
+                  {
+                      "path":  "frontend/tsconfig.node.json",
+                      "size":  673,
+                      "lastWriteUtc":  "2025-09-30T20:59:54.4910619Z",
+                      "sha256":  "FAE5917AB4F70C4420A10E44BDB23D9508357F682307BD9194E3AEBFEAC55829"
+                  },
+                  {
+                      "path":  "frontend/vitest.config.ts",
+                      "size":  569,
+                      "lastWriteUtc":  "2025-10-21T19:49:56.2572078Z",
+                      "sha256":  "D7FDEE9110A61AFF14242EAFC07BFC486ABDADCF28BA35CDED1E3AD04C34C016"
+                  }
+              ]
+}

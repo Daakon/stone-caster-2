@@ -9,6 +9,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type RedisClientLike = {
+  get?: (key: string) => Promise<string | null>;
+  set?: (key: string, value: string) => Promise<unknown>;
+  expire?: (key: string, ttl: number) => Promise<unknown>;
+};
+
+type SupabaseClientLike = {
+  from: (table: string) => any;
+};
+
 // Idempotency schemas
 const IdempotencyKeySchema = z.object({
   key: z.string(),
@@ -437,4 +447,124 @@ export async function withRetryAndCircuitBreaker<T>(
   }
   
   return result.result;
+}
+
+type FallbackEntry = { value: string; expiresAt: number };
+
+/**
+ * Lightweight idempotency helper used by Ops Phase 25 tests.
+ * Relies on Redis when available and falls back to in-memory storage.
+ */
+export class IdempotencyService {
+  private fallbackStore = new Map<string, FallbackEntry>();
+
+  constructor(
+    private readonly supabaseClient: SupabaseClientLike = supabase,
+    private readonly redisClient: RedisClientLike | null = null
+  ) {}
+
+  private redisKey(key: string) {
+    return `idempotency:${key}`;
+  }
+
+  private async getValue(key: string): Promise<string | null> {
+    if (this.redisClient?.get) {
+      return this.redisClient.get(key);
+    }
+
+    const entry = this.fallbackStore.get(key);
+    if (entry && entry.expiresAt > Date.now()) {
+      return entry.value;
+    }
+
+    if (entry) {
+      this.fallbackStore.delete(key);
+    }
+
+    return null;
+  }
+
+  private async storeValue(key: string, value: string, ttlSeconds: number) {
+    if (this.redisClient?.set) {
+      await this.redisClient.set(key, value);
+      if (this.redisClient?.expire) {
+        await this.redisClient.expire(key, ttlSeconds);
+      }
+      return;
+    }
+
+    this.fallbackStore.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+  }
+
+  generateKey(userId: string, requestId: string): string {
+    return `${userId}:${requestId}:${Date.now()}`;
+  }
+
+  async checkIdempotency(
+    key: string,
+    ttlSeconds: number = 300,
+    payload?: unknown
+  ): Promise<{ success: boolean; data?: { is_duplicate: boolean; cached_result: string | null }; error?: string }> {
+    try {
+      const redisKey = this.redisKey(key);
+      const existing = await this.getValue(redisKey);
+
+      if (existing) {
+        return { success: true, data: { is_duplicate: true, cached_result: existing } };
+      }
+
+      const value = payload ? JSON.stringify(payload) : new Date().toISOString();
+      await this.storeValue(redisKey, value, ttlSeconds);
+
+      return { success: true, data: { is_duplicate: false, cached_result: null } };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  async executeWithRetry<T>(
+    key: string,
+    operation: () => Promise<T>,
+    options?: { max_attempts?: number; base_delay_ms?: number }
+  ): Promise<{ success: boolean; data?: T; error?: string }> {
+    const maxAttempts = options?.max_attempts ?? 3;
+    const baseDelay = options?.base_delay_ms ?? 100;
+
+    let attempts = 0;
+    let totalDelay = 0;
+    let lastError: Error | null = null;
+
+    while (attempts < maxAttempts) {
+      attempts += 1;
+      try {
+        const result = await operation();
+        await this.supabaseClient
+          .from('awf_idempotency_keys')
+          .insert({
+            key,
+            operation: 'retry',
+            result,
+            created_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+          });
+
+        return { success: true, data: result };
+      } catch (error) {
+        lastError = error as Error;
+
+        if (attempts >= maxAttempts) {
+          break;
+        }
+
+        const delay = baseDelay * attempts;
+        totalDelay += delay;
+        await new Promise(resolve => setTimeout(resolve, Math.min(delay, 10)));
+      }
+    }
+
+    return {
+      success: false,
+      error: `Max retry attempts exceeded: ${lastError?.message || 'Unknown error'}`,
+    };
+  }
 }

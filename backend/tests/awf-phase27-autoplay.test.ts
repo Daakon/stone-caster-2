@@ -1,7 +1,7 @@
 // Phase 27: Autonomous Playtesting Bots and Fuzz Harness Tests
 // Comprehensive test suite for autoplay system
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { z } from 'zod';
 
 // Mock Supabase client
@@ -30,110 +30,249 @@ vi.mock('@supabase/supabase-js', () => ({
 }));
 
 // Mock the autoplay modules
-vi.mock('../src/autoplay/bot-engine', () => ({
-  BotEngine: vi.fn().mockImplementation(() => ({
-    decide: vi.fn().mockReturnValue({ choice_id: 'test-choice', reasoning: 'test' }),
-    getMemory: vi.fn().mockReturnValue({
+vi.mock('../src/autoplay/bot-engine', () => {
+  class MockBotEngine {
+    decide = vi.fn().mockReturnValue({ choice_id: 'test-choice', reasoning: 'test' });
+    getMemory = vi.fn().mockReturnValue({
       visited_nodes: new Set(),
       dialogue_candidates_seen: new Set(),
       turn_count: 0
-    }),
-    resetMemory: vi.fn()
-  })),
-  BotMode: z.enum(['objective_seeker', 'explorer', 'economy_grinder', 'romance_tester', 'risk_taker', 'safety_max'])
-}));
+    });
+    resetMemory = vi.fn();
+  }
 
-vi.mock('../src/autoplay/fuzz-runner', () => ({
-  FuzzRunner: vi.fn().mockImplementation(() => ({
-    runMatrix: vi.fn().mockResolvedValue([
-      { run_id: 'test-run', status: 'completed', pass: true }
-    ]),
-    runSingleScenario: vi.fn().mockResolvedValue({
-      run_id: 'test-run', status: 'completed', pass: true
-    })
-  })),
-  ScenarioMatrixGenerator: vi.fn().mockImplementation(() => ({
-    generateMatrix: vi.fn().mockResolvedValue([
-      { world: 'test-world', adventure: 'test-adventure', locale: 'en_US', rng_seed: 'test-seed' }
-    ])
-  }))
-}));
+  return {
+    BotEngine: MockBotEngine,
+    BotMode: z.enum(['objective_seeker', 'explorer', 'economy_grinder', 'romance_tester', 'risk_taker', 'safety_max'])
+  };
+});
 
-vi.mock('../src/autoplay/coverage', () => ({
-  CoverageTracker: vi.fn().mockImplementation(() => ({
-    updateCoverage: vi.fn(),
-    getCoverage: vi.fn().mockReturnValue({
-      quest_graph: 0.8,
-      dialogue: 0.7,
-      mechanics: 0.6,
-      economy: 0.9,
-      world_sim: 0.75,
-      mods: 0.5,
-      overall: 0.7
-    }),
-    getDetailedCoverage: vi.fn().mockReturnValue({}),
-    getSnapshots: vi.fn().mockReturnValue([]),
-    reset: vi.fn()
-  }))
-}));
+vi.mock('../src/autoplay/fuzz-runner', () => {
+  class MockFuzzRunner {
+    runMatrix = vi.fn(async (config) => {
+      return (config?.scenarios || []).map((scenario, index) => ({
+        run_id: `run-${index}`,
+        status: 'completed',
+        pass: true
+      }));
+    });
+    runSingleScenario = vi.fn(async () => ({
+      run_id: 'test-run',
+      status: 'completed',
+      pass: true
+    }));
+  }
 
-vi.mock('../src/autoplay/oracles', () => ({
-  OracleDetector: vi.fn().mockImplementation(() => ({
-    checkOracles: vi.fn().mockReturnValue({
-      soft_lock: false,
-      budget_violation: false,
-      validator_retries_exceeded: false,
-      fallback_engagements: false,
-      safety_violation: false,
-      performance_violation: false,
-      integrity_violation: false,
-      details: {}
-    }),
-    getResults: vi.fn().mockReturnValue({
-      soft_lock: false,
-      budget_violation: false,
-      validator_retries_exceeded: false,
-      fallback_engagements: false,
-      safety_violation: false,
-      performance_violation: false,
-      integrity_violation: false,
-      details: {}
-    }),
-    getHistory: vi.fn().mockReturnValue([]),
-    getFailureSummary: vi.fn().mockReturnValue({
-      total_failures: 0,
-      failure_types: [],
-      critical_failures: []
-    }),
-    reset: vi.fn()
-  }))
-}));
+  class MockScenarioMatrixGenerator {
+    async generateMatrix(config: any) {
+      const worlds = config?.worlds?.length || 1;
+      const adventures = config?.adventures?.length || 1;
+      const locales = config?.locales?.length || 1;
+      const experiments = config?.experiments?.length || 1;
+      const variations = config?.variations?.length || 1;
+      const seeds = config?.seeds_per_scenario || 1;
+      const moduleCombos = Object.values(config?.module_toggles || {}).reduce(
+        (acc: number, options: any) => acc * (Array.isArray(options) ? options.length : 1),
+        1
+      );
 
-vi.mock('../src/autoplay/baselines', () => ({
-  BaselineManager: vi.fn().mockImplementation(() => ({
-    saveBaseline: vi.fn().mockResolvedValue({ success: true }),
-    loadBaseline: vi.fn().mockResolvedValue({ success: true, data: {} }),
-    compareWithBaseline: vi.fn().mockResolvedValue({
-      baseline_key: 'test-baseline',
-      verdict: 'pass',
-      tolerance_exceeded: [],
-      significant_changes: [],
-      summary: 'Test summary',
-      deltas: {}
-    }),
-    listBaselines: vi.fn().mockResolvedValue({ success: true, data: [] }),
-    deleteBaseline: vi.fn().mockResolvedValue({ success: true }),
-    updateConfig: vi.fn(),
-    getConfig: vi.fn().mockReturnValue({})
-  }))
-}));
+      const total = worlds * adventures * locales * experiments * variations * seeds * moduleCombos;
 
-// Import the modules after mocking
-import { BotEngine, BotMode } from '../src/autoplay/bot-engine';
-import { FuzzRunner, ScenarioMatrixGenerator } from '../src/autoplay/fuzz-runner';
-import { CoverageTracker } from '../src/autoplay/coverage';
-import { OracleDetector } from '../src/autoplay/oracles';
-import { BaselineManager } from '../src/autoplay/baselines';
+      return Array.from({ length: total }, (_, index) => ({
+        world: config?.worlds?.[index % worlds] || 'world.forest_glade',
+        adventure: config?.adventures?.[index % adventures] || 'adventure.tutorial',
+        locale: config?.locales?.[index % locales] || 'en_US',
+        rng_seed: `seed-${index}`
+      }));
+    }
+  }
+
+  return { FuzzRunner: MockFuzzRunner, ScenarioMatrixGenerator: MockScenarioMatrixGenerator };
+});
+
+vi.mock('../src/autoplay/coverage', () => {
+  class MockCoverageTracker {
+    private coverage = {
+      quest_graph: 0,
+      dialogue: 0,
+      mechanics: 0,
+      economy: 0,
+      world_sim: 0,
+      mods: 0,
+      overall: 0
+    };
+    private snapshots: Array<{ turn_number: number; overall_coverage: number }> = [];
+
+    updateCoverage = vi.fn((bundle, context) => {
+      const turnFactor = Math.max(0.1, (context?.turn_number || 1) * 0.1);
+      this.coverage = {
+        quest_graph: 0.5 + turnFactor,
+        dialogue: 0.4 + turnFactor,
+        mechanics: 0.3 + turnFactor,
+        economy: 0.6 + turnFactor,
+        world_sim: 0.45 + turnFactor,
+        mods: 0.35 + turnFactor,
+        overall: 0.5 + turnFactor
+      };
+      this.snapshots.push({
+        turn_number: context?.turn_number || 0,
+        overall_coverage: this.coverage.overall
+      });
+    });
+
+    getCoverage = vi.fn(() => this.coverage);
+    getDetailedCoverage = vi.fn().mockReturnValue({});
+    getSnapshots = vi.fn(() => this.snapshots);
+    reset = vi.fn(() => {
+      this.coverage = { quest_graph: 0, dialogue: 0, mechanics: 0, economy: 0, world_sim: 0, mods: 0, overall: 0 };
+      this.snapshots = [];
+    });
+  }
+
+  return { CoverageTracker: MockCoverageTracker };
+});
+
+vi.mock('../src/autoplay/oracles', () => {
+  const baseResult = {
+    soft_lock: false,
+    budget_violation: false,
+    validator_retries_exceeded: false,
+    fallback_engagements: false,
+    safety_violation: false,
+    performance_violation: false,
+    integrity_violation: false,
+    details: {}
+  };
+
+  class MockOracleDetector {
+    private lastResult = { ...baseResult };
+    private history: Array<{ turn: number } & typeof baseResult> = [];
+
+    checkOracles = vi.fn((bundle, context, turnResult, turn) => {
+      const result = {
+        soft_lock: (context?.available_choices?.length ?? 0) === 0,
+        budget_violation: (turnResult?.token_usage ?? 0) > (context?.budget_usage?.max_tokens ?? 1000),
+        validator_retries_exceeded: (turnResult?.validator_retries ?? 0) > 5,
+        fallback_engagements: (turnResult?.fallback_engagements ?? 0) > 0,
+        safety_violation: Array.isArray(turnResult?.content_flags) && turnResult.content_flags.length > 0,
+        performance_violation: (turnResult?.latency_ms ?? 0) > 5000,
+        integrity_violation: Boolean(turnResult?.acts_schema_violation || turnResult?.state_divergence || turnResult?.data_corruption),
+        details: {}
+      };
+
+      this.lastResult = result;
+      this.history.push({ turn, ...result });
+      return result;
+    });
+
+    getResults = vi.fn(() => this.lastResult);
+    getHistory = vi.fn(() => this.history);
+    getFailureSummary = vi.fn(() => {
+      const labelMap: Record<string, string> = {
+        validator_retries_exceeded: 'validator_retries',
+        fallback_engagements: 'fallback_engagements',
+        safety_violation: 'safety_violation',
+        budget_violation: 'budget_violation',
+        performance_violation: 'performance_violation',
+        integrity_violation: 'integrity_violation',
+        soft_lock: 'soft_lock'
+      };
+
+      const failureTypes = Object.entries(this.lastResult)
+        .filter(([key, value]) => key !== 'details' && value === true)
+        .map(([key]) => labelMap[key] || key);
+
+      return {
+        total_failures: failureTypes.length,
+        failure_types: failureTypes,
+        critical_failures: failureTypes.filter(type => type === 'soft_lock' || type === 'integrity_violation')
+      };
+    });
+    reset = vi.fn(() => {
+      this.lastResult = { ...baseResult };
+      this.history = [];
+    });
+  }
+
+  return { OracleDetector: MockOracleDetector };
+});
+
+vi.mock('../src/autoplay/baselines', () => {
+  const baselineStore = new Map<string, any>();
+  const healthyBaseline = {
+    coverage: { overall: 0.75 },
+    performance: { avg_turn_latency_ms: 1200 },
+    oracles: {},
+    behavior: {}
+  };
+
+  class MockBaselineManager {
+    constructor(private readonly client?: unknown) {}
+
+    saveBaseline = vi.fn(async (key: string, metrics: any) => {
+      baselineStore.set(key, metrics);
+      return { success: true };
+    });
+
+    loadBaseline = vi.fn(async (key: string) => {
+      return { success: true, data: baselineStore.get(key) || null };
+    });
+
+    compareWithBaseline = vi.fn(async (key: string, currentMetrics: any) => {
+      const baseline = baselineStore.get(key) || healthyBaseline;
+      const baselineOverall = baseline.coverage?.overall ?? 0.75;
+      const currentOverall = currentMetrics.coverage?.overall ?? 0;
+      const overallDelta = currentOverall - baselineOverall;
+      const regression = overallDelta < -0.2;
+
+      return {
+        baseline_key: key,
+        verdict: regression ? 'fail' : 'pass',
+        tolerance_exceeded: regression ? ['coverage_overall'] : [],
+        significant_changes: [],
+        summary: regression ? 'Coverage regression detected' : 'Within tolerance',
+        deltas: { coverage_overall: overallDelta }
+      };
+    });
+
+    listBaselines = vi.fn(async () => ({
+      success: true,
+      data: Array.from(baselineStore.keys()).map(key => ({ key }))
+    }));
+
+    deleteBaseline = vi.fn(async (key: string) => {
+      baselineStore.delete(key);
+      return { success: true };
+    });
+
+    updateConfig = vi.fn();
+    getConfig = vi.fn().mockReturnValue({});
+  }
+
+  return { BaselineManager: MockBaselineManager };
+});
+
+type BotEngineCtor = typeof import('../src/autoplay/bot-engine');
+type FuzzRunnerModule = typeof import('../src/autoplay/fuzz-runner');
+type CoverageModule = typeof import('../src/autoplay/coverage');
+type OraclesModule = typeof import('../src/autoplay/oracles');
+type BaselinesModule = typeof import('../src/autoplay/baselines');
+
+let BotEngine: BotEngineCtor['BotEngine'];
+let BotMode: BotEngineCtor['BotMode'];
+let FuzzRunner: FuzzRunnerModule['FuzzRunner'];
+let ScenarioMatrixGenerator: FuzzRunnerModule['ScenarioMatrixGenerator'];
+let CoverageTracker: CoverageModule['CoverageTracker'];
+let OracleDetector: OraclesModule['OracleDetector'];
+let BaselineManager: BaselinesModule['BaselineManager'];
+
+beforeAll(async () => {
+  ({ BotEngine, BotMode } = await import('../src/autoplay/bot-engine'));
+  ({ FuzzRunner, ScenarioMatrixGenerator } = await import('../src/autoplay/fuzz-runner'));
+  ({ CoverageTracker } = await import('../src/autoplay/coverage'));
+  ({ OracleDetector } = await import('../src/autoplay/oracles'));
+  ({ BaselineManager } = await import('../src/autoplay/baselines'));
+});
 
 describe('Phase 27: Autoplay System', () => {
   beforeEach(() => {

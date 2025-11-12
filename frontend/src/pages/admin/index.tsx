@@ -5,6 +5,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Link } from 'react-router-dom';
 import { useAppRoles } from '@/admin/routeGuard';
 
 export default function AdminHome() {
@@ -93,7 +94,8 @@ export default function AdminHome() {
             <div className="space-y-2">
               <h4 className="font-medium">Content Creation</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Create new story</li>
+                <li>• <Link to="/admin/entry-points/wizard/new" className="text-primary hover:underline">Create story with wizard</Link></li>
+                <li>• <Link to="/admin/entry-points/new" className="text-primary hover:underline">Create new story</Link></li>
                 <li>• Add prompt segments</li>
                 <li>• Manage NPCs</li>
               </ul>

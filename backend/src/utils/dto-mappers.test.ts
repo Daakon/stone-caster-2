@@ -50,6 +50,10 @@ describe('DTO Mappers', () => {
       expect(dto).toEqual({
         id: character.id,
         name: character.name,
+        worldSlug: undefined,
+        createdAt: character.createdAt,
+        updatedAt: character.updatedAt,
+        worldData: undefined,
         race: character.race,
         class: character.class,
         level: character.level,
@@ -59,8 +63,8 @@ describe('DTO Mappers', () => {
         inventory: character.inventory,
         currentHealth: character.currentHealth,
         maxHealth: character.maxHealth,
-        createdAt: character.createdAt,
-        updatedAt: character.updatedAt,
+        avatar: 'default',
+        backstory: 'A brave adventurer',
       });
 
       // Ensure internal fields are not included
@@ -108,20 +112,15 @@ describe('DTO Mappers', () => {
 
       expect(dto).toEqual({
         id: gameSave.id,
-        characterId: gameSave.characterId,
         adventureId: gameSave.worldTemplateId,
-        name: gameSave.name,
-        currentScene: gameSave.storyState.currentScene,
-        storyHistory: gameSave.storyState.history,
-        availableOptions: [],
-        npcs: [
-          {
-            id: 'npc-1',
-            name: 'Barkeep',
-            relationship: 50,
-            lastInteraction: '2023-01-01T00:00:00Z',
-          },
-        ],
+        adventureTitle: gameSave.name,
+        adventureDescription: undefined,
+        characterId: gameSave.characterId,
+        characterName: undefined,
+        worldSlug: 'unknown',
+        worldName: 'Unknown World',
+        turnCount: 0,
+        status: 'active',
         createdAt: gameSave.createdAt,
         updatedAt: gameSave.updatedAt,
         lastPlayedAt: gameSave.lastPlayedAt,
@@ -162,6 +161,8 @@ describe('DTO Mappers', () => {
       expect(dto).toEqual({
         id: worldTemplate.id,
         name: worldTemplate.name,
+        title: worldTemplate.name,
+        tagline: undefined,
         description: worldTemplate.description,
         genre: worldTemplate.genre,
         setting: worldTemplate.setting,
@@ -250,7 +251,10 @@ describe('DTO Mappers', () => {
 
       const dto = toStonesWalletDTO(wallet);
 
-      expect(dto).toEqual(wallet);
+      expect(dto).toEqual({
+        ...wallet,
+        balance: 0,
+      });
     });
 
     it('should handle missing wallet data', () => {
@@ -264,6 +268,7 @@ describe('DTO Mappers', () => {
         relic: 0,
         dailyRegen: 0,
         lastRegenAt: undefined,
+        balance: 0,
       });
     });
   });

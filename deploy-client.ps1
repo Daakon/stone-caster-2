@@ -9,10 +9,30 @@ Write-Host "Starting StoneCaster client deployment..." -ForegroundColor Green
 $env:CI = "1"
 $env:WRANGLER_NON_INTERACTIVE = "1"
 
-# Step 1: Set environment variables for client build
-Write-Host "Setting client build environment variables..." -ForegroundColor Yellow
-$env:VITE_SUPABASE_URL = "https://obfadjnywufemhhhcxiy.supabase.co"
-$env:VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_QKJ2Ji-SjAQJIbs5NITDpw_IMVQ9JDl"
+# Step 1: Validate and use environment variables for client build
+Write-Host "Validating client build environment variables..." -ForegroundColor Yellow
+
+# Require VITE_SUPABASE_URL from environment (no hardcoded values allowed)
+if (-not $env:VITE_SUPABASE_URL) {
+    Write-Host "ERROR: VITE_SUPABASE_URL environment variable is required!" -ForegroundColor Red
+    Write-Host "Set it in your environment or .env file before running this script." -ForegroundColor Yellow
+    Write-Host "Example: `$env:VITE_SUPABASE_URL = 'https://your-project.supabase.co'" -ForegroundColor Gray
+    exit 1
+}
+
+# Require VITE_SUPABASE_PUBLISHABLE_KEY from environment
+if (-not $env:VITE_SUPABASE_PUBLISHABLE_KEY -and -not $env:VITE_SUPABASE_ANON_KEY) {
+    Write-Host "ERROR: VITE_SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_ANON_KEY environment variable is required!" -ForegroundColor Red
+    Write-Host "Set it in your environment or .env file before running this script." -ForegroundColor Yellow
+    exit 1
+}
+
+# Use ANON_KEY as fallback for PUBLISHABLE_KEY if needed
+if (-not $env:VITE_SUPABASE_PUBLISHABLE_KEY) {
+    $env:VITE_SUPABASE_PUBLISHABLE_KEY = $env:VITE_SUPABASE_ANON_KEY
+}
+
+Write-Host "Using environment variables for Supabase configuration" -ForegroundColor Green
 
 # Step 2: Build the client
 # Note: Using build:deploy to skip strict type checking for deployment

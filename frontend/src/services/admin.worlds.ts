@@ -10,6 +10,7 @@ export interface World {
   name: string;
   slug?: string; // Not always present in API response
   status: 'draft' | 'active' | 'archived';
+  visibility?: 'private' | 'public' | 'unlisted';
   description?: string;
   prompt?: any; // JSONB - can be any structured data
   doc?: {

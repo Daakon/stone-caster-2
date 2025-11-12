@@ -1,11 +1,11 @@
 import { vi } from 'vitest';
 
-/**
- * Creates a comprehensive Supabase admin mock that properly chains methods
- * This fixes the common issue where tests fail because method chaining doesn't work
- */
-export function createSupabaseAdminMock() {
-  const mockQueryBuilder = {
+export interface SupabaseMockOptions {
+  fromFactory?: () => ReturnType<typeof createSupabaseQueryBuilder>;
+}
+
+export function createSupabaseQueryBuilder() {
+  return {
     select: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
@@ -45,7 +45,10 @@ export function createSupabaseAdminMock() {
     rollback: vi.fn().mockResolvedValue({ data: null, error: null }),
     returns: vi.fn().mockReturnThis(),
   };
+}
 
+export function createSupabaseAdminMock(options?: SupabaseMockOptions) {
+  const builderFactory = options?.fromFactory ?? createSupabaseQueryBuilder;
   const mockAuthAdmin = {
     signOut: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
     getUserById: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
@@ -58,7 +61,7 @@ export function createSupabaseAdminMock() {
   };
 
   const mockSupabaseAdmin = {
-    from: vi.fn().mockReturnValue(mockQueryBuilder),
+    from: vi.fn().mockImplementation(() => builderFactory()),
     rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     auth: {
       admin: mockAuthAdmin,
@@ -85,18 +88,15 @@ export function createSupabaseAdminMock() {
 
   return {
     mockSupabaseAdmin,
-    mockQueryBuilder,
     mockAuthAdmin,
+    builderFactory,
   };
 }
 
-/**
- * Sets up the global Supabase admin mock for tests
- */
-export function setupSupabaseAdminMock() {
-  const { mockSupabaseAdmin } = createSupabaseAdminMock();
-  
-  vi.mock('../config/supabase.js', () => ({
+export function installSupabaseAdminMock(options?: SupabaseMockOptions) {
+  const { mockSupabaseAdmin } = createSupabaseAdminMock(options);
+
+  vi.mock('../services/supabase.js', () => ({
     supabaseAdmin: mockSupabaseAdmin,
   }));
 

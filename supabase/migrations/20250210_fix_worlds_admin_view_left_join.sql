@@ -34,6 +34,7 @@ SELECT
   w.id as text_id,
   w.slug,
   w.status,
+  w.visibility,
   w.description,
   w.version,
   w.doc,

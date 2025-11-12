@@ -5,7 +5,8 @@
 
 import Mustache from 'mustache';
 import type { SlotType } from './registry.js';
-import { getActiveTemplates, getTemplate } from '../services/templates.service.js';
+import { getTemplate } from '../services/templates.service.js';
+import { getCachedActiveTemplates } from '../services/templates-cache.js';
 import { getSlotByTypeAndName } from '../services/slots.service.js';
 import { renderCached } from '../services/mustache-cache.js';
 

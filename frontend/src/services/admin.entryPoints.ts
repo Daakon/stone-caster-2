@@ -6,6 +6,7 @@
  */
 
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
+import type { Visibility } from '@shared/types/publishing';
 
 export interface EntryPoint {
   id: string;
@@ -18,7 +19,7 @@ export interface EntryPoint {
   description?: string;
   synopsis?: string;
   tags?: string[];
-  visibility?: 'public' | 'unlisted' | 'private';
+  visibility?: Visibility;
   content_rating?: string;
   lifecycle?: 'draft' | 'pending_review' | 'changes_requested' | 'active' | 'archived' | 'rejected';
   owner_user_id?: string;
@@ -36,7 +37,7 @@ export interface EntryPoint {
 
 export interface EntryPointFilters {
   lifecycle?: string[];
-  visibility?: string[];
+  visibility?: Visibility[];
   world_id?: string;
   type?: string[];
   tags?: string[];
@@ -55,7 +56,7 @@ export interface CreateEntryPointData {
   description: string;
   synopsis?: string;
   tags: string[];
-  visibility: 'public' | 'unlisted' | 'private';
+  visibility: Visibility;
   content_rating: string;
   prompt?: any; // JSONB - Turn 1 injection JSON data
   entry_id?: string; // Reference to the entry this point initializes

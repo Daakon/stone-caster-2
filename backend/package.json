@@ -11,6 +11,7 @@
     "start": "node dist/index.js",
     "start:local": "node scripts/dev-with-default-env.js",
     "test": "vitest run --passWithNoTests",
+    "test:english": "vitest run --passWithNoTests tests/awf-phase12-i18n.test.ts",
     "test:ci": "vitest run --coverage --passWithNoTests",
     "test:template-lint": "vitest run template-lint.test.ts",
     "type-check": "tsc --noEmit",

@@ -17,6 +17,9 @@ import { Plus, Search, Edit, Send, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { entryPointsService, type EntryPoint, type EntryPointFilters } from '@/services/admin.entryPoints';
 import { useAppRoles } from '@/admin/routeGuard';
+import { VisibilitySchema, type Visibility } from '@shared/types/publishing';
+
+const visibilityOptions = VisibilitySchema.options;
 
 export default function EntryPointsAdmin() {
   const { isCreator, isModerator, isAdmin } = useAppRoles();
@@ -28,6 +31,13 @@ export default function EntryPointsAdmin() {
     ...filters,
     search: search || undefined
   }), [filters.lifecycle, filters.visibility, filters.world_id, filters.type, search]);
+
+  const handleVisibilityFilterChange = (value: Visibility | 'all') => {
+    setFilters(prev => ({
+      ...prev,
+      visibility: value === 'all' ? undefined : [value],
+    }));
+  };
 
   // Use React Query for entry points with caching
   const { data: entryPointsData, isLoading: loadingEntryPoints, refetch: refetchEntryPoints } = useQuery({
@@ -119,12 +129,20 @@ export default function EntryPointsAdmin() {
             Manage stories, adventures, scenarios, and game starts
           </p>
         </div>
-        <Button asChild>
-          <Link to="/admin/entry-points/new">
-            <Plus className="mr-2 h-4 w-4" />
-            Create Story
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link to="/admin/entry-points/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Story
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/admin/entry-points/wizard/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Create with Wizard
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -178,21 +196,18 @@ export default function EntryPointsAdmin() {
               <Label htmlFor="visibility">Visibility</Label>
               <Select
                 value={filters.visibility?.[0] || 'all'}
-                onValueChange={(value) => 
-                  setFilters(prev => ({ 
-                    ...prev, 
-                    visibility: value === 'all' ? undefined : [value]
-                  }))
-                }
+                onValueChange={handleVisibilityFilterChange}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All visibility" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All visibility</SelectItem>
-                  <SelectItem value="public">Public</SelectItem>
-                  <SelectItem value="unlisted">Unlisted</SelectItem>
-                  <SelectItem value="private">Private</SelectItem>
+                  {visibilityOptions.map(option => (
+                    <SelectItem key={option} value={option}>
+                      {option.replace('_', ' ').replace(/^\w/, c => c.toUpperCase())}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

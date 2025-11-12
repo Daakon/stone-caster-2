@@ -9,6 +9,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type SupabaseClientLike = {
+  from: (table: string) => any;
+};
+
+type RedisClientLike = {
+  get?: (key: string) => Promise<string | null>;
+  set?: (key: string, value: string) => Promise<unknown>;
+  expire?: (key: string, ttl: number) => Promise<unknown>;
+};
+
 // Circuit breaker schemas
 const CircuitBreakerConfigSchema = z.object({
   service_name: z.string(),
@@ -339,4 +349,172 @@ export async function withCircuitBreaker<T>(
 ): Promise<T> {
   const circuit = CircuitBreaker.getInstance(serviceName, config);
   return circuit.execute(operation);
+}
+
+type CircuitState = {
+  state: 'closed' | 'open' | 'half_open';
+  failureCount: number;
+  successCount: number;
+  nextAttemptAt?: number;
+};
+
+/**
+ * Thin service wrapper used by Ops Phase 25 tests.
+ * Provides Redis-backed state tracking with Supabase persistence shims.
+ */
+export class CircuitBreakerService {
+  private readonly failureThreshold = 5;
+  private readonly resetTimeoutMs = 30_000;
+  private fallbackState = new Map<string, CircuitState>();
+
+  constructor(
+    private readonly supabaseClient: SupabaseClientLike = supabase,
+    private readonly redisClient: RedisClientLike | null = null
+  ) {}
+
+  private stateKey(serviceName: string) {
+    return `circuit:${serviceName}:state`;
+  }
+
+  private normalizeState(value?: string | null): CircuitState {
+    if (!value) {
+      return { state: 'closed', failureCount: 0, successCount: 0 };
+    }
+
+    if (value === 'open' || value === 'closed' || value === 'half-open' || value === 'half_open') {
+      return {
+        state: value === 'half-open' ? 'half_open' : (value as CircuitState['state']),
+        failureCount: value === 'open' ? this.failureThreshold : 0,
+        successCount: 0,
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      return {
+        state: parsed.state === 'half-open' ? 'half_open' : parsed.state ?? 'closed',
+        failureCount: parsed.failureCount ?? 0,
+        successCount: parsed.successCount ?? 0,
+        nextAttemptAt: parsed.nextAttemptAt,
+      };
+    } catch {
+      return { state: 'closed', failureCount: 0, successCount: 0 };
+    }
+  }
+
+  private async loadState(serviceName: string): Promise<CircuitState> {
+    if (this.redisClient?.get) {
+      const raw = await this.redisClient.get(this.stateKey(serviceName));
+      if (raw) {
+        return this.normalizeState(raw);
+      }
+    }
+
+    return this.fallbackState.get(serviceName) ?? { state: 'closed', failureCount: 0, successCount: 0 };
+  }
+
+  private async persistState(serviceName: string, state: CircuitState) {
+    const record = {
+      ...state,
+      state: state.state === 'half_open' ? 'half-open' : state.state,
+    };
+
+    if (this.redisClient?.set) {
+      await this.redisClient.set(this.stateKey(serviceName), JSON.stringify(record));
+      if (this.redisClient?.expire) {
+        await this.redisClient.expire(this.stateKey(serviceName), Math.ceil(this.resetTimeoutMs / 1000));
+      }
+    }
+
+    this.fallbackState.set(serviceName, { ...state });
+
+    if (this.supabaseClient?.from) {
+      await this.supabaseClient
+        .from('awf_circuit_breakers')
+        .upsert({
+          service_name: serviceName,
+          state: record.state,
+          failure_count: state.failureCount,
+          success_count: state.successCount,
+          next_attempt: state.nextAttemptAt ? new Date(state.nextAttemptAt).toISOString() : null,
+          updated_at: new Date().toISOString(),
+        });
+    }
+  }
+
+  async execute<T>(
+    serviceName: string,
+    operation: () => Promise<T>
+  ): Promise<{ success: boolean; data?: T; error?: string }> {
+    let state = await this.loadState(serviceName);
+
+    if (state.state === 'open') {
+      if (state.nextAttemptAt && Date.now() >= state.nextAttemptAt) {
+        state = { state: 'half_open', failureCount: 0, successCount: 0 };
+        await this.persistState(serviceName, state);
+      } else {
+        return { success: false, error: 'Circuit breaker is open' };
+      }
+    }
+
+    try {
+      const result = await operation();
+      await this.persistState(serviceName, { state: 'closed', failureCount: 0, successCount: state.successCount + 1 });
+      return { success: true, data: result };
+    } catch (error) {
+      const nextState: CircuitState = {
+        state: state.state === 'half_open' ? 'half_open' : state.state,
+        failureCount: state.failureCount + 1,
+        successCount: 0,
+      };
+
+      if (nextState.failureCount >= this.failureThreshold) {
+        nextState.state = 'open';
+        nextState.nextAttemptAt = Date.now() + this.resetTimeoutMs;
+      }
+
+      await this.persistState(serviceName, nextState);
+
+      const message =
+        nextState.state === 'open' ? 'Circuit breaker is open' : (error as Error).message || 'Operation failed';
+
+      return { success: false, error: message };
+    }
+  }
+
+  async getCircuitStatus(): Promise<{
+    success: boolean;
+    data?: { total_circuits: number; by_state: { open: number; closed: number; half_open: number }; circuits: any[] };
+    error?: string;
+  }> {
+    try {
+      const query = this.supabaseClient.from('awf_circuit_breakers').select('*');
+      const { data, error } = await query.order('updated_at', { ascending: false });
+      if (error) {
+        throw new Error(error.message || 'Failed to fetch circuit status');
+      }
+
+      const circuits = data || [];
+      const by_state = { open: 0, closed: 0, half_open: 0 };
+
+      circuits.forEach(record => {
+        const key =
+          record.state === 'half-open'
+            ? 'half_open'
+            : (record.state as 'open' | 'closed' | 'half_open') ?? 'closed';
+        by_state[key] = (by_state[key] || 0) + 1;
+      });
+
+      return {
+        success: true,
+        data: {
+          total_circuits: circuits.length,
+          by_state,
+          circuits,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
 }

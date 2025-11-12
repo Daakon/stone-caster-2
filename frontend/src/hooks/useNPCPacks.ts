@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { NPCPack } from '@/services/admin.npcPacks';
+import { type NPCPack } from '@/services/admin.npcPacks';
+import { npcPacksService } from '@/services/admin.npcPacks';
 
 export function useNPCPacks() {
   const [npcPacks, setNPCPacks] = useState<NPCPack[]>([]);
@@ -12,16 +13,11 @@ export function useNPCPacks() {
         setLoading(true);
         setError(null);
         
-        const response = await fetch('/api/npc-packs');
-        
-        if (!response.ok) {
-          throw new Error('Failed to load NPC packs');
-        }
-        
-        const data = await response.json();
-        setNPCPacks(data.items || []);
+        const response = await npcPacksService.listNPCPacks({}, 1, 100);
+        setNPCPacks(response.data || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
+        setNPCPacks([]); // Ensure we always have an array
       } finally {
         setLoading(false);
       }

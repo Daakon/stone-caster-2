@@ -1,20 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProfileService } from './profile.service.js';
-import { supabaseAdmin } from '../config/supabase.js';
+import { supabaseAdmin } from './supabase.js';
+import { createSupabaseQueryBuilder } from '../test-utils/supabase-mock.js';
 import { UpdateProfileRequest } from '@shared';
 
-// Mock Supabase admin client
-vi.mock('../config/supabase.js', () => ({
-  supabaseAdmin: {
-    rpc: vi.fn(),
-    from: vi.fn(),
-    auth: {
-      admin: {
-        signOut: vi.fn(),
-      },
-    },
-  },
-}));
+const createCsrfTableMock = (options: {
+  selectResult?: { data: any; error: any };
+  insertResult?: { data: any; error: any };
+}) => {
+  const deleteChain = {
+    eq: vi.fn(() => ({
+      lt: vi.fn().mockResolvedValue({ error: null }),
+    })),
+  };
+
+  return {
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          single: vi.fn().mockResolvedValue(options.selectResult ?? { data: null, error: null }),
+        })),
+      })),
+    })),
+    insert: vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn().mockResolvedValue(options.insertResult ?? { data: null, error: null }),
+      })),
+    })),
+    delete: vi.fn(() => deleteChain),
+  };
+};
 
 describe('ProfileService', () => {
   let mockSupabaseAdmin: any;
@@ -23,8 +38,19 @@ describe('ProfileService', () => {
     vi.clearAllMocks();
     
     // Get the mocked services
-    const { supabaseAdmin } = await import('../config/supabase.js');
+    const { supabaseAdmin } = await import('./supabase.js');
     mockSupabaseAdmin = vi.mocked(supabaseAdmin);
+
+    mockSupabaseAdmin.from.mockReset();
+    mockSupabaseAdmin.from.mockImplementation(() => createSupabaseQueryBuilder());
+
+    mockSupabaseAdmin.rpc.mockReset();
+    mockSupabaseAdmin.rpc.mockResolvedValue({ data: null, error: null });
+
+    mockSupabaseAdmin.auth.admin.getUserById.mockResolvedValue({
+      data: { user: { id: 'mock-user', email: 'test@example.com' } },
+      error: null,
+    });
   });
 
   describe('getProfile', () => {
@@ -92,18 +118,50 @@ describe('ProfileService', () => {
 
     it('should handle missing profile gracefully', async () => {
       const mockAuthUserId = '550e8400-e29b-41d4-a716-446655440000';
+      const mockProfile = {
+        id: 'profile-123',
+        display_name: 'New User',
+        avatar_url: null,
+        email: 'new.user@example.com',
+        preferences: null,
+        created_at: '2023-01-01T00:00:00Z',
+        last_seen_at: '2023-01-02T00:00:00Z',
+      };
 
+      let profileFetchCount = 0;
       mockSupabaseAdmin.rpc.mockImplementation((fnName: string) => {
         if (fnName === 'get_user_profile_by_auth_id') {
+          profileFetchCount += 1;
+          if (profileFetchCount === 1) {
+            return { data: [], error: null };
+          }
           return {
-            data: [],
+            data: [mockProfile],
             error: null,
           };
+        }
+        if (fnName === 'update_user_last_seen') {
+          return { data: null, error: null };
         }
         return { data: null, error: null };
       });
 
-      await expect(ProfileService.getProfile(mockAuthUserId)).rejects.toThrow('Profile not found');
+      const result = await ProfileService.getProfile(mockAuthUserId);
+
+      expect(result).toEqual({
+        id: mockProfile.id,
+        displayName: mockProfile.display_name,
+        avatarUrl: mockProfile.avatar_url,
+        email: mockProfile.email,
+        preferences: {
+          showTips: true,
+          theme: 'auto',
+          notifications: { email: true, push: false },
+        },
+        createdAt: mockProfile.created_at,
+        lastSeen: mockProfile.last_seen_at,
+      });
+      expect(profileFetchCount).toBe(2);
     });
 
     it('should handle database errors', async () => {
@@ -284,9 +342,10 @@ describe('ProfileService', () => {
       const result = await ProfileService.revokeOtherSessions(authUserId, currentSessionId);
 
       expect(result).toEqual({
-        revokedCount: 2, // Mock return
+        revokedCount: 1,
         currentSessionPreserved: true,
       });
+      expect(mockSupabaseAdmin.auth.admin.signOut).toHaveBeenCalledWith(authUserId, 'others');
 
       expect(mockSupabaseAdmin.auth.admin.signOut).toHaveBeenCalledWith(authUserId, 'others');
     });
@@ -327,18 +386,17 @@ describe('ProfileService', () => {
       const authUserId = '550e8400-e29b-41d4-a716-446655440000';
 
       // Mock successful validation
-      mockSupabaseAdmin.from.mockImplementation(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({
-                data: { token: validToken, expires_at: new Date(Date.now() + 3600000).toISOString() },
-                error: null,
-              }),
-            })),
-          })),
-        })),
-      }));
+      mockSupabaseAdmin.from.mockImplementation((table: string) => {
+        if (table === 'csrf_tokens') {
+          return createCsrfTableMock({
+            selectResult: {
+              data: { token: validToken, expires_at: new Date(Date.now() + 3600000).toISOString() },
+              error: null,
+            },
+          });
+        }
+        return createSupabaseQueryBuilder();
+      });
 
       const result = await ProfileService.validateCSRFToken(authUserId, validToken);
       expect(result).toBe(true);
@@ -348,18 +406,17 @@ describe('ProfileService', () => {
       const invalidToken = 'invalid-token';
       const authUserId = '550e8400-e29b-41d4-a716-446655440000';
 
-      mockSupabaseAdmin.from.mockImplementation(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({
-                data: null,
-                error: null,
-              }),
-            })),
-          })),
-        })),
-      }));
+      mockSupabaseAdmin.from.mockImplementation((table: string) => {
+        if (table === 'csrf_tokens') {
+          return createCsrfTableMock({
+            selectResult: {
+              data: null,
+              error: null,
+            },
+          });
+        }
+        return createSupabaseQueryBuilder();
+      });
 
       const result = await ProfileService.validateCSRFToken(authUserId, invalidToken);
       expect(result).toBe(false);
@@ -369,18 +426,17 @@ describe('ProfileService', () => {
       const expiredToken = 'expired-token';
       const authUserId = '550e8400-e29b-41d4-a716-446655440000';
 
-      mockSupabaseAdmin.from.mockImplementation(() => ({
-        select: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({
-                data: { token: expiredToken, expires_at: new Date(Date.now() - 3600000).toISOString() },
-                error: null,
-              }),
-            })),
-          })),
-        })),
-      }));
+      mockSupabaseAdmin.from.mockImplementation((table: string) => {
+        if (table === 'csrf_tokens') {
+          return createCsrfTableMock({
+            selectResult: {
+              data: { token: expiredToken, expires_at: new Date(Date.now() - 3600000).toISOString() },
+              error: null,
+            },
+          });
+        }
+        return createSupabaseQueryBuilder();
+      });
 
       const result = await ProfileService.validateCSRFToken(authUserId, expiredToken);
       expect(result).toBe(false);
@@ -391,16 +447,17 @@ describe('ProfileService', () => {
     it('should generate a valid CSRF token', async () => {
       const authUserId = '550e8400-e29b-41d4-a716-446655440000';
 
-      mockSupabaseAdmin.from.mockImplementation(() => ({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
+      mockSupabaseAdmin.from.mockImplementation((table: string) => {
+        if (table === 'csrf_tokens') {
+          return createCsrfTableMock({
+            insertResult: {
               data: { token: 'generated-csrf-token-123' },
               error: null,
-            }),
-          })),
-        })),
-      }));
+            },
+          });
+        }
+        return createSupabaseQueryBuilder();
+      });
 
       const result = await ProfileService.generateCSRFToken(authUserId);
       expect(result).toBe('generated-csrf-token-123');
@@ -409,16 +466,17 @@ describe('ProfileService', () => {
     it('should handle CSRF token generation errors', async () => {
       const authUserId = '550e8400-e29b-41d4-a716-446655440000';
 
-      mockSupabaseAdmin.from.mockImplementation(() => ({
-        insert: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn().mockResolvedValue({
+      mockSupabaseAdmin.from.mockImplementation((table: string) => {
+        if (table === 'csrf_tokens') {
+          return createCsrfTableMock({
+            insertResult: {
               data: null,
               error: new Error('Failed to generate CSRF token'),
-            }),
-          })),
-        })),
-      }));
+            },
+          });
+        }
+        return createSupabaseQueryBuilder();
+      });
 
       await expect(ProfileService.generateCSRFToken(authUserId)).rejects.toThrow('Failed to generate CSRF token');
     });
@@ -430,16 +488,31 @@ describe('ProfileService', () => {
       const cookieGroupId = '550e8400-e29b-41d4-a716-446655440002';
 
       mockSupabaseAdmin.rpc.mockImplementation((fnName: string) => {
-        if (fnName === 'link_cookie_group_to_user') {
+        if (fnName === 'link_guest_account_to_user') {
           return {
-            data: null,
+            data: [
+              {
+                success: true,
+                characters_migrated: 2,
+                games_migrated: 1,
+                stones_migrated: 50,
+                ledger_entries_created: 3,
+              },
+            ],
             error: null,
           };
         }
         return { data: null, error: null };
       });
 
-      await expect(ProfileService.linkCookieGroupToUser(authUserId, cookieGroupId)).resolves.not.toThrow();
+      const result = await ProfileService.linkCookieGroupToUser(authUserId, cookieGroupId);
+      expect(result).toEqual({
+        success: true,
+        charactersMigrated: 2,
+        gamesMigrated: 1,
+        stonesMigrated: 50,
+        ledgerEntriesCreated: 3,
+      });
     });
 
     it('should handle linking errors', async () => {
@@ -447,16 +520,35 @@ describe('ProfileService', () => {
       const cookieGroupId = '550e8400-e29b-41d4-a716-446655440002';
 
       mockSupabaseAdmin.rpc.mockImplementation((fnName: string) => {
-        if (fnName === 'link_cookie_group_to_user') {
+        if (fnName === 'link_guest_account_to_user') {
           return {
             data: null,
-            error: new Error('Failed to link cookie group'),
+            error: new Error('Link failure'),
           };
         }
         return { data: null, error: null };
       });
 
-      await expect(ProfileService.linkCookieGroupToUser(authUserId, cookieGroupId)).rejects.toThrow('Failed to link cookie group');
+      await expect(ProfileService.linkCookieGroupToUser(authUserId, cookieGroupId)).rejects.toThrow('Failed to link guest account');
+    });
+
+    it('should error when linking function returns no data', async () => {
+      const authUserId = '550e8400-e29b-41d4-a716-446655440000';
+      const cookieGroupId = '550e8400-e29b-41d4-a716-446655440002';
+
+      mockSupabaseAdmin.rpc.mockImplementation((fnName: string) => {
+        if (fnName === 'link_guest_account_to_user') {
+          return {
+            data: [],
+            error: null,
+          };
+        }
+        return { data: null, error: null };
+      });
+
+      await expect(ProfileService.linkCookieGroupToUser(authUserId, cookieGroupId)).rejects.toThrow(
+        'Failed to link guest account: Error: No data returned from guest linking function'
+      );
     });
   });
 });

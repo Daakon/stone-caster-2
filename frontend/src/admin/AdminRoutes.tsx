@@ -10,6 +10,7 @@ import { Guarded } from './routeGuard';
 import AdminHome from '@/pages/admin/index';
 import EntryPointsAdmin from '@/pages/admin/entry-points/index';
 import EntryPointEditPage from '@/pages/admin/entry-points/id';
+import EntryWizardPage from '@/pages/admin/entry-points/wizard/[id]';
 import NPCsAdmin from '@/pages/admin/npcs/index';
 import CreateNPCPage from '@/pages/admin/npcs/new';
 import NPCDetailPage from '@/pages/admin/npcs/[id]';
@@ -42,6 +43,7 @@ export function AdminRoutes() {
       <Route path="/admin" element={<AdminHome />} />
       <Route path="/entry-points" element={<EntryPointsAdmin />} />
       <Route path="/entry-points/:id" element={<EntryPointEditPage />} />
+      <Route path="/entry-points/wizard/:id" element={<EntryWizardPage />} />
       <Route path="/npcs" element={<NPCsAdmin />} />
       <Route path="/npcs/new" element={<CreateNPCPage />} />
       <Route path="/npcs/:id" element={<NPCDetailPage />} />

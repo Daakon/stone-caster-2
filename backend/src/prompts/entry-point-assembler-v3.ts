@@ -31,7 +31,7 @@ const PROMPT_TOKEN_BUDGET_DEFAULT = getEnvNumber('PROMPT_TOKEN_BUDGET_DEFAULT', 
 const PROMPT_BUDGET_WARN_PCT = getEnvPercentage('PROMPT_BUDGET_WARN_PCT', 0.9);
 
 // Core prompt (code-owned, always included)
-const CORE_PROMPT = `# RPG Storyteller AI System
+export const CORE_PROMPT = `# RPG Storyteller AI System
 
 ## Core Rules
 

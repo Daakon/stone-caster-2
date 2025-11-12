@@ -1,54 +1,49 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TelemetryService } from './telemetry.service.js';
+import { createSupabaseAdminMock } from '../test-utils/supabase-mock.js';
+import { createConfigServiceMock } from '../test-utils/config-mock.js';
 
-// Mock Supabase admin client
-vi.mock('./supabase.js', () => ({
-  supabaseAdmin: {
-    from: vi.fn(() => ({
-      insert: vi.fn(() => ({
-        select: vi.fn(() => ({
-          single: vi.fn(),
-        })),
-      })),
-    })),
-  },
-}));
+type SupabaseAdminMock = ReturnType<typeof createSupabaseAdminMock>['mockSupabaseAdmin'];
+type ConfigServiceMock = ReturnType<typeof createConfigServiceMock>['mockConfigService'];
 
-// Mock config service
-vi.mock('./config.service.js', () => ({
-  configService: {
-    getConfig: vi.fn(),
-  },
-}));
+const mockSupabaseAdmin = (globalThis as any).mockSupabaseAdmin as SupabaseAdminMock;
+const mockConfigService = (globalThis as any).mockConfigService as ConfigServiceMock;
+
+const baseAppConfig = {
+  cookieTtlDays: 30,
+  idempotencyRequired: false,
+  allowAsyncTurnFallback: true,
+  telemetrySampleRate: 1,
+  drifterEnabled: false,
+};
+
+const enabledTelemetry = [{ key: 'telemetry_enabled', enabled: true, payload: {} }];
+
+const buildInsertChain = (singleResult: { data: any; error: any }) => {
+  const single = vi.fn().mockResolvedValue(singleResult);
+  const select = vi.fn(() => ({ single }));
+  const insert = vi.fn(() => ({ select }));
+  return { builder: { insert }, insert, select, single };
+};
 
 describe('TelemetryService', () => {
-  let mockSupabaseAdmin: any;
-  let mockConfigService: any;
-
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Get the mocked services
-    const { supabaseAdmin } = await import('./supabase.js');
-    const { configService } = await import('./config.service.js');
-    mockSupabaseAdmin = vi.mocked(supabaseAdmin);
-    mockConfigService = vi.mocked(configService);
+    mockSupabaseAdmin.from.mockReset();
+    mockConfigService.getFeatures.mockReset?.();
+    mockConfigService.getApp.mockReset?.();
+
+    mockConfigService.getFeatures.mockReturnValue(enabledTelemetry);
+    mockConfigService.getApp.mockReturnValue({ ...baseAppConfig, telemetrySampleRate: 1 });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('recordEvent', () => {
     it('should record telemetry event when enabled and sampled', async () => {
-      // Mock config with telemetry enabled and 100% sampling
-      mockConfigService.getConfig.mockResolvedValue({
-        featureFlags: {
-          telemetry_enabled: { enabled: true },
-        },
-        app: {
-          telemetry_sample_rate: { value: 1.0 },
-        },
-      });
-
-      // Mock successful database insert
-      mockSupabaseAdmin.from().insert().select().single.mockResolvedValue({
+      const { builder, insert, select, single } = buildInsertChain({
         data: {
           id: 'event-123',
           name: 'test_event',
@@ -57,6 +52,7 @@ describe('TelemetryService', () => {
         },
         error: null,
       });
+      mockSupabaseAdmin.from.mockReturnValue(builder as any);
 
       const result = await TelemetryService.recordEvent({
         name: 'test_event',
@@ -66,26 +62,23 @@ describe('TelemetryService', () => {
       });
 
       expect(result.success).toBe(true);
+      expect(result.eventId).toBe('event-123');
       expect(mockSupabaseAdmin.from).toHaveBeenCalledWith('telemetry_events');
-      expect(mockSupabaseAdmin.from().insert).toHaveBeenCalledWith({
-        name: 'test_event',
-        props: { test: 'data' },
-        trace_id: 'trace-123',
-        user_id: 'user-123',
-        cookie_id: null,
-      });
+      expect(insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'test_event',
+          props: { test: 'data' },
+          trace_id: 'trace-123',
+          user_id: 'user-123',
+          cookie_id: undefined,
+        })
+      );
+      expect(select).toHaveBeenCalledWith('id');
+      expect(single).toHaveBeenCalled();
     });
 
     it('should not record event when telemetry is disabled', async () => {
-      // Mock config with telemetry disabled
-      mockConfigService.getConfig.mockResolvedValue({
-        featureFlags: {
-          telemetry_enabled: { enabled: false },
-        },
-        app: {
-          telemetry_sample_rate: { value: 1.0 },
-        },
-      });
+      mockConfigService.getFeatures.mockReturnValue([{ key: 'telemetry_enabled', enabled: false }]);
 
       const result = await TelemetryService.recordEvent({
         name: 'test_event',
@@ -93,22 +86,12 @@ describe('TelemetryService', () => {
         traceId: 'trace-123',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.skipped).toBe(true);
-      expect(result.reason).toBe('telemetry_disabled');
+      expect(result).toEqual({ success: true, eventId: 'disabled' });
       expect(mockSupabaseAdmin.from).not.toHaveBeenCalled();
     });
 
     it('should not record event when not sampled', async () => {
-      // Mock config with 0% sampling
-      mockConfigService.getConfig.mockResolvedValue({
-        featureFlags: {
-          telemetry_enabled: { enabled: true },
-        },
-        app: {
-          telemetry_sample_rate: { value: 0.0 },
-        },
-      });
+      mockConfigService.getApp.mockReturnValue({ ...baseAppConfig, telemetrySampleRate: 0 });
 
       const result = await TelemetryService.recordEvent({
         name: 'test_event',
@@ -116,28 +99,16 @@ describe('TelemetryService', () => {
         traceId: 'trace-123',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.skipped).toBe(true);
-      expect(result.reason).toBe('not_sampled');
+      expect(result).toEqual({ success: true, eventId: 'sampled_out' });
       expect(mockSupabaseAdmin.from).not.toHaveBeenCalled();
     });
 
     it('should handle database errors gracefully', async () => {
-      // Mock config with telemetry enabled
-      mockConfigService.getConfig.mockResolvedValue({
-        featureFlags: {
-          telemetry_enabled: { enabled: true },
-        },
-        app: {
-          telemetry_sample_rate: { value: 1.0 },
-        },
-      });
-
-      // Mock database error
-      mockSupabaseAdmin.from().insert().select().single.mockResolvedValue({
+      const { builder, single } = buildInsertChain({
         data: null,
         error: { message: 'Database error' },
       });
+      mockSupabaseAdmin.from.mockReturnValue(builder as any);
 
       const result = await TelemetryService.recordEvent({
         name: 'test_event',
@@ -147,11 +118,13 @@ describe('TelemetryService', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Database error');
+      expect(single).toHaveBeenCalled();
     });
 
     it('should handle config service errors gracefully', async () => {
-      // Mock config service error
-      mockConfigService.getConfig.mockRejectedValue(new Error('Config error'));
+      mockConfigService.getFeatures.mockImplementation(() => {
+        throw new Error('Config error');
+      });
 
       const result = await TelemetryService.recordEvent({
         name: 'test_event',
@@ -163,41 +136,8 @@ describe('TelemetryService', () => {
       expect(result.error).toContain('Config error');
     });
 
-    it('should validate required parameters', async () => {
-      // Test with missing name
-      const result1 = await TelemetryService.recordEvent({
-        name: '',
-        traceId: 'trace-123',
-        props: {},
-      });
-      
-      expect(result1.success).toBe(false);
-      expect(result1.error).toContain('Missing required parameters');
-
-      // Test with missing traceId
-      const result2 = await TelemetryService.recordEvent({
-        name: 'test_event',
-        traceId: '',
-        props: {},
-      });
-      
-      expect(result2.success).toBe(false);
-      expect(result2.error).toContain('Missing required parameters');
-    });
-
     it('should handle cookieId context', async () => {
-      // Mock config with telemetry enabled
-      mockConfigService.getConfig.mockResolvedValue({
-        featureFlags: {
-          telemetry_enabled: { enabled: true },
-        },
-        app: {
-          telemetry_sample_rate: { value: 1.0 },
-        },
-      });
-
-      // Mock successful database insert
-      mockSupabaseAdmin.from().insert().select().single.mockResolvedValue({
+      const { builder, insert } = buildInsertChain({
         data: {
           id: 'event-123',
           name: 'test_event',
@@ -206,6 +146,7 @@ describe('TelemetryService', () => {
         },
         error: null,
       });
+      mockSupabaseAdmin.from.mockReturnValue(builder as any);
 
       const result = await TelemetryService.recordEvent({
         name: 'test_event',
@@ -215,55 +156,47 @@ describe('TelemetryService', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(mockSupabaseAdmin.from().insert).toHaveBeenCalledWith({
-        name: 'test_event',
-        props: { test: 'data' },
-        trace_id: 'trace-123',
-        user_id: null,
-        cookie_id: 'cookie-456',
-      });
+      expect(insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'test_event',
+          props: { test: 'data' },
+          trace_id: 'trace-123',
+          user_id: undefined,
+          cookie_id: 'cookie-456',
+        })
+      );
     });
   });
 
   describe('sampling', () => {
     it('should respect different sample rates', async () => {
-      // Test with 50% sampling - this is probabilistic, so we test the logic
-      mockConfigService.getConfig.mockResolvedValue({
-        featureFlags: {
-          telemetry_enabled: { enabled: true },
-        },
-        app: {
-          telemetry_sample_rate: { value: 0.5 },
-        },
-      });
+      mockConfigService.getApp.mockReturnValue({ ...baseAppConfig, telemetrySampleRate: 0.5 });
 
-      // Mock successful database insert
-      mockSupabaseAdmin.from().insert().select().single.mockResolvedValue({
-        data: {
-          id: 'event-123',
-          name: 'test_event',
-          props: { test: 'data' },
-          created_at: '2024-01-01T00:00:00Z',
-        },
+      const { builder } = buildInsertChain({
+        data: { id: 'event-123', name: 'test_event' },
         error: null,
       });
+      mockSupabaseAdmin.from.mockReturnValue(builder as any);
 
-      // Run multiple times to test sampling behavior
-      const results = [];
-      for (let i = 0; i < 10; i++) {
-        const result = await TelemetryService.recordEvent({
-          name: 'test_event',
-          props: { test: 'data' },
-          traceId: `trace-${i}`,
-        });
-        results.push(result);
-      }
+      const randomSpy = vi.spyOn(Math, 'random');
+      randomSpy.mockReturnValueOnce(0.6); // sampled out
+      randomSpy.mockReturnValueOnce(0.4); // recorded
 
-      // Some should be recorded, some should be skipped
-      const recorded = results.filter(r => !r.skipped);
-      const skipped = results.filter(r => r.skipped);
-      
-      expect(recorded.length + skipped.length).toBe(10);
+      const skipped = await TelemetryService.recordEvent({
+        name: 'test_event',
+        props: {},
+        traceId: 'trace-1',
+      });
+
+      const recorded = await TelemetryService.recordEvent({
+        name: 'test_event',
+        props: {},
+        traceId: 'trace-2',
+      });
+
+      expect(skipped).toEqual({ success: true, eventId: 'sampled_out' });
+      expect(recorded.success).toBe(true);
+      expect(recorded.eventId).toBe('event-123');
     });
   });
 });

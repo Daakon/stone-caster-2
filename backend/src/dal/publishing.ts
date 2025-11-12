@@ -105,6 +105,63 @@ export async function recordPublishRequest(params: {
     }
   }
 
+  // For stories, check all linked NPCs are public and approved
+  if (type === 'story') {
+    const { data: npcBindings, error: npcBindingsError } = await supabaseAdmin
+      .from('entry_point_npcs')
+      .select('npc_id')
+      .eq('entry_point_id', id);
+
+    if (npcBindingsError) {
+      console.error('[publishing] Failed to fetch NPC bindings:', npcBindingsError);
+      // Don't fail on error, but log it
+    } else if (npcBindings && npcBindings.length > 0) {
+      const npcIds = npcBindings.map((b: any) => b.npc_id);
+      
+      // Check all NPCs are public and approved
+      const { data: npcs, error: npcsError } = await supabaseAdmin
+        .from('npcs')
+        .select('id, name, visibility, review_state')
+        .in('id', npcIds);
+
+      if (npcsError) {
+        console.error('[publishing] Failed to fetch NPCs:', npcsError);
+        throw {
+          code: ApiErrorCode.INTERNAL_ERROR,
+          message: 'Failed to validate NPC dependencies',
+        };
+      }
+
+      // Find unpublished NPCs
+      const unpublishedNPCs = (npcs || []).filter(
+        (npc: any) => npc.visibility !== 'public' || npc.review_state !== 'approved'
+      );
+
+      if (unpublishedNPCs.length > 0) {
+        const npcNames = unpublishedNPCs.map((n: any) => n.name || n.id).join(', ');
+        
+        // Set dependency_invalid flag
+        await supabaseAdmin
+          .from('entry_points')
+          .update({ dependency_invalid: true })
+          .eq('id', id);
+
+        emitPublishingEvent('publish.blocked', {
+          type,
+          id,
+          userId,
+          reason: 'NPC_DEPENDENCIES_NOT_PUBLIC',
+          unpublishedNPCs: unpublishedNPCs.map((n: any) => n.id),
+        });
+
+        throw {
+          code: ApiErrorCode.WORLD_NOT_PUBLIC, // Reusing this code for dependency issues
+          message: `Cannot publish story: The following NPCs must be public and approved first: ${npcNames}`,
+        };
+      }
+    }
+  }
+
   // Update review_state to pending_review
   const { error: updateError } = await supabaseAdmin
     .from(tableName)

@@ -165,12 +165,18 @@ export default function EntryPointEditPage() {
               onSubmitted={loadEntryPoint}
             />
           )}
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/admin/entry-points/wizard/${entryPoint.id}`)}
+          >
+            Open Entry Wizard
+          </Button>
           {isPublishingWizardEnabled() && (
             <Button
               variant="outline"
               onClick={() => navigate(`/publishing/wizard?type=story&id=${entryPoint.id}`)}
             >
-              Open Wizard
+              Open Publishing Wizard
             </Button>
           )}
           <PublishButton

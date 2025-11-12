@@ -3,12 +3,16 @@
  * Tests for stable concatenation order
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { buildLinearizedPrompt } from '../src/utils/linearized-prompt.js';
 import type { TurnPacketV3 } from '../src/types/turn-packet-v3.js';
 
+vi.mock('../src/services/slots.service.js', () => ({
+  getSlotByTypeAndName: vi.fn().mockResolvedValue(null),
+}));
+
 describe('Linearized Prompt Builder', () => {
-  it('should maintain stable concatenation order', () => {
+  it('should maintain stable concatenation order', async () => {
     const tp: TurnPacketV3 = {
       tp_version: '3',
       contract: 'awf.v1',
@@ -29,6 +33,10 @@ describe('Linearized Prompt Builder', () => {
         {
           id: 'test-module',
           version: '1.0.0',
+          slots: {
+            'module.hints': 'Hint one',
+            'module.actions': 'Action one',
+          },
           params: { hints: ['hint1'], actions: ['action1'] },
         },
       ],
@@ -65,29 +73,27 @@ describe('Linearized Prompt Builder', () => {
       },
     };
 
-    const linearized = buildLinearizedPrompt(tp);
+    const linearized = await buildLinearizedPrompt(tp);
 
-    // Verify order: CORE → RULESET → MODULES → WORLD → SCENARIO → NPCS → STATE → INPUT
-    const coreIndex = linearized.indexOf('# CORE');
-    const rulesetIndex = linearized.indexOf('# RULESET');
-    const modulesIndex = linearized.indexOf('# MODULES');
-    const worldIndex = linearized.indexOf('# WORLD');
-    const scenarioIndex = linearized.indexOf('# SCENARIO');
-    const npcsIndex = linearized.indexOf('# NPCS');
-    const stateIndex = linearized.indexOf('# STATE');
-    const inputIndex = linearized.indexOf('# INPUT');
+    const markers = [
+      '# CORE',
+      '## Principles',
+      '### test-module Hints',
+      '## Tone',
+      '## Setup',
+      '## Test NPC Bio',
+      '# STATE',
+      '# INPUT',
+    ];
 
-    expect(coreIndex).toBeGreaterThan(-1);
-    expect(rulesetIndex).toBeGreaterThan(coreIndex);
-    expect(modulesIndex).toBeGreaterThan(rulesetIndex);
-    expect(worldIndex).toBeGreaterThan(modulesIndex);
-    expect(scenarioIndex).toBeGreaterThan(worldIndex);
-    expect(npcsIndex).toBeGreaterThan(scenarioIndex);
-    expect(stateIndex).toBeGreaterThan(npcsIndex);
-    expect(inputIndex).toBeGreaterThan(stateIndex);
+    const positions = markers.map(marker => linearized.indexOf(marker));
+    positions.forEach(pos => expect(pos).toBeGreaterThan(-1));
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]).toBeGreaterThan(positions[i - 1]);
+    }
   });
 
-  it('should handle minimal TurnPacketV3', () => {
+  it('should handle minimal TurnPacketV3', async () => {
     const tp: TurnPacketV3 = {
       tp_version: '3',
       contract: 'awf.v1',
@@ -113,7 +119,7 @@ describe('Linearized Prompt Builder', () => {
       },
     };
 
-    const linearized = buildLinearizedPrompt(tp);
+    const linearized = await buildLinearizedPrompt(tp);
 
     // Should still have INPUT section
     expect(linearized).toContain('# INPUT');

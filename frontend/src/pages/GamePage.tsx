@@ -621,8 +621,30 @@ export default function GamePage() {
     );
   }
 
+  const globalErrorMessage = turnError || gameErrorState;
+
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      {globalErrorMessage && (
+        <div className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="max-w-3xl w-full pointer-events-auto">
+            <div className="bg-red-600 text-white px-4 py-3 rounded-md shadow-lg flex items-center justify-between">
+              <span className="text-sm font-medium">{globalErrorMessage}</span>
+              <button
+                type="button"
+                className="text-white/80 hover:text-white text-xs ml-4"
+                onClick={() => {
+                  setTurnError(null);
+                  setGameErrorState(null);
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="min-h-screen bg-background">
       {/* Game Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Breadcrumbs />
@@ -816,5 +838,6 @@ export default function GamePage() {
       
       {/* Prompt Approval Modal removed - not needed with new backend system */}
     </div>
+    </>
   );
 }

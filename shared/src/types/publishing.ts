@@ -7,8 +7,9 @@ import { z } from 'zod';
 
 /**
  * Visibility enum for content items
+ * Mirrors the Postgres visibility_state enum (private|public|unlisted)
  */
-export const VisibilitySchema = z.enum(['private', 'public']);
+export const VisibilitySchema = z.enum(['private', 'public', 'unlisted']);
 export type Visibility = z.infer<typeof VisibilitySchema>;
 
 /**

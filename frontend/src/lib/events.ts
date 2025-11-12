@@ -6,6 +6,7 @@
 
 import type { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
+import { apiUrl } from './apiBase';
 
 export interface GameEvent {
   type: 'turn.created' | 'turn.updated' | 'game.updated';
@@ -47,8 +48,7 @@ class SSEEventAdapter implements EventAdapter {
       existing.close();
     }
     
-    const url = `${import.meta.env.VITE_API_BASE || 'https://api.stonecaster.ai'}/api/games/${gameId}/events`;
-    const eventSource = new EventSource(url);
+    const eventSource = new EventSource(apiUrl(`/api/games/${gameId}/events`));
     
     eventSource.onmessage = (e) => {
       try {

@@ -271,6 +271,90 @@ export class AwfLinter {
       }
     });
 
+    // Tone policy rule
+    this.rules.push({
+      name: 'tone_policy',
+      severity: 'error',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        const tonePolicy = doc.contract?.txt?.policy;
+        if (typeof tonePolicy === 'string') {
+          const sentences = tonePolicy
+            .split(/[.!?]/)
+            .map(sentence => sentence.trim())
+            .filter(Boolean);
+          if (sentences.length < 2) {
+            issues.push({
+              rule: 'tone_policy',
+              severity: 'error',
+              message: 'Contract tone policy must include multiple guidance sentences describing voice and tone.',
+              path,
+              suggestion: 'Provide at least two clear sentences covering tone and content boundaries.'
+            });
+          }
+        }
+
+        const choices = doc.contract?.choices;
+        if (Array.isArray(choices)) {
+          choices.forEach(choice => {
+            const label = choice?.label || choice?.text;
+            if (typeof label === 'string' && label.length > 48) {
+              issues.push({
+                rule: 'tone_policy',
+                severity: 'error',
+                message: `Choice "${choice.id || 'unknown'}" label exceeds 48 characters (${label.length}).`,
+                path,
+                suggestion: 'Shorten choice labels to keep UI concise (<= 48 characters).'
+              });
+            }
+          });
+        }
+
+        return issues;
+      }
+    });
+
+    // Acts budget rule
+    this.rules.push({
+      name: 'acts_budget',
+      severity: 'warning',
+      check: (doc: any, path: string) => {
+        const issues: LintIssue[] = [];
+        const acts = doc.contract?.acts;
+        if (!acts) {
+          return issues;
+        }
+
+        const allowedActs: string[] = Array.isArray(acts.allowed) ? acts.allowed : [];
+        if (allowedActs.length > 0 && allowedActs.length < 2) {
+          issues.push({
+            rule: 'acts_budget',
+            severity: 'warning',
+            message: `Acts budget should include at least 3 allowed acts, found ${allowedActs.length}.`,
+            path,
+            suggestion: 'Broaden the allowed acts list to give the model enough narrative tools.'
+          });
+        }
+
+        const exemplars = acts.exemplars || {};
+        const unusedExemplars = Object.keys(exemplars).filter(
+          act => !allowedActs.includes(act)
+        );
+
+        if (unusedExemplars.length > 0) {
+          issues.push({
+            rule: 'acts_budget',
+            severity: 'warning',
+            message: `Exemplars exist for acts not present in acts.allowed: ${unusedExemplars.join(', ')}`,
+            path,
+            suggestion: 'Remove exemplar references for disallowed acts or add them to acts.allowed.'
+          });
+        }
+
+        return issues;
+      }
+    });
+
     // Ruleset validation rule
     this.rules.push({
       name: 'games_only_state',

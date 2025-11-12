@@ -2,20 +2,21 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WorldValidationService } from './worldValidation.service.js';
 import { ContentService } from './content.service.js';
 
-// Mock the content service
 vi.mock('./content.service.js', () => ({
   ContentService: {
-    getWorlds: vi.fn()
-  }
+    getWorlds: vi.fn(),
+  },
 }));
 
 describe('Layer M1 - World Validation Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    WorldValidationService.clearCache();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    WorldValidationService.clearCache();
   });
 
   describe('World Slug Validation', () => {
@@ -163,12 +164,12 @@ describe('Layer M1 - World Validation Service', () => {
       // First call should fetch from content service
       const result1 = await WorldValidationService.validateWorldSlug('mystika');
       expect(result1.isValid).toBe(true);
-      expect(contentService.getWorlds).toHaveBeenCalledTimes(1);
+      expect(ContentService.getWorlds).toHaveBeenCalledTimes(1);
 
       // Second call should use cache
       const result2 = await WorldValidationService.validateWorldSlug('aetherium');
       expect(result2.isValid).toBe(true);
-      expect(contentService.getWorlds).toHaveBeenCalledTimes(1); // Still 1, not 2
+      expect(ContentService.getWorlds).toHaveBeenCalledTimes(1); // cache hit
     });
 
     it('should handle special characters in world slugs', async () => {

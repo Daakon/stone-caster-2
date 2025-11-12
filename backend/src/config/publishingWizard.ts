@@ -1,3 +1,5 @@
+import { isPublishingWizardRolloutEnabled } from './featureFlags.js';
+
 /**
  * Publishing Wizard Configuration
  * Phase 8: Rollout controls and settings
@@ -27,11 +29,8 @@ export const ROLLOUT_PERCENT = parseInt(process.env.WIZARD_ROLLOUT_PERCENT ?? '0
  * @returns true if user is allowed, false otherwise
  */
 export function isWizardAllowed(userId: string, userEmail?: string): boolean {
-  // Dynamic import to avoid circular dependency
-  const featureFlags = require('./featureFlags.js');
-  
   // If rollout gating is disabled, allow everyone (when wizard is enabled)
-  if (!featureFlags.isPublishingWizardRolloutEnabled()) {
+  if (!isPublishingWizardRolloutEnabled()) {
     return true;
   }
 

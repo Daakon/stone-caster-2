@@ -210,6 +210,19 @@ export class LiveOpsSafetyMechanisms {
       const bounds = this.bounds.get(field);
       if (!bounds || value === undefined) continue;
 
+      if (typeof value !== 'number') {
+        violations.push({
+          field,
+          value,
+          bounds: {
+            ...bounds,
+            description: bounds.description
+          },
+          severity: 'error'
+        });
+        continue;
+      }
+
       let severity: 'warning' | 'error' | 'critical' = 'warning';
       
       if (value < bounds.min || value > bounds.max) {
@@ -229,8 +242,11 @@ export class LiveOpsSafetyMechanisms {
       }
     }
 
+    const hasCritical = violations.some(v => v.severity === 'critical');
+    const hasError = violations.some(v => v.severity === 'error');
+
     return {
-      valid: violations.filter(v => v.severity === 'critical').length === 0,
+      valid: !hasCritical && !hasError,
       violations
     };
   }

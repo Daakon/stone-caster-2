@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { EntryWizard } from '@/admin/components/EntryWizard/EntryWizard';
 import { useEntry } from '@/hooks/useEntry';
 import { useNavigate } from 'react-router-dom';
+import { entryPointsService } from '@/services/admin.entryPoints';
+import { toast } from 'sonner';
 
 const STEPS = [
   { id: 'basics', title: 'Basics', description: 'Name, World, Rulesets' },
@@ -25,8 +27,52 @@ export default function EntryWizardPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isDirty, setIsDirty] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
   
-  const { entry, loading: entryLoading, error: entryError } = useEntry(id!);
+  const isNew = id === 'new';
+  const { entry, loading: entryLoading, error: entryError } = useEntry(isNew ? '' : id!);
+  
+  // Handle creating a new entry when id is 'new'
+  useEffect(() => {
+    if (isNew && !isCreating) {
+      const createMinimalEntry = async () => {
+        try {
+          setIsCreating(true);
+          // Get available worlds to use the first one as default
+          const worlds = await entryPointsService.getWorlds();
+          if (!worlds || worlds.length === 0) {
+            toast.error('No worlds available. Please create a world first.');
+            navigate('/admin/entry-points');
+            return;
+          }
+          
+          // Create a minimal entry point with required fields
+          const newEntry = await entryPointsService.createEntryPoint({
+            name: `story-${Date.now()}`,
+            type: 'adventure', // Valid type: 'adventure' | 'scenario' | 'sandbox' | 'quest'
+            world_id: worlds[0].id, // Use first available world as default
+            rulesetIds: [],
+            title: 'New Story',
+            description: 'Created via wizard - configure in wizard',
+            tags: [],
+            visibility: 'private',
+            content_rating: 'everyone',
+          });
+          toast.success('Story created, opening wizard...');
+          // Navigate to wizard with the new entry's ID
+          navigate(`/admin/entry-points/wizard/${newEntry.id}`, { replace: true });
+        } catch (error: any) {
+          console.error('Failed to create story:', error);
+          toast.error(error?.message || 'Failed to create story. Please create it manually first.');
+          navigate('/admin/entry-points');
+        } finally {
+          setIsCreating(false);
+        }
+      };
+      
+      createMinimalEntry();
+    }
+  }, [isNew, isCreating, navigate]);
   
   useEffect(() => {
     const stepParam = searchParams.get('step');
@@ -54,8 +100,11 @@ export default function EntryWizardPage() {
     setSearchParams({ step: newStep.toString() });
   };
   
-  const handleStepComplete = (stepData: any) => {
+  const handleStepComplete = async (stepData: any) => {
     setIsDirty(false);
+    // Refetch entry data to ensure we have the latest saved values
+    // This is handled by React Query's automatic refetch on window focus
+    // But we can also manually invalidate the query if needed
     if (currentStep < STEPS.length - 1) {
       updateStep(currentStep + 1);
     }
@@ -64,6 +113,18 @@ export default function EntryWizardPage() {
   const handleDirtyChange = (dirty: boolean) => {
     setIsDirty(dirty);
   };
+  
+  // Show loading state while creating new entry
+  if (isNew && isCreating) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Creating new story...</p>
+        </div>
+      </div>
+    );
+  }
   
   if (entryLoading) {
     return (
@@ -76,7 +137,7 @@ export default function EntryWizardPage() {
     );
   }
   
-  if (entryError || !entry) {
+  if (entryError || (!isNew && !entry)) {
     return (
       <div className="container mx-auto py-8">
         <Alert variant="destructive">
@@ -96,6 +157,14 @@ export default function EntryWizardPage() {
     );
   }
   
+  // Determine if this is a new entry (just created) or existing
+  const isNewEntry = entry && (
+    entry.name?.startsWith('story-') || 
+    entry.title === 'New Story' ||
+    entry.description === 'Created via wizard - configure in wizard'
+  );
+  const mode = isNewEntry ? 'New' : 'Edit';
+
   return (
     <div className="container mx-auto py-8">
       {/* Header */}
@@ -108,10 +177,15 @@ export default function EntryWizardPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Entry Setup Wizard</h1>
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">Entry Setup Wizard</h1>
+              <Badge variant={isNewEntry ? 'default' : 'secondary'} className="text-sm">
+                {mode} Mode
+              </Badge>
+            </div>
             <p className="text-muted-foreground">
-              Configure {entry.name} for optimal gameplay
+              Configure {entry.name || 'your entry'} for optimal gameplay
             </p>
           </div>
         </div>

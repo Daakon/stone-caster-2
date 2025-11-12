@@ -2651,7 +2651,8 @@ router.get('/worlds', authenticateToken, requireAdminRole, async (req, res) => {
  */
 router.post('/worlds', authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { name, description, status = 'draft', prompt } = req.body;
+    const { name, description, status = 'draft', visibility = 'private', doc } = req.body;
+    const userId = req.user?.id;
     
     if (!name) {
       return res.status(400).json({
@@ -2660,27 +2661,40 @@ router.post('/worlds', authenticateToken, requireAdminRole, async (req, res) => 
       });
     }
 
+    if (!userId) {
+      return res.status(401).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
     // Generate UUIDs
     const worldId = crypto.randomUUID();
     const uuidId = crypto.randomUUID();
 
-    // Generate a slug from the name
-    const slug = name
+    // Generate a slug from the name (or use from doc if provided)
+    const slug = doc?.slug || name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
+    // Build insert data
+    const insertData: any = {
+      id: worldId,
+      name: name,
+      slug: slug,
+      description: description || null,
+      status: status,
+      version: 1,
+      doc: doc || {}, // Use provided doc object or empty object
+      visibility: visibility,
+      review_state: 'draft',
+      owner_user_id: userId,
+    };
+
     const { data: result, error } = await supabase
       .from('worlds')
-      .insert({
-        id: worldId,
-        name: name,
-        slug: slug,
-        description: description,
-        status: status,
-        version: 1,
-        doc: prompt || {} // Store prompt directly as JSONB
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -2739,11 +2753,68 @@ router.get('/worlds/:id', authenticateToken, requireAdminRole, async (req, res) 
   try {
     const { id } = req.params;
     
-    const { data, error } = await supabase
-      .from('worlds_admin')
-      .select('*')
-      .eq('id', id)
-      .single();
+    // Check if id is a UUID (looks like a UUID format)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    let data, error;
+    
+    if (isUUID) {
+      // First, try querying worlds_admin by id (uuid_id from mapping)
+      let query = supabase
+        .from('worlds_admin')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      const result = await query;
+      data = result.data;
+      error = result.error;
+
+      // If not found, try querying by text_id (the actual world.id from worlds table)
+      if (error && error.code === 'PGRST116') {
+        query = supabase
+          .from('worlds_admin')
+          .select('*')
+          .eq('text_id', id)
+          .single();
+        
+        const textIdResult = await query;
+        data = textIdResult.data;
+        error = textIdResult.error;
+      }
+
+      // If still not found, try looking up via mapping table (reverse lookup)
+      if (error && error.code === 'PGRST116') {
+        const { data: mapping, error: mappingError } = await supabase
+          .from('world_id_mapping')
+          .select('text_id')
+          .eq('uuid_id', id)
+          .single();
+
+        if (!mappingError && mapping) {
+          // Found mapping, query with text_id
+          query = supabase
+            .from('worlds_admin')
+            .select('*')
+            .eq('text_id', mapping.text_id)
+            .single();
+          
+          const mappedResult = await query;
+          data = mappedResult.data;
+          error = mappedResult.error;
+        }
+      }
+    } else {
+      // If it's not a UUID, assume it's a text_id and query directly
+      const result = await supabase
+        .from('worlds_admin')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      data = result.data;
+      error = result.error;
+    }
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -2811,18 +2882,42 @@ router.put('/worlds/:id', authenticateToken, requireAdminRole, async (req, res) 
     const { id } = req.params;
     const updateData = req.body;
     
-    // Get the text_id from mapping
-    const { data: mapping, error: mappingError } = await supabase
-      .from('world_id_mapping')
-      .select('text_id')
-      .eq('uuid_id', id)
-      .single();
+    // Check if id is a UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    let textId: string;
+    
+    if (isUUID) {
+      // First, check if this UUID is the text_id (world.id) directly
+      const { data: directCheck, error: directError } = await supabase
+        .from('worlds')
+        .select('id')
+        .eq('id', id)
+        .single();
+      
+      if (!directError && directCheck) {
+        // It's the text_id, use it directly
+        textId = id;
+      } else {
+        // Try to get the text_id from mapping
+        const { data: mapping, error: mappingError } = await supabase
+          .from('world_id_mapping')
+          .select('text_id')
+          .eq('uuid_id', id)
+          .single();
 
-    if (mappingError) {
-      return res.status(404).json({
-        ok: false,
-        error: 'World not found'
-      });
+        if (mappingError || !mapping) {
+          return res.status(404).json({
+            ok: false,
+            error: 'World not found'
+          });
+        }
+        
+        textId = mapping.text_id;
+      }
+    } else {
+      // Not a UUID, assume it's a text_id
+      textId = id;
     }
 
     // Generate slug if name is updated
@@ -2842,7 +2937,7 @@ router.put('/worlds/:id', authenticateToken, requireAdminRole, async (req, res) 
     const { data, error } = await supabase
       .from('worlds')
       .update(updateData)
-      .eq('id', mapping.text_id)
+      .eq('id', textId)
       .select()
       .single();
 
@@ -3094,7 +3189,8 @@ router.get('/npcs', authenticateToken, requireAdminRole, async (req, res) => {
  */
 router.post('/npcs', authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { name, slug, description, status = 'draft', prompt } = req.body;
+    const { name, slug, description, status = 'draft', visibility = 'private', world_id, portrait_url, role_tags, doc } = req.body;
+    const userId = req.user?.id;
     
     if (!name) {
       return res.status(400).json({
@@ -3103,24 +3199,56 @@ router.post('/npcs', authenticateToken, requireAdminRole, async (req, res) => {
       });
     }
 
+    if (!userId) {
+      return res.status(401).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    // Validate NPC doc structure if provided
+    if (doc && doc.npc) {
+      const validationResult = NPCDocV1Schema.safeParse(doc);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Invalid NPC doc structure',
+          details: validationResult.error.errors
+        });
+      }
+    }
+
     // Generate slug if not provided
     const finalSlug = slug || name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
+    // Build insert data
     const insertData: any = {
       name,
-      description,
-      status
+      description: description || null,
+      status,
+      visibility,
+      review_state: 'draft',
+      owner_user_id: userId,
+      doc: doc || { npc: {} }, // Use provided doc or default NPCDocV1 structure
     };
 
     if (finalSlug) {
       insertData.slug = finalSlug;
     }
 
-    if (prompt) {
-      insertData.prompt = prompt;
+    if (world_id) {
+      insertData.world_id = world_id;
+    }
+
+    if (portrait_url) {
+      insertData.portrait_url = portrait_url;
+    }
+
+    if (role_tags && Array.isArray(role_tags) && role_tags.length > 0) {
+      insertData.role_tags = role_tags;
     }
 
     const { data, error } = await supabase

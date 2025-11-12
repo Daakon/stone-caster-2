@@ -12,6 +12,7 @@ export interface NPC {
   status: 'draft' | 'active' | 'archived';
   description?: string;
   prompt?: any; // JSONB - can be any structured data (will be added via migration)
+  world_id?: string; // World this NPC belongs to
   created_at: string;
   updated_at: string;
 }

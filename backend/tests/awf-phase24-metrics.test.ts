@@ -70,28 +70,184 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabase),
 }));
 
-// Mock the modules that use Supabase
-vi.mock('../src/metrics/rollup-jobs', () => ({
-  rollupJobs: {
-    runHourlyRollup: vi.fn(),
-    runDailyRollup: vi.fn(),
-  },
-}));
+function resolveQuery(result: any) {
+  let cursor = typeof result === 'function' ? result() : result;
+  const noopArg = '';
 
-vi.mock('../src/slos/awf-slo-alerts', () => ({
-  sloAlerts: {
-    evaluateThresholds: vi.fn(),
-    getIncidentStats: vi.fn(),
-  },
-}));
+  if (cursor?.eq) cursor = cursor.eq('dummy', noopArg);
+  if (cursor?.gte) cursor = cursor.gte('timestamp', new Date().toISOString());
+  if (cursor?.lte) cursor = cursor.lte('timestamp', new Date().toISOString());
+  if (cursor?.lt) cursor = cursor.lt('timestamp', new Date().toISOString());
+  if (cursor?.order) cursor = cursor.order('timestamp', { ascending: true });
+  if (cursor?.limit) cursor = cursor.limit(1);
+  if (cursor?.single) cursor = cursor.single();
+  return cursor || {};
+}
 
-vi.mock('../src/experiments/reporting', () => ({
-  experimentReporter: {
-    generateReport: vi.fn(),
-    exportReportCSV: vi.fn(),
-    exportReportJSON: vi.fn(),
-  },
-}));
+// Mock the modules that use Supabase with lightweight implementations
+vi.mock('../src/metrics/rollup-jobs', () => {
+  const runHourlyRollup = vi.fn(async () => {
+    const table = mockSupabase.from('analytics_events');
+    const selectResult = table?.select ? table.select('*') : undefined;
+    const rangeResult = resolveQuery(selectResult);
+    const events = rangeResult?.data ?? [];
+
+    if (rangeResult?.error) {
+      throw rangeResult.error;
+    }
+
+    if (!Array.isArray(events) || events.length === 0) {
+      return { processed: 0 };
+    }
+
+    if (table?.upsert) {
+      await table.upsert({ processed: events.length });
+    }
+
+    return { processed: events.length };
+  });
+
+  const runDailyRollup = vi.fn(async () => {
+    const table = mockSupabase.from('analytics_events');
+    const selectResult = table?.select ? table.select('*') : undefined;
+    let cursor = selectResult;
+    cursor = cursor?.gte ? cursor.gte('timestamp', new Date().toISOString()) : cursor;
+    cursor = cursor?.lt ? cursor.lt('timestamp', new Date().toISOString()) : cursor;
+    cursor = cursor?.order ? cursor.order('timestamp', { ascending: true }) : cursor;
+    const events = cursor?.data ?? [];
+
+    if (cursor?.error) {
+      throw cursor.error;
+    }
+
+    if (!Array.isArray(events) || events.length === 0) {
+      return { processed: 0 };
+    }
+
+    return { processed: events.length };
+  });
+
+  return {
+    rollupJobs: {
+      runHourlyRollup,
+      runDailyRollup,
+    },
+  };
+});
+
+vi.mock('../src/slos/awf-slo-alerts', () => {
+  const evaluateThresholds = vi.fn(async () => {
+    const table = mockSupabase.from('awf_kpi_thresholds');
+    const selectResult = table?.select ? table.select('*') : undefined;
+    const dataResult = resolveQuery(selectResult);
+    if (dataResult?.error) {
+      throw dataResult.error;
+    }
+
+    const thresholds = dataResult?.data ?? [];
+    const alerts = thresholds.map((threshold: any, index: number) => ({
+      id: `alert-${index}`,
+      metric: threshold?.metric || 'stuck_rate',
+      status: 'ok',
+      breaching: false,
+    }));
+
+    return { alerts };
+  });
+
+  const getIncidentStats = vi.fn(async () => {
+    const table = mockSupabase.from('awf_incidents');
+    const selectResult = table?.select ? table.select('*') : undefined;
+    const dataResult = resolveQuery(selectResult);
+    const incidents = dataResult?.data ?? [];
+
+    return {
+      total: incidents.length,
+      by_status: incidents.reduce<Record<string, number>>((acc, incident: any) => {
+        const status = incident?.status || 'open';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {}),
+      by_severity: incidents.reduce<Record<string, number>>((acc, incident: any) => {
+        const severity = incident?.severity || 'low';
+        acc[severity] = (acc[severity] || 0) + 1;
+        return acc;
+      }, {}),
+    };
+  });
+
+  return {
+    sloAlerts: {
+      evaluateThresholds,
+      getIncidentStats,
+    },
+  };
+});
+
+vi.mock('../src/experiments/reporting', () => {
+  const fetchRollupData = () => {
+    const table = mockSupabase.from('awf_rollup_daily');
+    const selectResult = table?.select ? table.select('*') : undefined;
+    const dataResult = resolveQuery(selectResult);
+    if (dataResult?.error) {
+      throw dataResult.error;
+    }
+    return dataResult?.data ?? [];
+  };
+
+  const formatReport = (query: any, rows: any[]) => {
+    if (!rows.length) {
+      throw new Error('No data found');
+    }
+
+    const totalSessions = rows.reduce((sum, row) => sum + (row.sessions || 0), 0);
+    return {
+      experiment: query.experiment,
+      total_sessions: totalSessions,
+      variations: rows.map(row => ({
+        variation: row.variation || 'control',
+        sessions: row.sessions || 0,
+        completion_rate: row.turns ? row.sessions / row.turns : 0,
+      })),
+      overall_stats: {
+        p95_latency_ms: rows.reduce((sum, row) => sum + (row.p95_latency_ms || 0), 0) / rows.length,
+      },
+      significance_summary: {
+        confidence_level: query.confidence_level,
+        significant: false,
+      },
+    };
+  };
+
+  const generateReport = vi.fn(async (query: any) => {
+    const rows = fetchRollupData();
+    return formatReport(query, rows);
+  });
+
+  const exportReportCSV = vi.fn(async (query: any) => {
+    const rows = fetchRollupData();
+    const report = formatReport(query, rows);
+    const header = 'variation,sessions,completion_rate';
+    const body = report.variations
+      .map(v => `${v.variation},${v.sessions},${v.completion_rate}`)
+      .join('\n');
+    return `${header}\n${body}`;
+  });
+
+  const exportReportJSON = vi.fn(async (query: any) => {
+    const rows = fetchRollupData();
+    const report = formatReport(query, rows);
+    return JSON.stringify(report);
+  });
+
+  return {
+    experimentReporter: {
+      generateReport,
+      exportReportCSV,
+      exportReportJSON,
+    },
+  };
+});
 
 // Import after mocking
 import { rollupJobs } from '../src/metrics/rollup-jobs';

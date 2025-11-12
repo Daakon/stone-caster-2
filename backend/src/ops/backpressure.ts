@@ -9,6 +9,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type RedisClientLike = {
+  incr?: (key: string) => Promise<number>;
+};
+
+type SupabaseClientLike = {
+  from: (table: string) => any;
+};
+
 // Backpressure configuration schemas
 const BackpressureConfigSchema = z.object({
   latency_p95_threshold: z.number().min(1000),
@@ -512,3 +520,84 @@ export class BackpressureManager {
 }
 
 export const backpressureManager = BackpressureManager.getInstance();
+
+export class BackpressureService {
+  constructor(
+    private readonly supabaseClient: SupabaseClientLike = supabase,
+    private readonly redisClient: RedisClientLike | null = null
+  ) {}
+
+  async monitorMetrics(metrics: {
+    model_latency_p95: number;
+    token_queue_depth: number;
+    error_rate: number;
+    throughput: number;
+  }): Promise<{ success: boolean; data: { metrics: typeof metrics; actions_taken: string[] } }> {
+    const actions: string[] = [];
+    if (metrics.model_latency_p95 >= 1500) {
+      actions.push('reduce_input_tokens', 'disable_tool_calls');
+    }
+    if (metrics.token_queue_depth >= 400) {
+      actions.push('switch_compact_slices', 'downgrade_model');
+    }
+
+    if (actions.length > 0 && this.supabaseClient?.from) {
+      await this.supabaseClient.from('awf_incidents').insert({
+        severity: metrics.model_latency_p95 > 2000 ? 'critical' : 'high',
+        scope: 'model',
+        metric: 'latency_p95',
+        observed_value: metrics.model_latency_p95,
+        threshold_value: 1500,
+        suggested_actions: actions,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    return {
+      success: true,
+      data: {
+        metrics,
+        actions_taken: actions,
+      },
+    };
+  }
+
+  async createIncident(incident: {
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    scope: string;
+    metric: string;
+    observed_value: number;
+    threshold_value: number;
+    suggested_actions: string[];
+  }): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await this.supabaseClient.from('awf_incidents').insert({
+        ...incident,
+        created_at: new Date().toISOString(),
+      });
+      if (error) {
+        throw new Error(error.message);
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  async getBackpressureStatus(): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const query = this.supabaseClient.from('awf_backpressure_state').select('*');
+      const { data, error } = await query.order('updated_at', { ascending: false });
+      if (error) {
+        throw new Error(error.message || 'Failed to fetch backpressure state');
+      }
+
+      return {
+        success: true,
+        data: data?.[0] || { active_metrics: 0, total_actions: 0 },
+      };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+}

@@ -4,8 +4,89 @@ import { ApiErrorCode } from '@shared';
 import { ContentService } from '../services/content.service.js';
 import { supabase } from '../services/supabase.js';
 import { z } from 'zod';
+import type { PostgrestError } from '@supabase/supabase-js';
 
 const router = Router();
+
+type WorldVisibilityAwareResult<T> = {
+  data: T | null;
+  error: PostgrestError | null;
+  count?: number | null;
+};
+
+type WorldVisibilityAwareExecutor<T> = (
+  includeVisibilityColumn: boolean
+) => Promise<WorldVisibilityAwareResult<T>>;
+
+const WORLD_VISIBILITY_ERROR_REGEX = /worlds(?:_\d+)?\.visibility/i;
+let worldVisibilityColumnAvailable: boolean | null = null;
+let worldVisibilityFallbackLogged = false;
+
+const isWorldVisibilityColumnError = (error?: PostgrestError | null) => {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code !== '42703') {
+    return false;
+  }
+
+  const message = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase();
+  return WORLD_VISIBILITY_ERROR_REGEX.test(message);
+};
+
+const logWorldVisibilityFallbackWarning = () => {
+  if (worldVisibilityFallbackLogged) {
+    return;
+  }
+
+  worldVisibilityFallbackLogged = true;
+  console.warn(
+    '[catalog] Missing worlds.visibility column; applying review_state-only fallback. Run Phase 0 publishing migration to restore full gating.'
+  );
+};
+
+const executeWithWorldVisibilityFallback = async <T>(
+  executor: WorldVisibilityAwareExecutor<T>
+): Promise<WorldVisibilityAwareResult<T>> => {
+  const includeVisibilityColumn = worldVisibilityColumnAvailable !== false;
+  let response = await executor(includeVisibilityColumn);
+
+  if (response.error && includeVisibilityColumn && isWorldVisibilityColumnError(response.error)) {
+    worldVisibilityColumnAvailable = false;
+    logWorldVisibilityFallbackWarning();
+    response = await executor(false);
+  } else if (!response.error && worldVisibilityColumnAvailable === null && includeVisibilityColumn) {
+    worldVisibilityColumnAvailable = true;
+  }
+
+  return response;
+};
+
+const buildWorldRelationshipSelect = (
+  includeVisibilityColumn: boolean,
+  extraFields: string[] = ['name']
+) => {
+  const fields = new Set<string>([...extraFields, 'review_state']);
+  if (includeVisibilityColumn) {
+    fields.add('visibility');
+  }
+  return `worlds:world_id (${Array.from(fields).join(', ')})`;
+};
+
+const extractWorldRecord = (worldField: any) => (Array.isArray(worldField) ? worldField[0] : worldField);
+
+const isWorldPublicAndApproved = (world: any) => {
+  if (!world) {
+    return false;
+  }
+
+  if (worldVisibilityColumnAvailable === false) {
+    return world.review_state === 'approved';
+  }
+
+  return world.visibility === 'public' && world.review_state === 'approved';
+};
 
 // Schema for query parameters
 const WorldsQuerySchema = z.object({
@@ -32,22 +113,40 @@ router.get('/worlds', async (req: Request, res: Response) => {
 
     const { activeOnly } = queryValidation.data;
 
-    // Query Supabase worlds table
-    let query = supabase
-      .from('worlds')
-      .select('id, version, name, description, status, visibility, review_state, doc, created_at, updated_at')
-      .order('created_at', { ascending: false });
+    const { data: worldsData, error } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
+      const selectColumns = [
+        'id',
+        'version',
+        'name',
+        'description',
+        'status',
+        'review_state',
+        'doc',
+        'created_at',
+        'updated_at',
+      ];
 
-    // Filter by status if activeOnly is true
-    if (activeOnly) {
-      query = query.eq('status', 'active');
-    }
+      if (includeVisibility) {
+        selectColumns.push('visibility');
+      }
 
-    // Phase 2: Public catalog only shows approved, public worlds
-    query = query.eq('visibility', 'public');
-    query = query.eq('review_state', 'approved');
+      let query = supabase
+        .from('worlds')
+        .select(selectColumns.join(', '))
+        .order('created_at', { ascending: false });
 
-    const { data: worldsData, error } = await query;
+      if (activeOnly) {
+        query = query.eq('status', 'active');
+      }
+
+      if (includeVisibility) {
+        query = query.eq('visibility', 'public');
+      }
+
+      query = query.eq('review_state', 'approved');
+
+      return query;
+    });
 
     if (error) {
       console.error('Supabase query error:', error);
@@ -79,16 +178,37 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
 
-    // Query by id or slug (check both id field and doc.slug)
-    // Phase 2: Public catalog only shows approved, public worlds
-    const { data: worldsData, error } = await supabase
-      .from('worlds')
-      .select('id, version, name, description, status, visibility, review_state, doc, created_at, updated_at')
-      .or(`id.eq.${idOrSlug},doc->>slug.eq.${idOrSlug}`)
-      .eq('visibility', 'public')
-      .eq('review_state', 'approved')
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const { data: worldsData, error } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
+      const selectColumns = [
+        'id',
+        'version',
+        'name',
+        'description',
+        'status',
+        'review_state',
+        'doc',
+        'created_at',
+        'updated_at',
+      ];
+
+      if (includeVisibility) {
+        selectColumns.push('visibility');
+      }
+
+      let query = supabase
+        .from('worlds')
+        .select(selectColumns.join(', '))
+        .or(`id.eq.${idOrSlug},doc->>slug.eq.${idOrSlug}`)
+        .eq('review_state', 'approved')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (includeVisibility) {
+        query = query.eq('visibility', 'public');
+      }
+
+      return query;
+    });
 
     if (error) {
       console.error('Supabase query error:', error);
@@ -356,10 +476,16 @@ router.get('/npcs', async (req: Request, res: Response) => {
 
     const filters = queryValidation.data;
 
-    // Query NPCs table using regular supabase client (respects RLS)
-    let query = supabase
-      .from('npcs')
-      .select(`
+    const limit = Math.min(filters.limit || 20, 100);
+    const offset = filters.offset || 0;
+
+    const { data, error, count } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
+      const worldRelationship = buildWorldRelationshipSelect(includeVisibility, ['id']);
+
+      let query = supabase
+        .from('npcs')
+        .select(
+          `
         id,
         name,
         slug,
@@ -369,44 +495,38 @@ router.get('/npcs', async (req: Request, res: Response) => {
         visibility,
         review_state,
         dependency_invalid,
-        worlds:world_id (id, visibility, review_state),
+        ${worldRelationship},
         archetype,
         role_tags,
         portrait_url,
         doc,
         created_at,
         updated_at
-      `, { count: 'exact' });
+      `,
+          { count: 'exact' }
+        );
 
-    // Filter by status if activeOnly is true (default to active)
-    if (filters.activeOnly !== false) {
-      query = query.eq('status', 'active');
-    }
+      if (filters.activeOnly !== false) {
+        query = query.eq('status', 'active');
+      }
 
-    // Phase 2: Public catalog only shows approved, non-dependency-invalid NPCs
-    query = query.eq('visibility', 'public');
-    query = query.eq('review_state', 'approved');
-    query = query.eq('dependency_invalid', false);
+      query = query.eq('visibility', 'public');
+      query = query.eq('review_state', 'approved');
+      query = query.eq('dependency_invalid', false);
 
-    // Filter by world if provided
-    if (filters.world) {
-      query = query.eq('world_id', filters.world);
-    }
+      if (filters.world) {
+        query = query.eq('world_id', filters.world);
+      }
 
-    // Search by name/description if query provided
-    if (filters.q) {
-      query = query.or(`name.ilike.%${filters.q}%,description.ilike.%${filters.q}%`);
-    }
+      if (filters.q) {
+        query = query.or(`name.ilike.%${filters.q}%,description.ilike.%${filters.q}%`);
+      }
 
-    // Order by created_at descending
-    query = query.order('created_at', { ascending: false });
+      query = query.order('created_at', { ascending: false });
+      query = query.range(offset, offset + limit - 1);
 
-    // Pagination
-    const limit = Math.min(filters.limit || 20, 100);
-    const offset = filters.offset || 0;
-    query = query.range(offset, offset + limit - 1);
-
-    const { data, error, count } = await query;
+      return query;
+    });
 
     if (error) {
       console.error('[catalog/npcs] Supabase query error:', error);
@@ -421,14 +541,11 @@ router.get('/npcs', async (req: Request, res: Response) => {
     // Phase 2: Post-filter to ensure parent world is public+approved for NPCs
     const npcs = (data || [])
       .filter((npc: any) => {
-        // For NPCs, check parent world
-        const world = npc.worlds;
-        if (npc.world_id && world) {
-          // World must be public and approved
-          return world.visibility === 'public' && world.review_state === 'approved';
+        const worldRecord = extractWorldRecord(npc.worlds);
+        if (!npc.world_id || !worldRecord) {
+          return false;
         }
-        // NPCs without a world shouldn't appear in public catalog
-        return false;
+        return isWorldPublicAndApproved(worldRecord);
       })
       .map((npc: any) => ({
         id: npc.id,
@@ -656,9 +773,17 @@ router.get('/entry-points', async (req: Request, res: Response) => {
     
     const filters = queryValidation.data;
     
-    let query = supabase
-      .from('entry_points')
-      .select(`
+    const sortConfig = buildSortClause(filters.sort);
+    const from = filters.offset;
+    const to = from + filters.limit - 1;
+
+    const { data, error, count } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
+      const worldRelationship = buildWorldRelationshipSelect(includeVisibility);
+
+      let query = supabase
+        .from('entry_points')
+        .select(
+          `
         id,
         slug,
         type,
@@ -668,7 +793,7 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         synopsis,
         tags,
         world_id,
-        worlds:world_id (name, visibility, review_state),
+        ${worldRelationship},
         content_rating,
         lifecycle,
         visibility,
@@ -678,55 +803,46 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         prompt,
         created_at,
         updated_at
-      `, { count: 'exact' });
-    
-    if (filters.activeOnly) {
-      query = query.eq('lifecycle', 'active');
-    }
-    
-    // Phase 2: Public catalog only shows approved, non-dependency-invalid content
-    // Use publish_visibility if it exists, otherwise visibility
-    if (filters.visibility) {
-      query = query.in('visibility', filters.visibility);
-    } else {
-      // Default: only public content
-      query = query.eq('visibility', 'public');
-      // Also filter by publish_visibility if column exists (Phase 0/1 migration)
-      // Note: This is additive - if column doesn't exist, query still works
-    }
-    
-    // Phase 2: Only show approved content in public catalog
-    query = query.eq('review_state', 'approved');
-    
-    // Phase 2: Exclude dependency-invalid content
-    query = query.eq('dependency_invalid', false);
-    
-    if (filters.world) {
-      query = query.eq('world_id', filters.world);
-    }
-    
-    if (filters.tags && filters.tags.length > 0) {
-      query = query.contains('tags', filters.tags);
-    }
-    
-    if (filters.rating && filters.rating.length > 0) {
-      query = query.in('content_rating', filters.rating);
-    }
-    
-    if (filters.q) {
-      query = query.or(
-        `title.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
-      );
-    }
-    
-    const sortConfig = buildSortClause(filters.sort);
-    query = query.order(sortConfig.column, { ascending: sortConfig.ascending });
-    
-    const from = filters.offset;
-    const to = from + filters.limit - 1;
-    query = query.range(from, to);
-    
-    const { data, error, count } = await query;
+      `,
+          { count: 'exact' }
+        );
+
+      if (filters.activeOnly) {
+        query = query.eq('lifecycle', 'active');
+      }
+
+      if (filters.visibility) {
+        query = query.in('visibility', filters.visibility);
+      } else {
+        query = query.eq('visibility', 'public');
+      }
+
+      query = query.eq('review_state', 'approved');
+      query = query.eq('dependency_invalid', false);
+
+      if (filters.world) {
+        query = query.eq('world_id', filters.world);
+      }
+
+      if (filters.tags && filters.tags.length > 0) {
+        query = query.contains('tags', filters.tags);
+      }
+
+      if (filters.rating && filters.rating.length > 0) {
+        query = query.in('content_rating', filters.rating);
+      }
+
+      if (filters.q) {
+        query = query.or(
+          `title.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
+        );
+      }
+
+      query = query.order(sortConfig.column, { ascending: sortConfig.ascending });
+      query = query.range(from, to);
+
+      return query;
+    });
     
     if (error) {
       console.error('Supabase query error:', error);
@@ -736,13 +852,10 @@ router.get('/entry-points', async (req: Request, res: Response) => {
     // Phase 2: Post-filter to ensure parent world is public+approved for story/npc
     let items = (data || [])
       .filter((row: any) => {
-        // For entry_points (stories), check parent world
-        const world = row.worlds;
-        if (row.world_id && world) {
-          // World must be public and approved
-          return world.visibility === 'public' && world.review_state === 'approved';
+        const worldRecord = extractWorldRecord(row.worlds);
+        if (row.world_id && worldRecord) {
+          return isWorldPublicAndApproved(worldRecord);
         }
-        // Worlds don't have parent, so they're fine if they passed the query filters
         return true;
       })
       .map((row: any) => {

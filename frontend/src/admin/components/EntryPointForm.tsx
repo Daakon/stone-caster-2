@@ -18,6 +18,7 @@ import { X, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { entryPointsService, type EntryPoint, type CreateEntryPointData, type UpdateEntryPointData } from '@/services/admin.entryPoints';
 import { useAppRoles } from '@/admin/routeGuard';
+import { VisibilitySchema } from '@shared/types/publishing';
 
 const entryPointSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -30,10 +31,12 @@ const entryPointSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   synopsis: z.string().optional(),
   tags: z.array(z.string()).max(10, 'Maximum 10 tags allowed'),
-  visibility: z.enum(['public', 'unlisted', 'private']),
+  visibility: VisibilitySchema,
   content_rating: z.string().min(1, 'Content rating is required'),
   lifecycle: z.enum(['draft', 'pending_review', 'changes_requested', 'active', 'archived', 'rejected']).optional()
 });
+
+const visibilityOptions = VisibilitySchema.options;
 
 type EntryPointFormData = z.infer<typeof entryPointSchema>;
 
@@ -407,9 +410,11 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
                   <SelectValue placeholder="Select visibility" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="public">Public</SelectItem>
-                  <SelectItem value="unlisted">Unlisted</SelectItem>
-                  <SelectItem value="private">Private</SelectItem>
+                  {visibilityOptions.map(option => (
+                    <SelectItem key={option} value={option}>
+                      {option.replace('_', ' ').replace(/^\w/, c => c.toUpperCase())}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -476,4 +481,3 @@ export function EntryPointForm({ entryPoint, onSave, onCancel, loading = false }
     </form>
   );
 }
-

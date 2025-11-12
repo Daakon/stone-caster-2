@@ -89,6 +89,7 @@ export class TurnsService {
     let assemblerResult: any = null;
     let aiRequestData: any = null;
     let aiRawResponse: any = null;
+    let snapshotId: string | undefined;
 
     try {
       // Check idempotency first
@@ -291,7 +292,7 @@ export class TurnsService {
             };
             
             // Build TurnPacketV3 and create snapshot (before AI call)
-            let snapshotId: string | undefined;
+            snapshotId = undefined;
             try {
               const { buildTurnPacketV3FromAWF } = await import('../adapters/turn-packet-v3-adapter.js');
               const { createPromptSnapshot } = await import('./prompt-snapshots.service.js');
@@ -385,7 +386,8 @@ export class TurnsService {
             assembleEndTime = Date.now();
             
             // Build TurnPacketV3 and create snapshot (before AI call)
-            let snapshotId: string | undefined;
+            snapshotId = undefined;
+            let linearizedPrompt = assembleResult.prompt;
             try {
               const { buildTurnPacketV3FromV3 } = await import('../adapters/turn-packet-v3-adapter.js');
               const { createPromptSnapshot } = await import('./prompt-snapshots.service.js');
@@ -419,7 +421,7 @@ export class TurnsService {
               });
               
               // Re-compose linearized prompt from budgeted sections
-              let linearizedPrompt = budgetResult.sections.map(s => s.text).join('\n\n');
+              linearizedPrompt = budgetResult.sections.map(s => s.text).join('\n\n');
               
               // Create snapshot with budget report
               const snapshot = await createPromptSnapshot({
