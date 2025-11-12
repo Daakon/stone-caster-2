@@ -9,10 +9,62 @@ Write-Host "Starting StoneCaster client deployment..." -ForegroundColor Green
 $env:CI = "1"
 $env:WRANGLER_NON_INTERACTIVE = "1"
 
+function Load-DotEnv {
+    param(
+        [string]$Path
+    )
+
+    $values = @{}
+    if (-not (Test-Path $Path)) {
+        return $values
+    }
+
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ([string]::IsNullOrWhiteSpace($line)) { return }
+        if ($line.StartsWith("#")) { return }
+
+        $parts = $line -split '=', 2
+        if ($parts.Count -ne 2) { return }
+
+        $key = $parts[0].Trim()
+        $value = $parts[1].Trim()
+
+        if ($value.StartsWith('"') -and $value.EndsWith('"')) {
+            $value = $value.Substring(1, $value.Length - 2)
+        } elseif ($value.StartsWith("'") -and $value.EndsWith("'")) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($key)) {
+            $values[$key] = $value
+        }
+    }
+
+    return $values
+}
+
+$dotenvData = @{}
+$dotenvPaths = @()
+$dotenvPaths += Join-Path $PSScriptRoot ".env"
+$dotenvPaths += Join-Path $PSScriptRoot "frontend\.env"
+
+foreach ($dotenvPath in $dotenvPaths) {
+    $loaded = Load-DotEnv -Path $dotenvPath
+    foreach ($key in $loaded.Keys) {
+        if (-not $dotenvData.ContainsKey($key)) {
+            $dotenvData[$key] = $loaded[$key]
+        }
+    }
+}
+
 # Step 1: Validate and use environment variables for client build
 Write-Host "Validating client build environment variables..." -ForegroundColor Yellow
 
-# Require VITE_SUPABASE_URL from environment (no hardcoded values allowed)
+# Require VITE_SUPABASE_URL from environment (allow fallback to .env)
+if (-not $env:VITE_SUPABASE_URL -and $dotenvData.ContainsKey('VITE_SUPABASE_URL')) {
+    $env:VITE_SUPABASE_URL = $dotenvData['VITE_SUPABASE_URL']
+}
 if (-not $env:VITE_SUPABASE_URL) {
     Write-Host "ERROR: VITE_SUPABASE_URL environment variable is required!" -ForegroundColor Red
     Write-Host "Set it in your environment or .env file before running this script." -ForegroundColor Yellow
@@ -21,6 +73,12 @@ if (-not $env:VITE_SUPABASE_URL) {
 }
 
 # Require VITE_SUPABASE_PUBLISHABLE_KEY from environment
+if (-not $env:VITE_SUPABASE_PUBLISHABLE_KEY -and $dotenvData.ContainsKey('VITE_SUPABASE_PUBLISHABLE_KEY')) {
+    $env:VITE_SUPABASE_PUBLISHABLE_KEY = $dotenvData['VITE_SUPABASE_PUBLISHABLE_KEY']
+}
+if (-not $env:VITE_SUPABASE_ANON_KEY -and $dotenvData.ContainsKey('VITE_SUPABASE_ANON_KEY')) {
+    $env:VITE_SUPABASE_ANON_KEY = $dotenvData['VITE_SUPABASE_ANON_KEY']
+}
 if (-not $env:VITE_SUPABASE_PUBLISHABLE_KEY -and -not $env:VITE_SUPABASE_ANON_KEY) {
     Write-Host "ERROR: VITE_SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_ANON_KEY environment variable is required!" -ForegroundColor Red
     Write-Host "Set it in your environment or .env file before running this script." -ForegroundColor Yellow

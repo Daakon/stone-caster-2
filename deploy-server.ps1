@@ -4,6 +4,22 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "Starting StoneCaster server deployment..."
 
+function Refresh-RegistryCredentials {
+  Write-Host "Refreshing registry credentials for Docker builds..." -ForegroundColor Yellow
+
+  if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    Write-Host "Docker CLI not found; skipping 'flyctl auth docker'. Remote builds will still work." -ForegroundColor Yellow
+    return
+  }
+
+  try {
+    flyctl auth docker 2>&1 | Out-Null
+    Write-Host "Registry credentials refreshed." -ForegroundColor Green
+  } catch {
+    Write-Host "Warning: Could not refresh registry credentials, but continuing..." -ForegroundColor Yellow
+  }
+}
+
 # 1) Aggressively clean ALL token sources for this process
 # Clear environment variables
 Remove-Item Env:FLY_ACCESS_TOKEN -ErrorAction SilentlyContinue
@@ -51,13 +67,7 @@ try {
 }
 
 # Refresh registry credentials for Docker/Depot builds
-Write-Host "Refreshing registry credentials for Docker builds..." -ForegroundColor Yellow
-try {
-  flyctl auth docker 2>&1 | Out-Null
-  Write-Host "Registry credentials refreshed." -ForegroundColor Green
-} catch {
-  Write-Host "Warning: Could not refresh registry credentials, but continuing..." -ForegroundColor Yellow
-}
+Refresh-RegistryCredentials
 
 # 4) Verify app/org
 $AppName = "stonecaster-api"
@@ -148,7 +158,10 @@ while ($retryCount -lt $maxRetries -and -not $deploySuccess) {
       Write-Host "Please log in again when prompted:" -ForegroundColor Yellow
       
       # Aggressively clear all auth state
+      $__oldEA = $ErrorActionPreference
+      $ErrorActionPreference = 'Continue'
       flyctl auth logout 2>&1 | Out-Null
+      $ErrorActionPreference = $__oldEA
       
       # Clear flyctl config file if it exists (may contain stale registry tokens)
       $flyConfigPath = "$env:USERPROFILE\.fly\config.yml"
@@ -158,7 +171,18 @@ while ($retryCount -lt $maxRetries -and -not $deploySuccess) {
       }
       
       Start-Sleep -Seconds 2
-      flyctl auth login
+      
+      # Re-authenticate with proper error handling
+      try {
+        flyctl auth login
+        if ($LASTEXITCODE -ne 0) {
+          throw "flyctl auth login failed with exit code $LASTEXITCODE"
+        }
+      } catch {
+        Write-Error "Failed to re-authenticate: $_"
+        Write-Host "Please manually run: flyctl auth login" -ForegroundColor Yellow
+        exit 1
+      }
       
       # Verify re-authentication
       Write-Host "Verifying new authentication..."
@@ -171,13 +195,7 @@ while ($retryCount -lt $maxRetries -and -not $deploySuccess) {
       }
       
       # Force refresh registry credentials specifically
-      Write-Host "Refreshing registry credentials for Docker builds..." -ForegroundColor Yellow
-      try {
-        flyctl auth docker 2>&1 | Out-Null
-        Write-Host "Registry credentials refreshed." -ForegroundColor Green
-      } catch {
-        Write-Host "Warning: Could not refresh registry credentials" -ForegroundColor Yellow
-      }
+      Refresh-RegistryCredentials
       
       # Also verify API access
       flyctl status -a $AppName | Out-Null
