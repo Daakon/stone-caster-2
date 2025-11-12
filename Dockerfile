@@ -29,6 +29,7 @@ COPY --from=deps /app/backend /app/backend
 
 COPY backend /app/backend
 COPY shared /app/shared
+COPY tsconfig.paths.json /app/tsconfig.paths.json
 
 WORKDIR /app/backend
 

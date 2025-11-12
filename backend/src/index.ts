@@ -62,8 +62,10 @@ app.use(cors({
       'http://localhost:5173',  // Local development (Vite default)
       'http://localhost:4173',  // Local development (Vite preview)
       'http://localhost:3000',  // Local development (alternative port)
-      'https://stonecaster.ai', // Production frontend
-      'https://www.stonecaster.ai', // Production frontend with www
+      'https://stonecaster.ai', // Production frontend (HTTPS)
+      'https://www.stonecaster.ai', // Production frontend with www (HTTPS)
+      'http://stonecaster.ai', // Production frontend fallback (HTTP)
+      'http://www.stonecaster.ai', // Production frontend fallback with www (HTTP)
     ];
 
     // Also allow any subdomain of stonecaster.ai (e.g., preview hosts)
