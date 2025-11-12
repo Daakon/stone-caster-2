@@ -3,6 +3,8 @@
  * Stores debug payloads keyed by turnKey = ${gameId}:${turnNumber}
  */
 
+import { apiUrl } from './apiBase';
+
 export interface DebugPayload {
   debugId: string;
   phase: 'start' | 'turn';
@@ -114,22 +116,19 @@ class DebugStore {
    */
   async hydrateTraces(gameId: string): Promise<void> {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
       const debugToken = import.meta.env.VITE_DEBUG_ROUTES_TOKEN;
       
       if (!debugToken) {
-        console.warn('[DEBUG_STORE] No debug token configured, skipping trace fetch');
         return;
       }
 
-      const response = await fetch(`${apiUrl}/api/dev/debug/traces/${gameId}?limit=50`, {
+      const response = await fetch(apiUrl(`/api/dev/debug/traces/${gameId}?limit=50`), {
         headers: {
           'X-Debug-Token': debugToken,
         },
       });
 
       if (!response.ok) {
-        console.warn('[DEBUG_STORE] Failed to fetch traces:', response.statusText);
         return;
       }
 
@@ -159,7 +158,6 @@ class DebugStore {
         }
       }
     } catch (error) {
-      console.error('[DEBUG_STORE] Error hydrating traces:', error);
     }
   }
 }

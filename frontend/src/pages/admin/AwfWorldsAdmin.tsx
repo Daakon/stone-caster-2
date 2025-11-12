@@ -76,7 +76,6 @@ export default function AwfWorldsAdmin() {
         setError(response.error || 'Failed to load worlds');
       }
     } catch (err) {
-      console.error('Error loading worlds:', err);
       setError(err instanceof Error ? err.message : 'Failed to load worlds');
     } finally {
       setLoading(false);
@@ -103,7 +102,6 @@ export default function AwfWorldsAdmin() {
         setError(response.error || 'Failed to save world');
       }
     } catch (err) {
-      console.error('Error saving world:', err);
       setError(err instanceof Error ? err.message : 'Failed to save world');
     }
   };

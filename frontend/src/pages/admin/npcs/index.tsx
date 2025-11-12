@@ -3,7 +3,8 @@
  * Phase 6: NPC catalog with search, filters, and management
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,9 +21,6 @@ import { useAppRoles } from '@/admin/routeGuard';
 
 export default function NPCsAdmin() {
   const { isModerator, isAdmin } = useAppRoles();
-  const [npcs, setNPCs] = useState<NPC[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<NPCFilters>({});
   const [search, setSearch] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -34,27 +32,18 @@ export default function NPCsAdmin() {
     search: search || undefined
   }), [filters.status, search]);
 
-  // Load NPCs with useCallback to prevent recreation on each render
-  const loadNPCs = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await npcsService.listNPCs(memoizedFilters);
-      setNPCs(response.data || []);
-      setTotalCount(response.count || 0);
-    } catch (error) {
-      toast.error('Failed to load NPCs');
-      console.error('Error loading NPCs:', error);
-      setNPCs([]); // Reset to empty array on error
-      setTotalCount(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [memoizedFilters]);
+  // Use React Query for NPCs with caching to prevent duplicate calls
+  const { data: npcsData, isLoading: loading, refetch: refetchNPCs } = useQuery({
+    queryKey: ['admin-npcs', memoizedFilters],
+    queryFn: async () => {
+      return await npcsService.listNPCs(memoizedFilters);
+    },
+    staleTime: 30 * 1000, // 30 seconds - cache for short time
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-  // Load NPCs on mount and when filters/search change
-  useEffect(() => {
-    loadNPCs();
-  }, [loadNPCs]);
+  const npcs = npcsData?.data || [];
+  const totalCount = npcsData?.count || 0;
 
 
 
@@ -71,7 +60,7 @@ export default function NPCsAdmin() {
       toast.success('NPC deleted successfully');
       setDeleteDialogOpen(false);
       setNPCToDelete(null);
-      loadNPCs();
+      refetchNPCs();
     } catch (error) {
       toast.error('Failed to delete NPC');
       console.error('Error deleting NPC:', error);

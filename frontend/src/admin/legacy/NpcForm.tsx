@@ -104,7 +104,6 @@ export default function NpcForm({ npc, onSave, isEditing, canEdit }: NpcFormProp
       toast.success('Portrait uploaded successfully');
     } catch (error) {
       toast.error('Failed to upload portrait');
-      console.error('Error uploading portrait:', error);
     }
   };
 
@@ -118,7 +117,6 @@ export default function NpcForm({ npc, onSave, isEditing, canEdit }: NpcFormProp
         portrait_url: portraitUrl
       });
     } catch (error) {
-      console.error('Error saving NPC:', error);
     }
   };
 
@@ -258,7 +256,4 @@ export default function NpcForm({ npc, onSave, isEditing, canEdit }: NpcFormProp
     </Card>
   );
 }
-
-
-
 

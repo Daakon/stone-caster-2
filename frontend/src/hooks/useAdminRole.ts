@@ -35,7 +35,6 @@ export function useAdminRole(): AdminRoleState {
         // Check if we have a cached role first
         const cachedRole = getCachedUserRole();
         if (cachedRole) {
-          console.log('useAdminRole: Using cached role:', cachedRole);
           const isAdmin = cachedRole === 'prompt_admin';
           setState({
             isAdmin,
@@ -61,8 +60,6 @@ export function useAdminRole(): AdminRoleState {
         }
 
         const isAdmin = role === 'prompt_admin';
-        console.log('useAdminRole: Fetched role:', role, 'isAdmin:', isAdmin);
-        
         setState({
           isAdmin,
           isLoading: false,
@@ -70,7 +67,6 @@ export function useAdminRole(): AdminRoleState {
           error: isAdmin ? null : 'Insufficient permissions'
         });
       } catch (error) {
-        console.error('Role verification error:', error);
         setState({
           isAdmin: false,
           isLoading: false,

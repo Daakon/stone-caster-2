@@ -57,8 +57,8 @@ router.get('/', adminGuard, async (req: Request, res: Response) => {
     query = query.order(params.orderBy, { ascending: params.order === 'asc' });
 
     // Pagination
-    const from = (params.page - 1) * params.pageSize;
-    const to = from + params.pageSize - 1;
+    const from = (params.page - 1) * params.limit;
+    const to = from + params.limit - 1;
     query = query.range(from, to);
 
     const { data: requests, error, count } = await query;
@@ -78,9 +78,9 @@ router.get('/', adminGuard, async (req: Request, res: Response) => {
       {
         meta: {
           page: params.page,
-          pageSize: params.pageSize,
+          limit: params.limit, // Changed from pageSize to limit
           total: count || 0,
-          hasMore: (count || 0) > params.page * params.pageSize,
+          hasMore: (count || 0) > params.page * params.limit, // Changed from pageSize to limit
           status: params.status,
           q: params.q,
         },

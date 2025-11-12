@@ -1,28 +1,58 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ArrowLeft, Save, Info } from 'lucide-react';
 import { toast } from 'sonner';
-import { npcsService, type NPC, type UpdateNPCData } from '@/services/admin.npcs';
+import { npcsService, type UpdateNPCData, type NPC } from '@/services/admin.npcs';
 import { worldsService, type World } from '@/services/admin.worlds';
+import { ExtrasForm } from '@/components/admin/ExtrasForm';
+import { PromptAuthoringSection, type PromptAuthoringContext } from '@/components/admin/prompt-authoring/PromptAuthoringSection';
+import { ContextChips } from '@/components/admin/prompt-authoring/ContextChips';
+import { isAdminPromptFormsEnabled, isLegacyPromptTextareaRetired } from '@/lib/feature-flags';
+import { trackAdminEvent } from '@/lib/admin-telemetry';
+import { PublishButton } from '@/components/publishing/PublishButton';
+import { PreflightPanel } from '@/components/publishing/PreflightPanel';
+import { isPublishingWizardEnabled } from '@/lib/feature-flags';
+
+// Extended NPC type to include fields that may be returned from API
+interface ExtendedNPC extends NPC {
+  world_id?: string;
+  visibility?: 'private' | 'public';
+  author_name?: string;
+  author_type?: 'user' | 'original' | 'system';
+}
+
+// Extended update data to include all fields
+interface ExtendedUpdateNPCData extends UpdateNPCData {
+  world_id?: string;
+  visibility?: 'private' | 'public';
+  author_name?: string;
+  author_type?: 'user' | 'original' | 'system';
+}
 
 export default function EditNPCPage() {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(false);
-  const [npc, setNPC] = useState<NPC | null>(null);
+  const [loadingNPC, setLoadingNPC] = useState(true);
+  const [worldsLoading, setWorldsLoading] = useState(true);
+  const [npc, setNPC] = useState<ExtendedNPC | null>(null);
   const [worlds, setWorlds] = useState<World[]>([]);
-  const [formData, setFormData] = useState<UpdateNPCData>({
+  const [formData, setFormData] = useState<ExtendedUpdateNPCData>({
     name: '',
     description: '',
     status: 'draft',
     prompt: '',
     world_id: '',
+    visibility: 'private',
+    author_name: '',
+    author_type: 'user',
   });
 
   useEffect(() => {
@@ -32,51 +62,110 @@ export default function EditNPCPage() {
     }
   }, [id]);
 
-  const loadWorlds = async () => {
-    try {
-      const response = await worldsService.listWorlds({ status: 'active' });
-      setWorlds(response.data);
-    } catch (error) {
-      console.error('Failed to load worlds:', error);
-      toast.error('Failed to load worlds');
-    }
-  };
-
   const loadNPC = async () => {
     if (!id) return;
-
+    
     try {
-      setLoading(true);
-      const npc = await npcsService.getNPC(id);
-      setNPC(npc);
+      setLoadingNPC(true);
+      const npcData = await npcsService.getNPC(id) as ExtendedNPC & { extras?: Record<string, unknown> };
+      setNPC(npcData);
+      
+      // Parse the prompt if it exists
+      let parsedPrompt = '';
+      if (npcData.prompt) {
+        try {
+          if (typeof npcData.prompt === 'string') {
+            parsedPrompt = npcData.prompt;
+          } else {
+            parsedPrompt = JSON.stringify(npcData.prompt, null, 2);
+          }
+        } catch (error) {
+          console.error('Error parsing prompt:', error);
+          parsedPrompt = String(npcData.prompt || '');
+        }
+      }
+
       setFormData({
-        name: npc.name,
-        description: npc.description || '',
-        status: npc.status,
-        prompt: npc.prompt || '',
-        world_id: npc.world_id || '',
+        name: npcData.name,
+        description: npcData.description || '',
+        prompt: parsedPrompt,
+        status: npcData.status,
+        world_id: npcData.world_id || '',
+        visibility: npcData.visibility || 'private',
+        author_name: npcData.author_name || '',
+        author_type: npcData.author_type || 'user',
       });
     } catch (error) {
       toast.error('Failed to load NPC');
       console.error('Error loading NPC:', error);
       navigate('/admin/npcs');
     } finally {
-      setLoading(false);
+      setLoadingNPC(false);
+    }
+  };
+
+  const loadWorlds = async () => {
+    try {
+      setWorldsLoading(true);
+      const response = await worldsService.listWorlds({ status: 'active' });
+      setWorlds(response.data || []);
+    } catch (error) {
+      console.error('Failed to load worlds:', error);
+      toast.error('Failed to load worlds');
+      setWorlds([]);
+    } finally {
+      setWorldsLoading(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!id) return;
     if (!formData.name?.trim()) {
       toast.error('Name is required');
       return;
     }
 
+    if (!id) return;
+
     try {
       setLoading(true);
-      await npcsService.updateNPC(id, formData);
+      
+      // Prepare update data
+      const updateData: ExtendedUpdateNPCData = {
+        name: formData.name,
+        description: formData.description,
+        status: formData.status,
+      };
+
+      // Add optional fields if they exist
+      if (formData.prompt) {
+        try {
+          // Try to parse as JSON, if it fails, use as string
+          const parsed = JSON.parse(formData.prompt as string);
+          updateData.prompt = parsed;
+        } catch {
+          updateData.prompt = formData.prompt;
+        }
+      }
+
+      if (formData.world_id) {
+        updateData.world_id = formData.world_id;
+      }
+
+      if (formData.visibility) {
+        updateData.visibility = formData.visibility;
+      }
+
+      if (formData.author_type) {
+        updateData.author_type = formData.author_type;
+      }
+
+      if (formData.author_name) {
+        updateData.author_name = formData.author_name;
+      }
+
+      await npcsService.updateNPC(id, updateData);
       toast.success('NPC updated successfully');
       navigate(`/admin/npcs/${id}`);
     } catch (error) {
@@ -87,16 +176,16 @@ export default function EditNPCPage() {
     }
   };
 
-  const handleChange = (field: keyof UpdateNPCData, value: string) => {
+  const handleChange = (field: keyof ExtendedUpdateNPCData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  if (loading) {
+  if (loadingNPC || worldsLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading NPC...</p>
+          <p className="text-sm text-muted-foreground">Loading NPC...</p>
         </div>
       </div>
     );
@@ -104,17 +193,12 @@ export default function EditNPCPage() {
 
   if (!npc) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">NPC Not Found</h1>
-          <p className="text-muted-foreground mb-4">
-            The NPC you're looking for doesn't exist or has been deleted.
-          </p>
-          <Button onClick={() => navigate('/admin/npcs')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to NPCs
-          </Button>
-        </div>
+      <div className="text-center py-8">
+        <h2 className="text-2xl font-bold mb-2">NPC Not Found</h2>
+        <p className="text-muted-foreground mb-4">The NPC you're looking for doesn't exist.</p>
+        <Button onClick={() => navigate('/admin/npcs')}>
+          Back to NPCs
+        </Button>
       </div>
     );
   }
@@ -133,7 +217,7 @@ export default function EditNPCPage() {
         <div>
           <h1 className="text-3xl font-bold">Edit NPC</h1>
           <p className="text-muted-foreground">
-            Update the information for {npc.name}
+            Update NPC information
           </p>
         </div>
       </div>
@@ -143,7 +227,7 @@ export default function EditNPCPage() {
         <CardHeader>
           <CardTitle>NPC Details</CardTitle>
           <CardDescription>
-            Update the basic information for this NPC
+            Update the information for this NPC.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -164,7 +248,7 @@ export default function EditNPCPage() {
                 <Label htmlFor="status">Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value) => handleChange('status', value)}
+                  onValueChange={(value) => handleChange('status', value as 'draft' | 'active' | 'archived')}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -188,7 +272,7 @@ export default function EditNPCPage() {
                   <SelectValue placeholder="Select a world" />
                 </SelectTrigger>
                 <SelectContent>
-                  {worlds.map((world) => (
+                  {worlds?.map((world) => (
                     <SelectItem key={world.id} value={world.id}>
                       {world.name}
                     </SelectItem>
@@ -196,6 +280,53 @@ export default function EditNPCPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="visibility">Visibility</Label>
+                <Select
+                  value={formData.visibility}
+                  onValueChange={(value) => handleChange('visibility', value as 'private' | 'public')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">Private (Only you can see)</SelectItem>
+                    <SelectItem value="public">Public (Everyone can see)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="author_type">Author Type</Label>
+                <Select
+                  value={formData.author_type}
+                  onValueChange={(value) => handleChange('author_type', value as 'user' | 'original' | 'system')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Player Character</SelectItem>
+                    <SelectItem value="original">Original Character</SelectItem>
+                    <SelectItem value="system">System Character</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {formData.author_type === 'original' && (
+              <div className="space-y-2">
+                <Label htmlFor="author_name">Author Name</Label>
+                <Input
+                  id="author_name"
+                  value={formData.author_name}
+                  onChange={(e) => handleChange('author_name', e.target.value)}
+                  placeholder="e.g., J.R.R. Tolkien, George Lucas"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
@@ -208,21 +339,43 @@ export default function EditNPCPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="prompt">Prompt</Label>
-              <Textarea
-                id="prompt"
-                value={formData.prompt}
-                onChange={(e) => handleChange('prompt', e.target.value)}
-                placeholder="Enter NPC prompt/instructions for the AI"
-                rows={6}
-              />
-              <p className="text-sm text-muted-foreground">
-                This is the AI prompt that will be used when this NPC appears in the game.
-              </p>
-            </div>
+            {/* Legacy Prompt Textarea - shown only when feature flag is off AND retirement flag is off */}
+            {!isAdminPromptFormsEnabled() && !isLegacyPromptTextareaRetired() && (
+              <div className="space-y-2">
+                <Label htmlFor="prompt">Prompt</Label>
+                <Textarea
+                  id="prompt"
+                  value={typeof formData.prompt === 'string' ? formData.prompt : JSON.stringify(formData.prompt, null, 2)}
+                  onChange={(e) => handleChange('prompt', e.target.value)}
+                  placeholder="Enter NPC prompt/instructions for the AI"
+                  rows={6}
+                />
+                <p className="text-sm text-muted-foreground">
+                  This is the AI prompt that will be used when this NPC appears in the game.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2">
+              {id && npc && (
+                <>
+                  {isPublishingWizardEnabled() && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate(`/publishing/wizard?type=npc&id=${id}`)}
+                    >
+                      Open Wizard
+                    </Button>
+                  )}
+                  <PublishButton
+                    type="npc"
+                    id={id}
+                    worldId={npc.world_id}
+                    worldName={npc.world_id} // TODO: Get actual world name
+                  />
+                </>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -241,6 +394,106 @@ export default function EditNPCPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Phase 6: Preflight Panel */}
+      {id && <PreflightPanel type="npc" id={id} />}
+
+      {/* Extras Form - shown when feature flag is off, or as part of PromptAuthoringSection when on */}
+      {!isAdminPromptFormsEnabled() && id && (
+        <ExtrasForm
+          packType="npc"
+          packId={id}
+          initialExtras={(npc as any)?.extras || null}
+          onSuccess={() => {
+            loadNPC(); // Reload to get updated extras
+          }}
+        />
+      )}
+
+      {/* Prompt Authoring Section - shown when feature flag is on */}
+      {isAdminPromptFormsEnabled() && id && npc && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Prompt Authoring (Preview)</CardTitle>
+            <CardDescription>
+              Preview and analyze the prompt that will be generated for this NPC
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <ContextChips
+                context={{
+                  npcIds: [id],
+                  worldId: npc.world_id || undefined,
+                }}
+                npcNames={{ [id]: npc.name }}
+                showTemplatesLink={true}
+              />
+            </div>
+            {(!npc.world_id) && (
+              <Alert className="mb-4">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Partial context:</strong> Only NPC data is available. For a complete preview, assign this NPC to a world.
+                </AlertDescription>
+              </Alert>
+            )}
+            <PromptAuthoringSection
+              initialContext={{
+                npcIds: [id],
+                worldId: npc.world_id || undefined,
+                // templatesVersion can be added later when story/game pin is available
+              }}
+              initialExtrasOverrides={{
+                npcs: {
+                  [id]: (npc as any)?.extras || {},
+                },
+              }}
+              onResult={async (result) => {
+                const contextFlags = {
+                  hasWorld: !!npc.world_id,
+                  hasRuleset: false, // NPCs don't have direct ruleset
+                  hasScenario: false,
+                  npcCount: 1,
+                  templatesVersion: undefined, // TODO: Get from story/game if available
+                };
+
+                if (!result.data) {
+                  // Error case
+                  if (result.type === 'preview') {
+                    await trackAdminEvent('npc.promptAuthoring.preview.failed', {
+                      npcId: id,
+                      ...contextFlags,
+                    });
+                  } else if (result.type === 'budget') {
+                    await trackAdminEvent('npc.promptAuthoring.budget.failed', {
+                      npcId: id,
+                      ...contextFlags,
+                    });
+                  }
+                  return;
+                }
+
+                // Success case
+                if (result.type === 'preview') {
+                  await trackAdminEvent('npc.promptAuthoring.preview.success', {
+                    npcId: id,
+                    ...contextFlags,
+                  });
+                } else if (result.type === 'budget') {
+                  await trackAdminEvent('npc.promptAuthoring.budget.success', {
+                    npcId: id,
+                    ...contextFlags,
+                    tokensBefore: result.data?.tokens?.before,
+                    tokensAfter: result.data?.tokens?.after,
+                  });
+                }
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
+

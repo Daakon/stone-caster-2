@@ -11,9 +11,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { worldsService, type UpdateWorldData, type World } from '@/services/admin.worlds';
+import { PromptAuthoringSection } from '@/components/admin/prompt-authoring/PromptAuthoringSection';
+import { ContextChips } from '@/components/admin/prompt-authoring/ContextChips';
+import { isAdminPromptFormsEnabled, isLegacyPromptTextareaRetired } from '@/lib/feature-flags';
+import { trackAdminEvent } from '@/lib/admin-telemetry';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PublishButton } from '@/components/publishing/PublishButton';
+import { PreflightPanel } from '@/components/publishing/PreflightPanel';
+import { isPublishingWizardEnabled } from '@/lib/feature-flags';
 
 export default function WorldEditPage() {
   const navigate = useNavigate();
@@ -214,29 +222,46 @@ export default function WorldEditPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="prompt">Prompt (JSONB)</Label>
-              <Textarea
-                id="prompt"
-                value={typeof formData.prompt === 'string' ? formData.prompt : JSON.stringify(formData.prompt, null, 2)}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    handleChange('prompt', parsed);
-                  } catch {
-                    // If not valid JSON, store as string for now
-                    handleChange('prompt', e.target.value);
-                  }
-                }}
-                placeholder='Enter world prompt as JSON, e.g. {"system": "You are a fantasy world", "rules": ["No magic", "Medieval setting"]}'
-                rows={8}
-              />
-              <p className="text-sm text-muted-foreground">
-                Enter structured prompt data as JSON. This allows for complex, multi-part prompts with unlimited length.
-              </p>
-            </div>
+            {/* Legacy Prompt Textarea - shown only when feature flag is off AND retirement flag is off */}
+            {!isAdminPromptFormsEnabled() && !isLegacyPromptTextareaRetired() && (
+              <div className="space-y-2">
+                <Label htmlFor="prompt">Prompt (JSONB)</Label>
+                <Textarea
+                  id="prompt"
+                  value={typeof formData.prompt === 'string' ? formData.prompt : JSON.stringify(formData.prompt, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      const parsed = JSON.parse(e.target.value);
+                      handleChange('prompt', parsed);
+                    } catch {
+                      // If not valid JSON, store as string for now
+                      handleChange('prompt', e.target.value);
+                    }
+                  }}
+                  placeholder='Enter world prompt as JSON, e.g. {"system": "You are a fantasy world", "rules": ["No magic", "Medieval setting"]}'
+                  rows={8}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Enter structured prompt data as JSON. This allows for complex, multi-part prompts with unlimited length.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2">
+              {id && (
+                <>
+                  {isPublishingWizardEnabled() && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate(`/publishing/wizard?type=world&id=${id}`)}
+                    >
+                      Open Wizard
+                    </Button>
+                  )}
+                  <PublishButton type="world" id={id} />
+                </>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -255,6 +280,79 @@ export default function WorldEditPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Phase 6: Preflight Panel */}
+      {id && <PreflightPanel type="world" id={id} />}
+
+      {/* Prompt Authoring Section - shown when feature flag is on */}
+      {isAdminPromptFormsEnabled() && id && world && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Prompt Authoring (Preview)</CardTitle>
+            <CardDescription>
+              Preview and analyze the prompt that will be generated for this world
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <ContextChips
+                context={{
+                  worldId: id,
+                }}
+                worldName={world.name}
+                showTemplatesLink={true}
+              />
+            </div>
+            <PromptAuthoringSection
+              initialContext={{
+                worldId: id,
+                // templatesVersion can be added later when story/game pin is available
+              }}
+              initialExtrasOverrides={{
+                world: (world as any)?.extras || {},
+              }}
+              onResult={async (result) => {
+                const contextFlags = {
+                  hasWorld: true,
+                  hasRuleset: false,
+                  hasScenario: false,
+                  npcCount: 0,
+                  templatesVersion: undefined, // TODO: Get from story/game if available
+                };
+
+                if (!result.data) {
+                  if (result.type === 'preview') {
+                    await trackAdminEvent('world.promptAuthoring.preview.failed', {
+                      worldId: id,
+                      ...contextFlags,
+                    });
+                  } else if (result.type === 'budget') {
+                    await trackAdminEvent('world.promptAuthoring.budget.failed', {
+                      worldId: id,
+                      ...contextFlags,
+                    });
+                  }
+                  return;
+                }
+
+                if (result.type === 'preview') {
+                  await trackAdminEvent('world.promptAuthoring.preview.success', {
+                    worldId: id,
+                    ...contextFlags,
+                  });
+                } else if (result.type === 'budget') {
+                  await trackAdminEvent('world.promptAuthoring.budget.success', {
+                    worldId: id,
+                    ...contextFlags,
+                    tokensBefore: result.data?.tokens?.before,
+                    tokensAfter: result.data?.tokens?.after,
+                  });
+                }
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -15,7 +15,7 @@ export interface ListAccessRequestsParams {
   status?: 'pending' | 'approved' | 'denied';
   q?: string;
   page?: number;
-  pageSize?: number;
+  limit?: number; // Changed from pageSize to limit to match other admin endpoints
   orderBy?: 'created_at' | 'updated_at' | 'email';
   order?: 'asc' | 'desc';
 }
@@ -29,7 +29,7 @@ export const accessRequestsService = {
     if (params.status) queryParams.set('status', params.status);
     if (params.q) queryParams.set('q', params.q);
     queryParams.set('page', String(params.page || 1));
-    queryParams.set('pageSize', String(params.pageSize || 50));
+    queryParams.set('limit', String(params.limit || 50)); // Changed from pageSize to limit
     queryParams.set('orderBy', params.orderBy || 'created_at');
     queryParams.set('order', params.order || 'desc');
 

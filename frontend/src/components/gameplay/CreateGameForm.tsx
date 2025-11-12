@@ -34,9 +34,7 @@ const useToast = () => {
   return {
     toast: (options: { title: string; description?: string; variant?: 'default' | 'destructive' }) => {
       if (options.variant === 'destructive') {
-        console.error(`[Toast] ${options.title}: ${options.description || ''}`);
       } else {
-        console.log(`[Toast] ${options.title}: ${options.description || ''}`);
       }
     },
   };
@@ -127,8 +125,6 @@ export function CreateGameForm({
       idempotent: true,
       testTx: testRollback && isDevMode,
     };
-    console.log(JSON.stringify(eventPayload));
-
     try {
       const result = await postCreateGame(
         {
@@ -247,7 +243,6 @@ export function CreateGameForm({
         description: 'Your new game has been created successfully.',
       });
     } catch (error) {
-      console.error('Error creating game:', error);
       setGlobalError(error instanceof Error ? error.message : 'Failed to create game');
       toast({
         title: 'Error',

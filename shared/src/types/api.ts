@@ -36,6 +36,15 @@ export enum ApiErrorCode {
   // Prompt builder errors
   AWF_SESSION_MISSING = 'AWF_SESSION_MISSING',
   ASSEMBLY_FAILED = 'ASSEMBLY_FAILED',
+  // Publishing errors (Phase 0/1)
+  WORLD_NOT_PUBLIC = 'WORLD_NOT_PUBLIC',
+  APPROVAL_BLOCKED_WORLD_NOT_PUBLIC = 'APPROVAL_BLOCKED_WORLD_NOT_PUBLIC',
+  PUBLISH_REQUEST_DISABLED = 'PUBLISH_REQUEST_DISABLED',
+  // Publishing errors (Phase 2)
+  QUOTA_EXCEEDED = 'QUOTA_EXCEEDED',
+  // Publishing errors (Phase 3)
+  APPROVAL_BLOCKED = 'APPROVAL_BLOCKED',
+  REJECT_REASON_REQUIRED = 'REJECT_REASON_REQUIRED',
 }
 
 // Re-export as ErrorCode for convenience

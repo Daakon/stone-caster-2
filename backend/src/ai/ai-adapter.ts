@@ -169,10 +169,12 @@ export async function aiToTurnDTO(ai: unknown, base: TurnDTOBase): Promise<TurnD
 
   // Validate choices array is non-empty
   if (choices.length === 0) {
-    throw new AiNormalizationError(
-      'AI response must have at least one choice',
-      { ai: aiObj, extractedChoices: choices }
-    );
+    const fallbackChoice = buildFallbackChoice(aiObj);
+    choices.push(fallbackChoice);
+    console.warn('[AI_ADAPTER] AI response returned no choices, applying fallback choice.', {
+      fallbackChoice,
+      aiKeys: Object.keys(aiObj),
+    });
   }
 
   // Extract emotion: ai.emotion || 'neutral'
@@ -191,6 +193,9 @@ export async function aiToTurnDTO(ai: unknown, base: TurnDTOBase): Promise<TurnD
   const warnings: string[] = [];
   if (!narrativeSource) {
     warnings.push('AI_EMPTY_NARRATIVE'); // Narrative was empty, fallback used
+  }
+  if (choices.length === 1 && choices[0].id.startsWith('choice_fallback')) {
+    warnings.push('AI_EMPTY_CHOICES');
   }
 
   // Construct TurnDTO
@@ -223,5 +228,22 @@ export async function aiToTurnDTO(ai: unknown, base: TurnDTOBase): Promise<TurnD
   }
 
   return validationResult.data;
+}
+
+function buildFallbackChoice(aiObj: Record<string, unknown>): { id: string; label: string } {
+  const fallbackLabelCandidate =
+    (typeof aiObj.fallbackChoice === 'string' && aiObj.fallbackChoice.trim()) ||
+    (typeof aiObj.prompt === 'string' && aiObj.prompt.includes('question') ? 'Answer the question' : '') ||
+    'Continue';
+
+  const sanitized = fallbackLabelCandidate
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  return {
+    id: `choice_fallback_${sanitized || 'continue'}`,
+    label: fallbackLabelCandidate || 'Continue',
+  };
 }
 

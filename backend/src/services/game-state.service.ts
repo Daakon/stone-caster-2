@@ -242,6 +242,51 @@ export class GameStateService {
    * Apply a single action to game state
    */
   private async applyAction(state: GameState, action: any): Promise<any> {
+    // Validate action against registry
+    const { validateAction } = await import('./action-validation.service.js');
+    const storyId = state.adventure?.name ? undefined : undefined; // TODO: Get story ID from state
+    const validation = await validateAction(action, storyId);
+    
+    if (!validation.valid) {
+      // Check if we should reject or allow
+      if (validation.reason === 'unknown_action' && process.env.ALLOW_UNKNOWN_ACTIONS !== 'false') {
+        // Allow unknown actions when flag is set
+        console.warn(`[GAME_STATE] Unknown action ${action.t} allowed (ALLOW_UNKNOWN_ACTIONS=true)`);
+      } else {
+        // Reject invalid actions
+        throw new Error(`Action validation failed: ${validation.reason}${validation.errors ? ` - ${JSON.stringify(validation.errors)}` : ''}`);
+      }
+    }
+
+    // If action is registered and valid, try to use registry reducer
+    const { actionRegistry } = await import('../actions/registry.js');
+    const entry = actionRegistry.get(action.t);
+    
+    if (entry && entry.owner !== 'core') {
+      // Use module reducer
+      try {
+        // Try to get storyId from state (may need to be passed differently in production)
+        const storyId = state.gameId ? undefined : undefined; // TODO: Get actual story ID
+        
+        const result = entry.applyFn(state, action.payload, storyId);
+        // Handle both sync and async reducers
+        const updatedState = result instanceof Promise ? await result : result;
+        
+        // Update state in place (reducer returns new state)
+        Object.assign(state, updatedState);
+        
+        return {
+          action,
+          timestamp: new Date().toISOString(),
+          changes: [{ type: 'module_action', actionType: action.t }],
+        };
+      } catch (error) {
+        console.error(`[GAME_STATE] Error applying module action ${action.t}:`, error);
+        throw error;
+      }
+    }
+
+    // Fall back to core action handlers
     const change = {
       action,
       timestamp: new Date().toISOString(),

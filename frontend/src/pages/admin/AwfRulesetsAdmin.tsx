@@ -110,7 +110,7 @@ export default function AwfRulesetsAdmin() {
         setError(response.error || 'Failed to load rulesets');
       }
     } catch (error) {
-      console.error('Error loading rulesets:', error);
+
       setError('Failed to load rulesets');
     } finally {
       setLoading(false);
@@ -232,7 +232,7 @@ export default function AwfRulesetsAdmin() {
         }
       }
     } catch (error) {
-      console.error('Error saving ruleset:', error);
+
       toast.error('Failed to save ruleset');
     }
   };
@@ -251,7 +251,7 @@ export default function AwfRulesetsAdmin() {
         toast.error(response.error || 'Failed to delete ruleset');
       }
     } catch (error) {
-      console.error('Error deleting ruleset:', error);
+
       toast.error('Failed to delete ruleset');
     }
   };

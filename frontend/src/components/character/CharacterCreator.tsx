@@ -39,12 +39,10 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
         if (schemaData.default && schemaData.default.fields) {
           setSchema(schemaData.default);
         } else {
-          console.error(`Invalid schema structure for world: ${worldId}`);
           setSchema(null);
         }
       })
       .catch((error) => {
-        console.error(`Schema not found for world: ${worldId}`, error);
         setSchema(null);
       });
   }, [worldId]);
@@ -186,7 +184,6 @@ export const CharacterCreator: React.FC<CharacterCreatorProps> = ({
 
       onCharacterCreated(newCharacter);
     } catch (error) {
-      console.error('Error creating character:', error);
       setErrors({ submit: 'Failed to create character. Please try again.' });
     } finally {
       setIsSubmitting(false);

@@ -6,7 +6,8 @@
   "private": true,
   "workspaces": [
     "frontend",
-    "backend"
+    "backend",
+    "tools/author-cli"
   ],
   "scripts": {
     "dev": "npm run dev:clean",
@@ -26,6 +27,7 @@
     "test": "npm run test --workspaces",
     "test:client": "npm run test --workspace=frontend",
     "test:server": "npm run test --workspace=backend",
+    "test:server:english": "npm run test:english --workspace=backend",
     "test:ci": "npm run test:ci --workspace=frontend && npm run test:ci --workspace=backend",
     "test:e2e": "npm run test:e2e --workspace=frontend",
     "test:e2e:ci": "npm run test:e2e:ci --workspace=frontend",

@@ -158,7 +158,6 @@ export default function MarketplaceReview() {
         setMetrics(metricsData.data);
       }
     } catch (err) {
-      console.error('Failed to fetch pack details:', err);
     }
   };
 
@@ -192,7 +191,6 @@ export default function MarketplaceReview() {
         throw new Error(result.error || 'Review submission failed');
       }
     } catch (err) {
-      console.error('Review action failed:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
   };

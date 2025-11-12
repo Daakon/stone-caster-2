@@ -55,9 +55,6 @@ export function GatedRoute({
       RoutePreservationService.setIntendedRoute(location.pathname);
       
       const reason = isGuestUser ? 'unauthenticated' : 'insufficient_permissions';
-      console.log(`[ROUTE-GUARD] access=blocked path=${location.pathname} reason=${reason}`);
-      console.log(`[REDIRECT] from=${location.pathname} to=${redirectTo} trigger=guard`);
-      
       navigate(redirectTo, { 
         replace: true,
         state: { 
@@ -66,9 +63,7 @@ export function GatedRoute({
         }
       });
     } else if (requireAuth && canAccess) {
-      console.log(`[ROUTE-GUARD] access=allowed path=${location.pathname} reason=authenticated`);
     } else if (!requireAuth) {
-      console.log(`[ROUTE-GUARD] access=allowed path=${location.pathname} reason=public`);
     }
   }, [canAccess, isGuestUser, authLoading, requireAuth, redirectTo, navigate, hasCheckedAccess, location.pathname]);
 

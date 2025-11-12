@@ -50,7 +50,7 @@ export const adminListSchema = z.object({
   status: z.enum(['pending', 'approved', 'denied']).optional(),
   q: z.string().trim().min(1).max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  limit: z.coerce.number().int().min(1).max(100).default(50), // Changed from pageSize to limit to match other admin endpoints
   orderBy: z.enum(['created_at', 'updated_at', 'email']).default('created_at'),
   order: z.enum(['asc', 'desc']).default('desc'),
 });

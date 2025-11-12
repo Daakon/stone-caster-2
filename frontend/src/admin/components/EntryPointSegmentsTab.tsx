@@ -40,7 +40,6 @@ export function EntryPointSegmentsTab({ entryPointId }: EntryPointSegmentsTabPro
       setSegments(data);
     } catch (error) {
       toast.error('Failed to load segments');
-      console.error('Error loading segments:', error);
     } finally {
       setLoading(false);
     }
@@ -57,7 +56,6 @@ export function EntryPointSegmentsTab({ entryPointId }: EntryPointSegmentsTabPro
       setIsDialogOpen(false);
     } catch (error) {
       toast.error('Failed to create segment');
-      console.error('Error creating segment:', error);
     }
   };
 
@@ -69,7 +67,6 @@ export function EntryPointSegmentsTab({ entryPointId }: EntryPointSegmentsTabPro
       setIsDialogOpen(false);
     } catch (error) {
       toast.error('Failed to update segment');
-      console.error('Error updating segment:', error);
     }
   };
 
@@ -84,7 +81,6 @@ export function EntryPointSegmentsTab({ entryPointId }: EntryPointSegmentsTabPro
       toast.success('Segment deleted successfully');
     } catch (error) {
       toast.error('Failed to delete segment');
-      console.error('Error deleting segment:', error);
     }
   };
 
@@ -95,7 +91,6 @@ export function EntryPointSegmentsTab({ entryPointId }: EntryPointSegmentsTabPro
       toast.success(`Segment ${updatedSegment.active ? 'activated' : 'deactivated'}`);
     } catch (error) {
       toast.error('Failed to toggle segment');
-      console.error('Error toggling segment:', error);
     }
   };
 
@@ -295,7 +290,6 @@ function SegmentDialog({ isOpen, onClose, segment, scope, onSave }: SegmentDialo
       }
     } catch (error) {
       toast.error('Failed to save segment');
-      console.error('Error saving segment:', error);
     } finally {
       setSaving(false);
     }
@@ -388,17 +382,6 @@ function SegmentDialog({ isOpen, onClose, segment, scope, onSave }: SegmentDialo
     </Dialog>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
 
 
 

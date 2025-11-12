@@ -92,7 +92,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ gameId, isVisible, onTog
         if (stateChangesData.ok) setStateChanges((stateChangesData.data as DebugStateChange[]) || []);
       }
     } catch (error) {
-      console.error('Error fetching debug data:', error);
+
     } finally {
       setLoading(false);
     }
@@ -103,7 +103,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ gameId, isVisible, onTog
       await apiDelete('/debug/clear');
       await fetchDebugData();
     } catch (error) {
-      console.error('Error clearing debug data:', error);
+
     }
   };
 

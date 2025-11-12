@@ -28,10 +28,16 @@ export const config = {
     origin: env.corsOrigin,
   },
   frontend: {
-    url: env.frontendUrl,
+    url: env.frontendUrl, // Legacy alias
   },
   api: {
-    url: env.apiUrl,
+    url: env.apiUrl, // Legacy alias
+  },
+  web: {
+    baseUrl: env.webBaseUrl,
+  },
+  apiBase: {
+    baseUrl: env.apiBaseUrl,
   },
   features: {
     awfBundleOn: env.awfBundleOn,

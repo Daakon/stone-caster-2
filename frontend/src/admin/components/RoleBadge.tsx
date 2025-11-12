@@ -7,10 +7,32 @@ import { Badge } from '@/components/ui/badge';
 import { useAppRoles } from '../routeGuard';
 
 export function RoleBadge() {
-  const { isCreator, isModerator, isAdmin, loading } = useAppRoles();
+  const { isCreator, isModerator, isAdmin, roles, loading } = useAppRoles();
 
   if (loading) {
     return <Badge variant="secondary">Loading...</Badge>;
+  }
+
+  // Show all roles if user has multiple
+  if (roles.length > 1) {
+    return (
+      <div className="flex gap-1">
+        {roles.map((role) => (
+          <Badge
+            key={role}
+            variant={
+              role === 'admin'
+                ? 'destructive'
+                : role === 'moderator'
+                  ? 'default'
+                  : 'secondary'
+            }
+          >
+            {role.charAt(0).toUpperCase() + role.slice(1)}
+          </Badge>
+        ))}
+      </div>
+    );
   }
 
   if (isAdmin) {
@@ -27,17 +49,4 @@ export function RoleBadge() {
 
   return <Badge variant="outline">Guest</Badge>;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 

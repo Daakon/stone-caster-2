@@ -8,7 +8,8 @@ import { CatalogCard } from '@/components/catalog/CatalogCard';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
 import { EmptyState } from '@/components/catalog/EmptyState';
-import { useRulesetQuery, useStoriesQuery } from '@/lib/queries';
+import { useRulesetQuery } from '@/lib/queries';
+import { useStories } from '@/lib/queries/index';
 import { track } from '@/lib/analytics';
 import { ArrowLeft, BookOpen, Zap } from 'lucide-react';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty, injectJSONLD } from '@/lib/meta';
@@ -20,11 +21,9 @@ export default function RulesetDetailPage() {
   const { data: rulesetData, isLoading: rulesetLoading, error: rulesetError } = useRulesetQuery(id || '');
   const ruleset = rulesetData?.data;
 
-  const { data: storiesData, isLoading: storiesLoading } = useStoriesQuery(
-    { ruleset: ruleset?.id },
-    { enabled: !!ruleset?.id }
-  );
-  const stories = storiesData?.data || [];
+  const { data: stories = [], isLoading: storiesLoading } = useStories({
+    ruleset: ruleset?.id,
+  });
 
   // Track ruleset view
   useEffect(() => {

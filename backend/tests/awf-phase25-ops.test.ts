@@ -5,32 +5,43 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 
 // Mock Supabase client
-const mockSupabase = {
-  from: vi.fn(() => ({
-    select: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        single: vi.fn(() => Promise.resolve({ data: null, error: null })),
-        order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-      })),
-      gte: vi.fn(() => ({
-        lte: vi.fn(() => ({
-          order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-        }))
-      })),
-      order: vi.fn(() => Promise.resolve({ data: [], error: null }))
-    })),
+const mockSupabase = vi.hoisted(() => {
+  const selectQuery: any = {
+    eq: vi.fn(() => selectQuery),
+    gte: vi.fn(() => selectQuery),
+    lte: vi.fn(() => selectQuery),
+    order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+    single: vi.fn(() => Promise.resolve({ data: null, error: null })),
+  };
+
+  const updateQuery = {
+    eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+  };
+
+  const deleteSelectChain = {
+    select: vi.fn(() => Promise.resolve({ data: [], error: null })),
+  };
+
+  const deleteQuery: any = {
+    lt: vi.fn(() => deleteSelectChain),
+    eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+  };
+
+  const fromHandler = {
+    select: vi.fn(() => selectQuery),
     insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
-    update: vi.fn(() => ({
-      eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-    })),
-    delete: vi.fn(() => ({
-      eq: vi.fn(() => Promise.resolve({ data: null, error: null }))
-    }))
-  }))
-};
+    update: vi.fn(() => updateQuery),
+    delete: vi.fn(() => deleteQuery),
+    upsert: vi.fn(() => Promise.resolve({ data: null, error: null })),
+  };
+
+  return {
+    from: vi.fn(() => fromHandler),
+  };
+});
 
 // Mock Redis client
-const mockRedis = {
+const mockRedis = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
   incr: vi.fn(),
@@ -41,7 +52,7 @@ const mockRedis = {
     expire: vi.fn(),
     exec: vi.fn(() => Promise.resolve([]))
   }))
-};
+}));
 
 // Mock the modules
 vi.mock('@supabase/supabase-js', () => ({
@@ -52,57 +63,7 @@ vi.mock('redis', () => ({
   createClient: vi.fn(() => mockRedis)
 }));
 
-// Mock the ops modules
-vi.mock('../src/ops/rate-limit', () => ({
-  RateLimitService: vi.fn().mockImplementation(() => ({
-    checkRateLimit: vi.fn(),
-    checkSlidingWindow: vi.fn(),
-    createRateLimit: vi.fn(),
-    getRateLimitStatus: vi.fn()
-  }))
-}));
-
-vi.mock('../src/ops/quotas', () => ({
-  QuotaService: vi.fn().mockImplementation(() => ({
-    checkQuota: vi.fn(),
-    createQuota: vi.fn(),
-    getQuotaStatus: vi.fn(),
-    refreshQuota: vi.fn()
-  }))
-}));
-
-vi.mock('../src/ops/backpressure', () => ({
-  BackpressureService: vi.fn().mockImplementation(() => ({
-    monitorMetrics: vi.fn(),
-    createIncident: vi.fn(),
-    getBackpressureStatus: vi.fn()
-  }))
-}));
-
-vi.mock('../src/ops/circuit', () => ({
-  CircuitBreakerService: vi.fn().mockImplementation(() => ({
-    execute: vi.fn(),
-    getCircuitStatus: vi.fn()
-  }))
-}));
-
-vi.mock('../src/ops/idempotency', () => ({
-  IdempotencyService: vi.fn().mockImplementation(() => ({
-    generateKey: vi.fn(),
-    checkIdempotency: vi.fn(),
-    executeWithRetry: vi.fn()
-  }))
-}));
-
-vi.mock('../src/ops/budget-guard', () => ({
-  BudgetGuardService: vi.fn().mockImplementation(() => ({
-    checkBudgetStatus: vi.fn(),
-    planModelDowngrade: vi.fn(),
-    getBudgetStatus: vi.fn()
-  }))
-}));
-
-// Import the modules after mocking
+// Import the modules under test
 import { RateLimitService } from '../src/ops/rate-limit';
 import { QuotaService } from '../src/ops/quotas';
 import { BackpressureService } from '../src/ops/backpressure';

@@ -1,0 +1,52 @@
+file,hook,queryKey,staleTime,refetchOnMount,refetchOnWindowFocus,enabled,keepPreviousData,notes
+frontend/src/App.tsx,QueryClient default,default,300000,true,false,true,false,Global defaults for all queries
+frontend/src/admin/routeGuard.tsx,useQuery,["admin-user-roles", "userId"],300000,true,false,"!!user || !!isAuthenticated",false,Roles query - also fetched via Zustand
+frontend/src/pages/ProfilePage.tsx,useQuery,["profile"],300000,true,false,"!!user && user.state !== 'guest' && !profileLoading",false,Also fetched via usePlayerAccount useEffect
+frontend/src/pages/WorldSelectionPage.tsx,useQuery,["worlds"],300000,true,false,null,false,Legacy endpoint - should use useWorldsQuery
+frontend/src/lib/queries.ts,useWorldsQuery,["worlds", { "q": "string?" }],300000,true,false,null,false,Preferred worlds query hook
+frontend/src/pages/UnifiedGamePage.tsx,useQuery,["content-worlds"],300000,true,false,null,false,Different endpoint - no cache sharing
+frontend/src/lib/queries.ts,useStoriesQuery,["stories", "params"],300000,true,false,null,false,Well-structured param-based keying
+frontend/src/pages/MyAdventuresPage.tsx,useQuery,["my-adventures"],300000,true,false,"!!user && accessStatusLoaded && hasApprovedAccess",false,Gated by access-request-status
+frontend/src/components/auth/EarlyAccessRoute.tsx,useQuery,["access-request-status"],300000,true,false,"!!user",false,Queried in 5+ components - duplication
+frontend/src/pages/MyAdventuresPage.tsx,useQuery,["access-request-status"],300000,true,false,"!!user",false,Duplicate of EarlyAccessRoute query
+frontend/src/pages/RequestAccessPage.tsx,useQuery,["access-request-status"],300000,true,false,"!!user",false,Duplicate of EarlyAccessRoute query
+frontend/src/pages/LandingPage.tsx,useQuery,["access-request-status"],300000,true,false,"!!user",false,Duplicate of EarlyAccessRoute query
+frontend/src/components/earlyAccess/EarlyAccessBanner.tsx,useQuery,["access-request-status"],300000,true,false,"!!user",false,Duplicate of EarlyAccessRoute query
+frontend/src/components/layout/MobileDrawerNav.tsx,useQuery,["wallet"],10000,true,false,null,false,Always mounted - layout component
+frontend/src/pages/UnifiedGamePage.tsx,useQuery,["wallet"],10000,true,false,null,false,Duplicate if nav already fetched
+frontend/src/pages/GamePage.tsx,useQuery,["wallet"],30000,true,false,null,false,Duplicate if nav already fetched
+frontend/src/pages/CharacterListPage.tsx,useQuery,["characters"],300000,true,false,null,false,No world filter
+frontend/src/lib/queries.ts,useCharactersQuery,["characters"],300000,true,false,null,false,No world filter
+frontend/src/pages/CharacterSelectionPage.tsx,useQuery,["characters", "currentWorldId"],300000,true,false,"!!currentWorldId && !!adventure",false,World-filtered - different key
+frontend/src/pages/GamePage.tsx,useQuery,["game", "gameId"],30000,true,false,"!!gameId && !!isInvited",false,Short staleTime causes frequent refetches
+frontend/src/pages/UnifiedGamePage.tsx,useQuery,["game", "actualGameId"],30000,true,false,"!!actualGameId",false,Short staleTime causes frequent refetches
+frontend/src/pages/GamePlayPage.tsx,useQuery,["game", "gameId"],300000,true,false,"!!gameId",false,Game data query
+frontend/src/hooks/useTurns.ts,useLatestTurn,["turns.latest", "gameId"],10000,true,false,"!!gameId",false,Auto-initializes Turn 1 if no turns exist
+frontend/src/pages/UnifiedGamePage.tsx,useQuery,["conversation.history", "actualGameId"],10000,true,false,"!!actualGameId",false,Short staleTime (10s)
+frontend/src/lib/queries.ts,useStoryQuery,["story", "idOrSlug"],300000,true,false,"!!idOrSlug",false,Single story detail
+frontend/src/lib/queries.ts,useWorldQuery,["world", "idOrSlug"],300000,true,false,"!!idOrSlug",false,Single world detail
+frontend/src/lib/queries.ts,useNPCsQuery,["npcs", "public", "params"],300000,true,false,null,false,Public NPCs list
+frontend/src/lib/queries.ts,useMyNPCsQuery,["npcs", "my", "params"],0,true,false,"boolean (default false)",false,Private NPCs - no caching
+frontend/src/lib/queries.ts,useRulesetsQuery,["rulesets", { "q": "string?" }],300000,true,false,null,false,Rulesets list
+frontend/src/pages/GamePage.tsx,useQuery,["adventure", "gameData?.adventureId"],300000,true,false,"!!gameData?.adventureId",false,Adventure data
+frontend/src/pages/GamePage.tsx,useQuery,["character", "gameData?.characterId"],300000,true,false,"!!gameData?.characterId",false,Character data
+frontend/src/pages/GamePage.tsx,useQuery,["world", "adventureData?.worldId"],300000,true,false,"!!adventureData?.worldId",false,World data
+frontend/src/pages/UnifiedGamePage.tsx,useQuery,["character-for-game", "characterId"],300000,true,false,"!!characterId",false,Character for game lookup
+frontend/src/pages/CharacterSelectionPage.tsx,useQuery,["premades", "currentWorldId"],300000,true,false,"!!currentWorldId && !!adventure",false,Premade characters
+frontend/src/pages/ProfilePage.tsx,useQuery,["csrf-token"],300000,true,false,"user?.state === 'authenticated'",false,CSRF token for profile updates
+frontend/src/pages/admin/access-requests/index.tsx,useQuery,["access-requests", "statusFilter", "searchQuery", "page"],300000,true,false,null,false,Admin access requests list
+frontend/src/pages/admin/entry-points/index.tsx,useQuery,["admin-entry-points", "memoizedFilters"],300000,true,false,null,false,Admin entry points list
+frontend/src/pages/admin/entry-points/index.tsx,useQuery,["admin-worlds-list"],300000,true,false,null,false,Admin worlds list
+frontend/src/pages/admin/npcs/index.tsx,useQuery,["admin-npcs", "memoizedFilters"],300000,true,false,null,false,Admin NPCs list
+frontend/src/pages/admin/npcs/[id].tsx,useQuery,["admin-npc", "id"],300000,true,false,"!!id",false,Admin NPC detail
+frontend/src/pages/admin/npcs/[id].tsx,useQuery,["admin-world", "npc?.world_id"],300000,true,false,"!!npc?.world_id",false,Admin world for NPC
+frontend/src/pages/admin/EntryPointPreviewPage.tsx,useQuery,["entry-point-preview", "id", "previewParams"],300000,true,false,"!!id",false,Entry point preview
+frontend/src/hooks/useCatalog.ts,useEntryPoints,["catalog", "entry-points", "filters"],300000,true,false,null,false,Catalog entry points
+frontend/src/hooks/useCatalog.ts,useEntryPoint,["catalog", "entry-point", "idOrSlug"],600000,true,false,"!!idOrSlug",false,Catalog entry point detail
+frontend/src/lib/usePrefetch.ts,prefetchQuery,["world", "idOrSlug"],5000,true,false,null,false,Prefetch world
+frontend/src/lib/usePrefetch.ts,prefetchQuery,["npc", "id"],5000,true,false,null,false,Prefetch NPC
+frontend/src/lib/usePrefetch.ts,prefetchQuery,["ruleset", "id"],5000,true,false,null,false,Prefetch ruleset
+frontend/src/lib/usePrefetch.ts,prefetchQuery,["story", "idOrSlug"],5000,true,false,null,false,Prefetch story
+frontend/src/lib/queries.ts,prefetchQuery,["session", "sessionId"],5000,true,false,null,false,Prefetch session
+frontend/src/lib/queries.ts,prefetchQuery,["session", "sessionId", "messages", { "limit": 20 }],1000,true,false,null,false,Prefetch session messages
+

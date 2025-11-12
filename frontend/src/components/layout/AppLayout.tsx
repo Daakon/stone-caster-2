@@ -64,8 +64,6 @@ const getLayoutVariant = (pathname: string): LayoutVariant => {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const variant = getLayoutVariant(location.pathname);
-  
-  console.log('AppLayout: pathname =', location.pathname, 'variant =', variant);
 
   switch (variant) {
     case 'marketing':

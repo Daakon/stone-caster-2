@@ -5,9 +5,38 @@ Write-Host "Setting Fly.io secrets for StoneCaster..." -ForegroundColor Green
 
 # Set Supabase secrets
 Write-Host "Setting Supabase secrets..." -ForegroundColor Yellow
-flyctl secrets set SUPABASE_URL="https://obfadjnywufemhhhcxiy.supabase.co" -a stonecaster-api
-flyctl secrets set SUPABASE_ANON_KEY="sb_publishable_QKJ2Ji-SjAQJIbs5NITDpw_IMVQ9JDl" -a stonecaster-api
-flyctl secrets set SUPABASE_SERVICE_KEY="your_service_key_here" -a stonecaster-api
+
+# Require SUPABASE_URL from environment (no hardcoded values allowed)
+if (-not $env:SUPABASE_URL) {
+    Write-Host "ERROR: SUPABASE_URL environment variable is required!" -ForegroundColor Red
+    Write-Host "Set it in your environment before running this script." -ForegroundColor Yellow
+    Write-Host "Example: `$env:SUPABASE_URL = 'https://your-project.supabase.co'" -ForegroundColor Gray
+    exit 1
+}
+
+# Require SUPABASE_ANON_KEY from environment
+if (-not $env:SUPABASE_ANON_KEY) {
+    Write-Host "ERROR: SUPABASE_ANON_KEY environment variable is required!" -ForegroundColor Red
+    Write-Host "Set it in your environment before running this script." -ForegroundColor Yellow
+    exit 1
+}
+
+# Require SUPABASE_SERVICE_KEY from environment
+if (-not $env:SUPABASE_SERVICE_KEY -and -not $env:SUPABASE_SERVICE_ROLE_KEY) {
+    Write-Host "ERROR: SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE_KEY environment variable is required!" -ForegroundColor Red
+    Write-Host "Set it in your environment before running this script." -ForegroundColor Yellow
+    exit 1
+}
+
+# Use SERVICE_ROLE_KEY as fallback for SERVICE_KEY if needed
+$serviceKey = $env:SUPABASE_SERVICE_KEY
+if (-not $serviceKey) {
+    $serviceKey = $env:SUPABASE_SERVICE_ROLE_KEY
+}
+
+flyctl secrets set SUPABASE_URL="$env:SUPABASE_URL" -a stonecaster-api
+flyctl secrets set SUPABASE_ANON_KEY="$env:SUPABASE_ANON_KEY" -a stonecaster-api
+flyctl secrets set SUPABASE_SERVICE_KEY="$serviceKey" -a stonecaster-api
 
 # Set OpenAI secrets
 Write-Host "Setting OpenAI secrets..." -ForegroundColor Yellow

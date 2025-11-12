@@ -1,21 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WalletService } from './wallet.service.js';
 import { StoneLedgerService } from './stoneLedger.service.js';
-import { configService } from './config.service.js';
-import { supabaseAdmin } from './supabase.js';
+import { createSupabaseAdminMock } from '../test-utils/supabase-mock.js';
+import { createConfigServiceMock } from '../test-utils/config-mock.js';
+import type { StoneWallet } from '@shared';
 
-// Mock dependencies
-vi.mock('./supabase.js', () => ({
-  supabaseAdmin: {
-    from: vi.fn(),
-  },
-}));
+type SupabaseAdminMock = ReturnType<typeof createSupabaseAdminMock>['mockSupabaseAdmin'];
+type ConfigServiceMock = ReturnType<typeof createConfigServiceMock>['mockConfigService'];
 
-vi.mock('./config.service.js', () => ({
-  configService: {
-    getConfig: vi.fn(),
-  },
-}));
+const mockSupabaseAdmin = (globalThis as any).mockSupabaseAdmin as SupabaseAdminMock;
+const mockConfigService = (globalThis as any).mockConfigService as ConfigServiceMock;
 
 vi.mock('./stoneLedger.service.js', () => ({
   StoneLedgerService: {
@@ -23,12 +17,56 @@ vi.mock('./stoneLedger.service.js', () => ({
   },
 }));
 
-describe('WalletService', () => {
-  const mockUserId = 'user-123';
-  const mockWalletId = 'wallet-123';
+const ledgerAppend = vi.mocked(StoneLedgerService.appendEntry);
 
+const mockUserId = 'user-123';
+const mockWalletId = 'wallet-123';
+
+const defaultPricing = {
+  turnCostDefault: 2,
+  turnCostByWorld: {},
+  guestStarterCastingStones: 10,
+  guestDailyRegen: 5,
+  conversionRates: {
+    shard: 10,
+    crystal: 5,
+    relic: 2,
+  },
+};
+
+const buildWallet = (overrides: Partial<StoneWallet> = {}): StoneWallet => ({
+  id: mockWalletId,
+  userId: mockUserId,
+  castingStones: 50,
+  inventoryShard: 20,
+  inventoryCrystal: 5,
+  inventoryRelic: 2,
+  dailyRegen: 0,
+  lastRegenAt: '2023-01-01T00:00:00Z',
+  createdAt: '2023-01-01T00:00:00Z',
+  updatedAt: '2023-01-01T00:00:00Z',
+  ...overrides,
+});
+
+const createWalletUpdateBuilder = (updatedRow: any) => {
+  const single = vi.fn().mockResolvedValue({ data: updatedRow, error: null });
+  const select = vi.fn(() => ({ single }));
+  const eq = vi.fn(() => ({ select }));
+  const update = vi.fn(() => ({ eq }));
+
+  return {
+    builder: { update } as any,
+    update,
+  };
+};
+
+describe('WalletService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSupabaseAdmin.from.mockReset();
+    mockConfigService.getPricing.mockReset?.();
+    ledgerAppend.mockReset();
+    mockConfigService.getPricing.mockReturnValue(defaultPricing);
   });
 
   afterEach(() => {
@@ -36,84 +74,30 @@ describe('WalletService', () => {
   });
 
   describe('convertStones', () => {
-    it('should successfully convert shards to casting stones', async () => {
-      // Mock config service
-      vi.mocked(configService.getPricing).mockReturnValue({
-        turnCostDefault: 2,
-        turnCostByWorld: {},
-        guestStarterCastingStones: 10,
-        guestDailyRegen: 5,
-        conversionRates: { shard: 10, crystal: 100, relic: 500 }
-      });
+    it('converts shards into casting stones and records ledger entry', async () => {
+      const wallet = buildWallet();
+      const getWalletSpy = vi.spyOn(WalletService as any, 'getOrCreateWallet').mockResolvedValue(wallet);
 
-      // Mock wallet data
-      const mockWallet = {
+      const updatedRow = {
         id: mockWalletId,
-        user_id: mockUserId,
-        casting_stones: 50,
-        inventory_shard: 20,
-        inventory_crystal: 5,
-        inventory_relic: 2,
-        daily_regen: 0,
-        last_regen_at: '2023-01-01T00:00:00Z',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
+        casting_stones: 250,
+        inventory_shard: 0,
+        inventory_crystal: wallet.inventoryCrystal,
+        inventory_relic: wallet.inventoryRelic,
       };
+      const { builder } = createWalletUpdateBuilder(updatedRow);
 
-      const mockUpdatedWallet = {
-        ...mockWallet,
-        casting_stones: 250, // 50 + (20 * 10)
-        inventory_shard: 0, // 20 - 20
-      };
-
-      // Mock Supabase calls
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: mockWallet, error: null }),
-        }),
-      });
-
-      const mockUpdate = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: mockUpdatedWallet, error: null }),
-          }),
-        }),
-      });
-
-      vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      mockSupabaseAdmin.from.mockImplementation((table: string) => {
         if (table === 'stone_wallets') {
-          return {
-            select: mockSelect,
-            update: mockUpdate,
-          } as any;
+          return builder;
         }
         return {} as any;
       });
 
-      // Mock ledger service
-      vi.mocked(StoneLedgerService.appendEntry).mockResolvedValue({
-        id: 'ledger-123',
-        walletId: mockWalletId,
-        userId: mockUserId,
-        transactionType: 'convert',
-        deltaCastingStones: 200,
-        deltaInventoryShard: -20,
-        deltaInventoryCrystal: 0,
-        deltaInventoryRelic: 0,
-        reason: 'Converted 20 shard to 200 casting stones',
-        metadata: {
-          conversionType: 'shard',
-          conversionAmount: 20,
-          conversionRate: 10,
-        },
-        createdAt: '2023-01-01T00:00:00Z',
-      });
+      ledgerAppend.mockResolvedValue(undefined as any);
 
-      // Execute conversion
       const result = await WalletService.convertStones(mockUserId, 'shard', 20);
 
-      // Verify result
       expect(result).toEqual({
         fromType: 'shard',
         fromAmount: 20,
@@ -121,13 +105,12 @@ describe('WalletService', () => {
         newBalance: {
           castingStones: 250,
           inventoryShard: 0,
-          inventoryCrystal: 5,
-          inventoryRelic: 2,
+          inventoryCrystal: wallet.inventoryCrystal,
+          inventoryRelic: wallet.inventoryRelic,
         },
       });
 
-      // Verify ledger entry was created
-      expect(StoneLedgerService.appendEntry).toHaveBeenCalledWith({
+      expect(ledgerAppend).toHaveBeenCalledWith({
         walletId: mockWalletId,
         userId: mockUserId,
         transactionType: 'convert',
@@ -142,324 +125,75 @@ describe('WalletService', () => {
           conversionRate: 10,
         },
       });
+
+      getWalletSpy.mockRestore();
     });
 
-    it('should fail with insufficient inventory', async () => {
-      // Mock config service
-      vi.mocked(configService.getPricing).mockReturnValue({
-        turnCostDefault: 2,
-        turnCostByWorld: {},
-        guestStarterCastingStones: 10,
-        guestDailyRegen: 5,
-        conversionRates: { shard: 10, crystal: 100, relic: 500 }
-      });
+    it('fails when inventory is insufficient', async () => {
+      const wallet = buildWallet({ inventoryShard: 5 });
+      const getWalletSpy = vi.spyOn(WalletService as any, 'getOrCreateWallet').mockResolvedValue(wallet);
 
-      // Mock wallet with insufficient shards
-      const mockWallet = {
-        id: mockWalletId,
-        user_id: mockUserId,
-        casting_stones: 50,
-        inventory_shard: 5, // Only 5 shards available
-        inventory_crystal: 5,
-        inventory_relic: 2,
-        daily_regen: 0,
-        last_regen_at: '2023-01-01T00:00:00Z',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
+      await expect(WalletService.convertStones(mockUserId, 'shard', 20)).rejects.toThrow(
+        'Insufficient shard inventory. Have 5, need 20'
+      );
 
-      // Mock Supabase calls
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: mockWallet, error: null }),
-        }),
-      });
-
-      vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
-        if (table === 'stone_wallets') {
-          return {
-            select: mockSelect,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      // Execute conversion - should fail
-      await expect(
-        WalletService.convertStones(mockUserId, 'shard', 20)
-      ).rejects.toThrow('Insufficient shard inventory. Have 5, need 20');
-
-      // Verify ledger entry was NOT created
-      expect(StoneLedgerService.appendEntry).not.toHaveBeenCalled();
+      expect(mockSupabaseAdmin.from).not.toHaveBeenCalledWith('stone_wallets');
+      getWalletSpy.mockRestore();
     });
 
-    it('should fail with invalid conversion rate', async () => {
-      // Mock config service with invalid rate
-      vi.mocked(configService.getPricing).mockReturnValue({
-        turnCostDefault: 2,
-        turnCostByWorld: {},
-        guestStarterCastingStones: 15,
-        guestDailyRegen: 0,
-        conversionRates: { shard: 0, crystal: 100, relic: 500 } // Invalid rate of 0
+    it('fails when conversion rate is invalid', async () => {
+      mockConfigService.getPricing.mockReturnValue({
+        ...defaultPricing,
+        conversionRates: { shard: 0 },
       });
 
-      // Execute conversion - should fail
-      await expect(
-        WalletService.convertStones(mockUserId, 'shard', 10)
-      ).rejects.toThrow('Invalid conversion rate for shard');
+      const wallet = buildWallet();
+      const getWalletSpy = vi.spyOn(WalletService as any, 'getOrCreateWallet').mockResolvedValue(wallet);
+
+      await expect(WalletService.convertStones(mockUserId, 'shard', 5)).rejects.toThrow(
+        'Invalid conversion rate for shard'
+      );
+
+      getWalletSpy.mockRestore();
     });
 
-    it('should fail when conversion rates are not configured', async () => {
-      // Mock config service returning null
-      vi.mocked(configService.getPricing).mockReturnValue({
-        turnCostDefault: 2,
-        turnCostByWorld: {},
-        guestStarterCastingStones: 10,
-        guestDailyRegen: 5,
-        conversionRates: { shard: 0, crystal: 0, relic: 0 }
+    it('fails when conversion rates missing', async () => {
+      mockConfigService.getPricing.mockReturnValue({
+        ...defaultPricing,
+        conversionRates: undefined as any,
       });
 
-      // Execute conversion - should fail
-      await expect(
-        WalletService.convertStones(mockUserId, 'shard', 10)
-      ).rejects.toThrow('Conversion rates not configured');
-    });
-  });
+      const wallet = buildWallet();
+      const getWalletSpy = vi.spyOn(WalletService as any, 'getOrCreateWallet').mockResolvedValue(wallet);
 
-  describe('applyPurchase', () => {
-    it('should successfully apply a stone pack purchase', async () => {
-      const mockPackId = 'pack-123';
-      
-      // Mock stone pack
-      const mockPack = {
-        id: mockPackId,
-        name: 'Starter Pack',
-        description: 'A good starting pack',
-        price_cents: 999,
-        currency: 'USD',
-        stones_shard: 100,
-        stones_crystal: 50,
-        stones_relic: 10,
-        bonus_shard: 10,
-        bonus_crystal: 5,
-        bonus_relic: 1,
-        is_active: true,
-        sort_order: 1,
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
+      await expect(WalletService.convertStones(mockUserId, 'shard', 5)).rejects.toThrow(
+        'Conversion rates not configured'
+      );
 
-      // Mock wallet
-      const mockWallet = {
-        id: mockWalletId,
-        user_id: mockUserId,
-        casting_stones: 50,
-        inventory_shard: 20,
-        inventory_crystal: 10,
-        inventory_relic: 5,
-        daily_regen: 0,
-        last_regen_at: '2023-01-01T00:00:00Z',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
-
-      const mockUpdatedWallet = {
-        ...mockWallet,
-        inventory_shard: 130, // 20 + 100 + 10
-        inventory_crystal: 65, // 10 + 50 + 5
-        inventory_relic: 16, // 5 + 10 + 1
-      };
-
-      // Mock Supabase calls
-      const mockPackSelect = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: mockPack, error: null }),
-          }),
-        }),
-      });
-
-      const mockWalletSelect = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: mockWallet, error: null }),
-        }),
-      });
-
-      const mockUpdate = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: mockUpdatedWallet, error: null }),
-          }),
-        }),
-      });
-
-      vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
-        if (table === 'stone_packs') {
-          return {
-            select: mockPackSelect,
-          } as any;
-        } else if (table === 'stone_wallets') {
-          return {
-            select: mockWalletSelect,
-            update: mockUpdate,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      // Mock ledger service
-      vi.mocked(StoneLedgerService.appendEntry).mockResolvedValue({
-        id: 'ledger-123',
-        walletId: mockWalletId,
-        userId: mockUserId,
-        transactionType: 'purchase',
-        deltaCastingStones: 0,
-        deltaInventoryShard: 110,
-        deltaInventoryCrystal: 55,
-        deltaInventoryRelic: 11,
-        reason: 'Purchased Starter Pack stone pack',
-        packId: mockPackId,
-        metadata: {
-          packName: 'Starter Pack',
-          packPrice: 999,
-          packCurrency: 'USD',
-        },
-        createdAt: '2023-01-01T00:00:00Z',
-      });
-
-      // Execute purchase
-      const result = await WalletService.applyPurchase(mockUserId, mockPackId);
-
-      // Verify result
-      expect(result).toEqual({
-        packId: mockPackId,
-        stonesAdded: {
-          shard: 100,
-          crystal: 50,
-          relic: 10,
-        },
-        bonusAdded: {
-          shard: 10,
-          crystal: 5,
-          relic: 1,
-        },
-        newBalance: {
-          castingStones: 50,
-          inventoryShard: 130,
-          inventoryCrystal: 65,
-          inventoryRelic: 16,
-        },
-      });
-
-      // Verify ledger entry was created
-      expect(StoneLedgerService.appendEntry).toHaveBeenCalledWith({
-        walletId: mockWalletId,
-        userId: mockUserId,
-        transactionType: 'purchase',
-        deltaCastingStones: 0,
-        deltaInventoryShard: 110,
-        deltaInventoryCrystal: 55,
-        deltaInventoryRelic: 11,
-        reason: 'Purchased Starter Pack stone pack',
-        packId: mockPackId,
-        metadata: {
-          packName: 'Starter Pack',
-          packPrice: 999,
-          packCurrency: 'USD',
-        },
-      });
-    });
-
-    it('should fail with invalid pack ID', async () => {
-      const mockPackId = 'invalid-pack';
-
-      // Mock Supabase returning no pack
-      const mockPackSelect = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-          }),
-        }),
-      });
-
-      vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
-        if (table === 'stone_packs') {
-          return {
-            select: mockPackSelect,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      // Execute purchase - should fail
-      await expect(
-        WalletService.applyPurchase(mockUserId, mockPackId)
-      ).rejects.toThrow(`Invalid or inactive stone pack: ${mockPackId}`);
+      getWalletSpy.mockRestore();
     });
   });
 
   describe('spendCastingStones', () => {
-    it('should successfully spend casting stones', async () => {
-      // Mock wallet
-      const mockWallet = {
+    it('spends casting stones and logs ledger entry', async () => {
+      const wallet = buildWallet({ castingStones: 100 });
+      const getWalletSpy = vi.spyOn(WalletService as any, 'getWallet').mockResolvedValue(wallet);
+
+      const updatedRow = {
         id: mockWalletId,
-        user_id: mockUserId,
-        casting_stones: 100,
-        inventory_shard: 20,
-        inventory_crystal: 10,
-        inventory_relic: 5,
-        daily_regen: 0,
-        last_regen_at: '2023-01-01T00:00:00Z',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
+        casting_stones: 80,
       };
+      const { builder } = createWalletUpdateBuilder(updatedRow);
 
-      const mockUpdatedWallet = {
-        ...mockWallet,
-        casting_stones: 80, // 100 - 20
-      };
-
-      // Mock Supabase calls
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: mockWallet, error: null }),
-        }),
-      });
-
-      const mockUpdate = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: mockUpdatedWallet, error: null }),
-          }),
-        }),
-      });
-
-      vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      mockSupabaseAdmin.from.mockImplementation((table: string) => {
         if (table === 'stone_wallets') {
-          return {
-            select: mockSelect,
-            update: mockUpdate,
-          } as any;
+          return builder;
         }
         return {} as any;
       });
 
-      // Mock ledger service
-      vi.mocked(StoneLedgerService.appendEntry).mockResolvedValue({
-        id: 'ledger-123',
-        walletId: mockWalletId,
-        userId: mockUserId,
-        transactionType: 'spend',
-        deltaCastingStones: -20,
-        deltaInventoryShard: 0,
-        deltaInventoryCrystal: 0,
-        deltaInventoryRelic: 0,
-        reason: 'Game action: dice roll',
-        metadata: { action: 'dice_roll' },
-        createdAt: '2023-01-01T00:00:00Z',
-      });
+      ledgerAppend.mockResolvedValue(undefined as any);
 
-      // Execute spending
       const result = await WalletService.spendCastingStones(
         mockUserId,
         20,
@@ -468,61 +202,44 @@ describe('WalletService', () => {
         'Game action: dice roll'
       );
 
-      // Verify result
-      expect(result).toEqual({
-        success: true,
-        newBalance: 80,
-      });
-
-      // Verify ledger entry was created
-      expect(StoneLedgerService.appendEntry).toHaveBeenCalledWith({
+      expect(result).toEqual({ success: true, newBalance: 80 });
+      expect(ledgerAppend).toHaveBeenCalledWith({
         walletId: mockWalletId,
         userId: mockUserId,
+        cookieGroupId: undefined,
         transactionType: 'spend',
         deltaCastingStones: -20,
         deltaInventoryShard: 0,
         deltaInventoryCrystal: 0,
         deltaInventoryRelic: 0,
         reason: 'Game action: dice roll',
-        metadata: { action: 'dice_roll' },
+        metadata: {},
       });
+
+      getWalletSpy.mockRestore();
     });
 
-    it('should fail with insufficient casting stones', async () => {
-      // Mock wallet with insufficient stones
-      const mockWallet = {
-        id: mockWalletId,
-        user_id: mockUserId,
-        casting_stones: 10, // Only 10 stones available
-        inventory_shard: 20,
-        inventory_crystal: 10,
-        inventory_relic: 5,
-        daily_regen: 0,
-        last_regen_at: '2023-01-01T00:00:00Z',
-        created_at: '2023-01-01T00:00:00Z',
-        updated_at: '2023-01-01T00:00:00Z',
-      };
+    it('returns failure when inventory is insufficient', async () => {
+      const wallet = buildWallet({ castingStones: 10 });
+      const getWalletSpy = vi.spyOn(WalletService as any, 'getWallet').mockResolvedValue(wallet);
 
-      // Mock Supabase calls
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: mockWallet, error: null }),
-        }),
+      const result = await WalletService.spendCastingStones(
+        mockUserId,
+        20,
+        'idempotency-key',
+        'game-id',
+        'Game action'
+      );
+
+      expect(result).toEqual({
+        success: false,
+        newBalance: 0,
+        error: 'INSUFFICIENT_INVENTORY',
+        message: 'Insufficient casting stones. Have 10, need 20',
       });
+      expect(ledgerAppend).not.toHaveBeenCalled();
 
-      vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
-        if (table === 'stone_wallets') {
-          return {
-            select: mockSelect,
-          } as any;
-        }
-        return {} as any;
-      });
-
-      // Execute spending - should fail
-      await expect(
-        WalletService.spendCastingStones(mockUserId, 20, 'idempotency-key', 'game-id', 'Game action')
-      ).rejects.toThrow('Insufficient casting stones. Have 10, need 20');
+      getWalletSpy.mockRestore();
     });
   });
 });

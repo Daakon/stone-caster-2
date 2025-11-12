@@ -58,7 +58,6 @@ export function usePlayerAccount() {
         setSaves(savesData);
       } catch (error) {
         if (isMounted) {
-          console.error('[usePlayerAccount] Error loading player data:', error);
         }
       } finally {
         if (isMounted) {
@@ -85,7 +84,6 @@ export function usePlayerAccount() {
         setProfile(toPlayerProfile(updatedProfile));
       }
     } catch (error) {
-      console.error('[usePlayerAccount] Error refreshing profile:', error);
     }
   };
 
@@ -96,7 +94,6 @@ export function usePlayerAccount() {
       const charactersData = await playerAccountService.getCharacters();
       setCharacters(charactersData);
     } catch (error) {
-      console.error('[usePlayerAccount] Error refreshing characters:', error);
     }
   };
 
@@ -107,7 +104,6 @@ export function usePlayerAccount() {
       const savesData = await playerAccountService.getSaves();
       setSaves(savesData);
     } catch (error) {
-      console.error('[usePlayerAccount] Error refreshing saves:', error);
     }
   };
 

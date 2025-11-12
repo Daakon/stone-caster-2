@@ -24,6 +24,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Set API URL (for OAuth callback URLs)
+# Use the custom domain for the production API URL
 Write-Host "Setting API_URL..." -ForegroundColor Yellow
 flyctl secrets set API_URL="https://api.stonecaster.ai" -a stonecaster-api
 if ($LASTEXITCODE -ne 0) {

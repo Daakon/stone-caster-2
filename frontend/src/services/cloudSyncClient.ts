@@ -1,3 +1,5 @@
+import { API_BASE } from '../lib/apiBase';
+
 /**
  * Phase 23: Cloud Sync Client
  * Frontend service for device sync with cloud save system
@@ -428,9 +430,6 @@ let cloudSyncClient: CloudSyncClient | null = null;
 
 export function getCloudSyncClient(config?: CloudSyncConfig): CloudSyncClient {
   if (!cloudSyncClient) {
-    // Import API_BASE dynamically to avoid circular dependencies
-    const API_BASE = (import.meta.env.VITE_API_BASE ?? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.stonecaster.ai')).replace(/\/+$/, "");
-    
     const defaultConfig: CloudSyncConfig = {
       enabled: true,
       api_base_url: API_BASE,

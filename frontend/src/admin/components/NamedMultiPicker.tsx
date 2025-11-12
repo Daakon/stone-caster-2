@@ -3,7 +3,7 @@
  * Multi-select picker for named entities with drag-to-reorder support
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, GripVertical, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +48,7 @@ export function NamedMultiPicker({
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const lastSelectionRef = useRef<{ itemId: string; timestamp: number } | null>(null);
 
   const selectedItems = items.filter(item => value.includes(item.id));
   const availableItems = items.filter(item => !value.includes(item.id));
@@ -152,35 +153,106 @@ export function NamedMultiPicker({
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-full p-0" align="start">
-          <Command>
+        <PopoverContent 
+          className="w-full p-0" 
+          align="start"
+          onOpenAutoFocus={(e) => {
+            // Prevent auto-focus on open to avoid form interference
+            e.preventDefault();
+          }}
+        >
+          <Command shouldFilter={false} loop={true}>
             <CommandInput
               placeholder={searchPlaceholder}
               value={searchValue}
               onValueChange={setSearchValue}
+              onKeyDown={(e) => {
+                // Prevent form submission on Enter in search
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
             />
             <CommandList>
               <CommandEmpty>{emptyMessage}</CommandEmpty>
               <CommandGroup>
-                {filteredAvailableItems.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    value={item.id}
-                    onSelect={() => {
-                      handleSelect(item.id);
-                      setOpen(false);
+                {filteredAvailableItems.map((item) => {
+                  const handleItemSelect = (e?: React.MouseEvent | React.KeyboardEvent) => {
+                    // Prevent double-triggering if both onSelect and onClick fire
+                    const now = Date.now();
+                    const lastSelection = lastSelectionRef.current;
+                    
+                    // If same item selected within 200ms, ignore (likely double-trigger)
+                    if (lastSelection && lastSelection.itemId === item.id && now - lastSelection.timestamp < 200) {
+                      if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                      return;
+                    }
+                    
+                    lastSelectionRef.current = { itemId: item.id, timestamp: now };
+                    
+                    // Stop event propagation to prevent form interference
+                    if (e) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                    
+                    handleSelect(item.id);
+                    setOpen(false);
+                    setSearchValue(''); // Clear search when item is selected
+                  };
+
+                  return (
+                    <CommandItem
+                      key={item.id}
+                      value={item.name}
+                      disabled={false}
+                      onSelect={() => {
+                        // cmdk's onSelect fires on both click and keyboard Enter
+                        handleItemSelect();
+                      }}
+                      onMouseDown={(e) => {
+                        // Handle mousedown for mouse clicks
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleItemSelect(e);
+                      }}
+                      onClick={(e) => {
+                        // Fallback click handler if onSelect doesn't fire
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Use setTimeout to check if onSelect already handled it
+                        setTimeout(() => {
+                          if (!lastSelectionRef.current || lastSelectionRef.current.itemId !== item.id) {
+                            handleItemSelect(e);
+                          }
+                        }, 50);
+                      }}
+                    className={cn(
+                      "cursor-pointer hover:bg-accent active:bg-accent/80",
+                      "data-[disabled]:pointer-events-auto data-[disabled]:opacity-100"
+                    )}
+                    data-disabled={false}
+                    style={{ 
+                      pointerEvents: 'auto !important',
+                      opacity: '1 !important',
+                      cursor: 'pointer'
                     }}
                   >
-                    <div className="flex flex-col">
-                      <span className="font-medium">{item.name}</span>
-                      {item.description && (
-                        <span className="text-sm text-muted-foreground">
-                          {item.description}
-                        </span>
-                      )}
-                    </div>
-                  </CommandItem>
-                ))}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{item.name}</span>
+                        {item.description && (
+                          <span className="text-sm text-muted-foreground">
+                            {item.description}
+                          </span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             </CommandList>
           </Command>

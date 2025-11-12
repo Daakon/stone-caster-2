@@ -15,13 +15,11 @@ export class GuestCookieService {
   static getOrCreateGuestCookie(): string {
     const existingCookie = this.getGuestCookie();
     if (existingCookie) {
-      console.log('[GuestCookie] Using existing guest cookie:', existingCookie);
       return existingCookie;
     }
 
     const newGuestId = uuidv4();
     this.setGuestCookie(newGuestId);
-    console.log('[GuestCookie] Created new guest cookie:', newGuestId);
     return newGuestId;
   }
 
@@ -57,7 +55,6 @@ export class GuestCookieService {
     expiryDate.setDate(expiryDate.getDate() + GUEST_COOKIE_EXPIRY_DAYS);
 
     document.cookie = `${GUEST_COOKIE_NAME}=${guestId}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Lax`;
-    console.log('[GuestCookie] Set guest cookie:', guestId);
   }
 
   /**
@@ -69,7 +66,6 @@ export class GuestCookieService {
     }
 
     document.cookie = `${GUEST_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-    console.log('[GuestCookie] Cleared guest cookie');
   }
 
   /**

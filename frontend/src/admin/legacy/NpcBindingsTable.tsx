@@ -43,7 +43,6 @@ export default function NpcBindingsTable({ npcId, bindings, onBindingChange, can
       const entryPointsData = await npcBindingsService.getEntryPointsForNPC(npcId);
       setEntryPoints(entryPointsData);
     } catch (error) {
-      console.error('Error loading entry points:', error);
     }
   };
 
@@ -62,7 +61,6 @@ export default function NpcBindingsTable({ npcId, bindings, onBindingChange, can
       onBindingChange();
     } catch (error) {
       toast.error('Failed to create binding');
-      console.error('Error creating binding:', error);
     }
   };
 
@@ -82,7 +80,6 @@ export default function NpcBindingsTable({ npcId, bindings, onBindingChange, can
       onBindingChange();
     } catch (error) {
       toast.error('Failed to update binding');
-      console.error('Error updating binding:', error);
     }
   };
 
@@ -95,7 +92,6 @@ export default function NpcBindingsTable({ npcId, bindings, onBindingChange, can
       onBindingChange();
     } catch (error) {
       toast.error('Failed to delete binding');
-      console.error('Error deleting binding:', error);
     }
   };
 
@@ -337,7 +333,4 @@ export default function NpcBindingsTable({ npcId, bindings, onBindingChange, can
     </Card>
   );
 }
-
-
-
 

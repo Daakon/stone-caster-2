@@ -42,6 +42,47 @@ The `GET /api/games/:id/turns` endpoint supports cursor-based pagination:
   GET /api/games/{gameId}/turns?afterTurn=20&limit=20
   ```
 
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Supabase project (for OAuth)
+
+### Setup
+
+1. **Clone and install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Set up environment variables:**
+   
+   Create `frontend/.env`:
+   ```bash
+   VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<your-anon-key>
+   ```
+   
+   Create `backend/.env.local`:
+   ```bash
+   SUPABASE_URL=https://<your-project-ref>.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+   OPENAI_API_KEY=<your-openai-key>
+   SESSION_SECRET=<generate-a-random-secret>
+   ```
+   
+   **Note**: `WEB_BASE_URL` and `API_BASE_URL` have defaults for development (`http://localhost:5173` and `http://localhost:3000`), but Supabase variables are required for OAuth.
+
+3. **Start development servers:**
+   ```bash
+   npm run dev
+   ```
+
+   This starts both frontend (port 5173) and backend (port 3000).
+
+See [docs/auth.md](./docs/auth.md) for detailed authentication configuration.
+
 ## 🏗️ Architecture
 
 ### Monorepo Structure

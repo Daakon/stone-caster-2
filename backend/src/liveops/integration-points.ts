@@ -134,6 +134,10 @@ export class LiveOpsIntegration {
    * Apply token budget config to assembler
    */
   async applyTokenBudget(context: LiveOpsContext): Promise<TokenBudget> {
+    if (!context.sessionId) {
+      throw new Error('sessionId is required to resolve LiveOps config');
+    }
+
     const config = await this.getEffectiveConfig(context);
     
     const tokenBudget: TokenBudget = {

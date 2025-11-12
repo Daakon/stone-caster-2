@@ -16,6 +16,7 @@ import profileRouter from './routes/profile.js';
 import adventuresRouter from './routes/adventures.js';
 import catalogRouter from './routes/catalog.js';
 import catalogNpcsRouter from './routes/catalogNpcs.js';
+import npcsRouter from './routes/npcs.js';
 import searchRouter from './routes/search.js';
 import stonesRouter from './routes/stones.js';
 import subscriptionRouter from './routes/subscription.js';
@@ -38,8 +39,14 @@ import adminPreviewRouter from './routes/admin.preview.js';
 import internalFlagsRouter from './routes/internalFlags.js';
 import { openapiRouter } from './routes/openapi.js';
 import { earlyAccessGuard } from './middleware/earlyAccessGuard.js';
+import { initializeActionRegistry } from './actions/boot.js';
 
 const app = express();
+
+// Initialize action registry on startup
+initializeActionRegistry().catch(err => {
+  console.error('[Startup] Failed to initialize action registry:', err);
+});
 
 // Disable Express ETag middleware to use our custom ETag implementation
 app.set('etag', false);
@@ -119,6 +126,8 @@ app.use('/api/worlds', worldsRouter);
 // Catalog routes (includes both legacy and new unified entry-points)
 app.use('/api/catalog', catalogRouter);
 app.use('/api/catalog', catalogNpcsRouter);
+// User NPCs routes (private NPCs, requires auth)
+app.use('/api/npcs', npcsRouter);
 app.use('/api/content', contentRouter);
 app.use('/api/adventures', adventuresRouter);
 app.use('/api/search', searchRouter);
@@ -141,6 +150,14 @@ import accessRequestsPublicRouter from './routes/accessRequests.public.js';
 import accessRequestsAdminRouter from './routes/accessRequests.admin.js';
 app.use('/api/request-access', accessRequestsPublicRouter);
 app.use('/api/admin/access-requests', accessRequestsAdminRouter);
+
+// Publishing Routes (Phase 0/1)
+import publishingPublicRouter from './routes/publishing.public.js';
+import publishingAdminRouter from './routes/publishing.admin.js';
+import publishingWizardRouter from './routes/publishing.wizard.js';
+app.use('/api/publish', publishingPublicRouter);
+app.use('/api/admin/publishing', publishingAdminRouter);
+app.use('/api/publishing/wizard', publishingWizardRouter);
 
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);
@@ -194,9 +211,32 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 // Start server only if not in test environment
 if (process.env.NODE_ENV !== 'test') {
   const port = config.port;
+  
+  // Seed slots and templates on boot if empty
+  (async () => {
+    try {
+      const { seedIfEmpty } = await import('./scripts/seed-slots-templates.js');
+      await seedIfEmpty();
+    } catch (error) {
+      console.error('[Boot] Failed to seed slots/templates:', error);
+      // Don't fail startup if seeding fails
+    }
+  })();
+  
   app.listen(port, () => {
     console.log(`🎲 Stonecaster API server running on port ${port}`);
     console.log(`📍 Health check: http://localhost:${port}/health`);
+    
+    // Phase 4: Start dependency monitor cron job (if enabled)
+    (async () => {
+      try {
+        const { startDependencyMonitor } = await import('./jobs/dependencyMonitor.job.js');
+        startDependencyMonitor();
+      } catch (error) {
+        console.error('[Boot] Failed to start dependency monitor:', error);
+        // Don't fail startup if monitor fails to start
+      }
+    })();
   });
 }
 

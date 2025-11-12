@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
 import { useAuthStore } from './store/auth';
 import { ThemeProvider } from './contexts/theme-context-provider';
 import { ToastProvider } from './components/ui/toast-provider';
@@ -12,6 +13,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthRouter } from './components/AuthRouter';
 import { GuestCookieService } from './services/guestCookie';
 import { handleEarlyAccessRequired } from './lib/earlyAccessHandler';
+import { AccessStatusProvider } from './providers/AccessStatusProvider';
+import { WalletProvider } from './providers/WalletProvider';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
@@ -36,25 +39,11 @@ import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
 import ScenarioPicker from './pages/player/ScenarioPicker';
 import RequestAccessPage from './pages/RequestAccessPage';
-import { AppAdminShell } from './admin/AppAdminShell';
+import MyAdventuresPage from './pages/MyAdventuresPage';
+import { AdminRouteGuard } from './admin/AdminRouteGuard';
 import NotFoundPage from './pages/NotFoundPage';
 import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
-      retry: 1,
-      refetchOnWindowFocus: false,
-      refetchOnMount: true,
-      refetchOnReconnect: true,
-    },
-    mutations: {
-      retry: 1,
-    },
-  },
-});
 
 function App() {
   const { loading, initialize } = useAuthStore();
@@ -65,16 +54,9 @@ function App() {
       import.meta.env.VITE_COMMIT_SHA ??
       import.meta.env.VITE_APP_VERSION ??
       'local-dev';
-
-    console.log('[BUILD]', {
-      mode: import.meta.env.MODE,
-      buildId,
-    });
   }, []);
 
   useEffect(() => {
-    console.log('[BOOT] App mounted');
-    
     // Initialize guest cookie for anonymous users
     GuestCookieService.getOrCreateGuestCookie();
     
@@ -117,14 +99,15 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true
-            }}
-          >
+          <AccessStatusProvider>
+            <WalletProvider>
+              <BrowserRouter
+                future={{
+                  v7_startTransition: true,
+                  v7_relativeSplatPath: true
+                }}
+              >
             {(() => {
-              console.log('[BOOT] Router provider mounted');
               return null;
             })()}
             <AuthRouter />
@@ -251,6 +234,15 @@ function App() {
                     </EarlyAccessRoute>
                   </ProtectedRoute>
                 } />
+                {/* Redirect old route to new route for backward compatibility */}
+                <Route path="/my-adventures" element={<Navigate to="/my-stories" replace />} />
+                <Route path="/my-stories" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <MyAdventuresPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
                 <Route path="/scenarios" element={
                   <ProtectedRoute>
                     <EarlyAccessRoute>
@@ -259,14 +251,16 @@ function App() {
                   </ProtectedRoute>
                 } />
                 
-                {/* Admin routes - separate guard */}
-                <Route path="/admin/*" element={<AppAdminShell />} />
+                {/* Admin routes - protected by AdminRouteGuard */}
+                <Route path="/admin/*" element={<AdminRouteGuard />} />
                 
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </AppLayout>
             <ToastProvider />
-          </BrowserRouter>
+              </BrowserRouter>
+            </WalletProvider>
+          </AccessStatusProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>
@@ -274,5 +268,4 @@ function App() {
 }
 
 export default App;
-
 

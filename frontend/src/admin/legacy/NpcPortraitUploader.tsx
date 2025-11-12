@@ -58,7 +58,6 @@ export default function NpcPortraitUploader({
       await onUpload(file);
     } catch (error) {
       setError('Failed to upload portrait');
-      console.error('Upload error:', error);
     } finally {
       setUploading(false);
     }
@@ -178,7 +177,4 @@ export default function NpcPortraitUploader({
     </div>
   );
 }
-
-
-
 

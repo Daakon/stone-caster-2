@@ -32,8 +32,6 @@ export class AuthService {
 
   async initialize(): Promise<AuthUser | null> {
     try {
-      console.log('[AuthService] Initializing auth service');
-      
       // Set up Supabase auth state change listener
       this.setupAuthStateListener();
       
@@ -44,20 +42,17 @@ export class AuthService {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        console.log('[AuthService] Found authenticated session');
         await this.syncAuthenticatedSession(session, 'initial');
       } else {
         // Check for guest cookie
         const guestCookie = GuestCookieService.getGuestCookie();
         if (guestCookie) {
-          console.log('[AuthService] Found existing guest cookie');
           this.currentUser = {
             state: AuthState.COOKIED,
             id: guestCookie
           };
         } else {
           // Create new guest
-          console.log('[AuthService] Creating new guest session');
           const newGuestCookie = GuestCookieService.getOrCreateGuestCookie();
           this.currentUser = {
             state: AuthState.GUEST,
@@ -77,13 +72,9 @@ export class AuthService {
   private setupAuthStateListener(): void {
     // Set up Supabase auth state change listener
     supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AuthService] Auth state changed:', event, !!session);
-      
       if (event === 'SIGNED_IN' && session) {
-        console.log('[AuthService] User signed in via auth state change');
         await this.syncAuthenticatedSession(session, 'auth_listener');
       } else if (event === 'SIGNED_OUT') {
-        console.log('[AuthService] User signed out via auth state change');
         // Fall back to guest state
         const guestCookie = GuestCookieService.getGuestCookie();
         if (guestCookie) {
@@ -100,7 +91,6 @@ export class AuthService {
         }
         this.notifyListeners();
       } else if (event === 'TOKEN_REFRESHED' && session) {
-        console.log('[AuthService] Token refreshed');
         if (this.currentUser?.state === AuthState.AUTHENTICATED && this.currentUser.id === session.user.id && this.currentUser.profile) {
           this.currentUser = {
             ...this.currentUser,
@@ -115,8 +105,6 @@ export class AuthService {
   }
 
   async signIn(email: string, password: string): Promise<void> {
-    console.log('[AuthService] Signing in user:', email);
-    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -128,7 +116,6 @@ export class AuthService {
     }
 
     if (data.session?.user) {
-      console.log('[AuthService] Sign in successful');
       await this.syncAuthenticatedSession(data.session, 'password');
 
       // Link guest account if exists
@@ -137,8 +124,6 @@ export class AuthService {
   }
 
   async signUp(email: string, password: string): Promise<void> {
-    console.log('[AuthService] Signing up user:', email);
-    
     const { data, error } = await supabase.auth.signUp({
       email,
       password
@@ -150,27 +135,22 @@ export class AuthService {
     }
 
     if (data.session?.user) {
-      console.log('[AuthService] Sign up successful');
       await this.syncAuthenticatedSession(data.session, 'signup');
 
       // Link guest account if exists
       await this.linkGuestAccount();
-    } else {
-      console.log('[AuthService] Sign up initiated; waiting for confirmation');
     }
   }
 
   async signInWithOAuth(provider: 'google' | 'github' | 'discord'): Promise<void> {
-    console.log('[AuthService] Starting OAuth flow for provider:', provider);
-    
-    // Preserve the current path for redirect after OAuth
-    const currentPath = window.location.pathname;
-    const redirectTo = currentPath === '/auth' || currentPath === '/signin' || currentPath === '/signup' 
-      ? `${window.location.origin}` 
-      : `${window.location.origin}${currentPath}`;
     
     // Store the intended route for post-OAuth redirect
+    const currentPath = window.location.pathname;
     RoutePreservationService.setIntendedRoute(currentPath);
+    
+    // Use environment-specific redirect URL (never hardcoded)
+    const { getRedirectUrl } = await import('@/lib/redirects');
+    const redirectTo = getRedirectUrl();
     
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: provider,
@@ -189,14 +169,13 @@ export class AuthService {
     }
 
     if (data.url) {
-      console.log('[AuthService] Redirecting to OAuth URL');
       window.location.assign(data.url);
+    } else {
+      console.error('[AuthService] No OAuth URL returned from Supabase');
     }
   }
 
   async signOut(): Promise<void> {
-    console.log('[AuthService] Signing out user');
-    
     await supabase.auth.signOut();
     GuestCookieService.clearGuestCookie();
     
@@ -212,19 +191,15 @@ export class AuthService {
 
   async linkGuestAccount(): Promise<void> {
     if (this.currentUser?.state !== AuthState.AUTHENTICATED) {
-      console.log('[AuthService] Not authenticated, skipping guest account linking');
       return;
     }
 
     const guestCookie = GuestCookieService.getGuestCookie();
     if (!guestCookie) {
-      console.log('[AuthService] No guest cookie found, skipping linking');
       return;
     }
 
     try {
-      console.log('[AuthService] Linking guest account to authenticated user');
-      
       // Call backend to link guest data to authenticated user
       const response = await fetch('/api/profile/link-guest', {
         method: 'POST',
@@ -237,7 +212,6 @@ export class AuthService {
 
       if (response.ok) {
         GuestCookieService.clearGuestCookie();
-        console.log('[AuthService] Guest account linked successfully');
       } else {
         console.warn('[AuthService] Failed to link guest account:', response.statusText);
       }
@@ -388,15 +362,8 @@ export class AuthService {
     await promise;
   }
 
-  private logAuthenticatedUser(user: AuthUser, context: AuthSyncContext): void {
-    console.log('[AuthService] Authenticated user hydrated', {
-      context,
-      userId: user.id,
-      hasEmail: Boolean(user.email),
-      displayNamePreview: this.maskDisplayName(user.displayName),
-      profileLoaded: Boolean(user.profile),
-      profileId: user.profile?.id ?? null,
-    });
+  private logAuthenticatedUser(_user: AuthUser, _context: AuthSyncContext): void {
+    // Logging removed for production
   }
 
   private maskDisplayName(displayName?: string): string {
@@ -420,29 +387,20 @@ export class AuthService {
       
       if (hasSearchParams) {
         const params = Object.fromEntries(urlParams.entries());
-        console.log('[OAUTH] callback=detected search_params=', params);
-        
         // Handle server-side OAuth callback
         await this.handleServerSideOAuthCallback(params);
       } else if (hasHashParams) {
         const params = Object.fromEntries(hashParams.entries());
-        console.log('[OAUTH] callback=detected hash_params=', params);
-        
         // Handle client-side OAuth callback
         await this.handleClientSideOAuthCallback(params);
-      } else {
-        console.log('[OAUTH] callback=not_detected params=missing');
       }
     } catch (error) {
-      console.warn('[OAUTH] Error parsing callback parameters:', error);
-      console.log('[OAUTH] callback=not_detected params=missing');
+      console.error('[OAUTH] Error parsing callback parameters:', error);
     }
   }
 
   private async handleServerSideOAuthCallback(_params: Record<string, string>): Promise<void> {
     try {
-      console.log('[OAUTH] Handling server-side callback');
-      
       // For server-side callbacks, Supabase should have already processed the session
       // We just need to get the current session
       const { data: { session }, error } = await supabase.auth.getSession();
@@ -453,7 +411,6 @@ export class AuthService {
       }
       
       if (session) {
-        console.log('[OAUTH] Session found, updating user state');
         await this.syncAuthenticatedSession(session, 'server_oauth');
       }
     } catch (error) {
@@ -463,15 +420,12 @@ export class AuthService {
 
   private async handleClientSideOAuthCallback(params: Record<string, string>): Promise<void> {
     try {
-      console.log('[OAUTH] Handling client-side callback');
-      
       if (params.error) {
         console.error('[OAUTH] OAuth error:', params.error);
         return;
       }
       
       if (params.access_token) {
-        console.log('[OAUTH] Setting session with access token');
         // Set the session manually for client-side OAuth
         const { data, error } = await supabase.auth.setSession({
           access_token: params.access_token,
@@ -484,9 +438,7 @@ export class AuthService {
         }
         
         if (data.session) {
-          console.log('[OAUTH] Session set successfully, updating user state');
           await this.syncAuthenticatedSession(data.session, 'client_oauth');
-          console.log('[OAUTH] Auth state synchronized after client-side callback');
           
           // Clear the URL hash to clean up the OAuth parameters
           window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
@@ -500,14 +452,7 @@ export class AuthService {
   // Method to handle guest stone actions
   handleGuestStoneAction(action: string, balance: number, required: number = 1): boolean {
     const hasEnoughStones = balance >= required;
-    
-    if (hasEnoughStones) {
-      console.log(`[GUEST-STONES] balance=${balance} action=${action} result=success`);
-      return true;
-    } else {
-      console.log(`[GUEST-STONES] balance=${balance} action=${action} result=insufficient required=${required}`);
-      return false;
-    }
+    return hasEnoughStones;
   }
 }
 

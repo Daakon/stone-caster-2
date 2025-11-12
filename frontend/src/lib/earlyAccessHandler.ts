@@ -26,7 +26,6 @@ export async function checkAccessRequestStatus(): Promise<{
     }
     return { hasRequest: false, status: null };
   } catch (error) {
-    console.error('[earlyAccessHandler] Error checking request status:', error);
     return { hasRequest: false, status: null };
   }
 }
@@ -76,7 +75,6 @@ export async function handleEarlyAccessRequired(
       });
     }
   } catch (error) {
-    console.error('[earlyAccessHandler] Error handling early access:', error);
     toast.error('An error occurred', {
       description: 'Failed to check access status. Please try again.',
     });

@@ -22,7 +22,6 @@ export function useAuthRedirect() {
          location.pathname.startsWith('/signup'))) {
       
       const intendedRoute = RoutePreservationService.getAndClearIntendedRoute();
-      console.log('[useAuthRedirect] User authenticated, redirecting to:', intendedRoute);
       navigate(intendedRoute, { replace: true });
     }
   }, [user, loading, location.pathname, navigate]);
@@ -43,14 +42,4 @@ export function useRoutePreservation() {
     }
   }, [location.pathname]);
 }
-
-
-
-
-
-
-
-
-
-
 

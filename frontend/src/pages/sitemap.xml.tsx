@@ -1,6 +1,7 @@
 import React from 'react';
 import { generateCompleteSitemap } from '@/lib/sitemap';
-import { useStoriesQuery, useWorldsQuery, useNPCsQuery, useRulesetsQuery } from '@/lib/queries';
+import { useStories, useWorlds } from '@/lib/queries/index';
+import { useNPCsQuery, useRulesetsQuery } from '@/lib/queries';
 
 /**
  * Sitemap XML route component
@@ -9,9 +10,9 @@ import { useStoriesQuery, useWorldsQuery, useNPCsQuery, useRulesetsQuery } from 
  * It should be accessible at /sitemap.xml
  */
 export default function SitemapXML() {
-  // Load all content data
-  const { data: stories = [] } = useStoriesQuery({});
-  const { data: worlds = [] } = useWorldsQuery();
+  // Load all content data - using canonical hooks
+  const { data: stories = [] } = useStories({});
+  const { data: worlds = [] } = useWorlds();
   const { data: npcs = [] } = useNPCsQuery({});
   const { data: rulesets = [] } = useRulesetsQuery();
 

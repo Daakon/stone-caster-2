@@ -116,4 +116,3 @@ export const TraitsStep: React.FC<TraitsStepProps> = ({
   );
 };
 
-

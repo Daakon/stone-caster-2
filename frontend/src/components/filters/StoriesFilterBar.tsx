@@ -51,7 +51,6 @@ export function StoriesFilterBar({ filters, updateFilters, reset }: StoriesFilte
     ? rulesetsQ.data
     : (rulesetsQ?.data?.data ?? []);
 
-
   // Track filter changes for analytics
   useEffect(() => {
     trackFilterChange('stories', filters);

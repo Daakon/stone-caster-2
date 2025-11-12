@@ -16,6 +16,9 @@ import { EntryPointSegmentsTab } from '@/admin/components/EntryPointSegmentsTab'
 import { EntryPointNpcsTab } from '@/admin/components/EntryPointNpcsTab';
 import { SubmitForReviewButton } from '@/admin/components/SubmitForReviewButton';
 import { useAppRoles } from '@/admin/routeGuard';
+import { PublishButton } from '@/components/publishing/PublishButton';
+import { PreflightPanel } from '@/components/publishing/PreflightPanel';
+import { isPublishingWizardEnabled } from '@/lib/feature-flags';
 
 export default function EntryPointEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,7 +46,6 @@ export default function EntryPointEditPage() {
       setEntryPoint(data);
     } catch (error) {
       toast.error('Failed to load story');
-      console.error('Error loading story:', error);
       navigate('/admin/entry-points');
     } finally {
       setLoading(false);
@@ -65,7 +67,6 @@ export default function EntryPointEditPage() {
       }
     } catch (error) {
       toast.error('Failed to save story');
-      console.error('Error saving story:', error);
     } finally {
       setSaving(false);
     }
@@ -84,7 +85,6 @@ export default function EntryPointEditPage() {
       loadEntryPoint(); // Reload to get updated lifecycle
     } catch (error) {
       toast.error('Failed to submit for review');
-      console.error('Error submitting for review:', error);
     }
   };
 
@@ -165,13 +165,35 @@ export default function EntryPointEditPage() {
               onSubmitted={loadEntryPoint}
             />
           )}
-          
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/admin/entry-points/wizard/${entryPoint.id}`)}
+          >
+            Open Entry Wizard
+          </Button>
+          {isPublishingWizardEnabled() && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/publishing/wizard?type=story&id=${entryPoint.id}`)}
+            >
+              Open Publishing Wizard
+            </Button>
+          )}
+          <PublishButton
+            type="story"
+            id={entryPoint.id}
+            worldId={entryPoint.world_id}
+            worldName={entryPoint.world_id} // TODO: Get actual world name
+          />
           <Button variant="outline" disabled>
             <Eye className="h-4 w-4 mr-2" />
             Preview
           </Button>
         </div>
       </div>
+
+      {/* Phase 6: Preflight Panel */}
+      {entryPoint.id && <PreflightPanel type="story" id={entryPoint.id} />}
 
       <Tabs defaultValue="details" className="space-y-6">
         <TabsList>

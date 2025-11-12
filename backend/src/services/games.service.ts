@@ -1240,7 +1240,7 @@ export class GamesService {
     gameId: string, 
     turnResult: TurnResponse, 
     optionId: string, 
-    turnData?: {
+      turnData?: {
       userInput?: string;
       userInputType?: 'choice' | 'text' | 'action';
       promptData?: any;
@@ -1248,6 +1248,7 @@ export class GamesService {
       aiResponseMetadata?: any;
       processingTimeMs?: number;
       rawAiResponse?: unknown; // Raw AI response to store in content field
+      snapshotId?: string; // Prompt snapshot ID
     }
   ): Promise<any> {
     try {
@@ -1317,12 +1318,14 @@ export class GamesService {
           promptMetadata: turnData?.promptMetadata || null,
           aiResponseMetadata: turnData?.aiResponseMetadata || null,
           processingTimeMs: turnData?.processingTimeMs || null,
+          snapshotId: turnData?.snapshotId || null,
           narrativeSummary: narrativeSummary,
           isInitialization: isInitialization,
         } : {
           // Minimal meta if no v2Meta
           userInput: turnData?.userInput || null,
           userInputType: turnData?.userInputType || 'choice',
+          snapshotId: turnData?.snapshotId || null,
           narrativeSummary: narrativeSummary,
           isInitialization: isInitialization,
         },
@@ -1342,6 +1345,41 @@ export class GamesService {
       if (turnError) {
         console.error('Error creating turn record:', turnError);
         throw new Error(`Failed to create turn record: ${turnError.message}`);
+      }
+
+      // Emit turn metrics if available
+      if (turnData?.snapshotId && createdTurn?.id) {
+        try {
+          const { emitTurnMetrics, estimateCost } = await import('./turn-metrics.service.js');
+          const { getPromptSnapshot } = await import('./prompt-snapshots.service.js');
+          
+          // Try to get budget_report from snapshot
+          const snapshot = await getPromptSnapshot(turnData.snapshotId);
+          const budgetReport = snapshot?.budget_report || turnData.promptMetadata?.budget_report;
+          const model = turnData.promptMetadata?.meta?.model || snapshot?.tp?.meta?.budgets?.model || 'gpt-4o-mini';
+          
+          if (budgetReport) {
+            const topTrims = (budgetReport.trims || [])
+              .sort((a: any, b: any) => b.removedTokens - a.removedTokens)
+              .slice(0, 3)
+              .map((t: any) => t.key);
+            
+            await emitTurnMetrics({
+              turn_id: createdTurn.id,
+              story_id: gameId, // Using gameId as story_id
+              tokens_before: budgetReport.before || 0,
+              tokens_after: budgetReport.after || 0,
+              trims_count: budgetReport.trims?.length || 0,
+              top_trim_keys: topTrims,
+              model_ms: turnData.processingTimeMs || null,
+              rejects: {}, // TODO: Extract from validation errors if available
+              cost_estimate_cents: estimateCost(budgetReport.after || 0, model),
+            });
+          }
+        } catch (metricsError) {
+          // Don't fail the turn if metrics emission fails
+          console.warn('[GAMES_SERVICE] Failed to emit turn metrics:', metricsError);
+        }
       }
 
       // Only update game state if we created a new turn

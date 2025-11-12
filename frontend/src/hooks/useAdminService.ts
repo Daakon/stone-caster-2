@@ -18,7 +18,7 @@ export function useAdminService() {
     try {
       return await operation();
     } catch (error) {
-      console.error(`Admin operation failed: ${operationName}`, error);
+
       toast.error(`Failed to ${operationName.toLowerCase()}`);
       throw error;
     }

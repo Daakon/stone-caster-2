@@ -114,8 +114,6 @@ export function useStartAdventure() {
       };
 
     } catch (error) {
-      console.error('Error starting adventure:', error);
-      
       await telemetry.trackErrorShown(ApiErrorCode.INTERNAL_ERROR, characterType, adventureSlug);
       
       return {
@@ -135,7 +133,6 @@ export function useStartAdventure() {
       await telemetry.trackAdventureResumed('', '', gameId);
       navigate(`/play/${gameId}`);
     } catch (error) {
-      console.error('Error resuming adventure:', error);
     }
   }, [navigate]); // Removed telemetry from dependencies
 

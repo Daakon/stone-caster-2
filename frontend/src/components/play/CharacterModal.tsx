@@ -65,7 +65,7 @@ export default function CharacterModal({ isOpen, onClose, onSave, isLoading = fa
       setPortraitSeed('');
       setErrors({});
     } catch (error) {
-      console.error('Failed to create character:', error);
+
     }
   };
 

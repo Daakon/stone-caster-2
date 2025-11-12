@@ -4,7 +4,8 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
-import { usePrefetch } from '@/lib/usePrefetch';
+import { useQueryClient } from '@tanstack/react-query';
+import { prefetchWorld, prefetchStories } from '@/lib/prefetch';
 
 /**
  * Normalized catalog card props - live data contract only.
@@ -24,28 +25,36 @@ interface CatalogCardProps {
 
 export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
   ({ entity, idOrSlug, title, description, imageUrl, href, chips, onCardClick, className }, ref) => {
-    const { prefetchWorld, prefetchNPC, prefetchRuleset, prefetchStory } = usePrefetch();
+    const queryClient = useQueryClient();
 
     const handleClick = () => {
       onCardClick?.(entity, idOrSlug);
     };
 
     const handleMouseEnter = () => {
-      // Prefetch the detail page data on hover
+      // Prefetch the detail page data on hover (PR8)
       switch (entity) {
         case 'world':
-          prefetchWorld(idOrSlug);
-          break;
-        case 'npc':
-          prefetchNPC(idOrSlug);
-          break;
-        case 'ruleset':
-          prefetchRuleset(idOrSlug);
+          prefetchWorld(queryClient, idOrSlug);
           break;
         case 'story':
-          prefetchStory(idOrSlug);
+          // For stories, we can prefetch the list if needed, but detail pages use different hooks
+          // This is a placeholder - story detail prefetch would need a separate function
+          break;
+        // NPC and ruleset prefetch not yet implemented in prefetch.ts
+        default:
           break;
       }
+    };
+    
+    const handleTouchStart = () => {
+      // Mobile prefetch on touch start
+      handleMouseEnter();
+    };
+    
+    const handleFocus = () => {
+      // Desktop keyboard navigation prefetch
+      handleMouseEnter();
     };
 
     return (
@@ -53,6 +62,8 @@ export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
         ref={ref}
         className={`group hover:shadow-lg transition-all duration-200 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${className}`}
         onMouseEnter={handleMouseEnter}
+        onTouchStart={handleTouchStart}
+        onFocus={handleFocus}
       >
         <Link 
           to={href} 

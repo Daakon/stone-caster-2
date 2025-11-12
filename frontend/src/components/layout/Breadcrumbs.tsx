@@ -109,8 +109,3 @@ export function Breadcrumbs({ variant = 'back', label, href }: BreadcrumbsProps)
   );
 }
 
-
-
-
-
-

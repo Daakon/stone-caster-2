@@ -37,7 +37,6 @@ export function SubmitForReviewButton({
       onSubmitted?.();
     } catch (error) {
       toast.error('Failed to submit for review');
-      console.error('Error submitting for review:', error);
     } finally {
       setSubmitting(false);
     }
@@ -108,17 +107,6 @@ export function SubmitForReviewButton({
     </Dialog>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
 
 
 

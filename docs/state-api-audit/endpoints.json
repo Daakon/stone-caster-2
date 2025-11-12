@@ -1,0 +1,501 @@
+{
+  "endpoints": [
+    {
+      "endpoint": "/api/admin/user/roles",
+      "method": "GET",
+      "queryKey": ["admin-user-roles", "userId"],
+      "components": [
+        {
+          "file": "frontend/src/admin/routeGuard.tsx",
+          "line": 51,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!user || !!isAuthenticated"
+        }
+      ],
+      "notes": "Also fetched via Zustand in useAdminRole hook",
+      "risk": "medium"
+    },
+    {
+      "endpoint": "/api/profile",
+      "method": "GET",
+      "queryKey": ["profile"],
+      "components": [
+        {
+          "file": "frontend/src/pages/ProfilePage.tsx",
+          "line": 74,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!user && user.state !== 'guest' && !profileLoading"
+        },
+        {
+          "file": "frontend/src/hooks/usePlayerAccount.ts",
+          "line": 45,
+          "hook": "useEffect",
+          "staleTime": null,
+          "gcTime": null,
+          "refetchOnMount": null,
+          "refetchOnWindowFocus": null,
+          "enabled": null,
+          "notes": "Bypasses React Query - fetched via playerAccountService"
+        },
+        {
+          "file": "frontend/src/services/auth/AuthService.ts",
+          "line": 33,
+          "hook": "initialize",
+          "staleTime": null,
+          "gcTime": null,
+          "refetchOnMount": null,
+          "refetchOnWindowFocus": null,
+          "enabled": null,
+          "notes": "Initial load, not React Query"
+        }
+      ],
+      "notes": "Fetched via multiple paths - useEffect, React Query, and auth service",
+      "risk": "high"
+    },
+    {
+      "endpoint": "/api/worlds",
+      "method": "GET",
+      "queryKey": ["worlds"],
+      "components": [
+        {
+          "file": "frontend/src/pages/WorldSelectionPage.tsx",
+          "line": 11,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null,
+          "notes": "Legacy endpoint - uses getWorldTemplates()"
+        }
+      ],
+      "notes": "Legacy endpoint, should migrate to /api/catalog/worlds",
+      "risk": "high"
+    },
+    {
+      "endpoint": "/api/catalog/worlds",
+      "method": "GET",
+      "queryKey": ["worlds", { "q": "string?" }],
+      "components": [
+        {
+          "file": "frontend/src/lib/queries.ts",
+          "line": 12,
+          "hook": "useWorldsQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null
+        }
+      ],
+      "notes": "Preferred endpoint for worlds data",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/content/worlds",
+      "method": "GET",
+      "queryKey": ["content-worlds"],
+      "components": [
+        {
+          "file": "frontend/src/pages/UnifiedGamePage.tsx",
+          "line": 143,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null,
+          "notes": "Different endpoint and key - no cache sharing with other worlds queries"
+        }
+      ],
+      "notes": "Different endpoint and query key - should consolidate",
+      "risk": "high"
+    },
+    {
+      "endpoint": "/api/catalog/stories",
+      "method": "GET",
+      "queryKey": ["stories", "params"],
+      "components": [
+        {
+          "file": "frontend/src/lib/queries.ts",
+          "line": 55,
+          "hook": "useStoriesQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null
+        }
+      ],
+      "notes": "Well-structured with param-based keying",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/games",
+      "method": "GET",
+      "queryKey": ["my-adventures"],
+      "components": [
+        {
+          "file": "frontend/src/pages/MyAdventuresPage.tsx",
+          "line": 59,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!user && accessStatusLoaded && hasApprovedAccess",
+          "notes": "Gated by access-request-status query"
+        }
+      ],
+      "notes": "List of user's active games/adventures",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/request-access/status",
+      "method": "GET",
+      "queryKey": ["access-request-status"],
+      "components": [
+        {
+          "file": "frontend/src/components/auth/EarlyAccessRoute.tsx",
+          "line": 28,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!user"
+        },
+        {
+          "file": "frontend/src/pages/MyAdventuresPage.tsx",
+          "line": 39,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!user"
+        },
+        {
+          "file": "frontend/src/pages/RequestAccessPage.tsx",
+          "line": 56,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!user"
+        },
+        {
+          "file": "frontend/src/pages/LandingPage.tsx",
+          "line": 26,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!user"
+        },
+        {
+          "file": "frontend/src/components/earlyAccess/EarlyAccessBanner.tsx",
+          "line": 21,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!user"
+        }
+      ],
+      "notes": "Queried in 5+ components simultaneously - major duplication risk",
+      "risk": "high"
+    },
+    {
+      "endpoint": "/api/stones/wallet",
+      "method": "GET",
+      "queryKey": ["wallet"],
+      "components": [
+        {
+          "file": "frontend/src/components/layout/MobileDrawerNav.tsx",
+          "line": 32,
+          "hook": "useQuery",
+          "staleTime": 10000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null,
+          "notes": "Always mounted - layout component"
+        },
+        {
+          "file": "frontend/src/pages/UnifiedGamePage.tsx",
+          "line": 156,
+          "hook": "useQuery",
+          "staleTime": 10000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null,
+          "notes": "Duplicate if nav already fetched"
+        },
+        {
+          "file": "frontend/src/pages/GamePage.tsx",
+          "line": 189,
+          "hook": "useQuery",
+          "staleTime": 30000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null,
+          "notes": "Duplicate if nav already fetched"
+        }
+      ],
+      "notes": "Fetched in nav (always mounted) and game pages - duplication on navigation",
+      "risk": "high"
+    },
+    {
+      "endpoint": "/api/characters",
+      "method": "GET",
+      "queryKey": ["characters"],
+      "components": [
+        {
+          "file": "frontend/src/pages/CharacterListPage.tsx",
+          "line": 7,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null,
+          "notes": "No world filter"
+        },
+        {
+          "file": "frontend/src/lib/queries.ts",
+          "line": 104,
+          "hook": "useCharactersQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null,
+          "notes": "No world filter"
+        }
+      ],
+      "notes": "Unfiltered list - may be fetched unnecessarily when filtered version exists",
+      "risk": "medium"
+    },
+    {
+      "endpoint": "/api/characters?world={worldId}",
+      "method": "GET",
+      "queryKey": ["characters", "worldId"],
+      "components": [
+        {
+          "file": "frontend/src/pages/CharacterSelectionPage.tsx",
+          "line": 82,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!currentWorldId && !!adventure"
+        }
+      ],
+      "notes": "World-filtered - different key from unfiltered list",
+      "risk": "medium"
+    },
+    {
+      "endpoint": "/api/games/{gameId}",
+      "method": "GET",
+      "queryKey": ["game", "gameId"],
+      "components": [
+        {
+          "file": "frontend/src/pages/GamePage.tsx",
+          "line": 124,
+          "hook": "useQuery",
+          "staleTime": 30000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!gameId && !!isInvited"
+        },
+        {
+          "file": "frontend/src/pages/UnifiedGamePage.tsx",
+          "line": 94,
+          "hook": "useQuery",
+          "staleTime": 30000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!actualGameId"
+        },
+        {
+          "file": "frontend/src/pages/GamePlayPage.tsx",
+          "line": 14,
+          "hook": "useQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!gameId"
+        }
+      ],
+      "notes": "Game data - short staleTime (30s) causes frequent refetches",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/games/{gameId}/turns/latest",
+      "method": "GET",
+      "queryKey": ["turns.latest", "gameId"],
+      "components": [
+        {
+          "file": "frontend/src/hooks/useTurns.ts",
+          "line": 16,
+          "hook": "useLatestTurn",
+          "staleTime": 10000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!gameId",
+          "notes": "Auto-initializes Turn 1 if no turns exist"
+        }
+      ],
+      "notes": "Latest turn for game - short staleTime (10s)",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/games/{gameId}/turns/history",
+      "method": "GET",
+      "queryKey": ["conversation.history", "gameId"],
+      "components": [
+        {
+          "file": "frontend/src/pages/UnifiedGamePage.tsx",
+          "line": 114,
+          "hook": "useQuery",
+          "staleTime": 10000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!actualGameId"
+        }
+      ],
+      "notes": "Conversation history - short staleTime (10s)",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/catalog/stories/{idOrSlug}",
+      "method": "GET",
+      "queryKey": ["story", "idOrSlug"],
+      "components": [
+        {
+          "file": "frontend/src/lib/queries.ts",
+          "line": 63,
+          "hook": "useStoryQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!idOrSlug"
+        }
+      ],
+      "notes": "Single story detail",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/catalog/worlds/{idOrSlug}",
+      "method": "GET",
+      "queryKey": ["world", "idOrSlug"],
+      "components": [
+        {
+          "file": "frontend/src/lib/queries.ts",
+          "line": 73,
+          "hook": "useWorldQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "!!idOrSlug"
+        }
+      ],
+      "notes": "Single world detail",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/catalog/npcs",
+      "method": "GET",
+      "queryKey": ["npcs", "public", "params"],
+      "components": [
+        {
+          "file": "frontend/src/lib/queries.ts",
+          "line": 20,
+          "hook": "useNPCsQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null
+        }
+      ],
+      "notes": "Public NPCs list",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/npcs/my",
+      "method": "GET",
+      "queryKey": ["npcs", "my", "params"],
+      "components": [
+        {
+          "file": "frontend/src/lib/queries.ts",
+          "line": 32,
+          "hook": "useMyNPCsQuery",
+          "staleTime": 0,
+          "gcTime": 0,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": "boolean (default false)",
+          "notes": "User's private NPCs - no caching"
+        }
+      ],
+      "notes": "Private NPCs - no caching (staleTime: 0)",
+      "risk": "low"
+    },
+    {
+      "endpoint": "/api/catalog/rulesets",
+      "method": "GET",
+      "queryKey": ["rulesets", { "q": "string?" }],
+      "components": [
+        {
+          "file": "frontend/src/lib/queries.ts",
+          "line": 47,
+          "hook": "useRulesetsQuery",
+          "staleTime": 300000,
+          "gcTime": 600000,
+          "refetchOnMount": true,
+          "refetchOnWindowFocus": false,
+          "enabled": null
+        }
+      ],
+      "notes": "Rulesets list",
+      "risk": "low"
+    }
+  ],
+  "summary": {
+    "totalEndpoints": 19,
+    "highRiskEndpoints": 5,
+    "mediumRiskEndpoints": 3,
+    "lowRiskEndpoints": 11,
+    "duplicateCallSites": [
+      "access-request-status (5 components)",
+      "wallet (3 components)",
+      "worlds (3 different keys/endpoints)",
+      "characters (2 different keys)",
+      "profile (3 different paths)"
+    ]
+  }
+}
+

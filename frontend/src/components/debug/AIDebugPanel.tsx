@@ -45,7 +45,7 @@ export function AIDebugPanel({ debugInfo, className }: AIDebugPanelProps) {
       setCopied(label);
       setTimeout(() => setCopied(null), 2000);
     } catch (err) {
-      console.error('Failed to copy to clipboard:', err);
+
     }
   };
 
@@ -246,9 +246,4 @@ export function AIDebugPanel({ debugInfo, className }: AIDebugPanelProps) {
     </Card>
   );
 }
-
-
-
-
-
 

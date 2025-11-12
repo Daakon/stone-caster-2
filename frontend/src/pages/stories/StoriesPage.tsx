@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useStoriesQuery } from '@/lib/queries';
+import { useStories } from '@/lib/queries/index';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
 import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
@@ -28,19 +28,14 @@ export default function StoriesPage() {
     tags: []
   });
 
-  // Load stories with current filters
-  const storiesQ: any = useStoriesQuery({
-    q: filters.q || undefined,
-    world: filters.world,
-    kind: filters.kind as any,
+  // Load stories with current filters - using canonical hook
+  const { data: stories = [], isLoading, error } = useStories({
+    worldId: filters.world,
+    filter: filters.q || undefined,
+    kind: filters.kind as 'scenario' | 'adventure' | undefined,
     ruleset: filters.ruleset,
     tags: filters.tags.length > 0 ? filters.tags : undefined,
   });
-  const isLoading = storiesQ.isLoading;
-  const error = storiesQ.error;
-  const stories = Array.isArray(storiesQ?.data)
-    ? storiesQ.data
-    : (storiesQ?.data?.data ?? []);
 
   // Track catalog view on mount
   useEffect(() => {

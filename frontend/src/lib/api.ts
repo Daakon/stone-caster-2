@@ -7,10 +7,24 @@ import { API_BASE } from './apiBase';
 // Use centralized API_BASE from apiBase.ts
 const BASE = API_BASE;
 
+export type ApiResponse<T> = 
+  | {
+      ok: true;
+      data: T;
+      meta?: {
+        etag?: string;
+        lastModified?: string;
+      };
+    }
+  | {
+      ok: false;
+      error: AppError;
+    };
+
 export async function apiFetch<T = unknown>(
   path: string,
   init: RequestInit = {},
-): Promise<{ ok: true; data: T } | { ok: false; error: AppError }> {
+): Promise<ApiResponse<T>> {
   const url = `${BASE}${path.startsWith('/') ? path : `/${path}`}`;
   const headers = new Headers(init.headers || {});
 
@@ -28,7 +42,6 @@ export async function apiFetch<T = unknown>(
       headers.set('Authorization', `Bearer ${token}`);
     }
   } catch (error) {
-    console.warn('Failed to get auth token:', error);
   }
 
   // Attach guest cookie for guest users
@@ -40,6 +53,11 @@ export async function apiFetch<T = unknown>(
   try {
     const resp = await fetch(url, { ...init, headers });
     const text = await resp.text();
+    
+    // Extract cache headers (PR11-A)
+    const etag = resp.headers.get('etag');
+    const lastModified = resp.headers.get('last-modified');
+    const meta = etag || lastModified ? { etag: etag || undefined, lastModified: lastModified || undefined } : undefined;
 
     let json: any;
     try {
@@ -132,15 +150,18 @@ export async function apiFetch<T = unknown>(
       
       return { 
         ok: true, 
-        data: normalizedData as T
+        data: normalizedData as T,
+        meta,
       };
     }
     
     // For other paginated responses (have count/hasMore), return the full response object
     if (json && typeof json === 'object' && ('count' in json || 'hasMore' in json)) {
-      return { ok: true, data: json as T };
+      // Success response with cache metadata (PR11-A)
+      return { ok: true, data: json as T, meta };
     }
-    return { ok: true, data: (json?.data ?? json ?? null) as T };
+    // Success response with cache metadata (PR11-A)
+    return { ok: true, data: (json?.data ?? json ?? null) as T, meta };
   } catch (e: any) {
     const error = toAppError(0, e?.message || 'Network error', 'network_error');
     return { ok: false, error };
@@ -209,7 +230,6 @@ export async function getGame(
 ): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
   return apiGet(`/api/games/${gameId}`);
 }
-
 
 // List current user's adventures (active games)
 export async function getMyAdventures(
@@ -624,8 +644,11 @@ export interface ListNPCsParams extends ListParamsBase { world?: ID }
 // Worlds
 export const listWorlds = (p?: ListParamsBase) => httpGet<World[]>('/api/catalog/worlds', p);
 
-// NPCs
+// NPCs - Public NPCs only (cached)
 export const listNPCs = (p?: ListNPCsParams) => httpGet<NPC[]>('/api/catalog/npcs', p);
+
+// User's private NPCs (requires authentication, no caching)
+export const listMyNPCs = (p?: ListNPCsParams) => apiGet<{ items: NPC[]; total: number; limit: number; offset: number }>('/api/npcs/my', p);
 
 // Rulesets
 export const listRulesets = (p?: ListParamsBase) => httpGet<Ruleset[]>('/api/catalog/rulesets', p);
@@ -671,4 +694,12 @@ export const createSession = (
 export const createGuestToken = () =>
   httpPost<{ token: string }>('/auth/guest', {});
 
+// API client object for convenience (matches usage in admin components)
+export const api = {
+  get: <T = unknown>(url: string) => apiGet<T>(url),
+  post: <T = unknown>(url: string, body?: unknown) => apiPost<T>(url, body),
+  put: <T = unknown>(url: string, body?: unknown) => apiPut<T>(url, body),
+  patch: <T = unknown>(url: string, body?: unknown) => apiPatch<T>(url, body),
+  delete: <T = unknown>(url: string) => apiDelete<T>(url),
+};
 

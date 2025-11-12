@@ -9,6 +9,25 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type RedisPipelineLike = {
+  incr: (key: string) => RedisPipelineLike;
+  expire: (key: string, ttl: number) => RedisPipelineLike;
+  exec: () => Promise<Array<[unknown, number]>>;
+};
+
+type RedisClientLike = {
+  get?: (key: string) => Promise<string | null>;
+  set?: (key: string, value: string, mode?: string, duration?: number) => Promise<unknown>;
+  incr?: (key: string) => Promise<number>;
+  expire?: (key: string, ttl: number) => Promise<unknown>;
+  del?: (key: string) => Promise<unknown>;
+  pipeline?: () => RedisPipelineLike;
+};
+
+type SupabaseClientLike = {
+  from: (table: string) => any;
+};
+
 // Rate limit configuration schemas
 const RateLimitConfigSchema = z.object({
   scope: z.enum(['user', 'session', 'device', 'ip', 'global']),
@@ -312,3 +331,155 @@ export class RateLimiter {
 }
 
 export const rateLimiter = RateLimiter.getInstance();
+
+/**
+ * Thin service wrapper used by Phase 25 Ops tests.
+ * Provides Redis-backed counters with Supabase persistence shims.
+ */
+export class RateLimitService {
+  private fallbackCounters = new Map<string, { count: number; expiresAt: number }>();
+
+  constructor(
+    private readonly supabaseClient: SupabaseClientLike = supabase,
+    private readonly redisClient: RedisClientLike | null = null
+  ) {}
+
+  private redisKey(scope: string, key: string) {
+    return `rate_limit:${scope}:${key}`;
+  }
+
+  private async getRedisCount(redisKey: string, windowSeconds: number) {
+    if (!this.redisClient?.get || !this.redisClient?.incr || !this.redisClient?.expire) {
+      const entry = this.fallbackCounters.get(redisKey);
+      const now = Date.now();
+      if (!entry || entry.expiresAt < now) {
+        this.fallbackCounters.set(redisKey, { count: 1, expiresAt: now + windowSeconds * 1000 });
+        return 1;
+      }
+      entry.count += 1;
+      return entry.count;
+    }
+
+    const currentRaw = await this.redisClient.get(redisKey);
+    const currentCount = currentRaw ? parseInt(currentRaw, 10) : 0;
+    const nextCount = currentCount + 1;
+    await this.redisClient.incr(redisKey);
+    await this.redisClient.expire(redisKey, windowSeconds);
+    return nextCount;
+  }
+
+  async checkRateLimit(
+    scope: string,
+    key: string,
+    maxRequests: number,
+    windowSeconds: number
+  ): Promise<{ success: boolean; allowed: boolean; remaining: number; reset_time: number; error?: string }> {
+    try {
+      const redisKey = this.redisKey(scope, key);
+      const currentCount = await this.getRedisCount(redisKey, windowSeconds);
+      const allowed = currentCount <= maxRequests;
+      return {
+        success: true,
+        allowed,
+        remaining: Math.max(0, maxRequests - currentCount),
+        reset_time: Date.now() + windowSeconds * 1000,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        allowed: false,
+        remaining: 0,
+        reset_time: Date.now(),
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  async checkSlidingWindow(
+    scope: string,
+    key: string,
+    maxRequests: number,
+    windowSeconds: number
+  ): Promise<{ success: boolean; allowed: boolean; remaining: number }> {
+    try {
+      if (!this.redisClient?.pipeline) {
+        return this.checkRateLimit(scope, key, maxRequests, windowSeconds);
+      }
+
+      const pipeline = this.redisClient.pipeline();
+      pipeline.incr(this.redisKey(scope, key));
+      pipeline.expire(this.redisKey(scope, key), windowSeconds);
+      const results = await pipeline.exec();
+      const currentCount = results?.[0]?.[1] ?? 0;
+      const allowed = currentCount <= maxRequests;
+      return {
+        success: true,
+        allowed,
+        remaining: Math.max(0, maxRequests - currentCount),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        allowed: false,
+        remaining: 0,
+      };
+    }
+  }
+
+  async createRateLimit(config: Record<string, any>): Promise<{ success: boolean; error?: string }> {
+    try {
+      RateLimitConfigSchema.parse(config);
+      const { error } = await this.supabaseClient
+        .from('awf_rate_limits')
+        .insert({
+          ...config,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      if (error) {
+        throw new Error(error.message || 'Failed to create rate limit');
+      }
+      return { success: true };
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return { success: false, error: 'Invalid configuration' };
+      }
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  async getRateLimitStatus(): Promise<{
+    success: boolean;
+    data?: Awaited<ReturnType<RateLimiter['getRateLimitStats']>>;
+    error?: string;
+  }> {
+    try {
+      const query = this.supabaseClient.from('awf_rate_limits').select('*');
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) {
+        throw new Error(error.message || 'Failed to fetch rate limit status');
+      }
+
+      const by_scope: Record<string, number> = {};
+      (data || []).forEach((record: any) => {
+        by_scope[record.scope] = (by_scope[record.scope] || 0) + 1;
+      });
+
+      return {
+        success: true,
+        data: {
+          total_limits: data?.length || 0,
+          by_scope,
+          top_limited: (data || []).map((record: any) => ({
+            scope: record.scope,
+            key: record.key,
+            current_count: record.current_count ?? 0,
+            max_requests: record.max_requests ?? 0,
+          })),
+        },
+      };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+}

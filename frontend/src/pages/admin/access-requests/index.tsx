@@ -64,7 +64,7 @@ function AccessRequestsAdmin() {
         status: statusFilter === 'all' ? undefined : statusFilter,
         q: searchQuery || undefined,
         page,
-        pageSize: 50,
+        limit: 50, // Changed from pageSize to limit
       }),
   });
 

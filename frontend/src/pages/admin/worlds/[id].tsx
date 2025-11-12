@@ -13,13 +13,14 @@ import { toast } from 'sonner';
 import { worldsService, type World } from '@/services/admin.worlds';
 import { WorldForm } from '@/admin/components/WorldForm';
 import { useAppRoles } from '@/admin/routeGuard';
+import { ExtrasForm } from '@/components/admin/ExtrasForm';
 
 export default function WorldDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isCreator, isModerator, isAdmin, loading: rolesLoading } = useAppRoles();
   
-  const [world, setWorld] = useState<World | null>(null);
+  const [world, setWorld] = useState<World & { extras?: Record<string, unknown> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

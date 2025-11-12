@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,41 +15,39 @@ export default function NPCDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isModerator, isAdmin } = useAppRoles();
-  const [npc, setNPC] = useState<NPC | null>(null);
-  const [world, setWorld] = useState<World | null>(null);
-  const [loading, setLoading] = useState(true);
 
+  // Use React Query for NPC data with caching
+  const { data: npc, isLoading: loading, error } = useQuery({
+    queryKey: ['admin-npc', id],
+    queryFn: async () => {
+      if (!id) throw new Error('NPC ID is required');
+      return await npcsService.getNPC(id);
+    },
+    enabled: !!id,
+    staleTime: 30 * 1000, // 30 seconds - cache for short time
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Use React Query for world data with caching
+  const { data: world } = useQuery({
+    queryKey: ['admin-world', npc?.world_id],
+    queryFn: async () => {
+      if (!npc?.world_id) return null;
+      return await worldsService.getWorld(npc.world_id);
+    },
+    enabled: !!npc?.world_id,
+    staleTime: 5 * 60 * 1000, // 5 minutes - worlds don't change often
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  // Navigate away on error
   useEffect(() => {
-    if (id) {
-      loadNPC();
-    }
-  }, [id]);
-
-  const loadNPC = async () => {
-    if (!id) return;
-
-    try {
-      setLoading(true);
-      const npc = await npcsService.getNPC(id);
-      setNPC(npc);
-      
-      // Load world if world_id exists
-      if (npc.world_id) {
-        try {
-          const worldResponse = await worldsService.getWorld(npc.world_id);
-          setWorld(worldResponse);
-        } catch (worldError) {
-          console.error('Failed to load world:', worldError);
-        }
-      }
-    } catch (error) {
+    if (error) {
       toast.error('Failed to load NPC');
       console.error('Error loading NPC:', error);
       navigate('/admin/npcs');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [error, navigate]);
 
   const handleDelete = async () => {
     if (!npc) return;
@@ -181,7 +180,13 @@ export default function NPCDetailPage() {
             <div>
               <Label className="text-sm font-medium">AI Prompt</Label>
               <div className="mt-1 p-3 bg-muted rounded-md">
-                <p className="text-sm whitespace-pre-wrap">{npc.prompt}</p>
+                {typeof npc.prompt === 'string' ? (
+                  <p className="text-sm whitespace-pre-wrap">{npc.prompt}</p>
+                ) : (
+                  <pre className="text-sm whitespace-pre-wrap overflow-auto">
+                    {JSON.stringify(npc.prompt, null, 2)}
+                  </pre>
+                )}
               </div>
             </div>
           )}

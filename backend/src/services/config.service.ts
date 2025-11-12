@@ -64,8 +64,10 @@ interface EnvConfig {
   anthropicApiKey: string | null;
   stripeSecretKey: string;
   stripeWebhookSecret: string;
-  frontendUrl: string;
-  apiUrl: string;
+  frontendUrl: string; // Legacy alias for webBaseUrl
+  apiUrl: string; // Legacy alias for apiBaseUrl
+  webBaseUrl: string; // New: WEB_BASE_URL
+  apiBaseUrl: string; // New: API_BASE_URL
   awfBundleOn: boolean;
   debugRoutesEnabled: boolean; // DEBUG_ROUTES_ENABLED
   debugRoutesToken: string | null; // DEBUG_ROUTES_TOKEN
@@ -263,6 +265,27 @@ class ConfigServiceImpl implements ConfigService {
       throw new Error(`Invalid PORT value: ${source.PORT}`);
     }
 
+    // Load new WEB_BASE_URL and API_BASE_URL (preferred)
+    // Fallback to legacy FRONTEND_URL and API_URL for backward compatibility
+    const webBaseUrl = source.WEB_BASE_URL || source.FRONTEND_URL || (source.NODE_ENV === 'production' ? '' : 'http://localhost:5173');
+    const apiBaseUrl = source.API_BASE_URL || source.API_URL || (source.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
+
+    // Validate production URLs
+    if (source.NODE_ENV === 'production') {
+      if (!webBaseUrl || webBaseUrl.includes('localhost')) {
+        throw new Error('WEB_BASE_URL (or FRONTEND_URL) must be set and must not be localhost in production');
+      }
+      if (!apiBaseUrl || apiBaseUrl.includes('localhost')) {
+        throw new Error('API_BASE_URL (or API_URL) must be set and must not be localhost in production');
+      }
+      if (!webBaseUrl.startsWith('https://')) {
+        throw new Error('WEB_BASE_URL (or FRONTEND_URL) must use https:// in production');
+      }
+      if (!apiBaseUrl.startsWith('https://')) {
+        throw new Error('API_BASE_URL (or API_URL) must use https:// in production');
+      }
+    }
+
     return {
       supabaseUrl,
       supabaseAnonKey,
@@ -277,8 +300,10 @@ class ConfigServiceImpl implements ConfigService {
       anthropicApiKey: source.ANTHROPIC_API_KEY ?? null,
       stripeSecretKey: source.STRIPE_SECRET_KEY || 'sk_test_local_dev_key',
       stripeWebhookSecret: source.STRIPE_WEBHOOK_SECRET || 'whsec_local_dev_secret',
-      frontendUrl: source.FRONTEND_URL ?? 'http://localhost:5173',
-      apiUrl: source.API_URL ?? 'http://localhost:3000',
+      frontendUrl: webBaseUrl, // Legacy alias
+      apiUrl: apiBaseUrl, // Legacy alias
+      webBaseUrl,
+      apiBaseUrl,
       awfBundleOn: source.AWF_BUNDLE_ON === 'true' || source.AWF_BUNDLE_ON === '1',
       debugRoutesEnabled,
       debugRoutesToken,

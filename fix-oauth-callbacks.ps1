@@ -11,13 +11,20 @@ flyctl secrets set API_URL="https://api.stonecaster.ai" -a stonecaster-api
 Write-Host "✅ OAuth callback URLs set successfully!" -ForegroundColor Green
 Write-Host ""
 Write-Host "📋 Next steps:" -ForegroundColor Cyan
-Write-Host "1. Update OAuth provider configurations:" -ForegroundColor White
+Write-Host "1. Update OAuth provider configurations (Google Cloud Console, GitHub, Discord):" -ForegroundColor White
 Write-Host "   - Google: https://api.stonecaster.ai/api/auth/oauth/google/callback" -ForegroundColor Gray
 Write-Host "   - GitHub: https://api.stonecaster.ai/api/auth/oauth/github/callback" -ForegroundColor Gray
 Write-Host "   - Discord: https://api.stonecaster.ai/api/auth/oauth/discord/callback" -ForegroundColor Gray
 Write-Host ""
 Write-Host "2. Update Supabase OAuth configuration:" -ForegroundColor White
-Write-Host "   - Set redirect URL to: https://api.stonecaster.ai/api/auth/oauth/{provider}/callback" -ForegroundColor Gray
+Write-Host "   - Go to: Authentication > URL Configuration" -ForegroundColor Gray
+Write-Host "   - Add redirect URL: https://api.stonecaster.ai/api/auth/oauth/google/callback" -ForegroundColor Gray
+Write-Host "   - Add redirect URL: https://api.stonecaster.ai/api/auth/oauth/github/callback" -ForegroundColor Gray
+Write-Host "   - Add redirect URL: https://api.stonecaster.ai/api/auth/oauth/discord/callback" -ForegroundColor Gray
+Write-Host ""
+Write-Host "   OR configure in Supabase Dashboard > Authentication > URL Configuration:" -ForegroundColor Gray
+Write-Host "   - Site URL: https://stonecaster.ai" -ForegroundColor Gray
+Write-Host "   - Redirect URLs: https://api.stonecaster.ai/api/auth/oauth/*/callback" -ForegroundColor Gray
 Write-Host ""
 Write-Host "3. Redeploy the backend to pick up the new environment variables:" -ForegroundColor White
 Write-Host "   flyctl deploy -a stonecaster-api" -ForegroundColor Gray

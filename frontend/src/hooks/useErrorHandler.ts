@@ -12,8 +12,6 @@ export function useErrorHandler() {
   });
 
   const handleError = useCallback((error: Error) => {
-    console.error('Global error handler caught error:', error);
-    
     setErrorState({
       error,
       isOpen: true
@@ -46,7 +44,4 @@ export function useErrorHandler() {
     retry
   };
 }
-
-
-
 

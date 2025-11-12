@@ -47,7 +47,7 @@ export function RefIdPicker({
       const item = await getRefById(scope, id);
       setSelectedItem(item);
     } catch (error) {
-      console.error('Failed to load selected item:', error);
+
       setSelectedItem(null);
     }
   };
@@ -63,7 +63,7 @@ export function RefIdPicker({
       const results = await searchRefs(scope, query, 10);
       setSearchResults(results);
     } catch (error) {
-      console.error('Failed to search references:', error);
+
       toast.error('Failed to search references');
       setSearchResults([]);
     } finally {

@@ -16,7 +16,8 @@ import { DebugDrawer } from '../components/debug/DebugDrawer';
 import { debugStore } from '../lib/debugStore';
 import { Breadcrumbs } from '../components/layout/Breadcrumbs';
 import { Gem, Settings, Save } from 'lucide-react';
-import { submitTurn, sendTurn, getGame, getStoryById, getCharacter, getWorldById, getWallet, getGameTurns, autoInitializeGame } from '../lib/api';
+import { submitTurn, sendTurn, getGame, getStoryById, getCharacter, getWorldById, getGameTurns, autoInitializeGame } from '../lib/api';
+import { useWalletContext } from '../providers/WalletProvider';
 import { generateIdempotencyKey, generateOptionId } from '../utils/idempotency';
 import { generateIdempotencyKeyV4 } from '../lib/idempotency';
 import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
@@ -184,19 +185,9 @@ export default function GamePage() {
     retry: 1,
   });
 
-  // Load wallet data
-  const { data: walletData, isLoading: isLoadingWallet } = useQuery({
-    queryKey: ['wallet'],
-    queryFn: async () => {
-      const result = await getWallet();
-      if (!result.ok) {
-        throw new Error(result.error.message || 'Failed to load wallet');
-      }
-      return result.data;
-    },
-    staleTime: 30 * 1000, // 30 seconds cache for wallet data
-    retry: 1,
-  });
+  // Load wallet data - use WalletProvider context instead of duplicate query
+  // Wallet is already fetched in WalletProvider at layout level
+  const { wallet: walletData, isLoading: isLoadingWallet } = useWalletContext();
 
   // Phase 5: Load game turns with pagination (using new API)
   // Note: Keeping gameTurns query for legacy compatibility, but we'll use TurnsList component
@@ -630,8 +621,30 @@ export default function GamePage() {
     );
   }
 
+  const globalErrorMessage = turnError || gameErrorState;
+
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      {globalErrorMessage && (
+        <div className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="max-w-3xl w-full pointer-events-auto">
+            <div className="bg-red-600 text-white px-4 py-3 rounded-md shadow-lg flex items-center justify-between">
+              <span className="text-sm font-medium">{globalErrorMessage}</span>
+              <button
+                type="button"
+                className="text-white/80 hover:text-white text-xs ml-4"
+                onClick={() => {
+                  setTurnError(null);
+                  setGameErrorState(null);
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="min-h-screen bg-background">
       {/* Game Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Breadcrumbs />
@@ -825,5 +838,6 @@ export default function GamePage() {
       
       {/* Prompt Approval Modal removed - not needed with new backend system */}
     </div>
+    </>
   );
 }

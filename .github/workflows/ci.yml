@@ -31,6 +31,24 @@ jobs:
     - name: Run unit tests
       run: npm test
     
+    - name: Template lint gate
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        if [ -n "$DATABASE_URL" ]; then
+          cd backend && npm run test:template-lint || (echo "❌ Template lint failed" && exit 1)
+        else
+          echo "⚠️  Template lint skipped (no DATABASE_URL)"
+        fi
+    
+    - name: Linearized order test
+      run: |
+        cd backend && npm test -- linearized-prompt.test.ts || (echo "❌ Linearized order test failed" && exit 1)
+    
+    - name: RBAC and rate limit tests
+      run: |
+        cd backend && npm test -- rbac.test.ts rate-limit.test.ts || (echo "❌ RBAC/rate limit tests failed" && exit 1)
+    
     - name: Build
       run: npm run build
     

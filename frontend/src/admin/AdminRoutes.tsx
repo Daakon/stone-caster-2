@@ -10,6 +10,7 @@ import { Guarded } from './routeGuard';
 import AdminHome from '@/pages/admin/index';
 import EntryPointsAdmin from '@/pages/admin/entry-points/index';
 import EntryPointEditPage from '@/pages/admin/entry-points/id';
+import EntryWizardPage from '@/pages/admin/entry-points/wizard/[id]';
 import NPCsAdmin from '@/pages/admin/npcs/index';
 import CreateNPCPage from '@/pages/admin/npcs/new';
 import NPCDetailPage from '@/pages/admin/npcs/[id]';
@@ -27,6 +28,10 @@ import ReportDetailPage from '@/pages/admin/reports/id';
 import AnalyticsAdmin from '@/pages/admin/analytics/index';
 import RolesAdmin from '@/pages/admin/roles/index';
 import AccessRequestsAdmin from '@/pages/admin/access-requests/index';
+import TemplatesManager from '@/pages/admin/TemplatesManager';
+import PublishingAdmin from '@/pages/admin/publishing/index';
+import PublishingAudit from '@/pages/admin/publishing/audit';
+import PublishingWizard from '@/pages/publishing/wizard';
 
 export function AdminRoutes() {
   return (
@@ -38,6 +43,7 @@ export function AdminRoutes() {
       <Route path="/admin" element={<AdminHome />} />
       <Route path="/entry-points" element={<EntryPointsAdmin />} />
       <Route path="/entry-points/:id" element={<EntryPointEditPage />} />
+      <Route path="/entry-points/wizard/:id" element={<EntryWizardPage />} />
       <Route path="/npcs" element={<NPCsAdmin />} />
       <Route path="/npcs/new" element={<CreateNPCPage />} />
       <Route path="/npcs/:id" element={<NPCDetailPage />} />
@@ -153,7 +159,45 @@ export function AdminRoutes() {
           <Guarded allow="admin">
             <AccessRequestsAdmin />
           </Guarded>
-        } 
+        }
+      />
+      
+      {/* Template management routes */}
+      <Route 
+        path="/templates" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <TemplatesManager />
+          </Guarded>
+        }
+      />
+      
+      {/* Publishing routes (Phase 0/1) */}
+      <Route 
+        path="/publishing" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <PublishingAdmin />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/publishing/audit" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <PublishingAudit />
+          </Guarded>
+        }
+      />
+      
+      {/* Publishing wizard (Phase 7) */}
+      <Route 
+        path="/publishing/wizard" 
+        element={
+          <Guarded allow={['creator', 'moderator', 'admin']}>
+            <PublishingWizard />
+          </Guarded>
+        }
       />
       
       {/* Catch-all redirect */}

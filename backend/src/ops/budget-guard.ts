@@ -9,6 +9,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type SupabaseClientLike = {
+  from: (table: string) => any;
+};
+
 // Budget configuration schemas
 const BudgetConfigSchema = z.object({
   monthly_budget_usd: z.number().min(0),
@@ -501,3 +505,105 @@ export class BudgetGuard {
 }
 
 export const budgetGuard = BudgetGuard.getInstance();
+
+type BudgetSnapshot = {
+  current_month: string;
+  budget_usd: number;
+  spent_usd: number;
+  remaining_usd: number;
+  spend_ratio: number;
+  status: 'healthy' | 'warning' | 'critical';
+};
+
+export class BudgetGuardService {
+  constructor(
+    private readonly supabaseClient: SupabaseClientLike = supabase,
+    private readonly redisClient: any = null
+  ) {}
+
+  async checkBudgetStatus(
+    snapshot: BudgetSnapshot
+  ): Promise<{ success: boolean; data: BudgetSnapshot & { alerts_triggered: string[]; hard_stop: boolean }; error?: string }> {
+    try {
+      const alerts: string[] = [];
+      let hard_stop = false;
+
+      if (snapshot.spend_ratio >= 1) {
+        alerts.push('budget_exceeded');
+        hard_stop = true;
+      } else if (snapshot.spend_ratio >= 0.95) {
+        alerts.push('budget_critical');
+      } else if (snapshot.spend_ratio >= 0.8) {
+        alerts.push('budget_warning');
+      }
+
+      if (alerts.length && this.supabaseClient?.from) {
+        await this.supabaseClient.from('awf_budget_alerts').insert({
+          month_year: snapshot.current_month,
+          alerts_triggered: alerts,
+          status: snapshot.status,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      return {
+        success: true,
+        data: {
+          ...snapshot,
+          alerts_triggered: alerts,
+          hard_stop,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  async planModelDowngrade(
+    snapshot: BudgetSnapshot
+  ): Promise<{ success: boolean; data: { downgrade_planned: boolean; target_model: string; estimated_savings: number }; error?: string }> {
+    try {
+      const downgrade_planned = snapshot.spend_ratio >= 0.8;
+      const estimated_savings = downgrade_planned
+        ? Math.max(0, snapshot.spent_usd - snapshot.budget_usd * 0.75)
+        : 0;
+
+      return {
+        success: true,
+        data: {
+          downgrade_planned,
+          target_model: 'gpt-4o-mini',
+          estimated_savings,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  async getBudgetStatus(): Promise<{ success: boolean; data?: BudgetSnapshot; error?: string }> {
+    try {
+      const query = this.supabaseClient.from('awf_budget_tracking').select('*');
+      const { data, error } = await query.order('updated_at', { ascending: false });
+      if (error) {
+        throw new Error(error.message || 'Failed to fetch budget status');
+      }
+
+      if (!data || data.length === 0) {
+        const fallback: BudgetSnapshot = {
+          current_month: new Date().toISOString().slice(0, 7),
+          budget_usd: 0,
+          spent_usd: 0,
+          remaining_usd: 0,
+          spend_ratio: 0,
+          status: 'healthy',
+        };
+        return { success: true, data: fallback };
+      }
+
+      return { success: true, data: data[0] };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+}

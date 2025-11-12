@@ -9,6 +9,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type RedisClientLike = {
+  get?: (key: string) => Promise<string | null>;
+  set?: (key: string, value: string, mode?: string, duration?: number) => Promise<unknown>;
+  incr?: (key: string) => Promise<number>;
+  expire?: (key: string, ttl: number) => Promise<unknown>;
+  del?: (key: string) => Promise<unknown>;
+};
+
+type SupabaseClientLike = {
+  from: (table: string) => any;
+};
+
 // Quota configuration schemas
 const QuotaConfigSchema = z.object({
   user_hash: z.string().optional(),
@@ -359,3 +371,137 @@ export class QuotaManager {
 }
 
 export const quotaManager = QuotaManager.getInstance();
+
+export class QuotaService {
+  private fallbackCounters = new Map<string, { count: number; expiresAt: number }>();
+
+  constructor(
+    private readonly supabaseClient: SupabaseClientLike = supabase,
+    private readonly redisClient: RedisClientLike | null = null
+  ) {}
+
+  private quotaKey(userHash: string, quotaType: string) {
+    return `quota:${userHash}:${quotaType}`;
+  }
+
+  private async trackUsage(key: string, windowSeconds: number) {
+    if (!this.redisClient?.get || !this.redisClient?.incr || !this.redisClient?.expire) {
+      const entry = this.fallbackCounters.get(key);
+      const now = Date.now();
+      if (!entry || entry.expiresAt < now) {
+        this.fallbackCounters.set(key, { count: 1, expiresAt: now + windowSeconds * 1000 });
+        return 1;
+      }
+      entry.count += 1;
+      return entry.count;
+    }
+
+    const currentValue = await this.redisClient.get(key);
+    const nextValue = (currentValue ? parseInt(currentValue, 10) : 0) + 1;
+    await this.redisClient.incr(key);
+    await this.redisClient.expire(key, windowSeconds);
+    return nextValue;
+  }
+
+  async checkQuota(
+    userHash: string,
+    quotaType: 'turns' | 'tools' | 'bytes',
+    limit: number
+  ): Promise<{ success: boolean; allowed: boolean; remaining: number; quota_type: string; error?: string }> {
+    try {
+      const key = this.quotaKey(userHash, quotaType);
+      const current = await this.trackUsage(key, 24 * 60 * 60);
+      const allowed = current <= limit;
+      return {
+        success: true,
+        allowed,
+        remaining: Math.max(0, limit - current),
+        quota_type: quotaType,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        allowed: false,
+        remaining: 0,
+        quota_type: quotaType,
+        error: (error as Error).message,
+      };
+    }
+  }
+
+  async createQuota(config: Record<string, any>): Promise<{ success: boolean; error?: string }> {
+    try {
+      QuotaConfigSchema.parse(config);
+      const { error } = await this.supabaseClient
+        .from('awf_quotas')
+        .insert({ ...config, created_at: new Date().toISOString() });
+      if (error) {
+        throw new Error(error.message || 'Failed to create quota');
+      }
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  async getQuotaStatus(): Promise<{
+    success: boolean;
+    data?: {
+      total_quotas: number;
+      by_type: {
+        turns: { total_cap: number };
+      };
+    };
+    error?: string;
+  }> {
+    try {
+      const query = this.supabaseClient.from('awf_quotas').select('*');
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) {
+        throw new Error(error.message || 'Failed to load quotas');
+      }
+
+      const turnsCap = (data || []).reduce((sum: number, record: any) => sum + (record.daily_turn_cap || 0), 0);
+      return {
+        success: true,
+        data: {
+          total_quotas: data?.length || 0,
+          by_type: {
+            turns: { total_cap: turnsCap },
+          },
+        },
+      };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  async refreshQuota(userHash: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const keys = ['turns', 'tools', 'bytes'].map(type => this.quotaKey(userHash, type));
+      for (const key of keys) {
+        if (this.redisClient?.del) {
+          await this.redisClient.del(key);
+        } else {
+          this.fallbackCounters.delete(key);
+        }
+      }
+
+      if (this.supabaseClient?.from) {
+        await this.supabaseClient
+          .from('awf_quotas')
+          .update({
+            current_turns: 0,
+            current_tools: 0,
+            current_bytes: 0,
+            resets_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          })
+          .eq('user_hash', userHash);
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+}

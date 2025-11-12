@@ -62,7 +62,6 @@ export default function AwfAdventureStartsAdmin() {
         toast.error(adventuresResponse.error || 'Failed to load adventures');
       }
     } catch (error) {
-      console.error('Error loading data:', error);
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
@@ -146,7 +145,6 @@ export default function AwfAdventureStartsAdmin() {
         toast.error(response.error || 'Failed to save adventure start');
       }
     } catch (error) {
-      console.error('Error saving adventure start:', error);
       toast.error('Failed to save adventure start');
     }
   };

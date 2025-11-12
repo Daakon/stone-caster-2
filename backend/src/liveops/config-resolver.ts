@@ -2,7 +2,7 @@
 // Deterministic config resolver with scope precedence and memoization
 
 import { createClient } from '@supabase/supabase-js';
-import { LiveOpsConfig, LiveOpsConfigSchema, mergeLiveOpsConfigs, createDefaultLiveOpsConfig } from './levers-schema';
+import { LiveOpsConfig, LiveOpsConfigSchema, mergeLiveOpsConfigs, createDefaultLiveOpsConfig, checkConfigBounds } from './levers-schema';
 
 export interface ResolverContext {
   sessionId: string;
@@ -55,6 +55,10 @@ export class LiveOpsConfigResolver {
    * Deterministic resolution with scope precedence: global -> world -> adventure -> experiment -> session
    */
   async resolveEffectiveConfig(context: ResolverContext): Promise<ResolvedConfig> {
+    if (!context.sessionId) {
+      throw new Error('Session ID is required to resolve LiveOps configuration');
+    }
+    
     const cacheKey = this.generateCacheKey(context);
     
     // Check cache first
@@ -333,42 +337,8 @@ export class LiveOpsConfigResolver {
    * Validate config bounds before applying
    */
   validateConfigBounds(config: Partial<LiveOpsConfig>): { valid: boolean; violations: string[] } {
-    const violations: string[] = [];
-    
-    // Check token bounds
-    if (config.AWF_MAX_INPUT_TOKENS !== undefined) {
-      if (config.AWF_MAX_INPUT_TOKENS < 1000 || config.AWF_MAX_INPUT_TOKENS > 12000) {
-        violations.push('AWF_MAX_INPUT_TOKENS must be between 1000 and 12000');
-      }
-    }
-    
-    if (config.AWF_MAX_OUTPUT_TOKENS !== undefined) {
-      if (config.AWF_MAX_OUTPUT_TOKENS < 500 || config.AWF_MAX_OUTPUT_TOKENS > 8000) {
-        violations.push('AWF_MAX_OUTPUT_TOKENS must be between 500 and 8000');
-      }
-    }
-    
-    // Check percentage bounds
-    const percentageFields = [
-      'AWF_INPUT_TOKEN_MULTIPLIER',
-      'AWF_OUTPUT_TOKEN_MULTIPLIER',
-      'QUEST_PACING_TEMPO_MULTIPLIER',
-      'SOFT_LOCK_HINT_FREQUENCY',
-      'RESOURCE_REGEN_MULTIPLIER',
-      'RESOURCE_DECAY_MULTIPLIER'
-    ];
-    
-    for (const field of percentageFields) {
-      const value = (config as any)[field];
-      if (value !== undefined && (value < 0 || value > 1)) {
-        violations.push(`${field} must be between 0 and 1 (percentage)`);
-      }
-    }
-    
-    return {
-      valid: violations.length === 0,
-      violations
-    };
+    const merged = { ...createDefaultLiveOpsConfig(), ...config };
+    return checkConfigBounds(merged);
   }
 }
 

@@ -58,7 +58,6 @@ export const useAuthStore = create<AuthStoreState>((set) => {
 
     initialize: async () => {
       try {
-        console.log('[AuthStore] Initializing auth store');
 
         if (!unsubscribe) {
           unsubscribe = authService.subscribe((newUser) => {

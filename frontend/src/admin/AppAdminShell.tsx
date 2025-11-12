@@ -9,41 +9,29 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { LogOut, Shield } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
-import { AppRolesProvider, useAppRoles } from './routeGuard';
+import { useAppRoles } from './routeGuard';
 import { AdminNav } from './components/AdminNav';
 import { RoleBadge } from './components/RoleBadge';
 
-function AdminShellContent() {
+// AppAdminShell is now wrapped by AdminRouteGuard which verifies roles first
+// This component assumes roles are already verified
+export function AppAdminShell() {
   const navigate = useNavigate();
   const { signOut } = useAuthStore();
-  const { loading, error } = useAppRoles();
+  const { loading } = useAppRoles(); // Roles are already verified by AdminRouteGuard
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
-
+  
+  // Show loading if roles are still loading (should be rare since AdminRouteGuard verifies first)
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-sm text-muted-foreground">Loading admin permissions...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Shield className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-lg font-semibold mb-2">Permission Error</h2>
-          <p className="text-sm text-muted-foreground mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>
-            Retry
-          </Button>
+          <p className="text-sm text-muted-foreground">Loading admin interface...</p>
         </div>
       </div>
     );
@@ -102,10 +90,3 @@ function AdminShellContent() {
   );
 }
 
-export function AppAdminShell() {
-  return (
-    <AppRolesProvider>
-      <AdminShellContent />
-    </AppRolesProvider>
-  );
-}
