@@ -2668,6 +2668,10 @@ router.post('/worlds', authenticateToken, requireAdminRole, async (req, res) => 
       });
     }
 
+    // Phase 8: Refinement - Admins bypass quota checks
+    // Regular users should use /api/worlds endpoint which enforces quotas
+    // Admins can create unlimited content for internal use
+
     // Generate UUIDs
     const worldId = crypto.randomUUID();
     const uuidId = crypto.randomUUID();
@@ -2690,6 +2694,7 @@ router.post('/worlds', authenticateToken, requireAdminRole, async (req, res) => 
       visibility: visibility,
       review_state: 'draft',
       owner_user_id: userId,
+      publish_status: 'draft', // Phase 8: Set initial publish status
     };
 
     const { data: result, error } = await supabase
@@ -2826,9 +2831,122 @@ router.get('/worlds/:id', authenticateToken, requireAdminRole, async (req, res) 
       throw error;
     }
 
+    // Phase 6: Include cover + gallery media data if FF_ADMIN_MEDIA is enabled
+    const { isAdminMediaEnabled } = await import('../config/featureFlags.js');
+    let coverMedia = null;
+    let galleryMedia: any[] = [];
+    let unapprovedGalleryCount = 0;
+
+    // Resolve world ID (text_id) for queries
+    const worldTextId = data.text_id || data.id;
+
+    if (isAdminMediaEnabled() && data.cover_media_id) {
+      // Fetch cover media
+      const { data: coverData, error: coverError } = await supabase
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, width, height, visibility')
+        .eq('id', data.cover_media_id)
+        .single();
+
+      if (!coverError && coverData) {
+        coverMedia = coverData;
+      }
+    }
+
+    if (isAdminMediaEnabled()) {
+      // Fetch gallery links with media
+      const { data: galleryData, error: galleryError } = await supabase
+        .from('media_links')
+        .select(`
+          id,
+          media_id,
+          sort_order,
+          media_assets:media_id(
+            id,
+            provider_key,
+            status,
+            image_review_status,
+            width,
+            height,
+            visibility
+          )
+        `)
+        .eq('world_id', worldTextId)
+        .order('sort_order', { ascending: true });
+
+      if (!galleryError && galleryData) {
+        // Micro-refinement: Sort by sort_order ASC, then created_at ASC for deterministic ordering
+        const sortedLinks = galleryData.sort((a: any, b: any) => {
+          if (a.sort_order !== b.sort_order) {
+            return a.sort_order - b.sort_order;
+          }
+          return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+        });
+
+        galleryMedia = sortedLinks
+          .filter((link: any) => link.media_assets && link.media_assets.status === 'ready')
+          .map((link: any) => ({
+            id: link.id,
+            media: link.media_assets,
+            sortOrder: link.sort_order,
+          }));
+
+        // Micro-refinement: Count unapproved gallery items
+        unapprovedGalleryCount = galleryData.filter((link: any) => {
+          const media = link.media_assets;
+          return media && (
+            media.status !== 'ready' ||
+            media.image_review_status !== 'approved'
+          );
+        }).length;
+      }
+    }
+
+    // Micro-refinement: Calculate is_publishable, publish_blockers, publish_warnings
+    const { checkMediaPreflight } = await import('../services/mediaPreflight.js');
+    const { revalidateForApproval } = await import('../dal/publishing.js');
+    
+    let isPublishable = true;
+    const publishBlockers: string[] = [];
+    const publishWarnings: string[] = [];
+
+    // Check media preflight
+    if (isAdminMediaEnabled()) {
+      const mediaPreflight = await checkMediaPreflight({ type: 'world', id: data.id || data.text_id });
+      if (!mediaPreflight.ok && mediaPreflight.errors) {
+        isPublishable = false;
+        publishBlockers.push(...mediaPreflight.errors.map(e => e.message));
+      }
+      if (mediaPreflight.warnings) {
+        publishWarnings.push(...mediaPreflight.warnings.map(w => w.message));
+      }
+    }
+
+    // Check dependency/validation preflight
+    try {
+      const validation = await revalidateForApproval({ type: 'world', id: data.id || data.text_id });
+      if (!validation.ok) {
+        isPublishable = false;
+        publishBlockers.push(...validation.reasons);
+      }
+    } catch (error) {
+      // Non-fatal: log but don't block response
+      console.error('[admin] Error checking validation preflight:', error);
+    }
+
     res.json({
       ok: true,
-      data
+      data: {
+        ...data,
+        ...(isAdminMediaEnabled() && { 
+          coverMedia, 
+          galleryMedia,
+          unapprovedGalleryCount: isAdminMediaEnabled() ? (unapprovedGalleryCount || 0) : undefined,
+        }),
+        is_publishable: isPublishable,
+        publish_blockers: publishBlockers,
+        publish_warnings: publishWarnings,
+      }
     });
   } catch (error) {
     console.error('Error fetching world:', error);
@@ -3206,6 +3324,9 @@ router.post('/npcs', authenticateToken, requireAdminRole, async (req, res) => {
       });
     }
 
+    // Phase 8: Refinement - Admins bypass quota checks
+    // Regular users should use /api/npcs endpoint which enforces quotas
+
     // Validate NPC doc structure if provided
     if (doc && doc.npc) {
       const validationResult = NPCDocV1Schema.safeParse(doc);
@@ -3232,6 +3353,7 @@ router.post('/npcs', authenticateToken, requireAdminRole, async (req, res) => {
       visibility,
       review_state: 'draft',
       owner_user_id: userId,
+      publish_status: 'draft', // Phase 8: Set initial publish status
       doc: doc || { npc: {} }, // Use provided doc or default NPCDocV1 structure
     };
 
@@ -3316,9 +3438,119 @@ router.get('/npcs/:id', authenticateToken, requireAdminRole, async (req, res) =>
       throw error;
     }
 
+    // Phase 6: Include cover + gallery media data if FF_ADMIN_MEDIA is enabled
+    const { isAdminMediaEnabled } = await import('../config/featureFlags.js');
+    let coverMedia = null;
+    let galleryMedia: any[] = [];
+    let unapprovedGalleryCount = 0;
+
+    if (isAdminMediaEnabled() && data.cover_media_id) {
+      // Fetch cover media
+      const { data: coverData, error: coverError } = await supabase
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, width, height, visibility')
+        .eq('id', data.cover_media_id)
+        .single();
+
+      if (!coverError && coverData) {
+        coverMedia = coverData;
+      }
+    }
+
+    if (isAdminMediaEnabled()) {
+      // Fetch gallery links with media
+      const { data: galleryData, error: galleryError } = await supabase
+        .from('media_links')
+        .select(`
+          id,
+          media_id,
+          sort_order,
+          media_assets:media_id(
+            id,
+            provider_key,
+            status,
+            image_review_status,
+            width,
+            height,
+            visibility
+          )
+        `)
+        .eq('npc_id', id)
+        .order('sort_order', { ascending: true });
+
+      if (!galleryError && galleryData) {
+        // Micro-refinement: Sort by sort_order ASC, then created_at ASC for deterministic ordering
+        const sortedLinks = galleryData.sort((a: any, b: any) => {
+          if (a.sort_order !== b.sort_order) {
+            return a.sort_order - b.sort_order;
+          }
+          return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+        });
+
+        galleryMedia = sortedLinks
+          .filter((link: any) => link.media_assets && link.media_assets.status === 'ready')
+          .map((link: any) => ({
+            id: link.id,
+            media: link.media_assets,
+            sortOrder: link.sort_order,
+          }));
+
+        // Micro-refinement: Count unapproved gallery items
+        unapprovedGalleryCount = galleryData.filter((link: any) => {
+          const media = link.media_assets;
+          return media && (
+            media.status !== 'ready' ||
+            media.image_review_status !== 'approved'
+          );
+        }).length;
+      }
+    }
+
+    // Micro-refinement: Calculate is_publishable, publish_blockers, publish_warnings
+    const { checkMediaPreflight } = await import('../services/mediaPreflight.js');
+    const { revalidateForApproval } = await import('../dal/publishing.js');
+    
+    let isPublishable = true;
+    const publishBlockers: string[] = [];
+    const publishWarnings: string[] = [];
+
+    // Check media preflight
+    if (isAdminMediaEnabled()) {
+      const mediaPreflight = await checkMediaPreflight({ type: 'npc', id });
+      if (!mediaPreflight.ok && mediaPreflight.errors) {
+        isPublishable = false;
+        publishBlockers.push(...mediaPreflight.errors.map(e => e.message));
+      }
+      if (mediaPreflight.warnings) {
+        publishWarnings.push(...mediaPreflight.warnings.map(w => w.message));
+      }
+    }
+
+    // Check dependency/validation preflight
+    try {
+      const validation = await revalidateForApproval({ type: 'npc', id });
+      if (!validation.ok) {
+        isPublishable = false;
+        publishBlockers.push(...validation.reasons);
+      }
+    } catch (error) {
+      // Non-fatal: log but don't block response
+      console.error('[admin] Error checking validation preflight:', error);
+    }
+
     res.json({
       ok: true,
-      data
+      data: {
+        ...data,
+        ...(isAdminMediaEnabled() && { 
+          coverMedia, 
+          galleryMedia,
+          unapprovedGalleryCount: isAdminMediaEnabled() ? (unapprovedGalleryCount || 0) : undefined,
+        }),
+        is_publishable: isPublishable,
+        publish_blockers: publishBlockers,
+        publish_warnings: publishWarnings,
+      }
     });
   } catch (error) {
     console.error('Error fetching NPC:', error);
@@ -4058,12 +4290,120 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
     // Remove the nested entry_point_rulesets from response
     const { entry_point_rulesets, ...entryPointData } = data;
 
+    // Phase 6: Include cover + gallery media data if FF_ADMIN_MEDIA is enabled
+    const { isAdminMediaEnabled } = await import('../config/featureFlags.js');
+    let coverMedia = null;
+    let galleryMedia: any[] = [];
+    let unapprovedGalleryCount = 0;
+
+    if (isAdminMediaEnabled() && entryPointData.cover_media_id) {
+      // Fetch cover media
+      const { data: coverData, error: coverError } = await supabase
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, width, height, visibility')
+        .eq('id', entryPointData.cover_media_id)
+        .single();
+
+      if (!coverError && coverData) {
+        coverMedia = coverData;
+      }
+    }
+
+    if (isAdminMediaEnabled()) {
+      // Fetch gallery links with media
+      const { data: galleryData, error: galleryError } = await supabase
+        .from('media_links')
+        .select(`
+          id,
+          media_id,
+          sort_order,
+          media_assets:media_id(
+            id,
+            provider_key,
+            status,
+            image_review_status,
+            width,
+            height,
+            visibility
+          )
+        `)
+        .eq('story_id', id)
+        .order('sort_order', { ascending: true });
+
+      if (!galleryError && galleryData) {
+        // Micro-refinement: Sort by sort_order ASC, then created_at ASC for deterministic ordering
+        const sortedLinks = galleryData.sort((a: any, b: any) => {
+          if (a.sort_order !== b.sort_order) {
+            return a.sort_order - b.sort_order;
+          }
+          return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+        });
+
+        galleryMedia = sortedLinks
+          .filter((link: any) => link.media_assets && link.media_assets.status === 'ready')
+          .map((link: any) => ({
+            id: link.id,
+            media: link.media_assets,
+            sortOrder: link.sort_order,
+          }));
+
+        // Micro-refinement: Count unapproved gallery items
+        unapprovedGalleryCount = galleryData.filter((link: any) => {
+          const media = link.media_assets;
+          return media && (
+            media.status !== 'ready' ||
+            media.image_review_status !== 'approved'
+          );
+        }).length;
+      }
+    }
+
+    // Micro-refinement: Calculate is_publishable, publish_blockers, publish_warnings
+    const { checkMediaPreflight } = await import('../services/mediaPreflight.js');
+    const { revalidateForApproval } = await import('../dal/publishing.js');
+    
+    let isPublishable = true;
+    const publishBlockers: string[] = [];
+    const publishWarnings: string[] = [];
+
+    // Check media preflight
+    if (isAdminMediaEnabled()) {
+      const mediaPreflight = await checkMediaPreflight({ type: 'story', id });
+      if (!mediaPreflight.ok && mediaPreflight.errors) {
+        isPublishable = false;
+        publishBlockers.push(...mediaPreflight.errors.map(e => e.message));
+      }
+      if (mediaPreflight.warnings) {
+        publishWarnings.push(...mediaPreflight.warnings.map(w => w.message));
+      }
+    }
+
+    // Check dependency/validation preflight
+    try {
+      const validation = await revalidateForApproval({ type: 'story', id });
+      if (!validation.ok) {
+        isPublishable = false;
+        publishBlockers.push(...validation.reasons);
+      }
+    } catch (error) {
+      // Non-fatal: log but don't block response
+      console.error('[admin] Error checking validation preflight:', error);
+    }
+
     res.json({
       ok: true,
       data: {
         ...entryPointData,
         world_id: resolvedWorldId, // Return UUID instead of TEXT
-        rulesets
+        rulesets,
+        ...(isAdminMediaEnabled() && { 
+          coverMedia, 
+          galleryMedia,
+          unapprovedGalleryCount: isAdminMediaEnabled() ? (unapprovedGalleryCount || 0) : undefined,
+        }),
+        is_publishable: isPublishable,
+        publish_blockers: publishBlockers,
+        publish_warnings: publishWarnings,
       }
     });
   } catch (error) {
@@ -4131,6 +4471,7 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
 router.post('/entry-points', authenticateToken, requireAdminRole, async (req, res) => {
   try {
     const { name, slug, type, world_id, rulesetIds, title, subtitle, description, synopsis, tags, visibility, content_rating, prompt } = req.body;
+    const userId = req.user?.id;
     
     if (!name || !type || !world_id || !rulesetIds || !title || !description || !tags || !visibility || !content_rating) {
       return res.status(400).json({
@@ -4138,6 +4479,16 @@ router.post('/entry-points', authenticateToken, requireAdminRole, async (req, re
         error: 'Missing required fields'
       });
     }
+
+    if (!userId) {
+      return res.status(401).json({
+        ok: false,
+        error: 'User ID is required'
+      });
+    }
+
+    // Phase 8: Refinement - Admins bypass quota checks
+    // Regular users should use /api/stories endpoint which enforces quotas
 
     // Resolve world_id: if it's a UUID, get the text_id from mapping
     let resolvedWorldId = world_id;

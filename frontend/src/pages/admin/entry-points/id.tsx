@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,15 +19,113 @@ import { SubmitForReviewButton } from '@/admin/components/SubmitForReviewButton'
 import { useAppRoles } from '@/admin/routeGuard';
 import { PublishButton } from '@/components/publishing/PublishButton';
 import { PreflightPanel } from '@/components/publishing/PreflightPanel';
-import { isPublishingWizardEnabled } from '@/lib/feature-flags';
+import { isPublishingWizardEnabled, isAdminMediaEnabled } from '@/lib/feature-flags';
+import { MediaUploader } from '@/components/admin/MediaUploader';
+import { CoverImagePanel } from '@/components/admin/CoverImagePanel';
+import { GalleryManager } from '@/components/admin/GalleryManager';
+import { getCoverMedia, getGalleryLinks, type GalleryLinkWithMedia } from '@/services/admin.media';
+import type { MediaAssetDTO } from '@shared/types/media';
+
+// Cover Image Section Component
+function CoverImageSection({ 
+  storyId, 
+  storyTitle, 
+  isLocked,
+  selectedMediaId,
+  onMediaSelected,
+}: { 
+  storyId: string; 
+  storyTitle: string; 
+  isLocked: boolean;
+  selectedMediaId?: string | null;
+  onMediaSelected?: (mediaId: string | null) => void;
+}) {
+  const queryClient = useQueryClient();
+  
+  const { data: coverMedia, isLoading: loadingCover } = useQuery({
+    queryKey: ['admin-media-cover', 'story', storyId],
+    queryFn: async () => {
+      const result = await getCoverMedia({ kind: 'story', entityId: storyId });
+      if (!result.ok) {
+        throw new Error(result.error?.message || 'Failed to load cover media');
+      }
+      return result.data;
+    },
+    enabled: !!storyId && isAdminMediaEnabled(),
+    staleTime: 30 * 1000,
+  });
+
+  const handleCoverChange = async (mediaId: string | null) => {
+    queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'story', storyId] });
+    queryClient.invalidateQueries({ queryKey: ['admin-entry', storyId] });
+    if (onMediaSelected) {
+      onMediaSelected(null); // Clear selection after setting cover
+    }
+  };
+
+  if (loadingCover) {
+    return <div className="text-sm text-muted-foreground">Loading cover image...</div>;
+  }
+
+  return (
+    <CoverImagePanel
+      entityKind="story"
+      entityId={storyId}
+      coverMedia={coverMedia || undefined}
+      selectedMediaId={selectedMediaId || null}
+      disabled={isLocked}
+      onChange={handleCoverChange}
+      entityName={storyTitle}
+    />
+  );
+}
+
+// Gallery Section Component
+function GallerySection({ storyId, storyTitle, isLocked }: { storyId: string; storyTitle: string; isLocked: boolean }) {
+  const queryClient = useQueryClient();
+  
+  const { data: galleryItems, isLoading: loadingGallery } = useQuery({
+    queryKey: ['admin-media-gallery', 'story', storyId],
+    queryFn: async () => {
+      const result = await getGalleryLinks({ kind: 'story', entityId: storyId });
+      if (!result.ok) {
+        throw new Error(result.error?.message || 'Failed to load gallery');
+      }
+      return result.data.items;
+    },
+    enabled: !!storyId && isAdminMediaEnabled(),
+    staleTime: 30 * 1000,
+  });
+
+  const handleGalleryChange = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-media-gallery', 'story', storyId] });
+  };
+
+  if (loadingGallery) {
+    return <div className="text-sm text-muted-foreground">Loading gallery...</div>;
+  }
+
+  return (
+    <GalleryManager
+      entityKind="story"
+      entityId={storyId}
+      items={galleryItems || []}
+      disabled={isLocked}
+      onChange={handleGalleryChange}
+      entityName={storyTitle}
+    />
+  );
+}
 
 export default function EntryPointEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { isCreator, isModerator, isAdmin } = useAppRoles();
   const [entryPoint, setEntryPoint] = useState<EntryPoint | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const isNew = id === 'new';
 
   useEffect(() => {
@@ -174,9 +273,10 @@ export default function EntryPointEditPage() {
           {isPublishingWizardEnabled() && (
             <Button
               variant="outline"
-              onClick={() => navigate(`/publishing/wizard?type=story&id=${entryPoint.id}`)}
+              onClick={() => navigate(`/admin/publishing-wizard/story/${entryPoint.id}`)}
+              disabled={entryPoint.lifecycle === 'published'}
             >
-              Open Publishing Wizard
+              Publishing Wizard
             </Button>
           )}
           <PublishButton
@@ -200,6 +300,9 @@ export default function EntryPointEditPage() {
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="segments">Prompt Segments</TabsTrigger>
           <TabsTrigger value="npcs">NPC Bindings</TabsTrigger>
+          {isAdminMediaEnabled() && (
+            <TabsTrigger value="images">Images</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="details">
@@ -218,6 +321,73 @@ export default function EntryPointEditPage() {
         <TabsContent value="npcs">
           <EntryPointNpcsTab entryPointId={entryPoint.id} worldId={entryPoint.world_id} />
         </TabsContent>
+
+        {/* Phase 3b: Images section (admin-only, feature-flagged) */}
+        {isAdminMediaEnabled() && entryPoint && (
+          <TabsContent value="images">
+            <Card>
+              <CardHeader>
+                <CardTitle>Images</CardTitle>
+                <CardDescription>
+                  Upload and manage cover images and gallery for this story.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Upload Section */}
+                <MediaUploader
+                  kind="story"
+                  entityName={entryPoint.title}
+                  onUploaded={async (media) => {
+                    toast.success('Image uploaded and finalized successfully');
+                    // Set the uploaded media as selected so user can set it as cover
+                    setSelectedMediaId(media.id);
+                    
+                    // Automatically add to gallery
+                    try {
+                      const { createMediaLink } = await import('@/services/admin.media');
+                      const result = await createMediaLink({
+                        target: { kind: 'story', id: entryPoint.id },
+                        mediaId: media.id,
+                        role: 'gallery',
+                      });
+                      
+                      if (result.ok) {
+                        toast.success('Image added to gallery');
+                      } else if (result.error?.message?.includes('already linked')) {
+                        // Already in gallery, that's fine
+                      } else {
+                        console.warn('Failed to auto-add to gallery:', result.error);
+                      }
+                    } catch (err) {
+                      console.error('Error auto-adding to gallery:', err);
+                      // Don't show error toast - gallery add is optional
+                    }
+                    
+                    // Invalidate queries to refresh cover and gallery
+                    queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'story', entryPoint.id] });
+                    queryClient.invalidateQueries({ queryKey: ['admin-media-gallery', 'story', entryPoint.id] });
+                  }}
+                />
+
+                {/* Cover Image Panel */}
+                <CoverImageSection 
+                  storyId={entryPoint.id} 
+                  storyTitle={entryPoint.title} 
+                  isLocked={!isAdmin && (entryPoint as any).publish_status === 'published'}
+                  selectedMediaId={selectedMediaId}
+                  onMediaSelected={setSelectedMediaId}
+                />
+
+                {/* Gallery Manager */}
+                <GallerySection 
+                  storyId={entryPoint.id} 
+                  storyTitle={entryPoint.title} 
+                  isLocked={!isAdmin && (entryPoint as any).publish_status === 'published'} 
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

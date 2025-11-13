@@ -14,7 +14,8 @@ export type PublishingEventName =
   | 'admin.review.approved'
   | 'admin.review.rejected'
   | 'dependency.invalid.set'
-  | 'dependency.invalid.cleared';
+  | 'dependency.invalid.cleared'
+  | 'media.cover_made_public';
 
 /**
  * Telemetry event payload
@@ -85,4 +86,5 @@ export function emitPublishingEvent(
     console.error('[publishing] Telemetry error (non-fatal):', error);
   }
 }
+
 

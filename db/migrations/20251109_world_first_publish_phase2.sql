@@ -44,3 +44,5 @@ COMMENT ON COLUMN publishing_audit.reason IS 'Optional reason for rejection or o
 
 COMMIT;
 
+
+

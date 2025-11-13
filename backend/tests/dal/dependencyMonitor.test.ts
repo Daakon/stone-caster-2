@@ -273,3 +273,5 @@ describe('recomputeDependenciesForAllWorlds', () => {
     expect(result.npcsUpdated).toBe(0);
   });
 });
+
+

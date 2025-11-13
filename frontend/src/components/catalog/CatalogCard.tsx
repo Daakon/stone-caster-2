@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { prefetchWorld, prefetchStories } from '@/lib/prefetch';
+import { buildImageUrl } from '@shared/media/url';
 
 /**
  * Normalized catalog card props - live data contract only.
@@ -17,6 +18,7 @@ interface CatalogCardProps {
   title: string;
   description?: string;
   imageUrl?: string;
+  coverMedia?: { id: string; provider_key: string } | null;
   href: string;
   chips?: Array<{ label: string; variant?: 'default' | 'secondary' | 'outline' }>;
   onCardClick?: (entity: string, idOrSlug: string) => void;
@@ -24,7 +26,7 @@ interface CatalogCardProps {
 }
 
 export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
-  ({ entity, idOrSlug, title, description, imageUrl, href, chips, onCardClick, className }, ref) => {
+  ({ entity, idOrSlug, title, description, imageUrl, coverMedia, href, chips, onCardClick, className }, ref) => {
     const queryClient = useQueryClient();
 
     const handleClick = () => {
@@ -57,6 +59,13 @@ export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
       handleMouseEnter();
     };
 
+    // Phase 4: Build cover image URL from coverMedia or use imageUrl fallback
+    const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL;
+    const hasDeliveryUrl = !!deliveryUrl && deliveryUrl.trim() !== '';
+    const coverImageUrl = coverMedia && hasDeliveryUrl
+      ? buildImageUrl(coverMedia.provider_key, 'card')
+      : imageUrl || null;
+
     return (
       <Card 
         ref={ref}
@@ -71,17 +80,32 @@ export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
           onClick={handleClick}
           aria-label={`View ${title}`}
         >
-          {imageUrl && (
+          {coverImageUrl ? (
             <div className="aspect-video overflow-hidden rounded-t-lg bg-muted">
               <img
-                src={imageUrl}
-                alt={title}
+                src={coverImageUrl}
+                alt={`${title} cover`}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                 loading="lazy"
                 decoding="async"
                 width={400}
                 height={300}
+                onError={(e) => {
+                  // Fallback to placeholder on error
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent && !parent.querySelector('.cover-placeholder')) {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'cover-placeholder flex h-full w-full items-center justify-center bg-muted';
+                    placeholder.innerHTML = '<svg class="h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                    parent.appendChild(placeholder);
+                  }
+                }}
               />
+            </div>
+          ) : (
+            <div className="aspect-video overflow-hidden rounded-t-lg bg-muted flex items-center justify-center">
+              <ImageIcon className="h-12 w-12 text-muted-foreground" />
             </div>
           )}
           

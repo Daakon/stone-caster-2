@@ -46,6 +46,25 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
       icon: BookOpen,
       show: !!user
     },
+    // Phase 8: User authoring pages
+    { 
+      name: 'My Worlds', 
+      href: '/my/worlds', 
+      icon: Gamepad2,
+      show: !!user
+    },
+    { 
+      name: 'My Stories (New)', 
+      href: '/my/stories', 
+      icon: BookOpen,
+      show: !!user
+    },
+    { 
+      name: 'My NPCs', 
+      href: '/my/npcs', 
+      icon: User,
+      show: !!user
+    },
     { 
       name: 'Worlds', 
       href: '/worlds', 

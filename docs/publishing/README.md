@@ -1,6 +1,20 @@
-# World-First Publishing: Phase 0/1 Bootstrap + Phase 2 Persistence + Phase 3 Admin Review + Phase 4 Dependency Monitor + Phase 5 Unified Messaging & Telemetry
+# World-First Publishing: Phase 0/1 Bootstrap + Phase 2 Persistence + Phase 3 Admin Review + Phase 4 Dependency Monitor + Phase 5 Unified Messaging & Telemetry + Phase 8 User Authoring
 
 This document summarizes the "World-First Publishing" feature, implemented in phases with an additive-only approach.
+
+## User Authoring (Phase 8)
+
+**Phase 8** introduces user-facing content creation with quotas and submit-for-publish flow.
+
+Regular users can create worlds, stories, and NPCs with strict per-user limits (1 world, 3 stories, 6 NPCs). Content starts as private drafts and can be submitted for admin review via the submit-for-publish endpoints.
+
+**Key points:**
+- User drafts use the same media and publish pipelines once submitted for review
+- Quotas are enforced server-side (published items don't count toward quota - Option A)
+- RLS policies lock edits when content is `in_review` or `published`
+- Admins use the Publishing Wizard to finalize user submissions
+
+See [User Authoring Guide](../user-authoring.md) for complete documentation on quotas, lifecycle, and user workflows.
 
 ## Overview
 
@@ -670,7 +684,176 @@ pnpm test backend/tests/routes/publishing.wizard.status.test.ts
 
 # Frontend tests
 pnpm test frontend/src/pages/publishing/__tests__/wizard.test.tsx
+
+## Phase 5: Prompt Snapshots on Publish
+
+### Overview
+
+When a Story or World is published (approved), a **prompt snapshot** is automatically created. This snapshot freezes the prompt configuration at publish time, ensuring that games created from published content remain stable even if the source entities are later edited.
+
+### What is Captured
+
+The snapshot includes:
+
+- **Prompts**: Core, ruleset, world, and story prompt text (as resolved by the assembler)
+- **Config**: Mechanics and relationship settings from world/ruleset
+- **Media**: Cover media ID and gallery media IDs (only approved + ready assets)
+
+**Note**: The snapshot does NOT include:
+- Dynamic data (weather, time, player counts)
+- NPC data (NPCs can change and are loaded live)
+- Entry start slug (dynamic per game)
+
+### When Snapshots are Created
+
+- **Trigger**: Automatically during `approveSubmission()` for Stories and Worlds
+- **Timing**: Created BEFORE cover media visibility update, ensuring snapshot captures publish-time state
+- **Failure Handling**: Snapshot creation failure blocks approval (ensures game stability)
+
+### Versioning
+
+- Each publish creates a new snapshot version
+- Versions are monotonic per `(entity_type, entity_id)`
+- First snapshot: version 1
+- Subsequent snapshots: `previousMax + 1`
+- Old snapshots remain untouched (historical record)
+
+### How Games Use Snapshots
+
+1. **Game Creation**: When a game is created from a published Story/World:
+   - System looks up the latest snapshot for that entity
+   - Sets `games.prompt_snapshot_id` to the snapshot ID
+   - If no snapshot exists, game continues using live data (backward compatible)
+
+2. **Prompt Assembly**: When assembling prompts for a game:
+   - If `prompt_snapshot_id` is set, assembler uses frozen snapshot prompts
+   - World/ruleset metadata is still loaded (for pieces array), but prompt text comes from snapshot
+   - NPCs are always loaded live (not frozen in snapshot)
+
+3. **Stability**: Once a game is created with a snapshot, it will always use that snapshot's prompts, even if:
+   - The source Story/World is edited
+   - A new version of the Story/World is published
+   - The ruleset or world description changes
+
+### Database Schema
+
+**Table**: `prompt_snapshots`
+- `id`: UUID primary key
+- `entity_type`: `'world'` or `'story'`
+- `entity_id`: TEXT (matches `worlds.id` or `entry_points.id`)
+- `version`: INTEGER (monotonic per entity)
+- `created_by`: UUID (references `auth.users(id)`)
+- `source_publish_request_id`: UUID (references `publishing_audit.id` for correlation)
+- `data`: JSONB containing frozen prompt configuration
+
+**Table**: `games`
+- `prompt_snapshot_id`: UUID (nullable, references `prompt_snapshots.id`)
+
+### Indexes
+
+- `idx_prompt_snapshots_entity_created`: `(entity_type, entity_id, created_at DESC)`
+- `idx_prompt_snapshots_entity_version`: `(entity_type, entity_id, version DESC)`
+- `idx_games_prompt_snapshot_id`: `(prompt_snapshot_id)` (partial, where not null)
+
+### RLS Policies
+
+- **Admin-only**: Full access for admins
+- **Backend services**: Use `supabaseAdmin` (service role) to read snapshots for games
+- No owner read access (snapshots are internal to game stability)
+
+### Telemetry
+
+Events emitted:
+- `publish.snapshot_created`: When snapshot is created (includes `prompt_snapshot_id`, `source_publish_request_id`)
+- `game.created_from_snapshot`: When a game is created using a snapshot (includes `game_id`, `prompt_snapshot_id`)
+
+### Error Handling
+
+- Snapshot creation failure blocks approval (throws `INTERNAL_ERROR`)
+- Error logs use consistent format: `[snapshot.create_failed] entityType=..., entityId=..., error=...`
+- Game creation gracefully falls back to live data if snapshot lookup fails (logs warning)
+
+### Testing
+
+See `backend/tests/services/promptSnapshotService.test.ts` and `backend/tests/dal/publishing.test.ts` for:
+- Snapshot creation and versioning
+- Media capture (cover + gallery)
+- Publish flow integration
+- Error handling
+
+### Migration Files
+
+- `supabase/migrations/20251112_prompt_snapshots.sql`: Creates `prompt_snapshots` table
+- `supabase/migrations/20251112_games_prompt_snapshot_id.sql`: Adds `prompt_snapshot_id` to `games` table
 ```
+
+---
+
+## Phase 7: Publishing Wizard (Admin Only) - Unified Preflight
+
+### Overview
+
+Phase 7 introduces a unified publishing wizard that guides admins through all preflight checks before submitting an entity for publishing. It combines media checks, dependency validation, field validation, and snapshot preview into a single guided workflow.
+
+### Implementation
+
+**Backend:**
+- `backend/src/services/publishingWizardService.ts`: Unified preflight service
+- `backend/src/routes/publishingWizard.ts`: Admin-only wizard endpoints
+- `GET /api/publishing-wizard/:entityType/:entityId/preflight`: Run all checks
+- `POST /api/publishing-wizard/:entityType/:entityId/submit`: Submit for publishing
+
+**Frontend:**
+- `frontend/src/pages/admin/publishing-wizard/[entityType]/[entityId].tsx`: Wizard UI
+- Integrated into admin edit pages with "Publishing Wizard" button
+- Feature-flag gated: `VITE_FF_PUBLISHING_WIZARD`
+
+**Wizard Steps:**
+1. **Media**: Cover and gallery checks
+2. **Dependencies**: World, ruleset, entity references
+3. **Validation**: Required fields
+4. **Snapshot Preview**: Preview of what will be frozen
+5. **Submit**: Final submission
+
+### What Gets Checked
+
+- **Media**: Cover must be approved + ready; gallery warnings
+- **Dependencies**: World published, ruleset present (stories), valid refs
+- **Validation**: Required fields (name, description, title)
+- **Snapshot Preview**: Shows prompts and media that will be frozen
+
+### Blocker vs Warning
+
+- **Blockers**: Must fix before submitting (red X, blocks submit)
+- **Warnings**: Informational only (yellow warning, doesn't block)
+
+### Snapshot Preview
+
+The wizard shows a preview of what will be captured in the prompt snapshot:
+- Schema version
+- Core, world, ruleset, story prompts
+- Cover media ID
+- Gallery media IDs (approved + ready only)
+
+This is a preview only. The actual snapshot is created when the publish request is approved (Phase 5).
+
+### Integration
+
+- Wizard button added to:
+  - `frontend/src/pages/admin/worlds/edit.tsx`
+  - `frontend/src/pages/admin/entry-points/id.tsx`
+  - `frontend/src/pages/admin/npcs/edit.tsx`
+- Button is disabled when entity is already published
+- Feature-flag gated for safe rollout
+
+### Testing
+
+- E2E: Open wizard, verify blockers block submit, fix issues, successful submit
+- Unit: Preflight transform logic, snapshot preview generation
+
+### Documentation
+
+See `docs/publishing/wizard.md` for full wizard documentation.
 
 ## Phase 4: Dependency Monitor (Auto Set/Clear)
 

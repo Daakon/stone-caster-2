@@ -223,6 +223,23 @@ export class GamesService {
       // Check for starter stones grant (if enabled and first spawn)
       await this.handleStarterStonesGrant(ownerId, isGuest);
 
+      // Phase 5: Look up latest prompt snapshot for this entry point
+      let promptSnapshotId: string | null = null;
+      try {
+        const { getLatestSnapshot } = await import('./promptSnapshotService.js');
+        const { emitPublishingEvent } = await import('../telemetry/publishingTelemetry.js');
+        const snapshot = await getLatestSnapshot('story', adventure.id);
+        if (snapshot) {
+          promptSnapshotId = snapshot.id;
+          console.log(`[GAME_SPAWN] Using prompt snapshot ${snapshot.id} (version ${snapshot.version}) for entry point ${adventure.id}`);
+        } else {
+          console.log(`[GAME_SPAWN] No prompt snapshot found for entry point ${adventure.id}, using live entity data`);
+        }
+      } catch (error) {
+        console.error(`[GAME_SPAWN] Error looking up prompt snapshot for entry point ${adventure.id}:`, error);
+        // Non-fatal: continue without snapshot
+      }
+
       // Create new game
       const newGame = {
         entry_point_id: adventure.id, // entry_points.id is TEXT (e.g., 'test-entry-point-1')
@@ -231,6 +248,7 @@ export class GamesService {
         ruleset_id: rulesetId, // Ruleset ID from entry_points.ruleset_id
         character_id: characterId || null,
         world_slug: worldSlug, // TEXT slug for display/filtering (denormalized)
+        prompt_snapshot_id: promptSnapshotId, // Phase 5: Link to frozen prompt snapshot
         state_snapshot: {
           metadata: {
             adventureSlug: adventure.slug,
@@ -571,6 +589,20 @@ export class GamesService {
       // Use config for model and budget
       const budgetTokens = appConfig.prompt.tokenBudgetDefault;
 
+      // Phase 5: Look up latest snapshot for this entry point (if not already set on game)
+      let promptSnapshotId: string | undefined = undefined;
+      try {
+        const { getLatestSnapshot } = await import('./promptSnapshotService.js');
+        const snapshot = await getLatestSnapshot('story', entry_point_id);
+        if (snapshot) {
+          promptSnapshotId = snapshot.id;
+          console.log(`[GAME_SPAWN_V3] Using prompt snapshot ${snapshot.id} (version ${snapshot.version}) for entry point ${entry_point_id}`);
+        }
+      } catch (error) {
+        console.error(`[GAME_SPAWN_V3] Error looking up prompt snapshot:`, error);
+        // Non-fatal: continue without snapshot
+      }
+
       let assembleResult;
       try {
         assembleResult = await assembler.assemble({
@@ -578,6 +610,7 @@ export class GamesService {
           entryStartSlug: entry_start_slug,
           model: model || appConfig.prompt.modelDefault,
           budgetTokens,
+          promptSnapshotId, // Phase 5: Use snapshot if available
         });
       } catch (error) {
         if (error instanceof EntryPointAssemblerError) {
@@ -1051,11 +1084,13 @@ export class GamesService {
     try {
       // First, fetch the game to check ownership
       // Handle legacy games where both owner_user_id and cookie_group_id are null
+      // Phase 5 refinement: Include prompt_snapshot_id and snapshot version
       let query = supabaseAdmin
         .from('games')
         .select(`
           *,
-          characters:characters!games_character_id_fkey(id, name, world_data, level, current_health, max_health, race, class)
+          characters:characters!games_character_id_fkey(id, name, world_data, level, current_health, max_health, race, class),
+          prompt_snapshots:prompt_snapshot_id(version)
         `)
         .eq('id', gameId);
 
@@ -1755,6 +1790,9 @@ export class GamesService {
     const world = worldSlug ? await ContentService.getWorldBySlug(worldSlug) : null;
     const worldName = world?.name ?? world?.title ?? worldSlug ?? 'Unknown World';
 
+    // Phase 5 refinement: Extract snapshot version from joined prompt_snapshots
+    const snapshotVersion = (dbRow.prompt_snapshots as any)?.[0]?.version ?? undefined;
+
     return {
       id: dbRow.id,
       adventureId,
@@ -1772,6 +1810,7 @@ export class GamesService {
       createdAt: dbRow.created_at,
       updatedAt: dbRow.updated_at,
       lastPlayedAt: dbRow.last_played_at,
+      snapshot_version: snapshotVersion, // Phase 5 refinement: Include snapshot version
     };
   }
 

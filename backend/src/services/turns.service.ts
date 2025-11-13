@@ -1337,12 +1337,14 @@ export class TurnsService {
       }).reverse(); // Most recent first
     }
 
+    // Phase 5: Pass prompt_snapshot_id to assembler if available
     // Assemble prompt using v3 assembler (ongoing turn)
     const assembleResult = await assembler.assemble({
       entryPointId,
       entryStartSlug,
       model,
       budgetTokens,
+      promptSnapshotId: game.prompt_snapshot_id || undefined, // Phase 5: Use frozen snapshot if available
       stateSnapshot: game.state_snapshot, // Current game state
       conversationWindow, // Recent turns for context
       userIntentText, // User's latest choice/text

@@ -20,6 +20,9 @@ export interface EntitySnapshot {
   owner_user_id: string;
   world_id?: string;
   dependency_invalid?: boolean;
+  // Phase 5: Snapshot info (optional, only present after approval)
+  snapshotVersion?: number;
+  snapshotId?: string;
 }
 
 /**
@@ -38,11 +41,12 @@ export async function recordPublishRequest(params: {
 
   // Fetch entity and verify ownership
   // Select columns that may or may not exist (additive approach)
+  // Phase 2e: Include cover_media_id for media preflight
   const selectFields = type === 'story'
-    ? 'id, owner_user_id, world_id, publish_visibility, visibility, review_state, dependency_invalid, title'
+    ? 'id, owner_user_id, world_id, publish_visibility, visibility, review_state, dependency_invalid, title, cover_media_id'
     : type === 'npc'
-    ? 'id, owner_user_id, world_id, visibility, review_state, dependency_invalid, name'
-    : 'id, owner_user_id, visibility, review_state, name';
+    ? 'id, owner_user_id, world_id, visibility, review_state, dependency_invalid, name, cover_media_id'
+    : 'id, owner_user_id, visibility, review_state, name, cover_media_id';
 
   const { data: entity, error: fetchError } = await supabaseAdmin
     .from(tableName)
@@ -103,6 +107,39 @@ export async function recordPublishRequest(params: {
         message: 'Publishing requires the world to be public and approved',
       };
     }
+  }
+
+  // Phase 2e: Check media requirements (cover image must be ready and approved)
+  const { checkMediaPreflight } = await import('../services/mediaPreflight.js');
+  const mediaPreflight = await checkMediaPreflight({ type, id });
+  
+  if (!mediaPreflight.ok && mediaPreflight.errors) {
+    // Emit blocked event
+    emitPublishingEvent('publish.blocked', {
+      type,
+      id,
+      userId,
+      reason: mediaPreflight.errors[0].code,
+      mediaErrors: mediaPreflight.errors,
+    });
+
+    // Map media error codes to appropriate API error codes
+    const firstError = mediaPreflight.errors[0];
+    let apiErrorCode = ApiErrorCode.VALIDATION_FAILED;
+    if (firstError.code === 'MISSING_COVER_MEDIA') {
+      apiErrorCode = ApiErrorCode.VALIDATION_FAILED;
+    } else if (firstError.code === 'COVER_NOT_READY' || firstError.code === 'COVER_NOT_APPROVED') {
+      apiErrorCode = ApiErrorCode.VALIDATION_FAILED;
+    }
+
+    throw {
+      code: apiErrorCode,
+      message: firstError.message,
+      details: {
+        mediaErrors: mediaPreflight.errors,
+        mediaWarnings: mediaPreflight.warnings,
+      },
+    };
   }
 
   // For stories, check all linked NPCs are public and approved
@@ -579,20 +616,25 @@ export async function approveSubmission(params: {
     };
   }
 
-  // Write audit row
-  const { error: auditError } = await supabaseAdmin
+  // Write audit row and capture ID for telemetry correlation
+  // Phase 4 refinement: Get audit row ID to include in telemetry
+  const { data: auditData, error: auditError } = await supabaseAdmin
     .from('publishing_audit')
     .insert({
       entity_type: type,
       entity_id: id,
       action: 'approve',
       reviewed_by: reviewerUserId,
-    });
+    })
+    .select('id')
+    .single();
 
   if (auditError) {
     console.error('[publishing] Failed to write approval audit row:', auditError);
     // Don't fail the request if audit write fails, but log it
   }
+
+  const publishRequestId = auditData?.id || null;
 
   // Phase 6: Quality evaluation (if enabled)
   let qualityEvaluation: { score: number; issues: any[] } | null = null;
@@ -672,12 +714,12 @@ export async function approveSubmission(params: {
     }
   }
 
-  // Fetch updated entity for snapshot
+  // Phase 4: Fetch updated entity for snapshot (include cover_media_id for media visibility update)
   const selectFields = type === 'story'
-    ? 'id, owner_user_id, world_id, publish_visibility, visibility, review_state, dependency_invalid, title'
+    ? 'id, owner_user_id, world_id, publish_visibility, visibility, review_state, dependency_invalid, title, cover_media_id'
     : type === 'npc'
-    ? 'id, owner_user_id, world_id, visibility, review_state, dependency_invalid, name'
-    : 'id, owner_user_id, visibility, review_state, name';
+    ? 'id, owner_user_id, world_id, visibility, review_state, dependency_invalid, name, cover_media_id'
+    : 'id, owner_user_id, visibility, review_state, name, cover_media_id';
 
   const { data: entity, error: fetchError } = await supabaseAdmin
     .from(tableName)
@@ -692,10 +734,64 @@ export async function approveSubmission(params: {
     };
   }
 
+  // Phase 5: Create prompt snapshot BEFORE cover visibility update
+  // This ensures snapshot captures the state at publish time
+  let snapshotResult: { snapshotId: string; version: number } | null = null;
+  if (type === 'story' || type === 'world') {
+    try {
+      const { createPromptSnapshotForEntity } = await import('../services/promptSnapshotService.js');
+      snapshotResult = await createPromptSnapshotForEntity({
+        entityType: type,
+        entityId: id,
+        approvedByUserId: reviewerUserId,
+        sourcePublishRequestId: publishRequestId,
+      });
+    } catch (error) {
+      console.error(`[publishing] Failed to create prompt snapshot for ${type} ${id}:`, error);
+      // Phase 5: Snapshot creation failure should block approval to ensure game stability
+      throw {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: `Failed to create prompt snapshot: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  // Phase 4 refinement: Make cover image public AFTER entity update succeeds
+  // This ensures the publish state is committed before we update media visibility
+  // Phase 4 refinement: Include publish_request_id for telemetry correlation
+  const { isAdminMediaEnabled } = await import('../config/featureFlags.js');
+  if (isAdminMediaEnabled() && entity.cover_media_id) {
+    try {
+      // Update cover media visibility to public
+      // Phase 4 refinement: This happens after entity update, so publish state is already committed
+      const { error: mediaUpdateError } = await supabaseAdmin
+        .from('media_assets')
+        .update({ visibility: 'public' })
+        .eq('id', entity.cover_media_id);
+
+      if (mediaUpdateError) {
+        console.error(`[publishing] Failed to update cover media visibility for ${type} ${id}:`, mediaUpdateError);
+        // Non-fatal: log but don't block approval
+      } else {
+        // Emit telemetry event with publish_request_id for correlation
+        emitPublishingEvent('media.cover_made_public', {
+          entity_type: type,
+          entity_id: id,
+          media_id: entity.cover_media_id,
+          publish_request_id: publishRequestId, // Phase 4 refinement: correlation ID
+        });
+      }
+    } catch (error) {
+      console.error(`[publishing] Error updating cover media visibility for ${type} ${id}:`, error);
+      // Non-fatal: log but don't block approval
+    }
+  }
+
   const visibility = type === 'story' && entity.publish_visibility
     ? entity.publish_visibility
     : entity.visibility || 'private';
 
+  // Phase 5: Include snapshot info in response
   return {
     id: entity.id,
     type,
@@ -705,6 +801,9 @@ export async function approveSubmission(params: {
     owner_user_id: entity.owner_user_id,
     world_id: entity.world_id || undefined,
     dependency_invalid: entity.dependency_invalid || false,
+    // Phase 5: Include snapshot info if created
+    snapshotVersion: snapshotResult?.version,
+    snapshotId: snapshotResult?.snapshotId,
   };
 }
 

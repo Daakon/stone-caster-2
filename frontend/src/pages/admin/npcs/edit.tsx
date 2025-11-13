@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,13 @@ import { isAdminPromptFormsEnabled, isLegacyPromptTextareaRetired } from '@/lib/
 import { trackAdminEvent } from '@/lib/admin-telemetry';
 import { PublishButton } from '@/components/publishing/PublishButton';
 import { PreflightPanel } from '@/components/publishing/PreflightPanel';
-import { isPublishingWizardEnabled } from '@/lib/feature-flags';
+import { isPublishingWizardEnabled, isAdminMediaEnabled } from '@/lib/feature-flags';
+import { MediaUploader } from '@/components/admin/MediaUploader';
+import { CoverImagePanel } from '@/components/admin/CoverImagePanel';
+import { GalleryManager } from '@/components/admin/GalleryManager';
+import { getCoverMedia, getGalleryLinks, type GalleryLinkWithMedia } from '@/services/admin.media';
+import type { MediaAssetDTO } from '@shared/types/media';
+import { useAppRoles } from '@/admin/routeGuard';
 
 // Extended NPC type to include fields that may be returned from API
 interface ExtendedNPC extends NPC {
@@ -36,14 +43,108 @@ interface ExtendedUpdateNPCData extends UpdateNPCData {
   author_type?: 'user' | 'original' | 'system';
 }
 
+// Cover Image Section Component
+function CoverImageSection({ 
+  npcId, 
+  npcName, 
+  isLocked,
+  selectedMediaId,
+  onMediaSelected,
+}: { 
+  npcId: string; 
+  npcName: string; 
+  isLocked: boolean;
+  selectedMediaId?: string | null;
+  onMediaSelected?: (mediaId: string | null) => void;
+}) {
+  const queryClient = useQueryClient();
+  
+  const { data: coverMedia, isLoading: loadingCover } = useQuery({
+    queryKey: ['admin-media-cover', 'npc', npcId],
+    queryFn: async () => {
+      const result = await getCoverMedia({ kind: 'npc', entityId: npcId });
+      if (!result.ok) {
+        throw new Error(result.error?.message || 'Failed to load cover media');
+      }
+      return result.data;
+    },
+    enabled: !!npcId && isAdminMediaEnabled(),
+    staleTime: 30 * 1000,
+  });
+
+  const handleCoverChange = async (mediaId: string | null) => {
+    queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'npc', npcId] });
+    queryClient.invalidateQueries({ queryKey: ['admin-npc', npcId] });
+    if (onMediaSelected) {
+      onMediaSelected(null); // Clear selection after setting cover
+    }
+  };
+
+  if (loadingCover) {
+    return <div className="text-sm text-muted-foreground">Loading cover image...</div>;
+  }
+
+  return (
+    <CoverImagePanel
+      entityKind="npc"
+      entityId={npcId}
+      coverMedia={coverMedia || undefined}
+      selectedMediaId={selectedMediaId || null}
+      disabled={isLocked}
+      onChange={handleCoverChange}
+      entityName={npcName}
+    />
+  );
+}
+
+// Gallery Section Component
+function GallerySection({ npcId, npcName, isLocked }: { npcId: string; npcName: string; isLocked: boolean }) {
+  const queryClient = useQueryClient();
+  
+  const { data: galleryItems, isLoading: loadingGallery } = useQuery({
+    queryKey: ['admin-media-gallery', 'npc', npcId],
+    queryFn: async () => {
+      const result = await getGalleryLinks({ kind: 'npc', entityId: npcId });
+      if (!result.ok) {
+        throw new Error(result.error?.message || 'Failed to load gallery');
+      }
+      return result.data.items;
+    },
+    enabled: !!npcId && isAdminMediaEnabled(),
+    staleTime: 30 * 1000,
+  });
+
+  const handleGalleryChange = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-media-gallery', 'npc', npcId] });
+  };
+
+  if (loadingGallery) {
+    return <div className="text-sm text-muted-foreground">Loading gallery...</div>;
+  }
+
+  return (
+    <GalleryManager
+      entityKind="npc"
+      entityId={npcId}
+      items={galleryItems || []}
+      disabled={isLocked}
+      onChange={handleGalleryChange}
+      entityName={npcName}
+    />
+  );
+}
+
 export default function EditNPCPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const { isAdmin } = useAppRoles();
   const [loading, setLoading] = useState(false);
   const [loadingNPC, setLoadingNPC] = useState(true);
   const [worldsLoading, setWorldsLoading] = useState(true);
   const [npc, setNPC] = useState<ExtendedNPC | null>(null);
   const [worlds, setWorlds] = useState<World[]>([]);
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [formData, setFormData] = useState<ExtendedUpdateNPCData>({
     name: '',
     description: '',
@@ -363,9 +464,10 @@ export default function EditNPCPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => navigate(`/publishing/wizard?type=npc&id=${id}`)}
+                      onClick={() => navigate(`/admin/publishing-wizard/npc/${id}`)}
+                      disabled={npc && (npc as any).publish_status === 'published'}
                     >
-                      Open Wizard
+                      Publishing Wizard
                     </Button>
                   )}
                   <PublishButton
@@ -489,6 +591,71 @@ export default function EditNPCPage() {
                   });
                 }
               }}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Phase 3b: Images section (admin-only, feature-flagged) */}
+      {isAdminMediaEnabled() && id && npc && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Images</CardTitle>
+            <CardDescription>
+              Upload and manage cover images and gallery for this NPC.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Upload Section */}
+            <MediaUploader
+              kind="npc"
+              entityName={npc.name}
+              onUploaded={async (media) => {
+                toast.success('Image uploaded and finalized successfully');
+                // Set the uploaded media as selected so user can set it as cover
+                setSelectedMediaId(media.id);
+                
+                // Automatically add to gallery
+                try {
+                  const { createMediaLink } = await import('@/services/admin.media');
+                  const result = await createMediaLink({
+                    target: { kind: 'npc', id: id! },
+                    mediaId: media.id,
+                    role: 'gallery',
+                  });
+                  
+                  if (result.ok) {
+                    toast.success('Image added to gallery');
+                  } else if (result.error?.message?.includes('already linked')) {
+                    // Already in gallery, that's fine
+                  } else {
+                    console.warn('Failed to auto-add to gallery:', result.error);
+                  }
+                } catch (err) {
+                  console.error('Error auto-adding to gallery:', err);
+                  // Don't show error toast - gallery add is optional
+                }
+                
+                // Invalidate queries to refresh cover and gallery
+                queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'npc', id] });
+                queryClient.invalidateQueries({ queryKey: ['admin-media-gallery', 'npc', id] });
+              }}
+            />
+
+            {/* Cover Image Panel */}
+            <CoverImageSection 
+              npcId={id} 
+              npcName={npc.name} 
+              isLocked={!isAdmin && (npc as any).publish_status === 'published'}
+              selectedMediaId={selectedMediaId}
+              onMediaSelected={setSelectedMediaId}
+            />
+
+            {/* Gallery Manager */}
+            <GallerySection 
+              npcId={id} 
+              npcName={npc.name} 
+              isLocked={!isAdmin && (npc as any).publish_status === 'published'} 
             />
           </CardContent>
         </Card>

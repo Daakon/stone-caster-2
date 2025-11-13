@@ -65,5 +65,17 @@ flyctl secrets set STRIPE_WEBHOOK_SECRET="your_stripe_webhook_secret_here" -a st
 Write-Host "Setting Anthropic secrets..." -ForegroundColor Yellow
 flyctl secrets set ANTHROPIC_API_KEY="your_anthropic_key_here" -a stonecaster-api
 
+# Set Cloudflare Images secrets (if using media uploads)
+Write-Host "Setting Cloudflare Images secrets..." -ForegroundColor Yellow
+if ($env:CF_ACCOUNT_ID -and $env:CF_API_TOKEN -and $env:CF_IMAGES_ACCOUNT_HASH -and $env:CF_IMAGES_DELIVERY_URL) {
+    flyctl secrets set CF_ACCOUNT_ID="$env:CF_ACCOUNT_ID" -a stonecaster-api
+    flyctl secrets set CF_API_TOKEN="$env:CF_API_TOKEN" -a stonecaster-api
+    flyctl secrets set CF_IMAGES_ACCOUNT_HASH="$env:CF_IMAGES_ACCOUNT_HASH" -a stonecaster-api
+    flyctl secrets set CF_IMAGES_DELIVERY_URL="$env:CF_IMAGES_DELIVERY_URL" -a stonecaster-api
+    Write-Host "Cloudflare Images secrets set successfully" -ForegroundColor Green
+} else {
+    Write-Host "WARNING: Cloudflare Images secrets not set. Set CF_ACCOUNT_ID, CF_API_TOKEN, CF_IMAGES_ACCOUNT_HASH, and CF_IMAGES_DELIVERY_URL environment variables to enable." -ForegroundColor Yellow
+}
+
 Write-Host "All secrets set successfully!" -ForegroundColor Green
 Write-Host "Run 'flyctl secrets list -a stonecaster-api' to verify" -ForegroundColor Cyan

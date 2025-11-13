@@ -10,8 +10,9 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Play, Clock, Tag } from 'lucide-react';
+import { Play, Clock, Tag, Image as ImageIcon } from 'lucide-react';
 import type { CatalogEntryPoint } from '@/types/catalog';
+import { buildImageUrl } from '@shared/media/url';
 
 interface EntryPointCardProps {
   entryPoint: CatalogEntryPoint;
@@ -30,6 +31,13 @@ export const EntryPointCard = forwardRef<HTMLDivElement, EntryPointCardProps>(
       ? { label: 'Playable', variant: 'default' as const, icon: Play }
       : { label: 'Coming Soon', variant: 'secondary' as const, icon: Clock };
 
+    // Phase 4: Build cover image URL from coverMedia
+    const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL;
+    const hasDeliveryUrl = !!deliveryUrl && deliveryUrl.trim() !== '';
+    const coverImageUrl = entryPoint.cover_media && hasDeliveryUrl
+      ? buildImageUrl(entryPoint.cover_media.provider_key, 'card')
+      : null;
+
     return (
       <Card 
         ref={ref}
@@ -41,6 +49,34 @@ export const EntryPointCard = forwardRef<HTMLDivElement, EntryPointCardProps>(
           onClick={handleClick}
           aria-label={`View ${entryPoint.title}`}
         >
+          {coverImageUrl ? (
+            <div className="aspect-video overflow-hidden rounded-t-lg bg-muted">
+              <img
+                src={coverImageUrl}
+                alt={`${entryPoint.title} cover`}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                loading="lazy"
+                decoding="async"
+                width={400}
+                height={300}
+                onError={(e) => {
+                  // Fallback to placeholder on error
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent && !parent.querySelector('.cover-placeholder')) {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'cover-placeholder flex h-full w-full items-center justify-center bg-muted';
+                    placeholder.innerHTML = '<svg class="h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                    parent.appendChild(placeholder);
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <div className="aspect-video overflow-hidden rounded-t-lg bg-muted flex items-center justify-center">
+              <ImageIcon className="h-12 w-12 text-muted-foreground" />
+            </div>
+          )}
           <CardContent className="p-4">
             {/* Title */}
             <h3 className="font-semibold text-lg mb-1 line-clamp-2 group-hover:text-primary transition-colors">

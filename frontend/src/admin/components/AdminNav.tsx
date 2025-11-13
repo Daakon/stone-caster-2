@@ -6,7 +6,7 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppRoles } from '../routeGuard';
-import { isPublishingWizardEntryEnabled, isPublishingAuditViewerEnabled } from '@/lib/feature-flags';
+import { isPublishingWizardEntryEnabled, isPublishingAuditViewerEnabled, isAdminMediaEnabled } from '@/lib/feature-flags';
 
 // Navigation configuration
 const NAV_ITEMS = [
@@ -77,6 +77,13 @@ const NAV_ITEMS = [
     icon: '🎟️'
   },
   {
+    label: 'Image Approvals',
+    href: '/admin/media/approvals',
+    roles: ['admin'] as const,
+    icon: '🖼️',
+    featureFlag: 'adminMedia' as const,
+  },
+  {
     label: 'Publishing (beta)',
     href: '/admin/publishing',
     roles: ['moderator', 'admin'] as const,
@@ -102,6 +109,9 @@ export function AdminNav() {
         return false;
       }
       if (item.featureFlag === 'publishingAuditViewer' && !isPublishingAuditViewerEnabled()) {
+        return false;
+      }
+      if (item.featureFlag === 'adminMedia' && !isAdminMediaEnabled()) {
         return false;
       }
     }

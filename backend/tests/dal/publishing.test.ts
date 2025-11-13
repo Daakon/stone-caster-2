@@ -522,6 +522,293 @@ describe('approveSubmission', () => {
       code: ApiErrorCode.APPROVAL_BLOCKED,
     });
   });
+
+  it('should update cover media visibility to public when entity is approved', async () => {
+    const { approveSubmission } = await import('../../src/dal/publishing.js');
+    
+    const mockMediaUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    const mockUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    const mockFrom = vi.fn().mockImplementation((table: string) => {
+      if (table === 'worlds') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'world-id',
+                  visibility: 'public',
+                  review_state: 'approved',
+                },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'entry_points') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn()
+                .mockResolvedValueOnce({
+                  data: {
+                    id: 'test-id',
+                    review_state: 'pending_review',
+                    visibility: 'private',
+                    dependency_invalid: false,
+                    world_id: 'world-id',
+                    title: 'Test Story',
+                    owner_user_id: 'user-id',
+                    cover_media_id: 'media-123',
+                  },
+                  error: null,
+                })
+                .mockResolvedValueOnce({
+                  data: {
+                    id: 'test-id',
+                    review_state: 'approved',
+                    visibility: 'public',
+                    dependency_invalid: false,
+                    world_id: 'world-id',
+                    title: 'Test Story',
+                    owner_user_id: 'user-id',
+                    cover_media_id: 'media-123',
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+          update: mockUpdate,
+        };
+      }
+      if (table === 'media_assets') {
+        return {
+          update: mockMediaUpdate,
+        };
+      }
+      if (table === 'publishing_audit') {
+        return {
+          insert: vi.fn().mockResolvedValue({ error: null }),
+        };
+      }
+      return {};
+    });
+
+    // Mock feature flag
+    vi.mock('../../src/config/featureFlags.js', () => ({
+      isAdminMediaEnabled: vi.fn().mockReturnValue(true),
+      isPublishingQualityGatesEnabled: vi.fn().mockReturnValue(false),
+    }));
+
+    (supabaseAdmin.from as any).mockImplementation(mockFrom);
+
+    const result = await approveSubmission({
+      type: 'story',
+      id: 'test-id',
+      reviewerUserId: 'reviewer-id',
+    });
+
+    expect(result.review_state).toBe('approved');
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockMediaUpdate).toHaveBeenCalledWith({ visibility: 'public' });
+    expect(mockMediaUpdate().eq).toHaveBeenCalledWith('id', 'media-123');
+  });
+
+  it('should be idempotent when cover is already public', async () => {
+    const { approveSubmission } = await import('../../src/dal/publishing.js');
+    
+    const mockMediaUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    const mockUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    const mockFrom = vi.fn().mockImplementation((table: string) => {
+      if (table === 'worlds') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'world-id',
+                  visibility: 'public',
+                  review_state: 'approved',
+                },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'entry_points') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn()
+                .mockResolvedValueOnce({
+                  data: {
+                    id: 'test-id',
+                    review_state: 'pending_review',
+                    visibility: 'private',
+                    dependency_invalid: false,
+                    world_id: 'world-id',
+                    title: 'Test Story',
+                    owner_user_id: 'user-id',
+                    cover_media_id: 'media-123',
+                  },
+                  error: null,
+                })
+                .mockResolvedValueOnce({
+                  data: {
+                    id: 'test-id',
+                    review_state: 'approved',
+                    visibility: 'public',
+                    dependency_invalid: false,
+                    world_id: 'world-id',
+                    title: 'Test Story',
+                    owner_user_id: 'user-id',
+                    cover_media_id: 'media-123',
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+          update: mockUpdate,
+        };
+      }
+      if (table === 'media_assets') {
+        return {
+          update: mockMediaUpdate,
+        };
+      }
+      if (table === 'publishing_audit') {
+        return {
+          insert: vi.fn().mockResolvedValue({ error: null }),
+        };
+      }
+      return {};
+    });
+
+    (supabaseAdmin.from as any).mockImplementation(mockFrom);
+
+    // First approval
+    await approveSubmission({
+      type: 'story',
+      id: 'test-id',
+      reviewerUserId: 'reviewer-id',
+    });
+
+    expect(mockMediaUpdate).toHaveBeenCalledTimes(1);
+
+    // Second approval (idempotent - should still update, but visibility stays public)
+    await approveSubmission({
+      type: 'story',
+      id: 'test-id',
+      reviewerUserId: 'reviewer-id',
+    });
+
+    // Should still update (idempotent operation)
+    expect(mockMediaUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it('should not update cover if entity has no cover_media_id', async () => {
+    const { approveSubmission } = await import('../../src/dal/publishing.js');
+    
+    const mockMediaUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    const mockUpdate = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    const mockFrom = vi.fn().mockImplementation((table: string) => {
+      if (table === 'worlds') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'world-id',
+                  visibility: 'public',
+                  review_state: 'approved',
+                },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'entry_points') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn()
+                .mockResolvedValueOnce({
+                  data: {
+                    id: 'test-id',
+                    review_state: 'pending_review',
+                    visibility: 'private',
+                    dependency_invalid: false,
+                    world_id: 'world-id',
+                    title: 'Test Story',
+                    owner_user_id: 'user-id',
+                    cover_media_id: null,
+                  },
+                  error: null,
+                })
+                .mockResolvedValueOnce({
+                  data: {
+                    id: 'test-id',
+                    review_state: 'approved',
+                    visibility: 'public',
+                    dependency_invalid: false,
+                    world_id: 'world-id',
+                    title: 'Test Story',
+                    owner_user_id: 'user-id',
+                    cover_media_id: null,
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+          update: mockUpdate,
+        };
+      }
+      if (table === 'media_assets') {
+        return {
+          update: mockMediaUpdate,
+        };
+      }
+      if (table === 'publishing_audit') {
+        return {
+          insert: vi.fn().mockResolvedValue({ error: null }),
+        };
+      }
+      return {};
+    });
+
+    (supabaseAdmin.from as any).mockImplementation(mockFrom);
+
+    const result = await approveSubmission({
+      type: 'story',
+      id: 'test-id',
+      reviewerUserId: 'reviewer-id',
+    });
+
+    expect(result.review_state).toBe('approved');
+    expect(mockUpdate).toHaveBeenCalled();
+    // Should not update media if no cover_media_id
+    expect(mockMediaUpdate).not.toHaveBeenCalled();
+  });
 });
 
 describe('rejectSubmission', () => {
@@ -601,6 +888,211 @@ describe('rejectSubmission', () => {
       })
     ).rejects.toMatchObject({
       code: ApiErrorCode.REJECT_REASON_REQUIRED,
+    });
+  });
+});
+
+describe('Phase 5: Prompt Snapshots on Publish', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should create snapshot when publishing a Story', async () => {
+    const { approveSubmission } = await import('../../src/dal/publishing.js');
+    const { createPromptSnapshotForEntity } = await import('../../src/services/promptSnapshotService.js');
+
+    const mockStoryId = 'story-123';
+    const mockReviewerId = 'reviewer-456';
+    const mockPublishRequestId = 'publish-789';
+    const mockCoverMediaId = 'media-cover-123';
+
+    // Mock story data
+    const mockStory = {
+      id: mockStoryId,
+      owner_user_id: 'owner-123',
+      world_id: 'world-abc',
+      publish_visibility: 'public',
+      visibility: 'public',
+      review_state: 'approved',
+      dependency_invalid: false,
+      title: 'Test Story',
+      cover_media_id: mockCoverMediaId,
+    };
+
+    // Mock snapshot creation
+    vi.mock('../../src/services/promptSnapshotService.js', async () => {
+      const actual = await vi.importActual('../../src/services/promptSnapshotService.js');
+      return {
+        ...actual,
+        createPromptSnapshotForEntity: vi.fn().mockResolvedValue({
+          snapshotId: 'snapshot-123',
+          version: 1,
+        }),
+      };
+    });
+
+    const mockFrom = vi.fn((table: string) => {
+      if (table === 'entry_points') {
+        return {
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockResolvedValue({ error: null }),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: mockStory, error: null }),
+        };
+      }
+      if (table === 'publishing_audit') {
+        return {
+          insert: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: { id: mockPublishRequestId },
+            error: null,
+          }),
+        };
+      }
+      if (table === 'media_assets') {
+        return {
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        };
+      }
+      return {};
+    });
+
+    (supabaseAdmin.from as any).mockImplementation(mockFrom);
+
+    const result = await approveSubmission({
+      type: 'story',
+      id: mockStoryId,
+      reviewerUserId: mockReviewerId,
+    });
+
+    expect(result.snapshotId).toBe('snapshot-123');
+    expect(result.snapshotVersion).toBe(1);
+    expect(createPromptSnapshotForEntity).toHaveBeenCalledWith({
+      entityType: 'story',
+      entityId: mockStoryId,
+      approvedByUserId: mockReviewerId,
+      sourcePublishRequestId: expect.any(String),
+    });
+  });
+
+  it('should create new snapshot with incremented version on re-publish', async () => {
+    const { approveSubmission } = await import('../../src/dal/publishing.js');
+    const { createPromptSnapshotForEntity } = await import('../../src/services/promptSnapshotService.js');
+
+    const mockStoryId = 'story-123';
+    const mockReviewerId = 'reviewer-456';
+
+    // Mock that first snapshot exists (version 1)
+    // On second publish, should create version 2
+    (createPromptSnapshotForEntity as any).mockResolvedValueOnce({
+      snapshotId: 'snapshot-456',
+      version: 2,
+    });
+
+    const mockStory = {
+      id: mockStoryId,
+      owner_user_id: 'owner-123',
+      world_id: 'world-abc',
+      publish_visibility: 'public',
+      visibility: 'public',
+      review_state: 'approved',
+      dependency_invalid: false,
+      title: 'Test Story',
+      cover_media_id: null,
+    };
+
+    const mockFrom = vi.fn((table: string) => {
+      if (table === 'entry_points') {
+        return {
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockResolvedValue({ error: null }),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: mockStory, error: null }),
+        };
+      }
+      if (table === 'publishing_audit') {
+        return {
+          insert: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: { id: 'publish-request-2' },
+            error: null,
+          }),
+        };
+      }
+      return {};
+    });
+
+    (supabaseAdmin.from as any).mockImplementation(mockFrom);
+
+    const result = await approveSubmission({
+      type: 'story',
+      id: mockStoryId,
+      reviewerUserId: mockReviewerId,
+    });
+
+    expect(result.snapshotVersion).toBe(2);
+  });
+
+  it('should block approval when snapshot creation fails', async () => {
+    const { approveSubmission } = await import('../../src/dal/publishing.js');
+    const { createPromptSnapshotForEntity } = await import('../../src/services/promptSnapshotService.js');
+    const { ApiErrorCode } = await import('@shared');
+
+    const mockStoryId = 'story-123';
+    const mockReviewerId = 'reviewer-456';
+
+    (createPromptSnapshotForEntity as any).mockRejectedValueOnce(
+      new Error('Failed to create snapshot: Database error')
+    );
+
+    const mockStory = {
+      id: mockStoryId,
+      owner_user_id: 'owner-123',
+      world_id: 'world-abc',
+      publish_visibility: 'public',
+      visibility: 'public',
+      review_state: 'approved',
+      dependency_invalid: false,
+      title: 'Test Story',
+      cover_media_id: null,
+    };
+
+    const mockFrom = vi.fn((table: string) => {
+      if (table === 'entry_points') {
+        return {
+          update: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockResolvedValue({ error: null }),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: mockStory, error: null }),
+        };
+      }
+      if (table === 'publishing_audit') {
+        return {
+          insert: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: { id: 'publish-request-1' },
+            error: null,
+          }),
+        };
+      }
+      return {};
+    });
+
+    (supabaseAdmin.from as any).mockImplementation(mockFrom);
+
+    await expect(
+      approveSubmission({
+        type: 'story',
+        id: mockStoryId,
+        reviewerUserId: mockReviewerId,
+      })
+    ).rejects.toMatchObject({
+      code: ApiErrorCode.INTERNAL_ERROR,
+      message: expect.stringContaining('Failed to create prompt snapshot'),
     });
   });
 });

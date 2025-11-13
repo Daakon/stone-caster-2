@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,11 +22,114 @@ import { trackAdminEvent } from '@/lib/admin-telemetry';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PublishButton } from '@/components/publishing/PublishButton';
 import { PreflightPanel } from '@/components/publishing/PreflightPanel';
-import { isPublishingWizardEnabled } from '@/lib/feature-flags';
+import { isPublishingWizardEnabled, isAdminMediaEnabled } from '@/lib/feature-flags';
+import { MediaUploader } from '@/components/admin/MediaUploader';
+import { CoverImagePanel } from '@/components/admin/CoverImagePanel';
+import { GalleryManager } from '@/components/admin/GalleryManager';
+import { getCoverMedia, getGalleryLinks, type GalleryLinkWithMedia } from '@/services/admin.media';
+import type { MediaAssetDTO } from '@shared/types/media';
+import { useAppRoles } from '@/admin/routeGuard';
+
+// Cover Image Section Component
+function CoverImageSection({ 
+  worldId, 
+  worldName, 
+  isLocked,
+  selectedMediaId,
+  onMediaSelected,
+}: { 
+  worldId: string; 
+  worldName: string; 
+  isLocked: boolean;
+  selectedMediaId?: string | null;
+  onMediaSelected?: (mediaId: string | null) => void;
+}) {
+  const queryClient = useQueryClient();
+  
+  const { data: coverMedia, isLoading: loadingCover } = useQuery({
+    queryKey: ['admin-media-cover', 'world', worldId],
+    queryFn: async () => {
+      const result = await getCoverMedia({ kind: 'world', entityId: worldId });
+      if (!result.ok) {
+        throw new Error(result.error?.message || 'Failed to load cover media');
+      }
+      return result.data;
+    },
+    enabled: !!worldId && isAdminMediaEnabled(),
+    staleTime: 30 * 1000,
+  });
+
+  const handleCoverChange = async (mediaId: string | null) => {
+    // Optimistic update
+    queryClient.setQueryData(['admin-media-cover', 'world', worldId], mediaId ? { id: mediaId } : null);
+    
+    // Invalidate to refetch
+    queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'world', worldId] });
+    queryClient.invalidateQueries({ queryKey: ['admin-world', worldId] });
+    if (onMediaSelected) {
+      onMediaSelected(null); // Clear selection after setting cover
+    }
+  };
+
+  if (loadingCover) {
+    return <div className="text-sm text-muted-foreground">Loading cover image...</div>;
+  }
+
+  return (
+    <CoverImagePanel
+      entityKind="world"
+      entityId={worldId}
+      coverMedia={coverMedia || undefined}
+      selectedMediaId={selectedMediaId || null}
+      disabled={isLocked}
+      onChange={handleCoverChange}
+      entityName={worldName}
+    />
+  );
+}
+
+// Gallery Section Component
+function GallerySection({ worldId, worldName, isLocked }: { worldId: string; worldName: string; isLocked: boolean }) {
+  const queryClient = useQueryClient();
+  
+  const { data: galleryItems, isLoading: loadingGallery } = useQuery({
+    queryKey: ['admin-media-gallery', 'world', worldId],
+    queryFn: async () => {
+      const result = await getGalleryLinks({ kind: 'world', entityId: worldId });
+      if (!result.ok) {
+        throw new Error(result.error?.message || 'Failed to load gallery');
+      }
+      return result.data.items;
+    },
+    enabled: !!worldId && isAdminMediaEnabled(),
+    staleTime: 30 * 1000,
+  });
+
+  const handleGalleryChange = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-media-gallery', 'world', worldId] });
+  };
+
+  if (loadingGallery) {
+    return <div className="text-sm text-muted-foreground">Loading gallery...</div>;
+  }
+
+  return (
+    <GalleryManager
+      entityKind="world"
+      entityId={worldId}
+      items={galleryItems || []}
+      disabled={isLocked}
+      onChange={handleGalleryChange}
+      entityName={worldName}
+    />
+  );
+}
 
 export default function WorldEditPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const { isAdmin } = useAppRoles();
   const [loading, setLoading] = useState(false);
   const [loadingWorld, setLoadingWorld] = useState(true);
   const [world, setWorld] = useState<World | null>(null);
@@ -36,6 +140,7 @@ export default function WorldEditPage() {
     status: 'draft',
   });
   const [slug, setSlug] = useState('');
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -138,6 +243,8 @@ export default function WorldEditPage() {
       </div>
     );
   }
+
+  const isLocked = !isAdmin && (world as any).publish_status === 'published';
 
   return (
     <div className="space-y-6">
@@ -254,9 +361,10 @@ export default function WorldEditPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => navigate(`/publishing/wizard?type=world&id=${id}`)}
+                      onClick={() => navigate(`/admin/publishing-wizard/world/${id}`)}
+                      disabled={isLocked}
                     >
-                      Open Wizard
+                      Publishing Wizard
                     </Button>
                   )}
                   <PublishButton type="world" id={id} />
@@ -350,6 +458,67 @@ export default function WorldEditPage() {
                 }
               }}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Phase 3b: Images section (admin-only, feature-flagged) */}
+      {isAdminMediaEnabled() && id && world && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Images</CardTitle>
+            <CardDescription>
+              Upload and manage cover images and gallery for this world.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Upload Section */}
+            <MediaUploader
+              kind="world"
+              entityName={world.name}
+              onUploaded={async (media) => {
+                toast.success('Image uploaded and finalized successfully');
+                // Set the uploaded media as selected so user can set it as cover
+                setSelectedMediaId(media.id);
+                
+                // Automatically add to gallery
+                try {
+                  const { createMediaLink } = await import('@/services/admin.media');
+                  const result = await createMediaLink({
+                    target: { kind: 'world', id: id! },
+                    mediaId: media.id,
+                    role: 'gallery',
+                  });
+                  
+                  if (result.ok) {
+                    toast.success('Image added to gallery');
+                  } else if (result.error?.message?.includes('already linked')) {
+                    // Already in gallery, that's fine
+                  } else {
+                    console.warn('Failed to auto-add to gallery:', result.error);
+                  }
+                } catch (err) {
+                  console.error('Error auto-adding to gallery:', err);
+                  // Don't show error toast - gallery add is optional
+                }
+                
+                // Invalidate queries to refresh cover and gallery
+                queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'world', id] });
+                queryClient.invalidateQueries({ queryKey: ['admin-media-gallery', 'world', id] });
+              }}
+            />
+
+            {/* Cover Image Panel */}
+            <CoverImageSection 
+              worldId={id} 
+              worldName={world.name} 
+              isLocked={isLocked}
+              selectedMediaId={selectedMediaId}
+              onMediaSelected={setSelectedMediaId}
+            />
+
+            {/* Gallery Manager */}
+            <GallerySection worldId={id} worldName={world.name} isLocked={isLocked} />
           </CardContent>
         </Card>
       )}

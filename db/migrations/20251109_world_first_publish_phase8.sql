@@ -28,3 +28,5 @@ CREATE INDEX IF NOT EXISTS idx_pws_updated_at ON publishing_wizard_sessions(upda
 -- CREATE POLICY pws_user_update ON publishing_wizard_sessions FOR UPDATE USING (auth.uid() = user_id);
 -- CREATE POLICY pws_user_delete ON publishing_wizard_sessions FOR DELETE USING (auth.uid() = user_id);
 
+
+

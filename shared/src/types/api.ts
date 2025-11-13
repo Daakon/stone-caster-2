@@ -45,6 +45,9 @@ export enum ApiErrorCode {
   // Publishing errors (Phase 3)
   APPROVAL_BLOCKED = 'APPROVAL_BLOCKED',
   REJECT_REASON_REQUIRED = 'REJECT_REASON_REQUIRED',
+  // Publishing errors (Phase 7/8)
+  ALREADY_PUBLISHED = 'ALREADY_PUBLISHED',
+  ALREADY_IN_REVIEW = 'ALREADY_IN_REVIEW',
 }
 
 // Re-export as ErrorCode for convenience

@@ -64,6 +64,8 @@ export interface EntryPointAssemblerV3Input {
   entryStartSlug?: string; // Optional override from entry point doc
   model?: string;
   budgetTokens?: number;
+  // Phase 5: Optional snapshot ID to use frozen prompt data
+  promptSnapshotId?: string;
   // For ongoing turns (not initialization)
   stateSnapshot?: any; // Current game state (JSON)
   conversationWindow?: Array<{
@@ -219,9 +221,27 @@ export class EntryPointAssemblerV3 {
     console.log(JSON.stringify({
       event: 'v3.assemble.start',
       entryPointId: input.entryPointId,
+      promptSnapshotId: input.promptSnapshotId,
     }));
 
     try {
+      // Phase 5: If snapshot ID provided, load snapshot data and use it
+      let snapshotData: any = null;
+      if (input.promptSnapshotId) {
+        const { getSnapshotById } = await import('../services/promptSnapshotService.js');
+        const snapshot = await getSnapshotById(input.promptSnapshotId);
+        if (snapshot) {
+          snapshotData = snapshot.data;
+          console.log(JSON.stringify({
+            event: 'v3.assemble.snapshot.loaded',
+            snapshotId: snapshot.id,
+            version: snapshot.version,
+          }));
+        } else {
+          console.warn(`[v3.assemble] Snapshot ${input.promptSnapshotId} not found, falling back to live data`);
+        }
+      }
+
       // 1. Load entry point
       const entryPoint = await this.loadEntryPoint(input.entryPointId);
       if (!entryPoint) {
@@ -232,50 +252,92 @@ export class EntryPointAssemblerV3 {
         );
       }
 
-      // 2. Load world (with cache and active check)
-      const world = await this.loadWorld(entryPoint.world_id);
-      if (!world) {
-        throw new EntryPointAssemblerError(
-          'WORLD_NOT_ACTIVE',
-          `World '${entryPoint.world_id}' not found or not active`,
-          { worldId: entryPoint.world_id }
-        );
+      // Phase 5: Use snapshot data if available, otherwise load from entities
+      let worldPromptText: string;
+      let rulesetPromptText: string;
+      let entryPromptText: string;
+      let entryStartSlug: string;
+      let world: WorldData;
+      let ruleset: RulesetData;
+      let hasMultipleDefaults = false;
+      let npcs: NPCData[];
+      let npcCountBefore = 0;
+
+      if (snapshotData) {
+        // Phase 5: Use frozen snapshot data (exclusive - no live data for prompts)
+        // Snapshot data structure: { corePrompt, rulesetPrompt, worldPrompt, storyPrompt, ... }
+        worldPromptText = snapshotData.worldPrompt || '';
+        rulesetPromptText = snapshotData.rulesetPrompt || '';
+        entryPromptText = snapshotData.storyPrompt || '';
+        // entryStartSlug is not in snapshot (it's dynamic per game), use input or entry point
+        entryStartSlug = input.entryStartSlug || entryPoint.content?.doc?.entryStartSlug || entryPoint.slug;
+        
+        // Still need world/ruleset metadata for pieces array, but use snapshot prompts
+        world = await this.loadWorld(entryPoint.world_id);
+        if (!world) {
+          throw new EntryPointAssemblerError(
+            'WORLD_NOT_ACTIVE',
+            `World '${entryPoint.world_id}' not found or not active`,
+            { worldId: entryPoint.world_id }
+          );
+        }
+        
+        const rulesetResult = await this.loadDefaultRulesetForEntryPoint(input.entryPointId);
+        ruleset = rulesetResult.ruleset!;
+        hasMultipleDefaults = rulesetResult.multipleDefaults;
+        
+        // Load NPCs (snapshot doesn't freeze NPCs, they can change)
+        const npcBindings = await this.loadEntryPointNPCs(input.entryPointId);
+        npcs = await this.loadNPCs(npcBindings.map(b => b.npc_id));
+        npcCountBefore = npcs.length;
+      } else {
+        // Load from live entities (original behavior)
+        // 2. Load world (with cache and active check)
+        world = await this.loadWorld(entryPoint.world_id);
+        if (!world) {
+          throw new EntryPointAssemblerError(
+            'WORLD_NOT_ACTIVE',
+            `World '${entryPoint.world_id}' not found or not active`,
+            { worldId: entryPoint.world_id }
+          );
+        }
+
+        // 3. Load ruleset (default first, then by sort_order)
+        const rulesetResult = await this.loadDefaultRulesetForEntryPoint(input.entryPointId);
+        ruleset = rulesetResult.ruleset!;
+        if (!ruleset) {
+          throw new EntryPointAssemblerError(
+            'RULESET_NOT_ALLOWED',
+            `No default ruleset found for entry point '${input.entryPointId}'`,
+            { entryPointId: input.entryPointId }
+          );
+        }
+
+        // Track multiple defaults in policy (will be added to final policy array)
+        hasMultipleDefaults = rulesetResult.multipleDefaults;
+
+        // 4. Load NPCs (from entry_point_npcs, ordered by sort_order ASC, npc_slug ASC)
+        const npcBindings = await this.loadEntryPointNPCs(input.entryPointId);
+        npcs = await this.loadNPCs(npcBindings.map(b => b.npc_id));
+        npcCountBefore = npcs.length;
+
+        // 5. Extract entry start slug (from input override or entry point doc)
+        entryStartSlug = input.entryStartSlug || 
+                         entryPoint.content?.doc?.entryStartSlug ||
+                         entryPoint.content?.entryStartSlug ||
+                         entryPoint.slug;
+
+        // 6. Extract entry prompt text (from entry point doc)
+        entryPromptText = entryPoint.content?.doc?.prompt?.text ||
+                         entryPoint.content?.prompt?.text ||
+                         `# Entry: ${entryPoint.slug}\n\nBegin your adventure here.`;
+
+        // 7. Extract world prompt content
+        worldPromptText = this.extractWorldPrompt(world.doc);
+
+        // 8. Extract ruleset prompt content
+        rulesetPromptText = this.extractRulesetPrompt(ruleset.doc);
       }
-
-      // 3. Load ruleset (default first, then by sort_order)
-      const { ruleset, multipleDefaults } = await this.loadDefaultRulesetForEntryPoint(input.entryPointId);
-      if (!ruleset) {
-        throw new EntryPointAssemblerError(
-          'RULESET_NOT_ALLOWED',
-          `No default ruleset found for entry point '${input.entryPointId}'`,
-          { entryPointId: input.entryPointId }
-        );
-      }
-
-      // Track multiple defaults in policy (will be added to final policy array)
-      const hasMultipleDefaults = multipleDefaults;
-
-      // 4. Load NPCs (from entry_point_npcs, ordered by sort_order ASC, npc_slug ASC)
-      const npcBindings = await this.loadEntryPointNPCs(input.entryPointId);
-      const npcs = await this.loadNPCs(npcBindings.map(b => b.npc_id));
-      const npcCountBefore = npcs.length;
-
-    // 5. Extract entry start slug (from input override or entry point doc)
-    const entryStartSlug = input.entryStartSlug || 
-                           entryPoint.content?.doc?.entryStartSlug ||
-                           entryPoint.content?.entryStartSlug ||
-                           entryPoint.slug;
-
-    // 6. Extract entry prompt text (from entry point doc)
-    const entryPromptText = entryPoint.content?.doc?.prompt?.text ||
-                           entryPoint.content?.prompt?.text ||
-                           `# Entry: ${entryPoint.slug}\n\nBegin your adventure here.`;
-
-    // 7. Extract world prompt content
-    const worldPromptText = this.extractWorldPrompt(world.doc);
-
-    // 8. Extract ruleset prompt content
-    const rulesetPromptText = this.extractRulesetPrompt(ruleset.doc);
 
     // 9. Build pieces array
     const pieces: AssemblePiece[] = [];
