@@ -1,6 +1,24 @@
 import { z } from 'zod';
 
 /**
+ * Publish status types
+ * Phase 8: Status-to-label mapping for UI consistency
+ */
+export type PublishStatus = 'draft' | 'in_review' | 'published' | 'rejected';
+
+export const PublishStatusSchema = z.enum(['draft', 'in_review', 'published', 'rejected']);
+
+/**
+ * Status label mapping for UI display
+ */
+export const PUBLISH_STATUS_LABELS: Record<PublishStatus, string> = {
+  draft: 'Draft',
+  in_review: 'In Review',
+  published: 'Published',
+  rejected: 'Rejected',
+};
+
+/**
  * World-First Publishing Types
  * Phase 0/1: Bootstrap types and constants
  */
@@ -210,4 +228,77 @@ export interface ChecklistRecord {
   score: number;
   created_at: string;
 }
+
+/**
+ * Phase 5: Prompt Snapshot Types
+ */
+
+/**
+ * Prompt snapshot data structure
+ * Captures resolved prompt layers and media references at publish time
+ */
+export interface PromptSnapshotData {
+  // Phase 5 refinement: Schema version for future-proofing
+  schemaVersion: number;
+
+  // Prompt configuration at publish time
+  corePrompt: string;
+  rulesetPrompt: string;
+  worldPrompt: string;
+  storyPrompt: string;
+
+  // Static config flags
+  mechanics: Record<string, unknown>;
+  relationshipConfig: Record<string, unknown>;
+
+  // Media references
+  coverMediaId?: string;
+  // Phase 5 refinement: Optional variant for future variant changes
+  coverMediaVariant?: 'card' | 'thumb';
+  galleryMediaIds?: string[];
+}
+
+/**
+ * Prompt snapshot record
+ */
+export interface PromptSnapshot {
+  id: string;
+  entityType: 'world' | 'story';
+  entityId: string;
+  version: number;
+  createdAt: string;
+  createdBy: string;
+  sourcePublishRequestId?: string | null;
+  data: PromptSnapshotData;
+}
+
+/**
+ * Zod schema for prompt snapshot data
+ */
+export const PromptSnapshotDataSchema = z.object({
+  schemaVersion: z.number().int().positive(),
+  corePrompt: z.string(),
+  rulesetPrompt: z.string(),
+  worldPrompt: z.string(),
+  storyPrompt: z.string(),
+  mechanics: z.record(z.unknown()),
+  relationshipConfig: z.record(z.unknown()),
+  coverMediaId: z.string().uuid().optional(),
+  coverMediaVariant: z.enum(['card', 'thumb']).optional(),
+  galleryMediaIds: z.array(z.string().uuid()).optional(),
+});
+
+/**
+ * Zod schema for prompt snapshot
+ */
+export const PromptSnapshotSchema = z.object({
+  id: z.string().uuid(),
+  entityType: z.enum(['world', 'story']),
+  entityId: z.string(),
+  version: z.number().int().positive(),
+  createdAt: z.string().datetime(),
+  createdBy: z.string().uuid(),
+  sourcePublishRequestId: z.string().uuid().nullable().optional(),
+  data: PromptSnapshotDataSchema,
+});
 

@@ -29,3 +29,5 @@ create table if not exists publishing_quality_findings (
 create index if not exists idx_publishing_quality_findings_entity 
   on publishing_quality_findings(entity_type, entity_id, created_at desc);
 
+
+

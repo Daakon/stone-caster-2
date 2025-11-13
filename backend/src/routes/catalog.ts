@@ -130,9 +130,12 @@ router.get('/worlds', async (req: Request, res: Response) => {
         selectColumns.push('visibility');
       }
 
+      // Phase 4: Include cover media join
+      const selectWithCover = `${selectColumns.join(', ')}, cover_media:cover_media_id (id, provider_key, status, image_review_status, visibility)`;
+
       let query = supabase
         .from('worlds')
-        .select(selectColumns.join(', '))
+        .select(selectWithCover)
         .order('created_at', { ascending: false });
 
       if (activeOnly) {
@@ -154,17 +157,34 @@ router.get('/worlds', async (req: Request, res: Response) => {
     }
 
     // Transform to public catalog DTO
-    const data = (worldsData || []).map((w: any) => ({
-      id: w.id,
-      name: w.name,
-      slug: w.doc?.slug || w.id, // Use slug from doc or fallback to id
-      tagline: w.doc?.tagline || '',
-      short_desc: w.description || w.doc?.short_desc || '',
-      hero_quote: w.doc?.hero_quote || '',
-      status: w.status,
-      created_at: w.created_at,
-      updated_at: w.updated_at,
-    }));
+    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
+    const data = (worldsData || []).map((w: any) => {
+      // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
+      const coverMedia = w.cover_media && 
+        typeof w.cover_media === 'object' &&
+        w.cover_media.status === 'ready' && 
+        w.cover_media.image_review_status === 'approved' &&
+        w.cover_media.visibility === 'public'
+        ? {
+            id: w.cover_media.id,
+            provider_key: w.cover_media.provider_key,
+          }
+        : null;
+
+      return {
+        id: w.id,
+        name: w.name,
+        slug: w.doc?.slug || w.id, // Use slug from doc or fallback to id
+        tagline: w.doc?.tagline || '',
+        short_desc: w.description || w.doc?.short_desc || '',
+        hero_quote: w.doc?.hero_quote || '',
+        status: w.status,
+        // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
+        cover_media: coverMedia,
+        created_at: w.created_at,
+        updated_at: w.updated_at,
+      };
+    });
 
     sendSuccess(res, data, req);
   } catch (error) {
@@ -195,9 +215,13 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
         selectColumns.push('visibility');
       }
 
+      // Phase 4: Include cover media join
+      selectColumns.push('cover_media_id');
+      const selectWithCover = `${selectColumns.join(', ')}, cover_media:cover_media_id (id, provider_key, status, image_review_status, visibility)`;
+
       let query = supabase
         .from('worlds')
-        .select(selectColumns.join(', '))
+        .select(selectWithCover)
         .or(`id.eq.${idOrSlug},doc->>slug.eq.${idOrSlug}`)
         .eq('review_state', 'approved')
         .order('created_at', { ascending: false })
@@ -220,6 +244,19 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
     }
 
     const world = worldsData[0];
+    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
+    // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
+    const coverMedia = world.cover_media && 
+      typeof world.cover_media === 'object' &&
+      world.cover_media.status === 'ready' && 
+      world.cover_media.image_review_status === 'approved' &&
+      world.cover_media.visibility === 'public'
+      ? {
+          id: world.cover_media.id,
+          provider_key: world.cover_media.provider_key,
+        }
+      : null;
+
     const data = {
       id: world.id,
       name: world.name,
@@ -228,6 +265,8 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
       short_desc: world.description || world.doc?.short_desc || '',
       hero_quote: world.doc?.hero_quote || '',
       status: world.status,
+      // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
+      cover_media: coverMedia,
       created_at: world.created_at,
       updated_at: world.updated_at,
     };
@@ -255,6 +294,7 @@ router.get('/stories', async (req: Request, res: Response) => {
     const filters = queryValidation.data;
     
     // Query entry_points table (admin source of truth)
+    // Phase 4: Include cover_media_id and join with media_assets for cover info
     let query = supabase
       .from('entry_points')
       .select(`
@@ -272,6 +312,14 @@ router.get('/stories', async (req: Request, res: Response) => {
         lifecycle,
         visibility,
         prompt,
+        cover_media_id,
+        cover_media:cover_media_id (
+          id,
+          provider_key,
+          status,
+          image_review_status,
+          visibility
+        ),
         created_at,
         updated_at
       `, { count: 'exact' });
@@ -320,11 +368,27 @@ router.get('/stories', async (req: Request, res: Response) => {
     }
     
     // Transform using unified DTO mapper
+    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
     let items = (data || []).map((row: any) => {
-      const { worlds, ...restRow } = row;
+      const { worlds, cover_media, ...restRow } = row;
+      // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
+      // Defensive check: cover_media may be null if LEFT JOIN finds no match
+      const coverMediaData = cover_media && 
+        typeof cover_media === 'object' &&
+        cover_media.status === 'ready' && 
+        cover_media.image_review_status === 'approved' &&
+        cover_media.visibility === 'public'
+          ? {
+              id: cover_media.id,
+              provider_key: cover_media.provider_key,
+            }
+          : null;
+
       const flatRow = {
         ...restRow,
-        world_name: (worlds as any)?.[0]?.name || null
+        world_name: (worlds as any)?.[0]?.name || null,
+        // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
+        cover_media: coverMediaData,
       };
       
       return transformToCatalogDTO(flatRow, false);
@@ -371,6 +435,7 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
     const { idOrSlug } = req.params;
     
     // Query entry_points table (admin source of truth)
+    // Phase 4: Include cover_media_id and join with media_assets for cover info
     const { data, error } = await supabase
       .from('entry_points')
       .select(`
@@ -388,6 +453,14 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
         lifecycle,
         visibility,
         prompt,
+        cover_media_id,
+        cover_media:cover_media_id (
+          id,
+          provider_key,
+          status,
+          image_review_status,
+          visibility
+        ),
         created_at,
         updated_at
       `)
@@ -422,12 +495,27 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
     }
     
     // Transform using unified DTO mapper
-    const { worlds, ...restData } = data;
+    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
+    const { worlds, cover_media, ...restData } = data;
     const worldData = (worlds as any)?.[0];
+    // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
+    const coverMediaData = cover_media && 
+      typeof cover_media === 'object' &&
+      cover_media.status === 'ready' && 
+      cover_media.image_review_status === 'approved' &&
+      cover_media.visibility === 'public'
+        ? {
+            id: cover_media.id,
+            provider_key: cover_media.provider_key,
+          }
+        : null;
+
     const flatRow = {
       ...restData,
       world_name: worldData?.name || null,
       world_slug: worldData?.doc?.slug || null, // Optional: for backward compatibility
+      // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
+      cover_media: coverMediaData,
       rulesets: (rulesetsData || []).map((r: any) => ({
         id: r.rulesets?.id,
         name: r.rulesets?.name,
@@ -729,6 +817,8 @@ function transformToCatalogDTO(row: any, includeDetail = false): any {
     content_rating: row.content_rating,
     is_playable: computeIsPlayable(row),
     has_prompt: computeHasPrompt(row),
+    // Phase 4: Include cover media if available
+    cover_media: row.cover_media || null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -780,6 +870,7 @@ router.get('/entry-points', async (req: Request, res: Response) => {
     const { data, error, count } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
       const worldRelationship = buildWorldRelationshipSelect(includeVisibility);
 
+      // Phase 4: Include cover_media_id and join with media_assets for cover info
       let query = supabase
         .from('entry_points')
         .select(
@@ -801,6 +892,14 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         review_state,
         dependency_invalid,
         prompt,
+        cover_media_id,
+        cover_media:cover_media_id (
+          id,
+          provider_key,
+          status,
+          image_review_status,
+          visibility
+        ),
         created_at,
         updated_at
       `,
@@ -859,10 +958,25 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         return true;
       })
       .map((row: any) => {
-        const { worlds, ...restRow } = row;
+        const { worlds, cover_media, ...restRow } = row;
+        // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
+        // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
+        const coverMediaData = cover_media && 
+          typeof cover_media === 'object' &&
+          cover_media.status === 'ready' && 
+          cover_media.image_review_status === 'approved' &&
+          cover_media.visibility === 'public'
+            ? {
+                id: cover_media.id,
+                provider_key: cover_media.provider_key,
+              }
+            : null;
+
         const flatRow = {
           ...restRow,
-          world_name: Array.isArray(worlds) ? (worlds[0]?.name || null) : (worlds?.name || null)
+          world_name: Array.isArray(worlds) ? (worlds[0]?.name || null) : (worlds?.name || null),
+          // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
+          cover_media: coverMediaData,
         };
         
         return transformToCatalogDTO(flatRow, false);
@@ -906,6 +1020,7 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
     
+    // Phase 4: Include cover_media_id and join with media_assets for cover info
     const { data, error } = await supabase
       .from('entry_points')
       .select(`
@@ -923,6 +1038,14 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
         lifecycle,
         visibility,
         prompt,
+        cover_media_id,
+        cover_media:cover_media_id (
+          id,
+          provider_key,
+          status,
+          image_review_status,
+          visibility
+        ),
         created_at,
         updated_at
       `)
@@ -955,10 +1078,25 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
       console.error('Rulesets query error:', rulesetsError);
     }
     
-    const { worlds, ...restData } = data;
+    const { worlds, cover_media, ...restData } = data;
+    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
+    // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
+    const coverMediaData = cover_media && 
+      typeof cover_media === 'object' &&
+      cover_media.status === 'ready' && 
+      cover_media.image_review_status === 'approved' &&
+      cover_media.visibility === 'public'
+        ? {
+            id: cover_media.id,
+            provider_key: cover_media.provider_key,
+          }
+        : null;
+
     const flatRow = {
       ...restData,
       world_name: (worlds as any)?.[0]?.name || null,
+      // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
+      cover_media: coverMediaData,
       rulesets: (rulesetsData || []).map((r: any) => ({
         id: r.rulesets?.id,
         name: r.rulesets?.name,

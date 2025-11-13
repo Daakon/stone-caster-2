@@ -40,6 +40,9 @@ import internalFlagsRouter from './routes/internalFlags.js';
 import { openapiRouter } from './routes/openapi.js';
 import { earlyAccessGuard } from './middleware/earlyAccessGuard.js';
 import { initializeActionRegistry } from './actions/boot.js';
+import mediaRouter from './routes/media.js';
+import mediaApprovalsRouter from './routes/media.approvals.js';
+import coverMediaRouter from './routes/coverMedia.js';
 
 const app = express();
 
@@ -133,6 +136,9 @@ app.use('/api/npcs', npcsRouter);
 app.use('/api/content', contentRouter);
 app.use('/api/adventures', adventuresRouter);
 app.use('/api/search', searchRouter);
+app.use('/api/media', mediaRouter);
+app.use('/api/media', mediaApprovalsRouter);
+app.use('/api', coverMediaRouter);
 app.use('/api/stones', stonesRouter);
 app.use('/api/subscription', subscriptionRouter);
 app.use('/api/telemetry', telemetryRouter);
@@ -157,9 +163,14 @@ app.use('/api/admin/access-requests', accessRequestsAdminRouter);
 import publishingPublicRouter from './routes/publishing.public.js';
 import publishingAdminRouter from './routes/publishing.admin.js';
 import publishingWizardRouter from './routes/publishing.wizard.js';
+import publishingWizardP7Router from './routes/publishingWizard.js';
 app.use('/api/publish', publishingPublicRouter);
 app.use('/api/admin/publishing', publishingAdminRouter);
 app.use('/api/publishing/wizard', publishingWizardRouter);
+app.use('/api/publishing-wizard', publishingWizardP7Router);
+// Phase 8: User authoring routes
+import userAuthoringRouter from './routes/user-authoring.js';
+app.use('/api', userAuthoringRouter);
 
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);

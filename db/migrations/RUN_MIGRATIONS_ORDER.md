@@ -74,3 +74,5 @@ WHERE table_name = 'prompt_snapshots'
 AND column_name = 'budget_report';
 ```
 
+
+

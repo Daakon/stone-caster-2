@@ -31,7 +31,10 @@ import AccessRequestsAdmin from '@/pages/admin/access-requests/index';
 import TemplatesManager from '@/pages/admin/TemplatesManager';
 import PublishingAdmin from '@/pages/admin/publishing/index';
 import PublishingAudit from '@/pages/admin/publishing/audit';
+import ApprovalsPage from '@/pages/admin/media/ApprovalsPage';
 import PublishingWizard from '@/pages/publishing/wizard';
+
+import PublishingWizardPage from '@/pages/admin/publishing-wizard/[entityType]/[entityId]';
 
 export function AdminRoutes() {
   return (
@@ -48,6 +51,14 @@ export function AdminRoutes() {
       <Route path="/npcs/new" element={<CreateNPCPage />} />
       <Route path="/npcs/:id" element={<NPCDetailPage />} />
       <Route path="/npcs/:id/edit" element={<EditNPCPage />} />
+      <Route 
+        path="/publishing-wizard/:entityType/:entityId" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <PublishingWizardPage />
+          </Guarded>
+        }
+      />
       
       <Route
           path="/tools/import-export"
@@ -196,6 +207,16 @@ export function AdminRoutes() {
         element={
           <Guarded allow={['creator', 'moderator', 'admin']}>
             <PublishingWizard />
+          </Guarded>
+        }
+      />
+      
+      {/* Media approvals (Phase 3c) */}
+      <Route 
+        path="/media/approvals" 
+        element={
+          <Guarded allow="admin">
+            <ApprovalsPage />
           </Guarded>
         }
       />

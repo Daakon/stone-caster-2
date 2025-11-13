@@ -98,7 +98,7 @@ export function isPublishingChecklistsEnabled(): boolean {
 }
 
 /**
- * Enable publishing wizard MVP
+ * Enable publishing wizard (admin-only unified preflight)
  * Phase 7: @default false
  */
 export function isPublishingWizardEnabled(): boolean {
@@ -119,5 +119,13 @@ export function isPublishingWizardSessionsEnabled(): boolean {
  */
 export function isPublishingWizardRolloutEnabled(): boolean {
   return process.env.FF_PUBLISHING_WIZARD_ROLLOUT === 'true' || process.env.FF_PUBLISHING_WIZARD_ROLLOUT === '1';
+}
+
+/**
+ * Enable admin media uploads (image management)
+ * Phase 1: @default false
+ */
+export function isAdminMediaEnabled(): boolean {
+  return process.env.FF_ADMIN_MEDIA === 'true' || process.env.FF_ADMIN_MEDIA === '1';
 }
 

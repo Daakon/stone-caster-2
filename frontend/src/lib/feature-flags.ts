@@ -149,3 +149,12 @@ export function isPublishingWizardRolloutEnabled(): boolean {
   return envValue === 'true' || envValue === '1';
 }
 
+/**
+ * Enable admin media uploads (image management)
+ * Phase 3a: @default false
+ */
+export function isAdminMediaEnabled(): boolean {
+  const envValue = import.meta.env.VITE_FF_ADMIN_MEDIA;
+  return envValue === 'true' || envValue === '1';
+}
+

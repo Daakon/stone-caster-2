@@ -33,6 +33,12 @@ export const CatalogEntryPointSchema = z.object({
   is_playable: z.boolean(),
   has_prompt: z.boolean(),
   
+  // Phase 4: Cover media (optional)
+  cover_media: z.object({
+    id: z.string(),
+    provider_key: z.string(),
+  }).nullable().optional(),
+  
   // Metadata
   created_at: z.string(),
   updated_at: z.string(),

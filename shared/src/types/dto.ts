@@ -51,6 +51,8 @@ export const GameDTOSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   lastPlayedAt: z.string().datetime(),
+  // Phase 5 refinement: Snapshot version for debugging/admin replay
+  snapshot_version: z.number().int().positive().optional(),
 });
 
 // Game List DTO (minimal metadata for listing)

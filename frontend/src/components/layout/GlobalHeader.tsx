@@ -28,6 +28,12 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
   // Authenticated-only navigation items
   const authenticatedNavigation = [
     { name: 'My Stories', href: '/my-stories' },
+    // Phase 8: User authoring pages
+    { name: 'My Content', href: '/my/worlds', submenu: [
+      { name: 'My Worlds', href: '/my/worlds' },
+      { name: 'My Stories', href: '/my/stories' },
+      { name: 'My NPCs', href: '/my/npcs' },
+    ]},
     { name: 'Wallet', href: '/wallet' },
     { name: 'Profile', href: '/profile' },
   ];

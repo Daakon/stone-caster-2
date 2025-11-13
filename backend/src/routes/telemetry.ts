@@ -35,6 +35,9 @@ const addTraceId = (req: any, res: any, next: any) => {
   const traceId = LoggerService.generateTraceId();
   req.traceId = traceId;
   
+  // Save reference to original json method before wrapping
+  const originalJson = res.json.bind(res);
+  
   res.json = (body: any) => {
     const responseBody = {
       ...body,
@@ -44,7 +47,8 @@ const addTraceId = (req: any, res: any, next: any) => {
         timestamp: new Date().toISOString(),
       },
     };
-    res.json(responseBody);
+    // Call the original json method, not the wrapped one
+    return originalJson.call(res, responseBody);
   };
   
   next();
