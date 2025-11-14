@@ -24,6 +24,7 @@ import { useAdventureTelemetry } from '../hooks/useAdventureTelemetry';
 import { useDebugPanel } from '../hooks/useDebugPanel';
 import { DebugPanel } from '../components/debug/DebugPanel';
 import { useDebugResponses } from '../lib/debug';
+import { makeTitle } from '../lib/meta';
 // PromptApprovalModal removed - not needed with new backend system
 import type { TurnDTO, GameDTO } from '@shared';
 import type { Turn } from '../lib/types';
@@ -105,6 +106,11 @@ export default function GamePage() {
       sessionStorage.removeItem(getAutoInitKey(gameId));
     }
   };
+
+  // Set document title
+  useEffect(() => {
+    document.title = makeTitle(['Game', 'Stone Caster']);
+  }, []);
 
   // Clear sessionStorage flags on component mount to start fresh
   useEffect(() => {

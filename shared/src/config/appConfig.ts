@@ -18,7 +18,12 @@ export interface AppConfig {
  * Runtime detection helper
  */
 function isNodeRuntime(): boolean {
-  return typeof process !== 'undefined' && typeof process.env !== 'undefined';
+  // Cloud runtimes and bundlers sometimes polyfill `process` enough for `process.env`
+  // but they don't expose actual Node version metadata. Require the Node signature
+  // so browser builds don't get mis-identified as server-side execution.
+  return typeof process !== 'undefined' &&
+    typeof process.versions !== 'undefined' &&
+    typeof process.versions.node !== 'undefined';
 }
 
 function isViteRuntime(): boolean {
@@ -99,12 +104,30 @@ export function loadAppConfig(): AppConfig {
     }
   }
   
+  // Try to infer URLs from window.location if in browser (works in both dev and prod)
+  if (typeof window !== 'undefined' && window.location) {
+    // Infer webBaseUrl from current location
+    if (!webBaseUrl) {
+      webBaseUrl = `${window.location.protocol}//${window.location.host}`;
+    }
+    
+    // Infer API base URL from web base URL (production pattern: stonecaster.ai -> api.stonecaster.ai)
+    if (!apiBaseUrl) {
+      const host = window.location.host;
+      if (host === 'stonecaster.ai' || host.endsWith('.stonecaster.ai')) {
+        apiBaseUrl = 'https://api.stonecaster.ai';
+      } else if (host.includes('localhost') || host.includes('127.0.0.1')) {
+        apiBaseUrl = 'http://localhost:3000';
+      } else {
+        // Fallback: try to construct API URL from current host
+        apiBaseUrl = `${window.location.protocol}//api.${host}`;
+      }
+    }
+  }
+  
   // Provide development defaults if not in production
   if (!isProduction) {
-    // Try to infer webBaseUrl from window.location if in browser
-    if (!webBaseUrl && typeof window !== 'undefined' && window.location) {
-      webBaseUrl = `${window.location.protocol}//${window.location.host}`;
-    } else if (!webBaseUrl) {
+    if (!webBaseUrl) {
       webBaseUrl = 'http://localhost:5173';
     }
     
@@ -147,19 +170,43 @@ export function loadAppConfig(): AppConfig {
     });
   }
 
-  // Validate required vars (strict in production)
+  // Validate required vars
+  // In production, we allow webBaseUrl and apiBaseUrl to be inferred from window.location
+  // but Supabase vars are always required
   const missing: string[] = [];
-  if (!webBaseUrl) missing.push(webBaseUrlKey);
-  if (!apiBaseUrl) missing.push(apiBaseUrlKey);
+  
+  // Only require webBaseUrl and apiBaseUrl if we couldn't infer them
+  if (!webBaseUrl) {
+    if (isProduction && typeof window === 'undefined') {
+      // Server-side production requires explicit vars
+      missing.push(webBaseUrlKey);
+    } else if (!isProduction) {
+      missing.push(webBaseUrlKey);
+    }
+  }
+  
+  if (!apiBaseUrl) {
+    if (isProduction && typeof window === 'undefined') {
+      // Server-side production requires explicit vars
+      missing.push(apiBaseUrlKey);
+    } else if (!isProduction) {
+      missing.push(apiBaseUrlKey);
+    }
+  }
+  
+  // Supabase vars are always required (can't be inferred)
   if (!supabaseUrl) missing.push(supabaseUrlKey);
   if (!supabaseAnonKey) missing.push(supabaseAnonKeyKey);
 
   if (missing.length > 0) {
-    throw new Error(
-      `Missing required environment variables: ${missing.join(', ')}\n` +
-      `Please set these in your .env file or environment configuration.\n` +
-      `For development, you can use defaults, but Supabase vars are still required.`
-    );
+    const errorMessage = isProduction
+      ? `Missing required environment variables: ${missing.join(', ')}\n` +
+        `Please set these in your Cloudflare Workers environment variables or wrangler.toml.\n` +
+        `For production, Supabase vars are always required.`
+      : `Missing required environment variables: ${missing.join(', ')}\n` +
+        `Please set these in your .env file or environment configuration.\n` +
+        `For development, you can use defaults, but Supabase vars are still required.`;
+    throw new Error(errorMessage);
   }
 
   // Validate URLs
@@ -202,4 +249,3 @@ export function getAppConfig(): AppConfig {
   }
   return configInstance;
 }
-

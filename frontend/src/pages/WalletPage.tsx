@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -7,6 +7,7 @@ import { StoneLedgerWidget } from '../components/gameplay/StoneLedgerWidget';
 import { TierGate } from '../components/ui/tier-gate';
 import { GatedRoute } from '../components/auth/GatedRoute';
 import { mockDataService } from '../services/mockData';
+import { makeTitle } from '../lib/meta';
 import { 
   Gem, 
   Crown,
@@ -15,6 +16,10 @@ import {
 } from 'lucide-react';
 
 function WalletPageContent() {
+  // Set document title
+  useEffect(() => {
+    document.title = makeTitle(['Wallet', 'Stone Caster']);
+  }, []);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const wallet = mockDataService.getWallet();
   const currentTier = mockDataService.getCurrentTier();

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { GatedRoute } from '../components/auth/GatedRoute';
 import { mockDataService } from '../services/mockData';
+import { makeTitle } from '../lib/meta';
 import { 
   Crown, 
   Check, 
@@ -13,6 +14,9 @@ import {
 } from 'lucide-react';
 
 function PaymentsPageContent() {
+  useEffect(() => {
+    document.title = makeTitle(['Payments', 'Stone Caster']);
+  }, []);
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'premium'>('free');
   const currentTier = mockDataService.getCurrentTier();
   
