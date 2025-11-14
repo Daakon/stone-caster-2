@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { CatalogCard } from '@/components/catalog/CatalogCard';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { useStoryQuery } from '@/lib/queries';
 import { track } from '@/lib/analytics';
+import { buildImageUrl } from '@shared/media/url';
 import { 
   Gem, 
   Users, 
@@ -27,9 +28,23 @@ import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLin
 export default function StoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [imageError, setImageError] = useState(false);
   
   const { data: storyData, isLoading, error } = useStoryQuery(id || '');
   const story = storyData?.data;
+
+  // Build image URL from cover_media or fallback to hero_url
+  const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL;
+  const hasDeliveryUrl = !!deliveryUrl && deliveryUrl.trim() !== '';
+  
+  const heroImageUrl = story?.cover_media && hasDeliveryUrl
+    ? buildImageUrl(story.cover_media.provider_key, 'public')
+    : story?.hero_url || null;
+
+  // Reset image error when story changes
+  useEffect(() => {
+    setImageError(false);
+  }, [story?.id]);
 
   // Track story view and update document head for SEO
   // MUST be called before any early returns to satisfy Rules of Hooks
@@ -114,23 +129,39 @@ export default function StoryDetailPage() {
           {/* Hero Section */}
           <Card>
             <CardHeader className="p-0">
-              <div className="relative overflow-hidden rounded-t-lg">
-                <img
-                  src={story.hero_url || '/placeholder-hero.jpg'}
-                  alt={story.title}
-                  className="w-full h-64 object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute top-4 right-4">
-                  <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                    <Star className="h-3 w-3 mr-1" />
-                    {story.kind}
-                  </Badge>
-                </div>
-                <div className="absolute bottom-4 left-4 right-4">
-                  <h1 className="text-3xl font-bold text-white mb-2">{story.title}</h1>
-                  <p className="text-lg text-white/90">{story.short_desc}</p>
-                </div>
+              <div className="relative overflow-hidden rounded-t-lg bg-muted aspect-video">
+                {heroImageUrl && !imageError ? (
+                  <img
+                    src={heroImageUrl}
+                    alt={story.title}
+                    className="w-full h-full object-cover"
+                    loading="eager"
+                    decoding="async"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
+                    <div className="text-center p-8">
+                      <h1 className="text-3xl font-bold mb-2">{story.title}</h1>
+                      <p className="text-lg text-muted-foreground">{story.short_desc}</p>
+                    </div>
+                  </div>
+                )}
+                {heroImageUrl && !imageError && (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="absolute top-4 right-4">
+                      <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                        <Star className="h-3 w-3 mr-1" />
+                        {story.kind}
+                      </Badge>
+                    </div>
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <h1 className="text-3xl font-bold text-white mb-2">{story.title}</h1>
+                      <p className="text-lg text-white/90">{story.short_desc}</p>
+                    </div>
+                  </>
+                )}
               </div>
             </CardHeader>
             
@@ -260,6 +291,7 @@ export default function StoryDetailPage() {
                       idOrSlug={npc.id}
                       href={`/npcs/${npc.id}`}
                       imageUrl={npc.portrait_url}
+                      coverMedia={npc.cover_media || null}
                       title={npc.name}
                       description={npc.short_desc}
                       chips={[

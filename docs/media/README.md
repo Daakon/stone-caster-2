@@ -743,10 +743,15 @@ Catalog endpoints now include `cover_media` in responses:
 
 ### Cards Updated
 
-- **World cards** (`/api/catalog/worlds`, `/api/catalog/worlds/:idOrSlug`)
-- **Story/Entry Point cards** (`/api/catalog/stories`, `/api/catalog/entry-points`, detail routes)
+- **World cards** (`/api/catalog/worlds`, `/api/catalog/worlds/:idOrSlug`, WorldsPage, WorldDetailPage)
+- **Story/Entry Point cards** (`/api/catalog/stories`, `/api/catalog/entry-points`, StoriesPage, detail routes, My Stories page)
+- **NPC cards** (`/api/catalog/npcs`, NPCsPage, WorldDetailPage, StoryDetailPage)
 
-NPC cards are not yet updated (can be added in a future phase if needed).
+Cover images are now displayed consistently across:
+- Public catalog/browse pages (worlds, stories, NPCs)
+- Admin catalog views
+- "My Stories" page (user's own stories)
+- Detail pages showing related entities (e.g., NPCs in a world, featured NPCs in a story)
 
 ### Acceptance Criteria
 
@@ -759,8 +764,9 @@ NPC cards are not yet updated (can be added in a future phase if needed).
 ### Known Limitations
 
 - **Gallery images:** Remain private/unlisted by default (only covers become public on publish)
-- **NPC cards:** Not yet updated with cover image support
+- **My Adventures page:** Active games list does not yet show story cover images (requires games API update to include cover_media in GameListDTO)
 - **Image variants:** Currently uses `'card'` variant; other variants (thumb, banner) can be added per card size needs
+- **NPC cover images:** NPC catalog endpoints may need updates to include cover_media joins (cards are ready to display covers when API provides them)
 
 ---
 

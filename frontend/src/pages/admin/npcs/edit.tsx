@@ -59,7 +59,7 @@ function CoverImageSection({
 }) {
   const queryClient = useQueryClient();
   
-  const { data: coverMedia, isLoading: loadingCover } = useQuery({
+  const { data: coverMedia, isLoading: loadingCover, refetch: refetchCoverMedia } = useQuery({
     queryKey: ['admin-media-cover', 'npc', npcId],
     queryFn: async () => {
       const result = await getCoverMedia({ kind: 'npc', entityId: npcId });
@@ -69,12 +69,14 @@ function CoverImageSection({
       return result.data;
     },
     enabled: !!npcId && isAdminMediaEnabled(),
-    staleTime: 30 * 1000,
+    staleTime: 0, // Always refetch when invalidated
   });
 
   const handleCoverChange = async (mediaId: string | null) => {
-    queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'npc', npcId] });
-    queryClient.invalidateQueries({ queryKey: ['admin-npc', npcId] });
+    // Invalidate and refetch cover media immediately
+    await queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'npc', npcId], refetchType: 'active' });
+    // Also refetch explicitly to ensure it happens
+    await refetchCoverMedia();
     if (onMediaSelected) {
       onMediaSelected(null); // Clear selection after setting cover
     }
@@ -98,7 +100,17 @@ function CoverImageSection({
 }
 
 // Gallery Section Component
-function GallerySection({ npcId, npcName, isLocked }: { npcId: string; npcName: string; isLocked: boolean }) {
+function GallerySection({ 
+  npcId, 
+  npcName, 
+  isLocked,
+  onSelectMedia,
+}: { 
+  npcId: string; 
+  npcName: string; 
+  isLocked: boolean;
+  onSelectMedia?: (mediaId: string) => void;
+}) {
   const queryClient = useQueryClient();
   
   const { data: galleryItems, isLoading: loadingGallery } = useQuery({
@@ -130,6 +142,7 @@ function GallerySection({ npcId, npcName, isLocked }: { npcId: string; npcName: 
       disabled={isLocked}
       onChange={handleGalleryChange}
       entityName={npcName}
+      onSelectMedia={onSelectMedia}
     />
   );
 }
@@ -655,7 +668,8 @@ export default function EditNPCPage() {
             <GallerySection 
               npcId={id} 
               npcName={npc.name} 
-              isLocked={!isAdmin && (npc as any).publish_status === 'published'} 
+              isLocked={!isAdmin && (npc as any).publish_status === 'published'}
+              onSelectMedia={(mediaId) => setSelectedMediaId(mediaId)}
             />
           </CardContent>
         </Card>

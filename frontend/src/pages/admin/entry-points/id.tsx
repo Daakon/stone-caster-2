@@ -42,7 +42,7 @@ function CoverImageSection({
 }) {
   const queryClient = useQueryClient();
   
-  const { data: coverMedia, isLoading: loadingCover } = useQuery({
+  const { data: coverMedia, isLoading: loadingCover, refetch: refetchCoverMedia } = useQuery({
     queryKey: ['admin-media-cover', 'story', storyId],
     queryFn: async () => {
       const result = await getCoverMedia({ kind: 'story', entityId: storyId });
@@ -52,12 +52,14 @@ function CoverImageSection({
       return result.data;
     },
     enabled: !!storyId && isAdminMediaEnabled(),
-    staleTime: 30 * 1000,
+    staleTime: 0, // Always refetch when invalidated
   });
 
   const handleCoverChange = async (mediaId: string | null) => {
-    queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'story', storyId] });
-    queryClient.invalidateQueries({ queryKey: ['admin-entry', storyId] });
+    // Invalidate and refetch cover media immediately
+    await queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'story', storyId], refetchType: 'active' });
+    // Also refetch explicitly to ensure it happens
+    await refetchCoverMedia();
     if (onMediaSelected) {
       onMediaSelected(null); // Clear selection after setting cover
     }
@@ -81,7 +83,17 @@ function CoverImageSection({
 }
 
 // Gallery Section Component
-function GallerySection({ storyId, storyTitle, isLocked }: { storyId: string; storyTitle: string; isLocked: boolean }) {
+function GallerySection({ 
+  storyId, 
+  storyTitle, 
+  isLocked,
+  onSelectMedia,
+}: { 
+  storyId: string; 
+  storyTitle: string; 
+  isLocked: boolean;
+  onSelectMedia?: (mediaId: string) => void;
+}) {
   const queryClient = useQueryClient();
   
   const { data: galleryItems, isLoading: loadingGallery } = useQuery({
@@ -113,6 +125,7 @@ function GallerySection({ storyId, storyTitle, isLocked }: { storyId: string; st
       disabled={isLocked}
       onChange={handleGalleryChange}
       entityName={storyTitle}
+      onSelectMedia={onSelectMedia}
     />
   );
 }
@@ -382,7 +395,8 @@ export default function EntryPointEditPage() {
                 <GallerySection 
                   storyId={entryPoint.id} 
                   storyTitle={entryPoint.title} 
-                  isLocked={!isAdmin && (entryPoint as any).publish_status === 'published'} 
+                  isLocked={!isAdmin && (entryPoint as any).publish_status === 'published'}
+                  onSelectMedia={(mediaId) => setSelectedMediaId(mediaId)}
                 />
               </CardContent>
             </Card>

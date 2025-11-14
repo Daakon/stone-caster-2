@@ -32,10 +32,12 @@ export default function WorldDetailPage() {
   );
   const npcs = npcsData?.data || [];
 
-  // Track world view
+  // Track world view and update document title
   useEffect(() => {
     if (world) {
       track('world_view', { world_slug: slug });
+      const title = makeTitle([world.name, 'World', 'Stone Caster']);
+      document.title = title;
     }
   }, [world, slug]);
 
@@ -186,6 +188,7 @@ export default function WorldDetailPage() {
                     idOrSlug={npc.id}
                     href={`/npcs/${npc.id}`}
                     imageUrl={npc.portrait_url}
+                    coverMedia={npc.cover_media || null}
                     imageAlt={npc.name}
                     title={npc.name}
                     description={npc.short_desc}

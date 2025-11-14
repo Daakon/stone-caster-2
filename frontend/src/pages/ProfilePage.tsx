@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ProfileService } from '../services/profile';
 import { useAuthStore } from '../store/auth';
 import { usePlayerAccount } from '../hooks/usePlayerAccount';
+import { makeTitle } from '../lib/meta';
 import { 
   User, 
   Settings, 
@@ -50,6 +51,11 @@ function ProfilePageContent() {
   // const { toast } = useToast();
   const { user } = useAuthStore();
   const { profile: playerProfile, loading: profileLoading, refreshProfile } = usePlayerAccount(); // Use new usePlayerAccount hook
+  
+  // Set document title
+  useEffect(() => {
+    document.title = makeTitle(['Profile', 'Stone Caster']);
+  }, []);
   
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<ProfileFormData>({

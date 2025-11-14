@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Plus, X, GripVertical, Lock, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Plus, X, GripVertical, Lock, Image as ImageIcon, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MediaAssetDTO, MediaLinkDTO } from '@shared/types/media';
 import { buildImageUrl } from '@shared/media/url';
@@ -27,6 +27,7 @@ export interface GalleryManagerProps {
   disabled?: boolean;
   onChange?: () => void;
   entityName?: string;
+  onSelectMedia?: (mediaId: string) => void; // Callback to select a gallery image for cover
 }
 
 export function GalleryManager({
@@ -36,6 +37,7 @@ export function GalleryManager({
   disabled = false,
   onChange,
   entityName,
+  onSelectMedia,
 }: GalleryManagerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -298,16 +300,38 @@ export function GalleryManager({
                       {getReviewStatusChip(item.media.image_review_status)}
                     </div>
 
-                    {/* Remove button */}
+                    {/* Action buttons */}
                     {!disabled && (
-                      <button
-                        onClick={() => handleRemove(item.id)}
-                        disabled={loading}
-                        className="absolute top-1 right-1 p-1 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                        aria-label="Remove from gallery"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Set as Primary button */}
+                        {onSelectMedia && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectMedia(item.media_id);
+                            }}
+                            disabled={loading}
+                            className="p-1 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+                            aria-label="Set as primary image"
+                            title="Set as primary image"
+                          >
+                            <Star className="h-3 w-3" />
+                          </button>
+                        )}
+                        {/* Remove button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemove(item.id);
+                          }}
+                          disabled={loading}
+                          className="p-1 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          aria-label="Remove from gallery"
+                          title="Remove from gallery"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
                     )}
 
                     {/* Drag handle */}

@@ -1,9 +1,14 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Home, ArrowLeft } from 'lucide-react';
+import { makeTitle } from '@/lib/meta';
 
 export default function NotFoundPage() {
+  useEffect(() => {
+    document.title = makeTitle(['Page Not Found', 'Stone Caster']);
+  }, []);
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center px-4">
       <Card className="max-w-md w-full text-center">

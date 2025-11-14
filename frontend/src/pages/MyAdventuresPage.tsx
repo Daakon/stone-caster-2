@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { CalendarClock, Play, RotateCcw } from 'lucide-react';
 import { useMyAdventures } from '@/lib/queries/index';
 import { useAccessStatusContext } from '@/providers/AccessStatusProvider';
 import { useAuthStore } from '@/store/auth';
+import { makeTitle } from '@/lib/meta';
 
 function LoadingPlaceholder() {
   return (
@@ -31,6 +33,10 @@ function LoadingPlaceholder() {
 export default function MyAdventuresPage() {
   const { user } = useAuthStore();
   const { hasApprovedAccess, isLoading: isLoadingAccess } = useAccessStatusContext();
+  
+  useEffect(() => {
+    document.title = makeTitle(['My Adventures', 'Stone Caster']);
+  }, []);
   
   // Only fetch adventures if user has approved access
   const {

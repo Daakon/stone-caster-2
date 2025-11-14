@@ -29,6 +29,7 @@ import { GuestCookieService } from '../services/guestCookie';
 import { useWalletContext } from '../providers/WalletProvider';
 import { subscribeToGameEvents } from '../lib/events';
 import { queryKeys } from '../lib/queryKeys';
+import { makeTitle } from '../lib/meta';
 
 interface GameState {
   worldRules: Record<string, number>;
@@ -82,6 +83,11 @@ export default function UnifiedGamePage() {
   const userHasScrolled = useRef(false);
   const lastEntryCount = useRef(0);
   const shouldAutoScroll = useRef(true);
+
+  // Set document title
+  useEffect(() => {
+    document.title = makeTitle(['Game', 'Stone Caster']);
+  }, []);
 
   // Load character data first if we have characterId but no gameId
   const { data: characterForGame, isLoading: isLoadingCharacterForGame } = useQuery({

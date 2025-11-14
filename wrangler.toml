@@ -11,9 +11,14 @@ not_found_handling = "single-page-application"
 # To add routes, use: wrangler routes add <pattern> --zone-name=<zone>
 
 # Environment variables (Phase B1: Early Access)
+# Note: VITE_* variables are replaced at build time by Vite
+# For Cloudflare Workers, these need to be set during build via .env.production
+# or passed via wrangler secret put for runtime access
 [vars]
 EARLY_ACCESS_MODE = "on"
-API_BASE_URL = "https://stonecaster-api.fly.dev"
+# API_BASE_URL is for reference only - frontend uses VITE_API_BASE_URL
+# Set VITE_API_BASE_URL in .env.production or via build-time env vars
+API_BASE_URL = "https://api.stonecaster.ai"
 
 # KV namespace for role caching (Phase B1)
 # TODO: Create KV namespaces in Cloudflare dashboard and uncomment with actual IDs

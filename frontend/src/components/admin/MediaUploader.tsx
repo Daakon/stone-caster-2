@@ -350,7 +350,10 @@ export function MediaUploader({
                   {/* Phase 3a refinement: Inline status chip */}
                   {getReviewStatusChip(uploadedMedia.image_review_status)}
                 </div>
-                <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted">
+                {/* NPCs use 3:4 portrait, Worlds/Stories use 16:9 landscape */}
+                <div className={`relative rounded-lg overflow-hidden border bg-muted ${
+                  kind === 'npc' ? 'aspect-[3/4]' : 'aspect-video'
+                }`}>
                   <img
                     src={previewUrl}
                     alt={entityName ? `Cover image for ${entityName}` : 'Uploaded image preview'}

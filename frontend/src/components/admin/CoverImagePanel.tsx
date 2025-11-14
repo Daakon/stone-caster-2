@@ -142,7 +142,10 @@ export function CoverImagePanel({
         {/* Current Cover Preview */}
         {coverPreviewUrl && coverMedia ? (
           <div className="space-y-2">
-            <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted">
+            {/* NPCs use 3:4 portrait, Worlds/Stories use 16:9 landscape */}
+            <div className={`relative rounded-lg overflow-hidden border bg-muted ${
+              entityKind === 'npc' ? 'aspect-[3/4]' : 'aspect-video'
+            }`}>
               <img
                 src={coverPreviewUrl}
                 alt={entityName ? `Cover image for ${entityName}` : 'Cover image'}
@@ -176,7 +179,9 @@ export function CoverImagePanel({
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center aspect-video rounded-lg border-2 border-dashed bg-muted">
+          <div className={`flex items-center justify-center rounded-lg border-2 border-dashed bg-muted ${
+            entityKind === 'npc' ? 'aspect-[3/4]' : 'aspect-video'
+          }`}>
             <div className="text-center text-muted-foreground">
               <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p className="text-sm">No cover image set</p>

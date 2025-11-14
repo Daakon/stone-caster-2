@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Github, Chrome, MessageSquare } from 'lucide-react';
+import { makeTitle } from '@/lib/meta';
 
 interface AuthPageProps {
   mode?: 'signin' | 'signup';
@@ -42,6 +43,12 @@ export default function AuthPage({ mode: initialMode }: AuthPageProps = {}) {
     const pathMode = location.pathname.includes('/signin') ? 'signin' : 'signup';
     setMode(pathMode);
   }, [location.pathname, navigate]);
+
+  // Update document title based on mode
+  useEffect(() => {
+    const title = makeTitle([mode === 'signin' ? 'Sign In' : 'Sign Up', 'Stone Caster']);
+    document.title = title;
+  }, [mode]);
 
   // Note: AuthRouter handles redirecting authenticated users away from auth pages
   // This effect was causing redirect loops for guests

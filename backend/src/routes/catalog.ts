@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { ContentService } from '../services/content.service.js';
-import { supabase } from '../services/supabase.js';
+import { supabase, supabaseAdmin } from '../services/supabase.js';
 import { z } from 'zod';
 import type { PostgrestError } from '@supabase/supabase-js';
 
@@ -130,12 +130,12 @@ router.get('/worlds', async (req: Request, res: Response) => {
         selectColumns.push('visibility');
       }
 
-      // Phase 4: Include cover media join
-      const selectWithCover = `${selectColumns.join(', ')}, cover_media:cover_media_id (id, provider_key, status, image_review_status, visibility)`;
+      // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
+      selectColumns.push('cover_media_id');
 
       let query = supabase
         .from('worlds')
-        .select(selectWithCover)
+        .select(selectColumns.join(', '))
         .order('created_at', { ascending: false });
 
       if (activeOnly) {
@@ -156,18 +156,42 @@ router.get('/worlds', async (req: Request, res: Response) => {
       throw error;
     }
 
+    // Fetch cover media separately for worlds that have cover_media_id
+    // Use supabaseAdmin to bypass RLS for public media assets
+    const coverMediaIds = (worldsData || [])
+      .filter((w: any) => w.cover_media_id)
+      .map((w: any) => w.cover_media_id);
+    
+    let coverMediaMap: Record<string, any> = {};
+    if (coverMediaIds.length > 0) {
+      const { data: coverMediaData, error: coverError } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, visibility')
+        .in('id', coverMediaIds);
+      
+      if (!coverError && coverMediaData) {
+        coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
+          acc[media.id] = media;
+          return acc;
+        }, {});
+      }
+    }
+
     // Transform to public catalog DTO
-    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
     const data = (worldsData || []).map((w: any) => {
-      // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
-      const coverMedia = w.cover_media && 
-        typeof w.cover_media === 'object' &&
-        w.cover_media.status === 'ready' && 
-        w.cover_media.image_review_status === 'approved' &&
-        w.cover_media.visibility === 'public'
+      // Get cover media from the map we fetched separately
+      const coverMedia = w.cover_media_id ? coverMediaMap[w.cover_media_id] : null;
+      
+      // For published worlds (visibility === 'public' or review_state === 'approved'), show cover if ready and approved
+      const isPublishedWorld = w.visibility === 'public' || w.review_state === 'approved';
+      const coverMediaData = coverMedia && 
+        typeof coverMedia === 'object' &&
+        coverMedia.status === 'ready' && 
+        coverMedia.image_review_status === 'approved' &&
+        (isPublishedWorld || coverMedia.visibility === 'public')
         ? {
-            id: w.cover_media.id,
-            provider_key: w.cover_media.provider_key,
+            id: coverMedia.id,
+            provider_key: coverMedia.provider_key,
           }
         : null;
 
@@ -180,7 +204,7 @@ router.get('/worlds', async (req: Request, res: Response) => {
         hero_quote: w.doc?.hero_quote || '',
         status: w.status,
         // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
-        cover_media: coverMedia,
+        cover_media: coverMediaData,
         created_at: w.created_at,
         updated_at: w.updated_at,
       };
@@ -215,13 +239,12 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
         selectColumns.push('visibility');
       }
 
-      // Phase 4: Include cover media join
+      // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
       selectColumns.push('cover_media_id');
-      const selectWithCover = `${selectColumns.join(', ')}, cover_media:cover_media_id (id, provider_key, status, image_review_status, visibility)`;
 
       let query = supabase
         .from('worlds')
-        .select(selectWithCover)
+        .select(selectColumns.join(', '))
         .or(`id.eq.${idOrSlug},doc->>slug.eq.${idOrSlug}`)
         .eq('review_state', 'approved')
         .order('created_at', { ascending: false })
@@ -244,18 +267,29 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
     }
 
     const world = worldsData[0];
-    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
-    // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
-    const coverMedia = world.cover_media && 
-      typeof world.cover_media === 'object' &&
-      world.cover_media.status === 'ready' && 
-      world.cover_media.image_review_status === 'approved' &&
-      world.cover_media.visibility === 'public'
-      ? {
-          id: world.cover_media.id,
-          provider_key: world.cover_media.provider_key,
+    
+    // Fetch cover media separately if it exists
+    let coverMediaData = null;
+    if (world.cover_media_id) {
+      const { data: coverMedia, error: coverError } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, visibility')
+        .eq('id', world.cover_media_id)
+        .single();
+      
+      if (!coverError && coverMedia) {
+        // For published worlds, show cover if ready and approved (even if cover visibility isn't public)
+        const isPublishedWorld = world.visibility === 'public' || world.review_state === 'approved';
+        if (coverMedia.status === 'ready' && 
+            coverMedia.image_review_status === 'approved' &&
+            (isPublishedWorld || coverMedia.visibility === 'public')) {
+          coverMediaData = {
+            id: coverMedia.id,
+            provider_key: coverMedia.provider_key,
+          };
         }
-      : null;
+      }
+    }
 
     const data = {
       id: world.id,
@@ -266,7 +300,7 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
       hero_quote: world.doc?.hero_quote || '',
       status: world.status,
       // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
-      cover_media: coverMedia,
+      cover_media: coverMediaData,
       created_at: world.created_at,
       updated_at: world.updated_at,
     };
@@ -294,7 +328,7 @@ router.get('/stories', async (req: Request, res: Response) => {
     const filters = queryValidation.data;
     
     // Query entry_points table (admin source of truth)
-    // Phase 4: Include cover_media_id and join with media_assets for cover info
+    // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
     let query = supabase
       .from('entry_points')
       .select(`
@@ -313,13 +347,6 @@ router.get('/stories', async (req: Request, res: Response) => {
         visibility,
         prompt,
         cover_media_id,
-        cover_media:cover_media_id (
-          id,
-          provider_key,
-          status,
-          image_review_status,
-          visibility
-        ),
         created_at,
         updated_at
       `, { count: 'exact' });
@@ -367,20 +394,44 @@ router.get('/stories', async (req: Request, res: Response) => {
       throw error;
     }
     
+    // Fetch cover media separately for stories that have cover_media_id
+    // Use supabaseAdmin to bypass RLS for public media assets
+    const coverMediaIds = (data || [])
+      .filter((row: any) => row.cover_media_id)
+      .map((row: any) => row.cover_media_id);
+    
+    let coverMediaMap: Record<string, any> = {};
+    if (coverMediaIds.length > 0) {
+      const { data: coverMediaData, error: coverError } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, visibility')
+        .in('id', coverMediaIds);
+      
+      if (!coverError && coverMediaData) {
+        coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
+          acc[media.id] = media;
+          return acc;
+        }, {});
+      }
+    }
+    
     // Transform using unified DTO mapper
-    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
     let items = (data || []).map((row: any) => {
-      const { worlds, cover_media, ...restRow } = row;
-      // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
-      // Defensive check: cover_media may be null if LEFT JOIN finds no match
-      const coverMediaData = cover_media && 
-        typeof cover_media === 'object' &&
-        cover_media.status === 'ready' && 
-        cover_media.image_review_status === 'approved' &&
-        cover_media.visibility === 'public'
+      const { worlds, cover_media_id, ...restRow } = row;
+      const isPublishedStory = restRow.visibility === 'public';
+      
+      // Get cover media from the map we fetched separately
+      const coverMedia = cover_media_id ? coverMediaMap[cover_media_id] : null;
+      
+      // For published stories, show cover if ready and approved (even if cover visibility isn't public)
+      const coverMediaData = coverMedia && 
+        typeof coverMedia === 'object' &&
+        coverMedia.status === 'ready' && 
+        coverMedia.image_review_status === 'approved' &&
+        (isPublishedStory || coverMedia.visibility === 'public')
           ? {
-              id: cover_media.id,
-              provider_key: cover_media.provider_key,
+              id: coverMedia.id,
+              provider_key: coverMedia.provider_key,
             }
           : null;
 
@@ -435,7 +486,7 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
     const { idOrSlug } = req.params;
     
     // Query entry_points table (admin source of truth)
-    // Phase 4: Include cover_media_id and join with media_assets for cover info
+    // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
     const { data, error } = await supabase
       .from('entry_points')
       .select(`
@@ -454,13 +505,6 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
         visibility,
         prompt,
         cover_media_id,
-        cover_media:cover_media_id (
-          id,
-          provider_key,
-          status,
-          image_review_status,
-          visibility
-        ),
         created_at,
         updated_at
       `)
@@ -494,21 +538,32 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
       console.error('Rulesets query error:', rulesetsError);
     }
     
+    // Fetch cover media separately if it exists
+    let coverMediaData = null;
+    if (data.cover_media_id) {
+      const { data: coverMedia, error: coverError } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, visibility')
+        .eq('id', data.cover_media_id)
+        .single();
+      
+      if (!coverError && coverMedia) {
+        // For published stories, show cover if ready and approved (even if cover visibility isn't public)
+        const isPublishedStory = data.visibility === 'public';
+        if (coverMedia.status === 'ready' && 
+            coverMedia.image_review_status === 'approved' &&
+            (isPublishedStory || coverMedia.visibility === 'public')) {
+          coverMediaData = {
+            id: coverMedia.id,
+            provider_key: coverMedia.provider_key,
+          };
+        }
+      }
+    }
+    
     // Transform using unified DTO mapper
-    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
-    const { worlds, cover_media, ...restData } = data;
+    const { worlds, ...restData } = data;
     const worldData = (worlds as any)?.[0];
-    // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
-    const coverMediaData = cover_media && 
-      typeof cover_media === 'object' &&
-      cover_media.status === 'ready' && 
-      cover_media.image_review_status === 'approved' &&
-      cover_media.visibility === 'public'
-        ? {
-            id: cover_media.id,
-            provider_key: cover_media.provider_key,
-          }
-        : null;
 
     const flatRow = {
       ...restData,
@@ -587,6 +642,7 @@ router.get('/npcs', async (req: Request, res: Response) => {
         archetype,
         role_tags,
         portrait_url,
+        cover_media_id,
         doc,
         created_at,
         updated_at
@@ -626,6 +682,27 @@ router.get('/npcs', async (req: Request, res: Response) => {
       );
     }
 
+    // Fetch cover media separately for NPCs that have cover_media_id
+    // Use supabaseAdmin to bypass RLS for public media assets
+    const coverMediaIds = (data || [])
+      .filter((npc: any) => npc.cover_media_id)
+      .map((npc: any) => npc.cover_media_id);
+    
+    let coverMediaMap: Record<string, any> = {};
+    if (coverMediaIds.length > 0) {
+      const { data: coverMediaData, error: coverError } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, visibility')
+        .in('id', coverMediaIds);
+      
+      if (!coverError && coverMediaData) {
+        coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
+          acc[media.id] = media;
+          return acc;
+        }, {});
+      }
+    }
+
     // Phase 2: Post-filter to ensure parent world is public+approved for NPCs
     const npcs = (data || [])
       .filter((npc: any) => {
@@ -635,21 +712,40 @@ router.get('/npcs', async (req: Request, res: Response) => {
         }
         return isWorldPublicAndApproved(worldRecord);
       })
-      .map((npc: any) => ({
-        id: npc.id,
-        name: npc.name,
-        slug: npc.slug,
-        description: npc.description,
-        worldId: npc.world_id,
-        status: npc.status,
-        visibility: npc.visibility,
-        archetype: npc.archetype,
-        roleTags: npc.role_tags || [],
-        portraitUrl: npc.portrait_url,
-        doc: npc.doc || {},
-        createdAt: npc.created_at,
-        updatedAt: npc.updated_at,
-      }));
+      .map((npc: any) => {
+        // Get cover media from the map we fetched separately
+        const coverMedia = npc.cover_media_id ? coverMediaMap[npc.cover_media_id] : null;
+        
+        // For published NPCs (visibility === 'public'), show cover if ready and approved
+        const isPublishedNPC = npc.visibility === 'public';
+        const coverMediaData = coverMedia && 
+          typeof coverMedia === 'object' &&
+          coverMedia.status === 'ready' && 
+          coverMedia.image_review_status === 'approved' &&
+          (isPublishedNPC || coverMedia.visibility === 'public')
+          ? {
+              id: coverMedia.id,
+              provider_key: coverMedia.provider_key,
+            }
+          : null;
+        
+        return {
+          id: npc.id,
+          name: npc.name,
+          slug: npc.slug,
+          description: npc.description,
+          worldId: npc.world_id,
+          status: npc.status,
+          visibility: npc.visibility,
+          archetype: npc.archetype,
+          roleTags: npc.role_tags || [],
+          portraitUrl: npc.portrait_url,
+          cover_media: coverMediaData,
+          doc: npc.doc || {},
+          createdAt: npc.created_at,
+          updatedAt: npc.updated_at,
+        };
+      });
 
     sendSuccess(
       res,
@@ -690,6 +786,7 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
         archetype,
         role_tags,
         portrait_url,
+        cover_media_id,
         doc,
         created_at,
         updated_at
@@ -710,6 +807,29 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
       );
     }
 
+    // Fetch cover media separately if it exists
+    let coverMediaData = null;
+    if (npc.cover_media_id) {
+      const { data: coverMedia, error: coverError } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, visibility')
+        .eq('id', npc.cover_media_id)
+        .single();
+      
+      if (!coverError && coverMedia) {
+        // For published NPCs, show cover if ready and approved (even if cover visibility isn't public)
+        const isPublishedNPC = npc.visibility === 'public';
+        if (coverMedia.status === 'ready' && 
+            coverMedia.image_review_status === 'approved' &&
+            (isPublishedNPC || coverMedia.visibility === 'public')) {
+          coverMediaData = {
+            id: coverMedia.id,
+            provider_key: coverMedia.provider_key,
+          };
+        }
+      }
+    }
+
     const npcDto = {
       id: npc.id,
       name: npc.name,
@@ -721,6 +841,7 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
       archetype: npc.archetype,
       roleTags: npc.role_tags || [],
       portraitUrl: npc.portrait_url,
+      cover_media: coverMediaData,
       doc: npc.doc || {},
       createdAt: npc.created_at,
       updatedAt: npc.updated_at,
@@ -870,7 +991,7 @@ router.get('/entry-points', async (req: Request, res: Response) => {
     const { data, error, count } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
       const worldRelationship = buildWorldRelationshipSelect(includeVisibility);
 
-      // Phase 4: Include cover_media_id and join with media_assets for cover info
+      // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
       let query = supabase
         .from('entry_points')
         .select(
@@ -893,13 +1014,6 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         dependency_invalid,
         prompt,
         cover_media_id,
-        cover_media:cover_media_id (
-          id,
-          provider_key,
-          status,
-          image_review_status,
-          visibility
-        ),
         created_at,
         updated_at
       `,
@@ -948,6 +1062,27 @@ router.get('/entry-points', async (req: Request, res: Response) => {
       throw error;
     }
     
+    // Fetch cover media separately for entry points that have cover_media_id
+    // Use supabaseAdmin to bypass RLS for public media assets
+    const coverMediaIds = (data || [])
+      .filter((row: any) => row.cover_media_id)
+      .map((row: any) => row.cover_media_id);
+    
+    let coverMediaMap: Record<string, any> = {};
+    if (coverMediaIds.length > 0) {
+      const { data: coverMediaData, error: coverError } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, visibility')
+        .in('id', coverMediaIds);
+      
+      if (!coverError && coverMediaData) {
+        coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
+          acc[media.id] = media;
+          return acc;
+        }, {});
+      }
+    }
+    
     // Phase 2: Post-filter to ensure parent world is public+approved for story/npc
     let items = (data || [])
       .filter((row: any) => {
@@ -958,17 +1093,21 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         return true;
       })
       .map((row: any) => {
-        const { worlds, cover_media, ...restRow } = row;
-        // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
-        // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
-        const coverMediaData = cover_media && 
-          typeof cover_media === 'object' &&
-          cover_media.status === 'ready' && 
-          cover_media.image_review_status === 'approved' &&
-          cover_media.visibility === 'public'
+        const { worlds, cover_media_id, ...restRow } = row;
+        
+        // Get cover media from the map we fetched separately
+        const coverMedia = cover_media_id ? coverMediaMap[cover_media_id] : null;
+        
+        // For published entry points (visibility === 'public'), show cover if ready and approved
+        const isPublishedEntryPoint = restRow.visibility === 'public';
+        const coverMediaData = coverMedia && 
+          typeof coverMedia === 'object' &&
+          coverMedia.status === 'ready' && 
+          coverMedia.image_review_status === 'approved' &&
+          (isPublishedEntryPoint || coverMedia.visibility === 'public')
             ? {
-                id: cover_media.id,
-                provider_key: cover_media.provider_key,
+                id: coverMedia.id,
+                provider_key: coverMedia.provider_key,
               }
             : null;
 
@@ -1020,7 +1159,7 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
     
-    // Phase 4: Include cover_media_id and join with media_assets for cover info
+    // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
     const { data, error } = await supabase
       .from('entry_points')
       .select(`
@@ -1039,13 +1178,6 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
         visibility,
         prompt,
         cover_media_id,
-        cover_media:cover_media_id (
-          id,
-          provider_key,
-          status,
-          image_review_status,
-          visibility
-        ),
         created_at,
         updated_at
       `)
@@ -1078,19 +1210,30 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
       console.error('Rulesets query error:', rulesetsError);
     }
     
-    const { worlds, cover_media, ...restData } = data;
-    // Phase 4 refinement: Defensive handling - LEFT JOIN means cover_media may be null/undefined
-    // Phase 4 refinement: Only use cover_media (not cover_media_id) for UI
-    const coverMediaData = cover_media && 
-      typeof cover_media === 'object' &&
-      cover_media.status === 'ready' && 
-      cover_media.image_review_status === 'approved' &&
-      cover_media.visibility === 'public'
-        ? {
-            id: cover_media.id,
-            provider_key: cover_media.provider_key,
-          }
-        : null;
+    // Fetch cover media separately if it exists
+    let coverMediaData = null;
+    if (data.cover_media_id) {
+      const { data: coverMedia, error: coverError } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, provider_key, status, image_review_status, visibility')
+        .eq('id', data.cover_media_id)
+        .single();
+      
+      if (!coverError && coverMedia) {
+        // For published entry points, show cover if ready and approved (even if cover visibility isn't public)
+        const isPublishedEntryPoint = data.visibility === 'public';
+        if (coverMedia.status === 'ready' && 
+            coverMedia.image_review_status === 'approved' &&
+            (isPublishedEntryPoint || coverMedia.visibility === 'public')) {
+          coverMediaData = {
+            id: coverMedia.id,
+            provider_key: coverMedia.provider_key,
+          };
+        }
+      }
+    }
+    
+    const { worlds, ...restData } = data;
 
     const flatRow = {
       ...restData,

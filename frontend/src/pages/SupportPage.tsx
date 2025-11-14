@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { makeTitle } from '../lib/meta';
 import { 
   HelpCircle, 
   FileText, 
@@ -14,6 +16,17 @@ interface SupportPageProps {
 }
 
 export default function SupportPage({ pageType }: SupportPageProps) {
+  useEffect(() => {
+    const pageTitles: Record<string, string> = {
+      tos: 'Terms of Service',
+      privacy: 'Privacy Policy',
+      'ai-disclaimer': 'AI Disclaimer',
+      faq: 'FAQ',
+      about: 'About'
+    };
+    const pageTitle = pageTitles[pageType] || 'Support';
+    document.title = makeTitle([pageTitle, 'Stone Caster']);
+  }, [pageType]);
   const pageContent = {
     tos: {
       title: 'Terms of Service',

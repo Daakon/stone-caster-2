@@ -84,6 +84,14 @@ function App() {
     };
   }, [initialize]);
 
+  // Ensure default title is always "Stone Caster" if no page sets it
+  useEffect(() => {
+    // Set a default title if it's still "frontend" or empty
+    if (!document.title || document.title === 'frontend' || document.title.trim() === '') {
+      document.title = 'Stone Caster';
+    }
+  }, []);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen w-full">

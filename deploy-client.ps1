@@ -61,6 +61,24 @@ foreach ($dotenvPath in $dotenvPaths) {
 # Step 1: Validate and use environment variables for client build
 Write-Host "Validating client build environment variables..." -ForegroundColor Yellow
 
+# Load optional URL variables (can be inferred from window.location in production)
+if (-not $env:VITE_WEB_BASE_URL -and $dotenvData.ContainsKey('VITE_WEB_BASE_URL')) {
+    $env:VITE_WEB_BASE_URL = $dotenvData['VITE_WEB_BASE_URL']
+}
+if (-not $env:VITE_API_BASE_URL -and $dotenvData.ContainsKey('VITE_API_BASE_URL')) {
+    $env:VITE_API_BASE_URL = $dotenvData['VITE_API_BASE_URL']
+}
+
+# Set production defaults if not provided (will be inferred at runtime if missing)
+if (-not $env:VITE_WEB_BASE_URL) {
+    $env:VITE_WEB_BASE_URL = "https://stonecaster.ai"
+    Write-Host "Using default VITE_WEB_BASE_URL: $($env:VITE_WEB_BASE_URL)" -ForegroundColor Gray
+}
+if (-not $env:VITE_API_BASE_URL) {
+    $env:VITE_API_BASE_URL = "https://api.stonecaster.ai"
+    Write-Host "Using default VITE_API_BASE_URL: $($env:VITE_API_BASE_URL)" -ForegroundColor Gray
+}
+
 # Require VITE_SUPABASE_URL from environment (allow fallback to .env)
 if (-not $env:VITE_SUPABASE_URL -and $dotenvData.ContainsKey('VITE_SUPABASE_URL')) {
     $env:VITE_SUPABASE_URL = $dotenvData['VITE_SUPABASE_URL']
@@ -90,7 +108,10 @@ if (-not $env:VITE_SUPABASE_PUBLISHABLE_KEY) {
     $env:VITE_SUPABASE_PUBLISHABLE_KEY = $env:VITE_SUPABASE_ANON_KEY
 }
 
-Write-Host "Using environment variables for Supabase configuration" -ForegroundColor Green
+Write-Host "Using environment variables for configuration" -ForegroundColor Green
+Write-Host "  VITE_WEB_BASE_URL: $($env:VITE_WEB_BASE_URL)" -ForegroundColor Gray
+Write-Host "  VITE_API_BASE_URL: $($env:VITE_API_BASE_URL)" -ForegroundColor Gray
+Write-Host "  VITE_SUPABASE_URL: $($env:VITE_SUPABASE_URL)" -ForegroundColor Gray
 
 # Step 2: Build the client
 # Note: Using build:deploy to skip strict type checking for deployment

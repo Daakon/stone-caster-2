@@ -9,11 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Plus, Edit, Send, Eye, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Edit, Send, Eye, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api';
 import { useSubmitForPublish } from '@/hooks/useSubmitForPublish';
 import { PUBLISH_STATUS_LABELS, type PublishStatus } from '@shared/types/publishing';
 import { USER_QUOTAS } from '@/lib/constants';
+import { buildImageUrl } from '@shared/media/url';
 
 interface Story {
   id: string;
@@ -23,6 +24,7 @@ interface Story {
   publish_status?: PublishStatus;
   created_at: string;
   updated_at: string;
+  cover_media?: { id: string; provider_key: string } | null;
 }
 
 interface MyStoriesResponse {
@@ -184,8 +186,43 @@ export default function MyStoriesPage() {
             const canEdit = status === 'draft' || status === 'rejected';
             const canSubmit = status === 'draft' || status === 'rejected';
 
+            // Build cover image URL if available
+            const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL;
+            const hasDeliveryUrl = !!deliveryUrl && deliveryUrl.trim() !== '';
+            const coverImageUrl = story.cover_media && hasDeliveryUrl
+              ? buildImageUrl(story.cover_media.provider_key, 'card')
+              : null;
+
             return (
               <Card key={story.id}>
+                {coverImageUrl ? (
+                  <div className="aspect-video overflow-hidden rounded-t-lg bg-muted">
+                    <img
+                      src={coverImageUrl}
+                      alt={`${story.title || story.name} cover`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      width={400}
+                      height={300}
+                      onError={(e) => {
+                        // Fallback to placeholder on error
+                        e.currentTarget.style.display = 'none';
+                        const parent = e.currentTarget.parentElement;
+                        if (parent && !parent.querySelector('.cover-placeholder')) {
+                          const placeholder = document.createElement('div');
+                          placeholder.className = 'cover-placeholder flex h-full w-full items-center justify-center bg-muted';
+                          placeholder.innerHTML = '<svg class="h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                          parent.appendChild(placeholder);
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-video overflow-hidden rounded-t-lg bg-muted flex items-center justify-center">
+                    <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                )}
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
