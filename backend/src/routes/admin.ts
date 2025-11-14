@@ -88,31 +88,8 @@ const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Admin role check middleware
-const requireAdminRole = async (req: any, res: any, next: any) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Check if user has admin role
-    const { data: userData, error } = await supabase.auth.admin.getUserById(userId);
-    if (error) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    const role = userData.user?.user_metadata?.role;
-    if (role !== 'prompt_admin') {
-      return res.status(403).json({ error: 'Admin role required' });
-    }
-
-    next();
-  } catch (error) {
-    console.error('Admin role check error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
+// Centralized admin RBAC middleware (publisher = admin)
+const requireAdminRole = requireRole('publisher');
 
 const LayerSchema = z.string()
   .trim()

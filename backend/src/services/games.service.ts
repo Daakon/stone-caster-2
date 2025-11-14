@@ -1084,13 +1084,12 @@ export class GamesService {
     try {
       // First, fetch the game to check ownership
       // Handle legacy games where both owner_user_id and cookie_group_id are null
-      // Phase 5 refinement: Include prompt_snapshot_id and snapshot version
+      // Phase 5 refinement: Include prompt_snapshot_id (version fetched separately if needed)
       let query = supabaseAdmin
         .from('games')
         .select(`
           *,
-          characters:characters!games_character_id_fkey(id, name, world_data, level, current_health, max_health, race, class),
-          prompt_snapshots:prompt_snapshot_id(version)
+          characters:characters!games_character_id_fkey(id, name, world_data, level, current_health, max_health, race, class)
         `)
         .eq('id', gameId);
 

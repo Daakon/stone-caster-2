@@ -4,24 +4,57 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction } from 'express';
 import { requireRole } from '../src/middleware/rbac.js';
 
-// Mock Supabase
+const roleState = {
+  appRoles: [{ role: 'admin' }],
+  profileRole: null as string | null,
+  legacyRole: null as string | null,
+};
+
+// Mock Supabase admin client
 vi.mock('../src/services/supabase.js', () => ({
   supabaseAdmin: {
-    from: () => ({
+    from: (table: string) => ({
       select: () => ({
-        eq: () => ({
-          single: () => ({
-            data: { role: 'admin' },
-            error: null,
-          }),
-        }),
+        eq: () => {
+          if (table === 'app_roles') {
+            return Promise.resolve({
+              data: roleState.appRoles,
+              error: null,
+            });
+          }
+
+          const respondWithRole = (role: string | null) => ({
+            single: () =>
+              Promise.resolve(
+                role
+                  ? { data: { role }, error: null }
+                  : { data: null, error: new Error('not found') }
+              ),
+          });
+
+          if (table === 'profiles') {
+            return respondWithRole(roleState.profileRole);
+          }
+
+          if (table === 'user_profiles') {
+            return respondWithRole(roleState.legacyRole);
+          }
+
+          return Promise.resolve({ data: null, error: new Error('unknown table') });
+        },
       }),
     }),
   },
 }));
+
+beforeEach(() => {
+  roleState.appRoles = [{ role: 'admin' }];
+  roleState.profileRole = null;
+  roleState.legacyRole = null;
+});
 
 describe('RBAC Middleware', () => {
   it('should allow publisher role to access publisher endpoints', async () => {
@@ -42,21 +75,9 @@ describe('RBAC Middleware', () => {
   });
 
   it('should reject viewer role from publisher endpoints', async () => {
-    // Mock viewer role
-    vi.doMock('../src/services/supabase.js', () => ({
-      supabaseAdmin: {
-        from: () => ({
-          select: () => ({
-            eq: () => ({
-              single: () => ({
-                data: { role: 'user' }, // Maps to viewer
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      },
-    }));
+    // Mock viewer role via app_roles fallback
+    roleState.appRoles = [];
+    roleState.profileRole = 'user';
 
     const req = {
       user: { id: 'test-user' },

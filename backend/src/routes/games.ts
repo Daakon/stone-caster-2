@@ -1684,21 +1684,24 @@ router.get('/:id/turns/latest', optionalAuth, async (req: Request, res: Response
 // GET /api/games/:id/turns/history - get conversation history with user prompts and AI responses
 router.get('/:id/turns/history', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const gameId = req.params.id;
-    const limit = parseInt(req.query.limit as string) || 20; // Default 20 entries (last 10 turns typically)
+    const userId = req.ctx?.userId;
+    const isGuest = req.ctx?.isGuest;
     
-    // Resolve ownership context
-    const ownership = resolveOwnershipContext(req);
-    if (!ownership.ownerId) {
+    if (!userId) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
+        'User context required',
         req
       );
     }
 
-    const ownerId = ownership.ownerId;
+    const gameId = req.params.id;
+    const limit = parseInt(req.query.limit as string) || 20; // Default 20 entries (last 10 turns typically)
+    
+    // Resolve ownership context
+    const ownership = resolveOwnershipContext(req, userId, isGuest || false);
+    const ownerId = ownership.ownerId ?? userId;
 
     // Verify game exists and user has access
     const gamesService = new GamesService();
