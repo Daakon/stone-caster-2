@@ -64,7 +64,7 @@ export default function WorldsPage() {
           
           <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
           
-          <CatalogGrid>
+          <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
             {Array.from({ length: 6 }).map((_, index) => (
               <CatalogSkeleton key={index} />
             ))}
@@ -144,7 +144,7 @@ export default function WorldsPage() {
           </p>
         </div>
         
-        <CatalogGrid>
+        <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
           {worlds.map((world) => (
             <CatalogCard
               key={world.id}

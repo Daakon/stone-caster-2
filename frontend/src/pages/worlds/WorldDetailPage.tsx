@@ -132,13 +132,13 @@ export default function WorldDetailPage() {
           <div>
             <h2 className="text-2xl font-semibold mb-4">Stories in {world.name}</h2>
             {storiesLoading ? (
-              <CatalogGrid>
+              <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
                 {Array.from({ length: 6 }).map((_, i) => (
                   <CatalogSkeleton key={i} />
                 ))}
               </CatalogGrid>
             ) : stories.length > 0 ? (
-              <CatalogGrid>
+              <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
                 {stories.map((story) => (
                   <CatalogCard
                     key={story.id}
@@ -174,13 +174,13 @@ export default function WorldDetailPage() {
           <div>
             <h2 className="text-2xl font-semibold mb-4">NPCs in {world.name}</h2>
             {npcsLoading ? (
-              <CatalogGrid>
+              <CatalogGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }}>
                 {Array.from({ length: 6 }).map((_, i) => (
                   <CatalogSkeleton key={i} />
                 ))}
               </CatalogGrid>
             ) : npcs.length > 0 ? (
-              <CatalogGrid>
+              <CatalogGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }}>
                 {npcs.map((npc) => (
                   <CatalogCard
                     key={npc.id}
