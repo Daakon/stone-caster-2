@@ -283,7 +283,7 @@ export default function StoryDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <CatalogGrid>
+                <CatalogGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }}>
                   {story.featured_npcs.map((npc) => (
                     <CatalogCard
                       key={npc.id}

@@ -165,7 +165,7 @@ export default function NPCsPage() {
             />
 
             {isLoading && (
-              <CatalogGrid>
+              <CatalogGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }}>
                 {Array.from({ length: 6 }).map((_, index) => (
                   <CatalogSkeleton key={index} />
                 ))}
@@ -202,7 +202,7 @@ export default function NPCsPage() {
                   </p>
                 </div>
                 
-                <CatalogGrid>
+                <CatalogGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }}>
                   {currentNPCs.map((npc: any) => (
                     <CatalogCard
                       key={npc.id}
@@ -248,7 +248,7 @@ export default function NPCsPage() {
                 />
 
                 {isLoading && (
-                  <CatalogGrid>
+                  <CatalogGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }}>
                     {Array.from({ length: 6 }).map((_, index) => (
                       <CatalogSkeleton key={index} />
                     ))}
@@ -285,7 +285,7 @@ export default function NPCsPage() {
                       </p>
                     </div>
                     
-                    <CatalogGrid>
+                    <CatalogGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }}>
                       {currentNPCs.map((npc: any) => (
                         <CatalogCard
                           key={npc.id}

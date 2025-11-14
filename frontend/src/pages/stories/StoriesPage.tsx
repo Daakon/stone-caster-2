@@ -73,7 +73,7 @@ export default function StoriesPage() {
           
           <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
           
-          <CatalogGrid>
+          <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
             {Array.from({ length: 6 }).map((_, index) => (
               <CatalogSkeleton key={index} />
             ))}
@@ -155,7 +155,7 @@ export default function StoriesPage() {
           </p>
         </div>
         
-        <CatalogGrid>
+        <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
           {stories.map((story) => (
             <CatalogCard
               key={story.id}
