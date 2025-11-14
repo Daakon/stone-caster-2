@@ -185,7 +185,7 @@ export default function EntryWizardPage() {
               </Badge>
             </div>
             <p className="text-muted-foreground">
-              Configure {entry.name || 'your entry'} for optimal gameplay
+              Configure {entry?.name || 'your entry'} for optimal gameplay
             </p>
           </div>
         </div>
@@ -287,7 +287,8 @@ export default function EntryWizardPage() {
             </Button>
           ) : (
             <Button
-              onClick={() => navigate(`/admin/entry-points/${entry.id}`)}
+              onClick={() => entry && navigate(`/admin/entry-points/${entry.id}`)}
+              disabled={!entry}
             >
               Finish Setup
             </Button>

@@ -52,24 +52,24 @@ export function BasicsStep({ entry, data, onUpdate, onComplete }: BasicsStepProp
   
   // Get initial values from entry or wizard data
   const getInitialValues = (): BasicsFormData => {
-    const rulesetIds = entry.rulesets 
+    const rulesetIds = entry?.rulesets 
       ? entry.rulesets
           .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
           .map(r => r.id)
       : (data.rulesetIds || []);
     
     // Use title as name if name is missing (for backward compatibility)
-    const name = entry.name || entry.title || data.name || '';
+    const name = entry?.name || entry?.title || data.name || '';
     
     return {
       name,
-      slug: entry.slug || data.slug || '',
-      type: (entry.type || data.type || 'adventure') as 'adventure' | 'scenario' | 'sandbox' | 'quest',
-      worldId: entry.world_id || data.worldId || '',
+      slug: entry?.slug || data.slug || '',
+      type: (entry?.type || data.type || 'adventure') as 'adventure' | 'scenario' | 'sandbox' | 'quest',
+      worldId: entry?.world_id || data.worldId || '',
       rulesetIds,
-      tags: entry.tags || data.tags || [],
-      subtitle: entry.subtitle || data.subtitle || '',
-      synopsis: entry.synopsis || data.synopsis || '',
+      tags: entry?.tags || data.tags || [],
+      subtitle: entry?.subtitle || data.subtitle || '',
+      synopsis: entry?.synopsis || data.synopsis || '',
     };
   };
   
@@ -129,7 +129,7 @@ export function BasicsStep({ entry, data, onUpdate, onComplete }: BasicsStepProp
     // Note: Removed 'worlds' from dependencies to prevent form reset when worlds list refetches
     // The worlds array is only used for checking if a world exists, not for form values
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry.id, entry.name, entry.title, entry.slug, entry.type, entry.world_id, entry.rulesets, entry.tags, entry.subtitle, entry.synopsis, justSaved]);
+  }, [entry?.id, entry?.name, entry?.title, entry?.slug, entry?.type, entry?.world_id, entry?.rulesets, entry?.tags, entry?.subtitle, entry?.synopsis, justSaved]);
   
   // Reset justSaved flag after a delay to allow refetch to complete
   useEffect(() => {
@@ -156,12 +156,13 @@ export function BasicsStep({ entry, data, onUpdate, onComplete }: BasicsStepProp
   useEffect(() => {
     if (!worldsLoading && worlds && worlds.length > 0 && entry?.world_id) {
       const currentWorldId = form.getValues('worldId');
+      const entryWorldId = entry.world_id; // Safe because we checked entry?.world_id above
       // Only update if the current value doesn't match and the world exists in the list
-      if (currentWorldId !== entry.world_id) {
-        const worldExists = worlds.some(w => w.id === entry.world_id);
+      if (currentWorldId !== entryWorldId) {
+        const worldExists = worlds.some(w => w.id === entryWorldId);
         if (worldExists) {
-          setValue('worldId', entry.world_id, { shouldValidate: false });
-          onUpdate({ worldId: entry.world_id });
+          setValue('worldId', entryWorldId, { shouldValidate: false });
+          onUpdate({ worldId: entryWorldId });
         }
       }
     }
@@ -217,6 +218,11 @@ export function BasicsStep({ entry, data, onUpdate, onComplete }: BasicsStepProp
   };
   
   const onSubmit = async (formData: BasicsFormData) => {
+    if (!entry?.id) {
+      toast.error('Entry not found. Please refresh and try again.');
+      return;
+    }
+    
     setIsSubmitting(true);
     
     try {
@@ -232,7 +238,7 @@ export function BasicsStep({ entry, data, onUpdate, onComplete }: BasicsStepProp
         // Map name to title for backward compatibility
         title: formData.name,
         // Map synopsis to description if description is missing
-        description: entry.description || formData.synopsis || '',
+        description: entry?.description || formData.synopsis || '',
       });
       
       toast.success('Entry basics saved successfully');
@@ -397,7 +403,7 @@ export function BasicsStep({ entry, data, onUpdate, onComplete }: BasicsStepProp
                       name: world.name,
                       description: world.description,
                     })) || []}
-                    value={watchedWorldId || entry.world_id || data.worldId || ''}
+                    value={watchedWorldId || entry?.world_id || data.worldId || ''}
                     onValueChange={handleWorldChange}
                     placeholder="Select a world"
                     allowCreateNew={true}
@@ -602,7 +608,7 @@ export function BasicsStep({ entry, data, onUpdate, onComplete }: BasicsStepProp
     <CreateWorldDialog
       open={editWorldDialogOpen}
       onOpenChange={setEditWorldDialogOpen}
-      worldId={watchedWorldId || entry.world_id || data.worldId || undefined}
+      worldId={watchedWorldId || entry?.world_id || data.worldId || undefined}
       onCreated={(worldId) => {
         // After editing, don't invalidate worlds query to avoid form reset
         // The world data is updated but the list doesn't need to refresh
