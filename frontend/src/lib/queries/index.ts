@@ -287,6 +287,11 @@ const StorySchema = z.object({
     name: z.string(),
     slug: z.string().optional(),
   }).optional().nullable(),
+  // Phase 4: Cover media (optional)
+  cover_media: z.object({
+    id: z.string(),
+    provider_key: z.string(),
+  }).nullable().optional(),
 }).passthrough(); // Allow additional fields
 
 export function useStories(params: {

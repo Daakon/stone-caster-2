@@ -46,7 +46,7 @@ function CoverImageSection({
 }) {
   const queryClient = useQueryClient();
   
-  const { data: coverMedia, isLoading: loadingCover } = useQuery({
+  const { data: coverMedia, isLoading: loadingCover, refetch: refetchCoverMedia } = useQuery({
     queryKey: ['admin-media-cover', 'world', worldId],
     queryFn: async () => {
       const result = await getCoverMedia({ kind: 'world', entityId: worldId });
@@ -56,16 +56,14 @@ function CoverImageSection({
       return result.data;
     },
     enabled: !!worldId && isAdminMediaEnabled(),
-    staleTime: 30 * 1000,
+    staleTime: 0, // Always refetch when invalidated
   });
 
   const handleCoverChange = async (mediaId: string | null) => {
-    // Optimistic update
-    queryClient.setQueryData(['admin-media-cover', 'world', worldId], mediaId ? { id: mediaId } : null);
-    
-    // Invalidate to refetch
-    queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'world', worldId] });
-    queryClient.invalidateQueries({ queryKey: ['admin-world', worldId] });
+    // Invalidate and refetch cover media immediately
+    await queryClient.invalidateQueries({ queryKey: ['admin-media-cover', 'world', worldId], refetchType: 'active' });
+    // Also refetch explicitly to ensure it happens
+    await refetchCoverMedia();
     if (onMediaSelected) {
       onMediaSelected(null); // Clear selection after setting cover
     }
@@ -89,7 +87,17 @@ function CoverImageSection({
 }
 
 // Gallery Section Component
-function GallerySection({ worldId, worldName, isLocked }: { worldId: string; worldName: string; isLocked: boolean }) {
+function GallerySection({ 
+  worldId, 
+  worldName, 
+  isLocked,
+  onSelectMedia,
+}: { 
+  worldId: string; 
+  worldName: string; 
+  isLocked: boolean;
+  onSelectMedia?: (mediaId: string) => void;
+}) {
   const queryClient = useQueryClient();
   
   const { data: galleryItems, isLoading: loadingGallery } = useQuery({
@@ -121,6 +129,7 @@ function GallerySection({ worldId, worldName, isLocked }: { worldId: string; wor
       disabled={isLocked}
       onChange={handleGalleryChange}
       entityName={worldName}
+      onSelectMedia={onSelectMedia}
     />
   );
 }
@@ -518,7 +527,12 @@ export default function WorldEditPage() {
             />
 
             {/* Gallery Manager */}
-            <GallerySection worldId={id} worldName={world.name} isLocked={isLocked} />
+            <GallerySection 
+              worldId={id} 
+              worldName={world.name} 
+              isLocked={isLocked}
+              onSelectMedia={(mediaId) => setSelectedMediaId(mediaId)}
+            />
           </CardContent>
         </Card>
       )}

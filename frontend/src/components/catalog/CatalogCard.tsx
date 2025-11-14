@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { prefetchWorld, prefetchStories } from '@/lib/prefetch';
+import { prefetchWorld } from '@/lib/prefetch';
 import { buildImageUrl } from '@shared/media/url';
 
 /**
@@ -62,8 +62,11 @@ export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
     // Phase 4: Build cover image URL from coverMedia or use imageUrl fallback
     const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL;
     const hasDeliveryUrl = !!deliveryUrl && deliveryUrl.trim() !== '';
+    
+    // Use 'public' variant as default (always exists in Cloudflare Images)
+    // 'card' variant may not exist, so we use 'public' which is guaranteed to work
     const coverImageUrl = coverMedia && hasDeliveryUrl
-      ? buildImageUrl(coverMedia.provider_key, 'card')
+      ? buildImageUrl(coverMedia.provider_key, 'public')
       : imageUrl || null;
 
     return (
@@ -81,15 +84,18 @@ export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
           aria-label={`View ${title}`}
         >
           {coverImageUrl ? (
-            <div className="aspect-video overflow-hidden rounded-t-lg bg-muted">
+            /* NPCs use 3:4 portrait, Worlds/Stories use 16:9 landscape */
+            <div className={`overflow-hidden rounded-t-lg bg-muted ${
+              entity === 'npc' ? 'aspect-[3/4]' : 'aspect-video'
+            }`}>
               <img
                 src={coverImageUrl}
                 alt={`${title} cover`}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                 loading="lazy"
                 decoding="async"
-                width={400}
-                height={300}
+                width={entity === 'npc' ? 300 : 400}
+                height={entity === 'npc' ? 400 : 300}
                 onError={(e) => {
                   // Fallback to placeholder on error
                   e.currentTarget.style.display = 'none';
@@ -104,7 +110,9 @@ export const CatalogCard = forwardRef<HTMLDivElement, CatalogCardProps>(
               />
             </div>
           ) : (
-            <div className="aspect-video overflow-hidden rounded-t-lg bg-muted flex items-center justify-center">
+            <div className={`overflow-hidden rounded-t-lg bg-muted flex items-center justify-center ${
+              entity === 'npc' ? 'aspect-[3/4]' : 'aspect-video'
+            }`}>
               <ImageIcon className="h-12 w-12 text-muted-foreground" />
             </div>
           )}

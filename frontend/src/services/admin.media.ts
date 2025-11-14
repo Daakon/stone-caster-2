@@ -140,7 +140,7 @@ export interface GetCoverMediaParams {
 export async function getCoverMedia(params: GetCoverMediaParams): Promise<{ ok: true; data: MediaAssetDTO | null } | { ok: false; error: any }> {
   const { kind, entityId } = params;
   
-  // Fetch entity to get cover_media_id
+  // Fetch entity to get cover media
   let endpoint: string;
   if (kind === 'story') {
     endpoint = `/api/admin/entry-points/${entityId}`;
@@ -150,18 +150,31 @@ export async function getCoverMedia(params: GetCoverMediaParams): Promise<{ ok: 
     endpoint = `/api/admin/npcs/${entityId}`;
   }
 
-  const entityResult = await apiGet<any>(endpoint);
+  // Add cache-busting query param to ensure we get fresh entity data
+  const entityResult = await apiGet<any>(`${endpoint}?_t=${Date.now()}`);
   if (!entityResult.ok || !entityResult.data) {
     return entityResult;
   }
 
-  const coverMediaId = entityResult.data.cover_media_id;
+  const entityData = entityResult.data;
+  
+  // Check if coverMedia is already included in the response (full object)
+  if (entityData.coverMedia && typeof entityData.coverMedia === 'object') {
+    return { ok: true, data: entityData.coverMedia as MediaAssetDTO };
+  }
+  
+  // Otherwise, extract cover_media_id and fetch the media asset
+  const coverMediaId = entityData.cover_media_id || 
+                       entityData.data?.cover_media_id || 
+                       entityData.world?.cover_media_id || 
+                       entityData.story?.cover_media_id || 
+                       entityData.npc?.cover_media_id;
   if (!coverMediaId) {
     return { ok: true, data: null };
   }
 
-  // Fetch media asset using GET /api/media/:id
-  const mediaResult = await apiGet<MediaAssetDTO>(`/api/media/${coverMediaId}`);
+  // Fetch media asset using GET /api/media/:id (with cache-busting)
+  const mediaResult = await apiGet<MediaAssetDTO>(`/api/media/${coverMediaId}?_t=${Date.now()}`);
   if (!mediaResult.ok) {
     // If media not found, return null (cover_media_id might be stale)
     if (mediaResult.error?.code === 'NOT_FOUND') {

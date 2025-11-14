@@ -102,16 +102,51 @@ router.get('/stories', authenticateToken, async (req: Request, res: Response) =>
       return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'Authentication required', req);
     }
 
-    // Fetch user's stories
+    // Fetch user's stories with cover media
     // Refinement: Sort by publish_status (Draft first, then In Review, Published, Rejected), then updated_at DESC
+    // Include cover_media join - for user's own stories, show cover even if not public
     const { data: stories, error } = await supabaseAdmin
       .from('entry_points')
-      .select('*')
+      .select(`
+        *,
+        cover_media:cover_media_id (
+          id,
+          provider_key,
+          status,
+          image_review_status,
+          visibility
+        )
+      `)
       .eq('owner_user_id', userId)
       .order('updated_at', { ascending: false }); // Primary sort by updated_at DESC
 
+    if (error) {
+      throw error;
+    }
+
+    // Transform stories to include cover_media in consistent format
+    // For user's own stories, show cover if it exists and is ready (even if not public)
+    const transformedStories = (stories || []).map((story: any) => {
+      const coverMedia = story.cover_media && 
+        typeof story.cover_media === 'object' &&
+        story.cover_media.status === 'ready' &&
+        story.cover_media.image_review_status === 'approved'
+        ? {
+            id: story.cover_media.id,
+            provider_key: story.cover_media.provider_key,
+          }
+        : null;
+      
+      // Remove the nested cover_media and add the transformed version
+      const { cover_media, ...restStory } = story;
+      return {
+        ...restStory,
+        cover_media: coverMedia,
+      };
+    });
+
     // Sort in memory to ensure correct publish_status order
-    const sortedStories = (stories || []).sort((a, b) => {
+    const sortedStories = transformedStories.sort((a, b) => {
       const statusOrder: Record<string, number> = {
         draft: 1,
         in_review: 2,
@@ -127,10 +162,6 @@ router.get('/stories', authenticateToken, async (req: Request, res: Response) =>
       }
       return 0;
     });
-
-    if (error) {
-      throw error;
-    }
 
     // Get quota status
     const quotaStatus = await getUserQuotaStatus(userId, USER_QUOTAS);

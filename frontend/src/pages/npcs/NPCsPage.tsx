@@ -211,6 +211,7 @@ export default function NPCsPage() {
                       title={npc.name}
                       description={npc.short_desc || npc.description}
                       imageUrl={npc.portrait_url || npc.portraitUrl}
+                      coverMedia={npc.cover_media || null}
                       href={`/npcs/${npc.id}`}
                       chips={[
                         ...(npc.world?.name ? [{ label: npc.world.name, variant: 'secondary' as const }] : []),

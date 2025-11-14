@@ -35,11 +35,26 @@ router.use((req, res, next) => {
  * GET /api/media/links - List gallery links
  * Moved to top to ensure it matches before parameterized routes
  */
+// Validation schema for media links query
+// Stories use text IDs, worlds/NPCs use UUIDs
 const ListMediaLinksQuerySchema = z.object({
   kind: MediaKindSchema,
-  id: z.string().uuid(),
+  id: z.string().min(1), // Accept any non-empty string (stories are text IDs, worlds/NPCs are UUIDs)
   include: z.enum(['media']).optional(),
-});
+}).refine(
+  (data) => {
+    // For worlds and NPCs, validate as UUID
+    if (data.kind === 'world' || data.kind === 'npc') {
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.id);
+    }
+    // For stories, accept any non-empty string (they use text IDs)
+    return true;
+  },
+  {
+    message: "Invalid uuid",
+    path: ["id"],
+  }
+);
 
 router.get('/links', 
   (req, res, next) => {

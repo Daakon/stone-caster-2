@@ -164,6 +164,7 @@ export default function StoriesPage() {
               title={story.title}
               description={story.short_desc}
               imageUrl={story.hero_url}
+              coverMedia={story.cover_media || null}
               href={`/stories/${story.slug || story.id}`}
               chips={story.world?.name || story.rulesets?.length ? [
                 story.world?.name,

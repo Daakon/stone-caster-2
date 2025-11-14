@@ -260,6 +260,7 @@ export default function StoryDetailPage() {
                       idOrSlug={npc.id}
                       href={`/npcs/${npc.id}`}
                       imageUrl={npc.portrait_url}
+                      coverMedia={npc.cover_media || null}
                       title={npc.name}
                       description={npc.short_desc}
                       chips={[

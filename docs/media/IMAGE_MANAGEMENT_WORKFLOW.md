@@ -44,6 +44,66 @@ https://imagedelivery.net/{accountHash}/{imageId}/public
 
 The `public` variant is the default variant that exists for all Cloudflare Images accounts. To use optimized variants (like `thumb`, `card`, `banner`), create them in the Cloudflare Images dashboard first.
 
+## Recommended Image Dimensions
+
+### Worlds & Stories: 1920×1080 (16:9 Aspect Ratio)
+
+**Recommended dimensions for World and Story cover images:**
+- **Width**: 1920 pixels
+- **Height**: 1080 pixels
+- **Aspect Ratio**: 16:9
+
+**Why this size?**
+1. **Matches UI containers**: Cover images are displayed in `aspect-video` (16:9) containers throughout the admin interface and public catalog
+2. **Mobile layout**: Worlds and Stories display in **1 column** on mobile, so 16:9 works well for full-width cards
+3. **Future-proof**: High enough resolution for detail views while remaining web-optimized
+4. **Variant-ready**: Can be scaled down to create optimized variants:
+   - `card`: 800×450 (16:9, for catalog cards)
+   - `thumb`: 400×400 (1:1, for gallery thumbnails - cropped/centered)
+   - `banner`: 1920×400 (wide banner format)
+
+### NPCs: 1200×1600 (3:4 Portrait Aspect Ratio)
+
+**Recommended dimensions for NPC cover images:**
+- **Width**: 1200 pixels
+- **Height**: 1600 pixels
+- **Aspect Ratio**: 3:4 (portrait)
+
+**Why this size?**
+1. **Mobile layout**: NPCs display in **2 columns** on mobile (375px screen ÷ 2 = ~170-180px per card)
+   - At 3:4 ratio: 180px wide × 240px tall (good visibility for character cards)
+2. **Character-focused**: Portrait orientation is ideal for character/portrait images
+3. **Detail views**: When users explore character details, images can be displayed larger
+4. **Variant-ready**: Can be scaled down to create optimized variants:
+   - `card`: 300×400 (3:4, for 2-column mobile cards)
+   - `thumb`: 300×300 (1:1, for gallery thumbnails - cropped/centered)
+   - `detail`: 900×1200 (3:4, for detail view overlays)
+
+**Alternative NPC sizes:**
+- **1080×1440** (3:4) - Smaller file size, still good quality
+- **900×1200** (3:4) - Smaller, acceptable for web
+- **1500×2000** (3:4) - Higher resolution for future needs
+
+### Gallery Images
+
+Gallery images are displayed as **square (1:1)** in the gallery grid for all entity types. You have two options:
+
+1. **Use same cover images**: Cloudflare Images variants can crop/center to create square thumbnails
+2. **Upload square images separately**: If you want dedicated gallery images, use:
+   - **1200×1200** (1:1) - Recommended for gallery-specific images
+   - **1024×1024** (1:1) - Smaller alternative
+
+### Alternative World/Story Cover Image Sizes
+
+If file size is a concern, these are acceptable alternatives:
+- **1600×900** (16:9) - Smaller file size, still good quality
+- **1280×720** (16:9) - Smaller, acceptable for web
+- **2048×1152** (16:9) - Higher resolution for future needs
+
+**Note**: 
+- **Worlds/Stories**: Maintain 16:9 aspect ratio to match the UI containers
+- **NPCs**: Maintain 3:4 portrait aspect ratio for optimal 2-column mobile display
+
 ## Entity-Specific Paths
 
 ### Worlds

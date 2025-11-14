@@ -153,6 +153,7 @@ export default function WorldsPage() {
               title={world.name}
               description={world.description}
               imageUrl={world.cover_url}
+              coverMedia={world.cover_media || null}
               href={`/worlds/${world.slug || world.id}`}
               onCardClick={() => handleCardClick(world.slug || world.id)}
             />
