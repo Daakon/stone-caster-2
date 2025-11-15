@@ -43,6 +43,7 @@ import { initializeActionRegistry } from './actions/boot.js';
 import mediaRouter from './routes/media.js';
 import mediaApprovalsRouter from './routes/media.approvals.js';
 import coverMediaRouter from './routes/coverMedia.js';
+import chimeraRouter from './routes/chimera.js';
 
 const app = express();
 
@@ -171,6 +172,9 @@ app.use('/api/publishing-wizard', publishingWizardP7Router);
 // Phase 8: User authoring routes
 import userAuthoringRouter from './routes/user-authoring.js';
 app.use('/api', userAuthoringRouter);
+
+// V2 API: Project Chimera engine routes
+app.use('/api/v2/chimera', chimeraRouter);
 
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);

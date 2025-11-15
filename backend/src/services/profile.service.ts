@@ -75,14 +75,85 @@ export class ProfileService {
         updatePayload.preferences = updateData.preferences;
       }
 
-      // Use the database function to update profile
-      await supabaseAdmin
-        .rpc('update_user_profile', {
-          p_auth_user_id: authUserId,
-          p_display_name: updatePayload.display_name,
-          p_avatar_url: updatePayload.avatar_url,
-          p_preferences: updatePayload.preferences,
-        });
+      // Creator profile fields
+      if (updateData.creatorSlug !== undefined) {
+        updatePayload.creator_slug = updateData.creatorSlug;
+      }
+      
+      if (updateData.publicBio !== undefined) {
+        updatePayload.public_bio = updateData.publicBio;
+      }
+      
+      if (updateData.profileImageUrl !== undefined) {
+        updatePayload.profile_image_url = updateData.profileImageUrl;
+      }
+      
+      if (updateData.websiteUrl !== undefined) {
+        updatePayload.website_url = updateData.websiteUrl;
+      }
+
+      // Update profile directly (RPC function may not support all fields)
+      // First try RPC, then fallback to direct update if needed
+      const rpcParams: Record<string, unknown> = {
+        p_auth_user_id: authUserId,
+      };
+      
+      if (updatePayload.display_name !== undefined) {
+        rpcParams.p_display_name = updatePayload.display_name;
+      }
+      if (updatePayload.avatar_url !== undefined) {
+        rpcParams.p_avatar_url = updatePayload.avatar_url;
+      }
+      if (updatePayload.preferences !== undefined) {
+        rpcParams.p_preferences = updatePayload.preferences;
+      }
+
+      // Try RPC first for basic fields
+      const rpcResult = await supabaseAdmin.rpc('update_user_profile', rpcParams);
+      
+      // If RPC fails or we have creator fields, use direct update
+      if (rpcResult.error || 
+          updatePayload.creator_slug !== undefined ||
+          updatePayload.public_bio !== undefined ||
+          updatePayload.profile_image_url !== undefined ||
+          updatePayload.website_url !== undefined) {
+        
+        // Direct update for all fields including creator fields
+        const directUpdatePayload: Record<string, unknown> = {};
+        
+        if (updatePayload.display_name !== undefined) {
+          directUpdatePayload.display_name = updatePayload.display_name;
+        }
+        if (updatePayload.avatar_url !== undefined) {
+          directUpdatePayload.avatar_url = updatePayload.avatar_url;
+        }
+        if (updatePayload.preferences !== undefined) {
+          directUpdatePayload.preferences = updatePayload.preferences;
+        }
+        if (updatePayload.creator_slug !== undefined) {
+          directUpdatePayload.creator_slug = updatePayload.creator_slug;
+        }
+        if (updatePayload.public_bio !== undefined) {
+          directUpdatePayload.public_bio = updatePayload.public_bio;
+        }
+        if (updatePayload.profile_image_url !== undefined) {
+          directUpdatePayload.profile_image_url = updatePayload.profile_image_url;
+        }
+        if (updatePayload.website_url !== undefined) {
+          directUpdatePayload.website_url = updatePayload.website_url;
+        }
+
+        const { error: updateError } = await supabaseAdmin
+          .from('user_profiles')
+          .update(directUpdatePayload)
+          .eq('auth_user_id', authUserId);
+
+        if (updateError) {
+          throw new Error(`Failed to update profile: ${updateError.message}`);
+        }
+      } else if (rpcResult.error) {
+        throw new Error(`Failed to update profile: ${rpcResult.error.message}`);
+      }
 
       // Get updated profile
       return await this.getProfile(authUserId);
@@ -447,6 +518,13 @@ export class ProfileService {
       },
       createdAt: profile.created_at,
       lastSeen: profile.last_seen_at,
+      creatorSlug: profile.creator_slug || null,
+      publicBio: profile.public_bio || null,
+      profileImageUrl: profile.profile_image_url || null,
+      websiteUrl: profile.website_url || null,
+      approvedAvatarImageUrl: profile.approved_avatar_image_url || null,
+      pendingAvatarImageUrl: profile.pending_avatar_image_url || null,
+      avatarImageStatus: profile.avatar_image_status || 'none',
     };
   }
 

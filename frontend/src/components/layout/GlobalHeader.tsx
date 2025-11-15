@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuthStore } from '@/store/auth';
 import { RoutePreservationService } from '@/services/routePreservation';
+import { useAppConfig } from '@/hooks/useAppConfig';
 
 interface GlobalHeaderProps {
   variant?: 'full' | 'compact';
@@ -17,6 +18,8 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const signOut = useAuthStore((state) => state.signOut);
   const location = useLocation();
+  const { data: appConfig } = useAppConfig();
+  const enableChimeraUi = appConfig?.enableChimeraUi ?? false;
 
   // Base navigation items available to all users
   const baseNavigation = [
@@ -28,12 +31,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
   // Authenticated-only navigation items
   const authenticatedNavigation = [
     { name: 'My Stories', href: '/my-stories' },
-    // Phase 8: User authoring pages
-    { name: 'My Content', href: '/my/worlds', submenu: [
-      { name: 'My Worlds', href: '/my/worlds' },
-      { name: 'My Stories', href: '/my/stories' },
-      { name: 'My NPCs', href: '/my/npcs' },
-    ]},
+    ...(enableChimeraUi ? [{ name: 'My Creations', href: '/dashboard/creations/worlds' }] : []),
     { name: 'Wallet', href: '/wallet' },
     { name: 'Profile', href: '/profile' },
   ];

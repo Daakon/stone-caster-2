@@ -1,13 +1,11 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toUserDTO } from '../utils/dto-mappers.js';
-import { optionalAuth, requireAuth } from '../middleware/auth.js';
-import { optionalAuth, requireAuth } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/auth.js';
 import { ApiErrorCode } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
 import type { AppRole } from '@shared/types/auth.js';
-import { supabaseAdmin } from '../services/supabase.js';
-import type { AppRole } from '@shared/types/auth.js';
+import { config } from '../config/index.js';
 
 const router = Router();
 
@@ -23,6 +21,9 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       const guestIdentity = {
         kind: 'guest' as const,
         user: null,
+        config: {
+          enableChimeraUi: config.admin.enableChimeraUi,
+        },
       };
       return sendSuccess(res, guestIdentity, req);
     }
@@ -56,6 +57,9 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
         roleVersion,
       },
       kind: isGuest ? 'guest' as const : 'user' as const,
+      config: {
+        enableChimeraUi: config.admin.enableChimeraUi,
+      },
     };
 
     // Set role headers for cache invalidation (Phase B3)

@@ -13,9 +13,15 @@ import { GatedRoute } from '../components/auth/GatedRoute';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 // import { useToast } from '../hooks/use-toast';
 import { ProfileService } from '../services/profile';
+import { chimeraProfileService } from '../services/chimera.profile';
 import { useAuthStore } from '../store/auth';
 import { usePlayerAccount } from '../hooks/usePlayerAccount';
 import { makeTitle } from '../lib/meta';
+import { Textarea } from '../components/ui/textarea';
+import { toast } from 'sonner';
+import { MediaUploader } from '../components/admin/MediaUploader';
+import { buildImageUrl } from '@shared/media/url';
+import type { MediaAssetDTO } from '@shared/types/media';
 import { 
   User, 
   Settings, 
@@ -50,7 +56,6 @@ function ProfilePageContent() {
   const queryClient = useQueryClient();
   // const { toast } = useToast();
   const { user } = useAuthStore();
-  const { profile: playerProfile, loading: profileLoading, refreshProfile } = usePlayerAccount(); // Use new usePlayerAccount hook
   
   // Set document title
   useEffect(() => {
@@ -74,6 +79,16 @@ function ProfilePageContent() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showAvatarPreview, setShowAvatarPreview] = useState(false);
   // const [isRevokingSessions, setIsRevokingSessions] = useState(false);
+  
+  // Creator Profile state
+  const [creatorProfileData, setCreatorProfileData] = useState({
+    creatorSlug: '',
+    publicBio: '',
+    websiteUrl: '',
+  });
+  const [newAvatarUrl, setNewAvatarUrl] = useState<string | null>(null);
+  const [isEditingCreatorProfile, setIsEditingCreatorProfile] = useState(false);
+  const [creatorProfileErrors, setCreatorProfileErrors] = useState<Record<string, string>>({});
 
   // Load profile data
   const { data: profile, isLoading: isLoadingProfile, error: profileError } = useQuery({
@@ -82,11 +97,14 @@ function ProfilePageContent() {
       if (!user || user.state === 'guest') {
         throw new Error('User not authenticated');
       }
-      // Use PlayerAccountService to fetch profile
-      return playerProfile;
+      // Fetch profile directly from ProfileService
+      const result = await ProfileService.getProfile();
+      if (!result.ok) {
+        throw new Error(result.error.message || 'Failed to fetch profile');
+      }
+      return result.data;
     },
-    enabled: !!user && user.state !== 'guest' && !profileLoading, // Enable when user is available and not loading player profile
-    initialData: playerProfile, // Use playerProfile from hook as initial data
+    enabled: !!user && user.state !== 'guest',
   });
 
   // Fetch CSRF token
@@ -111,7 +129,6 @@ function ProfilePageContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['csrf-token'] }); // Invalidate CSRF token after use
-      void refreshProfile();
       setIsEditing(false);
       setValidationErrors({});
       // toast({
@@ -159,6 +176,14 @@ function ProfilePageContent() {
         avatarUrl: profile.avatarUrl || '',
         preferences: profile.preferences as ProfileFormData['preferences'],
       });
+      
+      // Load creator profile data
+      setCreatorProfileData({
+        creatorSlug: (profile as any).creatorSlug || '',
+        publicBio: (profile as any).publicBio || '',
+        websiteUrl: (profile as any).websiteUrl || '',
+      });
+      setNewAvatarUrl(null); // Reset new avatar on profile load
     }
   }, [profile]);
 
@@ -253,7 +278,117 @@ function ProfilePageContent() {
     }
   };
 
-  if (isLoadingProfile || profileLoading) {
+  // Creator Profile mutations
+  const updateCreatorProfileMutation = useMutation({
+    mutationFn: async (data: { profileData: typeof creatorProfileData; avatarUrl: string | null }) => {
+      return await chimeraProfileService.updateCreatorProfile({
+        creator_slug: data.profileData.creatorSlug || null,
+        public_bio: data.profileData.publicBio || null,
+        website_url: data.profileData.websiteUrl || null,
+        new_avatar_url: data.avatarUrl,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Creator profile updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      setIsEditingCreatorProfile(false);
+      setCreatorProfileErrors({});
+      setNewAvatarUrl(null); // Clear new avatar after successful save
+    },
+    onError: (error: any) => {
+      console.error('Creator profile update failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update creator profile');
+      if (error.message?.includes('slug')) {
+        setCreatorProfileErrors({ creatorSlug: error.message });
+      }
+    },
+  });
+
+  const handleCreatorProfileChange = (field: keyof typeof creatorProfileData, value: string) => {
+    setCreatorProfileData((prev) => ({ ...prev, [field]: value }));
+    setCreatorProfileErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
+  const validateCreatorSlug = (slug: string): boolean => {
+    if (!slug) return true; // Empty is allowed (nullable)
+    return /^[a-z0-9-]+$/.test(slug);
+  };
+
+  const handleSaveCreatorProfile = async () => {
+    // Validate creator slug
+    if (creatorProfileData.creatorSlug && !validateCreatorSlug(creatorProfileData.creatorSlug)) {
+      setCreatorProfileErrors({
+        creatorSlug: 'Creator slug can only contain lowercase letters, numbers, and hyphens',
+      });
+      return;
+    }
+
+    // Validate URLs
+    const errors: Record<string, string> = {};
+    if (creatorProfileData.websiteUrl && !/^https?:\/\/.+/.test(creatorProfileData.websiteUrl)) {
+      errors.websiteUrl = 'Please enter a valid URL (must start with http:// or https://)';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCreatorProfileErrors(errors);
+      return;
+    }
+
+    updateCreatorProfileMutation.mutate({
+      profileData: creatorProfileData,
+      avatarUrl: newAvatarUrl,
+    });
+  };
+
+  const handleCancelCreatorProfile = () => {
+    setIsEditingCreatorProfile(false);
+    setCreatorProfileErrors({});
+    setNewAvatarUrl(null);
+    if (profile) {
+      setCreatorProfileData({
+        creatorSlug: (profile as any).creatorSlug || '',
+        publicBio: (profile as any).publicBio || '',
+        websiteUrl: (profile as any).websiteUrl || '',
+      });
+    }
+  };
+
+  const handleAvatarUploaded = (media: MediaAssetDTO) => {
+    const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL;
+    if (deliveryUrl && media.provider_key) {
+      const imageUrl = buildImageUrl(media.provider_key, 'public', deliveryUrl);
+      setNewAvatarUrl(imageUrl);
+      toast.success('Avatar image uploaded successfully. Save your profile to submit for approval.');
+    } else {
+      toast.error('Failed to generate image URL');
+    }
+  };
+
+  // Get avatar URL to display (approved > pending for self > placeholder)
+  const getDisplayAvatarUrl = (): string | null => {
+    if (!profile) return null;
+    const profileData = profile as any;
+    
+    // Show approved avatar if available
+    if (profileData.approvedAvatarImageUrl) {
+      return profileData.approvedAvatarImageUrl;
+    }
+    
+    // Show pending avatar if user is viewing their own profile
+    if (profileData.pendingAvatarImageUrl && user?.state === 'authenticated') {
+      return profileData.pendingAvatarImageUrl;
+    }
+    
+    // Show new avatar if one was just uploaded
+    if (newAvatarUrl) {
+      return newAvatarUrl;
+    }
+    
+    // Fallback to placeholder (null will show fallback)
+    return null;
+  };
+
+  if (isLoadingProfile) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>Loading profile...</p>
@@ -329,7 +464,10 @@ function ProfilePageContent() {
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="relative">
               <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border-2 border-primary">
-                <AvatarImage src={showAvatarPreview ? formData.avatarUrl : profile?.avatarUrl} alt={profile?.displayName || 'User Avatar'} />
+                <AvatarImage 
+                  src={getDisplayAvatarUrl() || profile?.avatarUrl || undefined} 
+                  alt={profile?.displayName || 'User Avatar'} 
+                />
                 <AvatarFallback className="text-4xl sm:text-5xl font-semibold">
                   {profile?.displayName ? profile.displayName.charAt(0).toUpperCase() : '?'}
                 </AvatarFallback>
@@ -523,6 +661,155 @@ function ProfilePageContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Creator Profile Card */}
+      {isAuth && (
+        <Card className="w-full mt-6">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-2xl font-bold flex items-center gap-2">
+              <User className="h-6 w-6" /> Creator Profile
+            </CardTitle>
+            {isEditingCreatorProfile ? (
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleSaveCreatorProfile} 
+                  disabled={updateCreatorProfileMutation.isPending} 
+                  className="flex items-center gap-1"
+                >
+                  <Save className="h-4 w-4" /> 
+                  {updateCreatorProfileMutation.isPending ? 'Saving...' : 'Save'}
+                </Button>
+                <Button variant="outline" onClick={handleCancelCreatorProfile} className="flex items-center gap-1">
+                  <X className="h-4 w-4" /> Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={() => setIsEditingCreatorProfile(true)} className="flex items-center gap-1">
+                <Edit className="h-4 w-4" /> Edit Creator Profile
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                <Label htmlFor="creatorSlug" className="sm:text-right">Creator Slug</Label>
+                <div className="col-span-3">
+                  <Input
+                    id="creatorSlug"
+                    value={creatorProfileData.creatorSlug}
+                    onChange={(e) => handleCreatorProfileChange('creatorSlug', e.target.value.toLowerCase())}
+                    disabled={!isEditingCreatorProfile}
+                    placeholder="your-creator-slug"
+                    className={creatorProfileErrors.creatorSlug ? 'border-destructive' : ''}
+                    aria-invalid={!!creatorProfileErrors.creatorSlug}
+                    aria-describedby="creatorSlug-error"
+                  />
+                  {creatorProfileErrors.creatorSlug && (
+                    <p id="creatorSlug-error" className="text-destructive text-sm mt-1">
+                      {creatorProfileErrors.creatorSlug}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    URL-friendly identifier for your creator profile (e.g., /creators/your-creator-slug). Only lowercase letters, numbers, and hyphens allowed.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-2 sm:gap-4">
+                <Label className="sm:text-right pt-2">Avatar Image</Label>
+                <div className="col-span-3">
+                  {isEditingCreatorProfile ? (
+                    <MediaUploader
+                      kind="site"
+                      onUploaded={handleAvatarUploaded}
+                      buttonLabel="Upload Avatar Image"
+                      entityName="creator profile"
+                    />
+                  ) : (
+                    <div className="space-y-2">
+                      {(profile as any)?.avatarImageStatus === 'pending' && (
+                        <Alert>
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>
+                            Your avatar image is pending admin approval.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      {(profile as any)?.avatarImageStatus === 'rejected' && (
+                        <Alert variant="destructive">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription>
+                            Your avatar image was rejected. Please upload a new image.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      {(profile as any)?.avatarImageStatus === 'approved' && (
+                        <p className="text-sm text-muted-foreground">
+                          Avatar image approved and displayed.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Upload an avatar image for your creator profile. Images require admin approval before being displayed publicly.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 items-start gap-2 sm:gap-4">
+                <Label htmlFor="publicBio" className="sm:text-right pt-2">Public Bio</Label>
+                <div className="col-span-3">
+                  <Textarea
+                    id="publicBio"
+                    value={creatorProfileData.publicBio}
+                    onChange={(e) => handleCreatorProfileChange('publicBio', e.target.value)}
+                    disabled={!isEditingCreatorProfile}
+                    placeholder="Tell the world about yourself..."
+                    rows={6}
+                    maxLength={2000}
+                    className={creatorProfileErrors.publicBio ? 'border-destructive' : ''}
+                    aria-invalid={!!creatorProfileErrors.publicBio}
+                    aria-describedby="publicBio-error"
+                  />
+                  {creatorProfileErrors.publicBio && (
+                    <p id="publicBio-error" className="text-destructive text-sm mt-1">
+                      {creatorProfileErrors.publicBio}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {creatorProfileData.publicBio.length} / 2000 characters
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-2 sm:gap-4">
+                <Label htmlFor="websiteUrl" className="sm:text-right">Website URL</Label>
+                <div className="col-span-3">
+                  <Input
+                    id="websiteUrl"
+                    type="url"
+                    value={creatorProfileData.websiteUrl}
+                    onChange={(e) => handleCreatorProfileChange('websiteUrl', e.target.value)}
+                    disabled={!isEditingCreatorProfile}
+                    placeholder="https://yourwebsite.com"
+                    className={creatorProfileErrors.websiteUrl ? 'border-destructive' : ''}
+                    aria-invalid={!!creatorProfileErrors.websiteUrl}
+                    aria-describedby="websiteUrl-error"
+                  />
+                  {creatorProfileErrors.websiteUrl && (
+                    <p id="websiteUrl-error" className="text-destructive text-sm mt-1">
+                      {creatorProfileErrors.websiteUrl}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your personal or creator website URL
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
