@@ -69,9 +69,10 @@ export default function PackEditor() {
   });
 
   // Load selectable packs for dependencies
+  // When editing, exclude the current pack to prevent self-dependencies
   const { data: selectablePacks, isLoading: isLoadingPacks } = useQuery({
-    queryKey: ['chimera-selectable-packs'],
-    queryFn: () => chimeraPacksService.getSelectablePacks(),
+    queryKey: ['chimera-selectable-packs', id],
+    queryFn: () => chimeraPacksService.getSelectablePacks(id || undefined),
   });
 
   // Load selectable entities

@@ -49,9 +49,13 @@ export interface UpdatePackData extends Partial<CreatePackData> {
 export const chimeraPacksService = {
   /**
    * Get all selectable packs (public or owned by user)
+   * @param excludePackId Optional pack ID to exclude from results (prevents self-dependencies)
    */
-  async getSelectablePacks(): Promise<SelectablePack[]> {
-    const result = await apiFetch<SelectablePack[]>('/api/v2/chimera/packs/selectable');
+  async getSelectablePacks(excludePackId?: string): Promise<SelectablePack[]> {
+    const url = excludePackId
+      ? `/api/v2/chimera/packs/selectable?exclude=${encodeURIComponent(excludePackId)}`
+      : '/api/v2/chimera/packs/selectable';
+    const result = await apiFetch<SelectablePack[]>(url);
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to fetch selectable packs');
     }

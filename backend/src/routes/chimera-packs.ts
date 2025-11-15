@@ -50,6 +50,7 @@ function generateId(): string {
 /**
  * GET /api/v2/chimera/packs/selectable
  * Returns all public/private packs (for dependency selection)
+ * Optional query parameter: ?exclude=<pack_id> - excludes the specified pack from results
  */
 router.get('/selectable', async (req: Request, res: Response) => {
   try {
@@ -64,11 +65,18 @@ router.get('/selectable', async (req: Request, res: Response) => {
     }
 
     // Get packs that are either public or owned by the user
-    const { data: packs, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('chimera_content_packs')
       .select('id, display_name, version, pack_type, visibility')
-      .or(`visibility.eq.public,owner_user_id.eq.${userId}`)
-      .order('display_name', { ascending: true });
+      .or(`visibility.eq.public,owner_user_id.eq.${userId}`);
+
+    // Exclude a specific pack if requested (to prevent self-dependencies)
+    const excludePackId = req.query.exclude as string | undefined;
+    if (excludePackId && excludePackId.trim()) {
+      query = query.neq('id', excludePackId.trim());
+    }
+
+    const { data: packs, error } = await query.order('display_name', { ascending: true });
 
     if (error) {
       console.error('[Chimera Packs] Error fetching selectable packs:', error);
