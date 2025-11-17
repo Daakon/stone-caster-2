@@ -335,6 +335,113 @@ router.post(
 );
 
 /**
+ * GET /api/v2/chimera/packs/:id/rulesets
+ * Get rulesets linked to a pack
+ */
+router.get(
+  '/:id/rulesets',
+  validateRequest(TextIdParamSchema, 'params'),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.ctx?.userId;
+      if (!userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.UNAUTHORIZED,
+          'Authentication required',
+          req
+        );
+      }
+
+      const { id } = req.params;
+
+      // Get pack to check access
+      const { data: pack, error: packError } = await supabaseAdmin
+        .from('chimera_content_packs')
+        .select('id, owner_user_id, visibility')
+        .eq('id', id)
+        .single();
+
+      if (packError) {
+        if (packError.code === 'PGRST116') {
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.NOT_FOUND,
+            'Pack not found',
+            req
+          );
+        }
+        console.error('[Chimera Packs] Error fetching pack:', packError);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to fetch pack',
+          req
+        );
+      }
+
+      // Check access: user must be owner OR visibility must be public
+      if (pack.owner_user_id !== userId && pack.visibility !== 'public') {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'You do not have permission to view this pack',
+          req
+        );
+      }
+
+      // Get linked ruleset template IDs
+      const { data: links, error: linksError } = await supabaseAdmin
+        .from('chimera_content_pack_ruleset_links')
+        .select('ruleset_template_id')
+        .eq('pack_id', id);
+
+      if (linksError) {
+        console.error('[Chimera Packs] Error fetching ruleset links:', linksError);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to fetch ruleset links',
+          req
+        );
+      }
+
+      const rulesetIds = (links || []).map((l) => l.ruleset_template_id);
+
+      if (rulesetIds.length === 0) {
+        return sendSuccess(res, [], req);
+      }
+
+      // Get full ruleset template details
+      const { data: rulesets, error: rulesetsError } = await supabaseAdmin
+        .from('chimera_ruleset_templates')
+        .select('*')
+        .in('id', rulesetIds);
+
+      if (rulesetsError) {
+        console.error('[Chimera Packs] Error fetching ruleset templates:', rulesetsError);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to fetch ruleset templates',
+          req
+        );
+      }
+
+      return sendSuccess(res, rulesets || [], req);
+    } catch (error) {
+      console.error('[Chimera Packs] Unexpected error:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Internal server error',
+        req
+      );
+    }
+  }
+);
+
+/**
  * GET /api/v2/chimera/packs/:id
  * Get a single pack (ownership-aware)
  */

@@ -29,9 +29,11 @@ const VisibilitySchema = z.enum(['private', 'pending_approval', 'public']);
 const CreateStorySchema = z.object({
   display_name: z.string().min(1).max(200),
   description_short: z.string().max(500).optional().nullable(),
+  content_rating: z.enum(['safe', 'mature', 'explicit']).default('safe'),
   world_id: z.string().min(1).optional().nullable(),
   ruleset_template_ids: z.array(z.string()).default([]),
   pack_ids: z.array(z.string()).default([]),
+  entity_ids: z.array(z.string()).default([]),
 });
 
 const UpdateStorySchema = CreateStorySchema.partial().extend({
@@ -228,6 +230,7 @@ router.post(
           owner_user_id: userId,
           display_name: storyData.display_name,
           description_short: storyData.description_short,
+          content_rating: storyData.content_rating || 'safe',
           world_id: storyData.world_id || null,
           visibility: 'private', // Always private for new stories
           created_at: new Date().toISOString(),
@@ -298,6 +301,32 @@ router.post(
             res,
             ApiErrorCode.INTERNAL_ERROR,
             'Failed to create pack links',
+            req
+          );
+        }
+      }
+
+      // Create entity links
+      if (storyData.entity_ids && storyData.entity_ids.length > 0) {
+        const entityLinks = storyData.entity_ids.map((entityId: string) => ({
+          story_id: id,
+          entity_template_id: entityId,
+        }));
+
+        const { error: entityLinksError } = await supabaseAdmin
+          .from('chimera_story_entity_links')
+          .insert(entityLinks);
+
+        if (entityLinksError) {
+          console.error('[Chimera Stories] Error creating entity links:', entityLinksError);
+          // Rollback story creation, ruleset links, and pack links
+          await supabaseAdmin.from('chimera_story_content_pack_links').delete().eq('story_id', id);
+          await supabaseAdmin.from('chimera_story_links').delete().eq('story_id', id);
+          await supabaseAdmin.from('chimera_stories').delete().eq('id', id);
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.INTERNAL_ERROR,
+            'Failed to create entity links',
             req
           );
         }
@@ -672,6 +701,74 @@ router.put(
               res,
               ApiErrorCode.INTERNAL_ERROR,
               'Failed to update pack links',
+              req
+            );
+          }
+        }
+      }
+
+      // Handle entity links diffing
+      if (updateData.entity_ids !== undefined) {
+        // Get current links
+        const { data: currentEntityLinks, error: currentEntityLinksError } = await supabaseAdmin
+          .from('chimera_story_entity_links')
+          .select('entity_template_id')
+          .eq('story_id', id);
+
+        if (currentEntityLinksError) {
+          console.error('[Chimera Stories] Error fetching current entity links:', currentEntityLinksError);
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.INTERNAL_ERROR,
+            'Failed to fetch current entity links',
+            req
+          );
+        }
+
+        const currentEntityIds = new Set((currentEntityLinks || []).map((l) => l.entity_template_id));
+        const newEntityIds = new Set(updateData.entity_ids);
+
+        // Find IDs to add
+        const toAdd = Array.from(newEntityIds).filter((id) => !currentEntityIds.has(id));
+        // Find IDs to remove
+        const toRemove = Array.from(currentEntityIds).filter((id) => !newEntityIds.has(id));
+
+        // Remove old links
+        if (toRemove.length > 0) {
+          const { error: deleteError } = await supabaseAdmin
+            .from('chimera_story_entity_links')
+            .delete()
+            .eq('story_id', id)
+            .in('entity_template_id', Array.from(toRemove));
+
+          if (deleteError) {
+            console.error('[Chimera Stories] Error deleting entity links:', deleteError);
+            return sendErrorWithStatus(
+              res,
+              ApiErrorCode.INTERNAL_ERROR,
+              'Failed to update entity links',
+              req
+            );
+          }
+        }
+
+        // Add new links
+        if (toAdd.length > 0) {
+          const newLinks = toAdd.map((entityId) => ({
+            story_id: id,
+            entity_template_id: entityId,
+          }));
+
+          const { error: insertError } = await supabaseAdmin
+            .from('chimera_story_entity_links')
+            .insert(newLinks);
+
+          if (insertError) {
+            console.error('[Chimera Stories] Error inserting entity links:', insertError);
+            return sendErrorWithStatus(
+              res,
+              ApiErrorCode.INTERNAL_ERROR,
+              'Failed to update entity links',
               req
             );
           }

@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { chimeraWorldsService } from '@/services/chimera.worlds';
 import { chimeraPacksService } from '@/services/chimera.packs';
+import { chimeraEntitiesService } from '@/services/chimera.entities';
+import { chimeraLoreService } from '@/services/chimera.lore';
 
 export interface AssetItem {
   id: string;
@@ -24,7 +26,7 @@ export interface AssetItem {
   [key: string]: unknown;
 }
 
-export type AssetType = 'world' | 'pack' | 'ruleset';
+export type AssetType = 'world' | 'pack' | 'ruleset' | 'entity' | 'lore';
 
 export interface ComplexAssetSelectorProps {
   assetType: AssetType;
@@ -39,6 +41,7 @@ export interface ComplexAssetSelectorProps {
   maxHeight?: string;
   className?: string;
   filterFn?: (item: AssetItem) => boolean;
+  excludeIds?: string[] | Set<string>; // IDs to exclude from the results
 }
 
 export function ComplexAssetSelector({
@@ -54,6 +57,7 @@ export function ComplexAssetSelector({
   maxHeight = '400px',
   className,
   filterFn,
+  excludeIds,
 }: ComplexAssetSelectorProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<AssetItem | null>(null);
@@ -76,6 +80,25 @@ export function ComplexAssetSelector({
             throw new Error(result.error.message || 'Failed to fetch rulesets');
           }
           return result.data || [];
+        case 'entity':
+          const entities = await chimeraEntitiesService.getSelectableEntities();
+          // Convert entities to AssetItem format
+          return entities.map((entity) => ({
+            id: entity.id,
+            display_name: entity.display_name,
+            description_short: `${entity.entity_type} - Version ${entity.version}`,
+            entity_type: entity.entity_type,
+            visibility: entity.visibility,
+          }));
+        case 'lore':
+          const lore = await chimeraLoreService.getSelectableLore();
+          // Convert lore to AssetItem format
+          return lore.map((loreItem) => ({
+            id: loreItem.id,
+            display_name: loreItem.display_name,
+            description_short: `Version ${loreItem.version}`,
+            visibility: loreItem.visibility,
+          }));
         default:
           return [];
       }
@@ -83,8 +106,16 @@ export function ComplexAssetSelector({
     staleTime: 30 * 1000,
   });
 
-  // Apply filter if provided
-  const filteredItems = filterFn && items ? items.filter(filterFn) : items || [];
+  // Apply filters: first custom filterFn, then excludeIds
+  let filteredItems = filterFn && items ? items.filter(filterFn) : items || [];
+  
+  // Filter out excluded IDs
+  if (excludeIds) {
+    const excludeSet = excludeIds instanceof Set ? excludeIds : new Set(excludeIds);
+    if (excludeSet.size > 0) {
+      filteredItems = filteredItems.filter((item) => !excludeSet.has(item.id));
+    }
+  }
 
   const handleItemClick = (item: AssetItem) => {
     setSelectedItem(item);

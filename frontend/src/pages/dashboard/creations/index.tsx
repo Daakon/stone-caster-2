@@ -47,6 +47,7 @@ export default function MyCreationsDashboard() {
   const [deletingPackId, setDeletingPackId] = useState<string | null>(null);
   const [deletingLoreId, setDeletingLoreId] = useState<string | null>(null);
   const [deletingStoryId, setDeletingStoryId] = useState<string | null>(null);
+  const [creatingStory, setCreatingStory] = useState(false);
 
   // Sync activeTab with route parameter when it changes (e.g., browser back/forward)
   useEffect(() => {
@@ -165,6 +166,21 @@ export default function MyCreationsDashboard() {
       toast.error(error instanceof Error ? error.message : 'Failed to delete lore template');
     } finally {
       setDeletingLoreId(null);
+    }
+  };
+
+  const handleCreateStory = async () => {
+    setCreatingStory(true);
+    try {
+      const newStory = await chimeraStoriesService.createDraftStory();
+      await queryClient.invalidateQueries({ queryKey: ['chimera-my-stories'] });
+      toast.success('Draft story created');
+      navigate(`/dashboard/stories/${newStory.id}/studio`);
+    } catch (error) {
+      console.error('Error creating draft story:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create draft story');
+    } finally {
+      setCreatingStory(false);
     }
   };
 
@@ -401,11 +417,18 @@ export default function MyCreationsDashboard() {
                     {stories?.length || 0} stor{stories?.length !== 1 ? 'ies' : 'y'} found
                   </CardDescription>
                 </div>
-                <Button asChild>
-                  <Link to="/dashboard/stories/new">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create New Story
-                  </Link>
+                <Button onClick={handleCreateStory} disabled={creatingStory}>
+                  {creatingStory ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create New Story
+                    </>
+                  )}
                 </Button>
               </div>
             </CardHeader>
@@ -424,11 +447,18 @@ export default function MyCreationsDashboard() {
               ) : !stories || stories.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>No stories found.</p>
-                  <Button asChild className="mt-4">
-                    <Link to="/dashboard/stories/new">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create Your First Story
-                    </Link>
+                  <Button onClick={handleCreateStory} disabled={creatingStory} className="mt-4">
+                    {creatingStory ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create Your First Story
+                      </>
+                    )}
                   </Button>
                 </div>
               ) : (
@@ -462,17 +492,11 @@ export default function MyCreationsDashboard() {
                             <Button
                               variant="default"
                               size="sm"
-                              onClick={() => navigate(`/dashboard/stories/${story.id}/manage`)}
+                              onClick={() => navigate(`/dashboard/stories/${story.id}/studio`)}
                             >
                               Studio
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => navigate(`/dashboard/stories/edit/${story.id}`)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                            {/* Edit button removed - use Studio instead */}
                             <Button
                               variant="ghost"
                               size="sm"

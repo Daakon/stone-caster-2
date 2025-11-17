@@ -11,6 +11,7 @@ export interface ChimeraStory {
   visibility: 'private' | 'pending_approval' | 'public';
   display_name: string;
   description_short: string | null;
+  content_rating: 'safe' | 'mature' | 'explicit';
   world_id: string | null;
   story_definition?: Record<string, unknown> | null;
   created_at: string;
@@ -22,14 +23,17 @@ export interface ChimeraStory {
   } | null;
   ruleset_links?: Array<{ ruleset_template_id: string }>;
   pack_links?: Array<{ pack_id: string }>;
+  entity_links?: Array<{ entity_template_id: string }>;
 }
 
 export interface CreateStoryData {
   display_name: string;
   description_short?: string | null;
+  content_rating?: 'safe' | 'mature' | 'explicit';
   world_id?: string | null;
   ruleset_template_ids: string[];
   pack_ids: string[];
+  entity_ids?: string[];
 }
 
 export interface UpdateStoryData extends Partial<CreateStoryData> {
@@ -67,6 +71,31 @@ export const chimeraStoriesService = {
     const result = await apiPost<ChimeraStory>('/api/v2/chimera/stories', data);
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to create story');
+    }
+    return result.data!;
+  },
+
+  /**
+   * Create a draft story with minimal data
+   * Generates a unique name using timestamp to avoid conflicts
+   */
+  async createDraftStory(): Promise<ChimeraStory> {
+    // Generate unique name using timestamp to avoid "name already exists" errors
+    // Format: "Untitled Story 2024-11-15 15:20:30.123" (includes milliseconds for uniqueness)
+    const now = new Date();
+    const dateStr = now.toISOString().replace('T', ' ').substring(0, 23);
+    const uniqueName = `Untitled Story ${dateStr}`;
+
+    const result = await apiPost<ChimeraStory>('/api/v2/chimera/stories', {
+      display_name: uniqueName,
+      description_short: null,
+      content_rating: 'safe',
+      world_id: null,
+      ruleset_template_ids: [],
+      pack_ids: [],
+    });
+    if (!result.ok) {
+      throw new Error(result.error.message || 'Failed to create draft story');
     }
     return result.data!;
   },

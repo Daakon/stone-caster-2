@@ -37,8 +37,8 @@ import WorldEditor from './pages/dashboard/worlds/Editor';
 import WorldManage from './pages/dashboard/worlds/Manage';
 import EntityEditor from './pages/dashboard/entities/Editor';
 import EntityManage from './pages/dashboard/entities/Manage';
-import StoryWizard from './pages/dashboard/stories/Wizard';
 import StoryManage from './pages/dashboard/stories/Manage';
+import StoryStudio from './pages/dashboard/stories/Studio';
 import PackEditor from './pages/dashboard/packs/Editor';
 import PackManage from './pages/dashboard/packs/Manage';
 import LoreEditor from './pages/dashboard/lore/Editor';
@@ -313,10 +313,25 @@ function App() {
                     </EarlyAccessRoute>
                   </ProtectedRoute>
                 } />
+                <Route path="/dashboard/stories/:id/studio" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <StoryStudio />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                {/* Old wizard routes removed - show 404 */}
                 <Route path="/dashboard/stories/new" element={
                   <ProtectedRoute>
                     <EarlyAccessRoute>
-                      <StoryWizard />
+                      <NotFoundPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/stories/edit/:id" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <NotFoundPage />
                     </EarlyAccessRoute>
                   </ProtectedRoute>
                 } />
