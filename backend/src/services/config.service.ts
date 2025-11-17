@@ -76,6 +76,7 @@ interface EnvConfig {
   debugResponseEnabled: boolean; // DEBUG_RESPONSE_ENABLED
   debugResponseMaxChars: number; // DEBUG_RESPONSE_MAX_CHARS
   debugResponseIncludeAiRaw: boolean; // DEBUG_RESPONSE_INCLUDE_AI_RAW (default false)
+  adminEnableChimeraUi: boolean; // ADMIN_ENABLE_CHIMERA_UI
 }
 
 interface ConfigSnapshot {
@@ -243,6 +244,7 @@ class ConfigServiceImpl implements ConfigService {
     const debugResponseEnabled = source.DEBUG_RESPONSE_ENABLED === 'true';
     const debugResponseMaxChars = Number.parseInt(source.DEBUG_RESPONSE_MAX_CHARS ?? '50000', 10);
     const debugResponseIncludeAiRaw = source.DEBUG_RESPONSE_INCLUDE_AI_RAW === 'true';
+    const adminEnableChimeraUi = source.ADMIN_ENABLE_CHIMERA_UI === 'true';
     
     // Only throw error for truly required variables in production
     if (source.NODE_ENV === 'production') {
@@ -312,6 +314,7 @@ class ConfigServiceImpl implements ConfigService {
       debugResponseEnabled,
       debugResponseMaxChars,
       debugResponseIncludeAiRaw,
+      adminEnableChimeraUi,
     };
   }
 

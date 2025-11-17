@@ -502,3 +502,6 @@ export const CreatePlayerV3RequestSchema = z.object({
 });
 
 export type CreatePlayerV3Request = z.infer<typeof CreatePlayerV3RequestSchema>;
+
+// Export Chimera Ruleset Types
+export * from './chimera-rulesets';

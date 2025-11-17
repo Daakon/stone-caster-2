@@ -66,6 +66,9 @@ export const config = {
     spawnP95Ms: process.env.SLO_SPAWN_P95_MS ? Number(process.env.SLO_SPAWN_P95_MS) : 600,
     turnP95Ms: process.env.SLO_TURN_P95_MS ? Number(process.env.SLO_TURN_P95_MS) : 200,
   },
+  admin: {
+    enableChimeraUi: env.adminEnableChimeraUi,
+  },
 };
 
 export { configService, configServiceReady };

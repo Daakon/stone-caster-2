@@ -358,6 +358,25 @@ export async function authenticateToken(req: Request, res: Response, next: NextF
       role: user.user_metadata?.role
     };
 
+    // Also set ctx for compatibility with routes that use req.ctx
+    req.ctx = {
+      userId: user.id,
+      isGuest: false,
+      user: {
+        id: user.id,
+        email: user.email,
+        isGuest: false,
+      },
+    };
+
+    // Bootstrap profile row if it doesn't exist (idempotent)
+    try {
+      await ensureProfile(user.id);
+    } catch (error) {
+      // Log but don't fail the request - profile bootstrap is best-effort
+      console.error('[Auth] Failed to bootstrap profile:', error);
+    }
+
     next();
   } catch (error) {
     console.error('Token auth middleware error:', error);

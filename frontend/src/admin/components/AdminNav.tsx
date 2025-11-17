@@ -7,6 +7,7 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAppRoles } from '../routeGuard';
 import { isPublishingWizardEntryEnabled, isPublishingAuditViewerEnabled, isAdminMediaEnabled } from '@/lib/feature-flags';
+import { useAppConfig } from '@/hooks/useAppConfig';
 
 // Navigation configuration
 const NAV_ITEMS = [
@@ -101,6 +102,8 @@ const NAV_ITEMS = [
 
 export function AdminNav() {
   const { isCreator, isModerator, isAdmin } = useAppRoles();
+  const { data: appConfig } = useAppConfig();
+  const enableChimeraUi = appConfig?.enableChimeraUi ?? false;
 
   const visibleItems = NAV_ITEMS.filter(item => {
     // Check feature flag if present
@@ -156,6 +159,46 @@ export function AdminNav() {
           {item.label}
         </NavLink>
       ))}
+      
+      {/* Chimera Engine (V2) Section */}
+      {enableChimeraUi && (
+        <>
+          <div className="my-4 border-t border-border" />
+          <div className="px-3 py-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Chimera Engine (V2)
+            </h3>
+          </div>
+          <NavLink
+            to="/admin/chimera/rulesets"
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )
+            }
+          >
+            <span className="text-lg">📋</span>
+            Ruleset Templates
+          </NavLink>
+          <NavLink
+            to="/admin/chimera/tags"
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )
+            }
+          >
+            <span className="text-lg">🏷️</span>
+            Tag Management
+          </NavLink>
+        </>
+      )}
     </nav>
   );
 }

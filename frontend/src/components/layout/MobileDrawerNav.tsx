@@ -12,10 +12,12 @@ import {
   Settings,
   Gem,
   X,
-  BookOpen
+  BookOpen,
+  Sparkles
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { useWalletContext } from '../../providers/WalletProvider';
+import { useAppConfig } from '../../hooks/useAppConfig';
 
 interface MobileDrawerNavProps {
   children: React.ReactNode;
@@ -26,6 +28,8 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
   const location = useLocation();
   const { user, signOut } = useAuthStore();
   const { wallet, balance } = useWalletContext();
+  const { data: appConfig } = useAppConfig();
+  const enableChimeraUi = appConfig?.enableChimeraUi ?? false;
 
   const navigation = [
     { 
@@ -44,25 +48,6 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
       name: 'My Stories', 
       href: '/my-stories', 
       icon: BookOpen,
-      show: !!user
-    },
-    // Phase 8: User authoring pages
-    { 
-      name: 'My Worlds', 
-      href: '/my/worlds', 
-      icon: Gamepad2,
-      show: !!user
-    },
-    { 
-      name: 'My Stories (New)', 
-      href: '/my/stories', 
-      icon: BookOpen,
-      show: !!user
-    },
-    { 
-      name: 'My NPCs', 
-      href: '/my/npcs', 
-      icon: User,
       show: !!user
     },
     { 
@@ -88,6 +73,12 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
       href: '/profile', 
       icon: User,
       show: !!user
+    },
+    { 
+      name: 'My Creations', 
+      href: '/dashboard/creations/worlds', 
+      icon: Sparkles,
+      show: !!user && enableChimeraUi
     },
   ];
 

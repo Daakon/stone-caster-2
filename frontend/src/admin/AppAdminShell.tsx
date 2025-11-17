@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/auth';
 import { useAppRoles } from './routeGuard';
 import { AdminNav } from './components/AdminNav';
 import { RoleBadge } from './components/RoleBadge';
+import { useAppConfig } from '@/hooks/useAppConfig';
 
 // AppAdminShell is now wrapped by AdminRouteGuard which verifies roles first
 // This component assumes roles are already verified
@@ -19,6 +20,8 @@ export function AppAdminShell() {
   const navigate = useNavigate();
   const { signOut } = useAuthStore();
   const { loading } = useAppRoles(); // Roles are already verified by AdminRouteGuard
+  const { data: appConfig } = useAppConfig();
+  const enableChimeraUi = appConfig?.enableChimeraUi ?? false;
 
   const handleSignOut = async () => {
     await signOut();
@@ -72,9 +75,11 @@ export function AppAdminShell() {
           <aside className="w-64 border-r border-border bg-muted/10 p-6">
             <div className="space-y-6">
               <div>
-                <h2 className="text-sm font-semibold text-muted-foreground mb-3">
-                  Navigation
-                </h2>
+                {!enableChimeraUi && (
+                  <h2 className="text-sm font-semibold text-muted-foreground mb-3">
+                    Navigation
+                  </h2>
+                )}
                 <AdminNav />
               </div>
             </div>

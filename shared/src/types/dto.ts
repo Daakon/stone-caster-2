@@ -185,6 +185,13 @@ export const ProfileDTOSchema = z.object({
   }).default({}),
   createdAt: z.string().datetime(),
   lastSeen: z.string().datetime(),
+  creatorSlug: z.string().nullable().optional(),
+  publicBio: z.string().nullable().optional(),
+  profileImageUrl: z.string().url().nullable().optional(),
+  websiteUrl: z.string().url().nullable().optional(),
+  approvedAvatarImageUrl: z.string().url().nullable().optional(),
+  pendingAvatarImageUrl: z.string().url().nullable().optional(),
+  avatarImageStatus: z.enum(['none', 'pending', 'approved', 'rejected']).optional(),
   // Explicitly exclude internal fields:
   // - providerId (internal)
   // - accessTokens (internal)
@@ -204,6 +211,10 @@ export const UpdateProfileRequestSchema = z.object({
       push: z.boolean().optional(),
     }).optional(),
   }).optional(),
+  creatorSlug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/).optional().nullable(),
+  publicBio: z.string().max(2000).optional().nullable(),
+  profileImageUrl: z.string().url().optional().nullable(),
+  websiteUrl: z.string().url().optional().nullable(),
 });
 
 // Turn DTO (redacted from internal state) - Layer M3

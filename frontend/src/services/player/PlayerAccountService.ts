@@ -139,12 +139,19 @@ class PlayerAccountService {
       const response = await fetch('/api/saves', { headers });
       
       if (!response.ok) {
+        // 404 means the endpoint doesn't exist yet - this is expected for some features
+        if (response.status === 404) {
+          return [];
+        }
         throw new Error(`Failed to fetch saves: ${response.statusText}`);
       }
 
       return response.json();
     } catch (error) {
-      console.error('[PlayerAccountService] Error fetching saves:', error);
+      // Only log non-404 errors to reduce console noise
+      if (error instanceof Error && !error.message.includes('404')) {
+        console.error('[PlayerAccountService] Error fetching saves:', error);
+      }
       return [];
     }
   }

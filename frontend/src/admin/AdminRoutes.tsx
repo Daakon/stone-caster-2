@@ -35,6 +35,11 @@ import ApprovalsPage from '@/pages/admin/media/ApprovalsPage';
 import PublishingWizard from '@/pages/publishing/wizard';
 
 import PublishingWizardPage from '@/pages/admin/publishing-wizard/[entityType]/[entityId]';
+import ChimeraDashboard from '@/pages/admin/chimera/Dashboard';
+import RulesetTemplatesDashboard from '@/pages/admin/chimera/rulesets/index';
+import RulesetTemplateEditor from '@/pages/admin/chimera/rulesets/Editor';
+import ChimeraWorldsAdmin from '@/pages/admin/chimera/worlds/index';
+import TagManagement from '@/pages/admin/chimera/tags/index';
 
 export function AdminRoutes() {
   return (
@@ -217,6 +222,56 @@ export function AdminRoutes() {
         element={
           <Guarded allow="admin">
             <ApprovalsPage />
+          </Guarded>
+        }
+      />
+      
+      {/* Chimera V2 routes */}
+      <Route 
+        path="/chimera/dashboard" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <ChimeraDashboard />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/rulesets" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <RulesetTemplatesDashboard />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/rulesets/new" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <RulesetTemplateEditor />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/rulesets/edit/:id" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <RulesetTemplateEditor />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/worlds" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <ChimeraWorldsAdmin />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/tags" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <TagManagement />
           </Guarded>
         }
       />

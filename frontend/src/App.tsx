@@ -32,6 +32,18 @@ import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
 import WalletPage from './pages/WalletPage';
 import PaymentsPage from './pages/PaymentsPage';
 import ProfilePage from './pages/ProfilePage';
+import MyCreationsDashboard from './pages/dashboard/creations/index';
+import WorldEditor from './pages/dashboard/worlds/Editor';
+import WorldManage from './pages/dashboard/worlds/Manage';
+import EntityEditor from './pages/dashboard/entities/Editor';
+import EntityManage from './pages/dashboard/entities/Manage';
+import StoryManage from './pages/dashboard/stories/Manage';
+import StoryStudio from './pages/dashboard/stories/Studio';
+import PackEditor from './pages/dashboard/packs/Editor';
+import PackManage from './pages/dashboard/packs/Manage';
+import LoreEditor from './pages/dashboard/lore/Editor';
+import LoreManage from './pages/dashboard/lore/Manage';
+import CreatorProfileSettings from './pages/settings/CreatorProfile';
 import MyWorldsPage from './pages/my/worlds';
 import MyStoriesPage from './pages/my/stories';
 import MyNPCsPage from './pages/my/npcs';
@@ -242,6 +254,140 @@ function App() {
                   <ProtectedRoute>
                     <EarlyAccessRoute>
                       <ProfilePage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/creations" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <Navigate to="/dashboard/creations/worlds" replace />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/creations/:tab" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <MyCreationsDashboard />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/worlds/new" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <WorldEditor />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/worlds/edit/:id" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <WorldEditor />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/worlds/:id/manage" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <WorldManage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/entities/new" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <EntityEditor />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/entities/edit/:id" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <EntityEditor />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/entities/:id/manage" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <EntityManage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/stories/:id/studio" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <StoryStudio />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                {/* Old wizard routes removed - show 404 */}
+                <Route path="/dashboard/stories/new" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <NotFoundPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/stories/edit/:id" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <NotFoundPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/stories/:id/manage" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <StoryManage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/packs/new" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <PackEditor />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/packs/edit/:id" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <PackEditor />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/packs/:id/manage" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <PackManage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/lore/new" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <LoreEditor />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/lore/edit/:id" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <LoreEditor />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/lore/:id/manage" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <LoreManage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/settings/profile" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <CreatorProfileSettings />
                     </EarlyAccessRoute>
                   </ProtectedRoute>
                 } />
