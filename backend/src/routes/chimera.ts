@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import chimeraAdminRulesetsRouter from './chimera-admin-rulesets.js';
 import chimeraAdminTagsRouter from './chimera-admin-tags.js';
+import chimeraAdminEntitiesRouter from './chimera-admin-entities.js';
 import chimeraWorldsRouter from './chimera-worlds.js';
 import chimeraProfileRouter from './chimera-profile.js';
 import chimeraEntitiesRouter from './chimera-entities.js';
@@ -30,6 +31,7 @@ router.get('/health', (req: Request, res: Response): void => {
 // Mount admin routes
 router.use('/admin/rulesets', chimeraAdminRulesetsRouter);
 router.use('/admin/tags', chimeraAdminTagsRouter);
+router.use('/admin/entities', chimeraAdminEntitiesRouter);
 
 // Mount user-facing routes
 router.use('/profile', chimeraProfileRouter);

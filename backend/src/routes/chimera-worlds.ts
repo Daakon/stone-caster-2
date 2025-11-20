@@ -31,6 +31,7 @@ const CreateWorldSchema = z.object({
   display_name: z.string().min(1).max(200),
   description_short: z.string().max(500).optional().nullable(),
   description_long: z.string().optional().nullable(),
+  character_schema_contributions: z.record(z.unknown()).optional().default({}),
   ruleset_template_ids: z.array(z.string()).default([]),
   tag_names: z.array(z.string()).default([]),
 });
@@ -120,6 +121,7 @@ router.post(
           display_name: worldData.display_name,
           description_short: worldData.description_short,
           description_long: worldData.description_long,
+          character_schema_contributions: worldData.character_schema_contributions || {},
           visibility: 'private', // Always private for new worlds
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

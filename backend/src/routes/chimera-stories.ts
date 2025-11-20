@@ -12,6 +12,7 @@ import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
+import { rebuildStory } from '../services/chimera/rebuild-service.js';
 
 const router = Router();
 
@@ -417,12 +418,25 @@ router.get(
         );
       }
 
-      // Check access: user must be owner OR visibility must be public
-      if (story.owner_user_id !== userId && story.visibility !== 'public') {
+      if (!story) {
         return sendErrorWithStatus(
           res,
-          ApiErrorCode.FORBIDDEN,
-          'You do not have permission to view this story',
+          ApiErrorCode.NOT_FOUND,
+          'Story not found',
+          req
+        );
+      }
+
+      // Check access: user must be owner OR visibility must be public
+      // Return 404 (not 403) if visibility check fails to prevent information leakage
+      const isOwner = story.owner_user_id === userId;
+      const isPublic = story.visibility === 'public';
+      
+      if (!isOwner && !isPublic) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.NOT_FOUND,
+          'Story not found',
           req
         );
       }
@@ -832,300 +846,47 @@ router.post(
 
       const { id: storyId } = req.params;
 
-      // Step 1: Fetch the story and verify ownership
-      const { data: story, error: storyError } = await supabaseAdmin
-        .from('chimera_stories')
-        .select('id, owner_user_id, world_id')
-        .eq('id', storyId)
-        .single();
+      // Use the rebuild service to compile the story
+      const result = await rebuildStory(storyId, userId);
 
-      if (storyError) {
-        if (storyError.code === 'PGRST116') {
+      return sendSuccess(res, result, req);
+    } catch (error) {
+      console.error('[Chimera Stories] Unexpected error in rebuild:', error);
+      
+      // Handle specific error types
+      if (error instanceof Error) {
+        if (error.message === 'Story not found') {
           return sendErrorWithStatus(
             res,
             ApiErrorCode.NOT_FOUND,
-            'Story not found',
+            error.message,
             req
           );
         }
-        console.error('[Chimera Stories] Error fetching story:', storyError);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to fetch story',
-          req
-        );
-      }
-
-      if (story.owner_user_id !== userId) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.FORBIDDEN,
-          'You do not have permission to rebuild this story',
-          req
-        );
-      }
-
-      // Step 2: Fetch all linked ruleset_template_ids for this story
-      const { data: storyLinks, error: storyLinksError } = await supabaseAdmin
-        .from('chimera_story_links')
-        .select('ruleset_template_id')
-        .eq('story_id', storyId);
-
-      if (storyLinksError) {
-        console.error('[Chimera Stories] Error fetching story links:', storyLinksError);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to fetch story ruleset links',
-          req
-        );
-      }
-
-      const storyRulesetIds = (storyLinks || []).map((link) => link.ruleset_template_id);
-
-      // Step 3: Fetch world ruleset_template_ids if story has a world
-      let worldRulesetIds: string[] = [];
-      if (story.world_id) {
-        const { data: worldLinks, error: worldLinksError } = await supabaseAdmin
-          .from('chimera_world_ruleset_link')
-          .select('ruleset_template_id')
-          .eq('world_id', story.world_id);
-
-        if (worldLinksError) {
-          console.error('[Chimera Stories] Error fetching world links:', worldLinksError);
+        if (error.message.includes('permission')) {
           return sendErrorWithStatus(
             res,
-            ApiErrorCode.INTERNAL_ERROR,
-            'Failed to fetch world ruleset links',
+            ApiErrorCode.FORBIDDEN,
+            error.message,
             req
           );
         }
-
-        worldRulesetIds = (worldLinks || []).map((link) => link.ruleset_template_id);
-      }
-
-      // Step 4: Fetch content pack links and resolve dependencies
-      const { data: packLinks, error: packLinksError } = await supabaseAdmin
-        .from('chimera_story_content_pack_links')
-        .select('pack_id')
-        .eq('story_id', storyId);
-
-      if (packLinksError) {
-        console.error('[Chimera Stories] Error fetching pack links:', packLinksError);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to fetch content pack links',
-          req
-        );
-      }
-
-      const packIds = (packLinks || []).map((link) => link.pack_id);
-      const allPackIds = new Set<string>(packIds);
-
-      // Resolve all pack dependencies recursively
-      if (allPackIds.size > 0) {
-        const packsToProcess = Array.from(allPackIds);
-        const processedPacks = new Set<string>();
-
-        while (packsToProcess.length > 0) {
-          const currentPackId = packsToProcess.pop()!;
-          if (processedPacks.has(currentPackId)) continue;
-          processedPacks.add(currentPackId);
-
-          // Fetch dependencies for this pack
-          const { data: dependencies, error: depsError } = await supabaseAdmin
-            .from('chimera_pack_dependencies')
-            .select('depends_on_pack_id')
-            .eq('pack_id', currentPackId);
-
-          if (!depsError && dependencies) {
-            for (const dep of dependencies) {
-              if (!allPackIds.has(dep.depends_on_pack_id)) {
-                allPackIds.add(dep.depends_on_pack_id);
-                packsToProcess.push(dep.depends_on_pack_id);
-              }
-            }
-          }
-        }
-      }
-
-      // Step 5: Fetch ruleset_template_ids from all content packs
-      let packRulesetIds: string[] = [];
-      if (allPackIds.size > 0) {
-        const { data: packRulesetLinks, error: packRulesetLinksError } = await supabaseAdmin
-          .from('chimera_content_pack_ruleset_links')
-          .select('ruleset_template_id')
-          .in('pack_id', Array.from(allPackIds));
-
-        if (packRulesetLinksError) {
-          console.error('[Chimera Stories] Error fetching pack ruleset links:', packRulesetLinksError);
+        if (error.message.includes('MAIN_SYSTEM')) {
           return sendErrorWithStatus(
             res,
-            ApiErrorCode.INTERNAL_ERROR,
-            'Failed to fetch content pack ruleset links',
+            ApiErrorCode.VALIDATION_FAILED,
+            error.message,
             req
           );
         }
-
-        packRulesetIds = (packRulesetLinks || []).map((link) => link.ruleset_template_id);
-      }
-
-      // Step 6: Get all unique ruleset_template_ids
-      const allRulesetIds = Array.from(new Set([...storyRulesetIds, ...worldRulesetIds, ...packRulesetIds]));
-
-      if (allRulesetIds.length === 0) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'No ruleset templates linked to this story or its world',
-          req
-        );
-      }
-
-      // Step 7: Fetch all ruleset templates with their definitions
-      const { data: rulesetTemplates, error: templatesError } = await supabaseAdmin
-        .from('chimera_ruleset_templates')
-        .select('id, rule_type, main_system_dependency, definition, version')
-        .in('id', allRulesetIds);
-
-      if (templatesError) {
-        console.error('[Chimera Stories] Error fetching ruleset templates:', templatesError);
         return sendErrorWithStatus(
           res,
           ApiErrorCode.INTERNAL_ERROR,
-          'Failed to fetch ruleset templates',
+          error.message || 'Internal server error',
           req
         );
       }
 
-      if (!rulesetTemplates || rulesetTemplates.length === 0) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'No valid ruleset templates found',
-          req
-        );
-      }
-
-      // Step 8: Build the load order
-      // Order: Main System -> Subsystems -> World Modifiers -> Content Pack Modifiers
-      const mainSystem = rulesetTemplates.find((t) => t.rule_type === 'MAIN_SYSTEM');
-      if (!mainSystem) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'Story must have a MAIN_SYSTEM ruleset template',
-          req
-        );
-      }
-
-      const mainSystemId = mainSystem.id;
-      const subsystems = rulesetTemplates.filter(
-        (t) => t.rule_type === 'SUBSYSTEM' && t.main_system_dependency === mainSystemId
-      );
-      const worldModifiers = rulesetTemplates.filter(
-        (t) => t.rule_type === 'MODIFIER' && worldRulesetIds.includes(t.id)
-      );
-      const packModifiers = rulesetTemplates.filter(
-        (t) => t.rule_type === 'MODIFIER' && packRulesetIds.includes(t.id)
-      );
-
-      // Build load order array
-      const loadOrder: Array<{ id: string; version: number; definition: Record<string, unknown> }> = [
-        { id: mainSystem.id, version: mainSystem.version, definition: mainSystem.definition as Record<string, unknown> },
-        ...subsystems.map((s) => ({
-          id: s.id,
-          version: s.version,
-          definition: s.definition as Record<string, unknown>,
-        })),
-        ...worldModifiers.map((w) => ({
-          id: w.id,
-          version: w.version,
-          definition: w.definition as Record<string, unknown>,
-        })),
-        ...packModifiers.map((p) => ({
-          id: p.id,
-          version: p.version,
-          definition: p.definition as Record<string, unknown>,
-        })),
-      ];
-
-      // Step 7: Fetch story_definition from the story
-      const { data: storyWithDefinition, error: storyDefError } = await supabaseAdmin
-        .from('chimera_stories')
-        .select('story_definition')
-        .eq('id', storyId)
-        .single();
-
-      if (storyDefError) {
-        console.error('[Chimera Stories] Error fetching story definition:', storyDefError);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to fetch story definition',
-          req
-        );
-      }
-
-      // Step 8: Merge JSON objects (last one wins for key conflicts)
-      // Order: Rulesets (in load order) -> Story Definition (highest priority)
-      let compiledJson: Record<string, unknown> = {};
-      for (const item of loadOrder) {
-        compiledJson = { ...compiledJson, ...item.definition };
-      }
-      
-      // Finally, merge story_definition (highest priority, overrides everything)
-      if (storyWithDefinition?.story_definition && typeof storyWithDefinition.story_definition === 'object') {
-        compiledJson = { ...compiledJson, ...(storyWithDefinition.story_definition as Record<string, unknown>) };
-      }
-
-      // Step 9: Build source manifest
-      const sourceManifest = loadOrder.map((item) => ({
-        id: item.id,
-        version: item.version,
-      }));
-
-      // Step 10: Save to chimera_story_compiled_ruleset (upsert)
-      const { data: compiledData, error: saveError } = await supabaseAdmin
-        .from('chimera_story_compiled_ruleset')
-        .upsert(
-          {
-            story_id: storyId,
-            compiled_json: compiledJson,
-            source_manifest: sourceManifest,
-            last_compiled_at: new Date().toISOString(),
-          },
-          {
-            onConflict: 'story_id',
-          }
-        )
-        .select()
-        .single();
-
-      if (saveError) {
-        console.error('[Chimera Stories] Error saving compiled ruleset:', saveError);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to save compiled ruleset',
-          req
-        );
-      }
-
-      return sendSuccess(
-        res,
-        {
-          story_id: storyId,
-          compiled_json: compiledJson,
-          source_manifest: sourceManifest,
-          last_compiled_at: compiledData.last_compiled_at,
-        },
-        req
-      );
-    } catch (error) {
-      console.error('[Chimera Stories] Unexpected error in rebuild:', error);
       return sendErrorWithStatus(
         res,
         ApiErrorCode.INTERNAL_ERROR,
@@ -1314,6 +1075,216 @@ router.delete(
       }
 
       return sendSuccess(res, { id, deleted: true }, req);
+    } catch (error) {
+      console.error('[Chimera Stories] Unexpected error:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Internal server error',
+        req
+      );
+    }
+  }
+);
+
+/**
+ * POST /api/v2/chimera/stories/:id/links/entities
+ * Link an entity template to a story
+ */
+router.post(
+  '/:id/links/entities',
+  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(z.object({
+    entity_template_id: z.string().min(1),
+  })),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.ctx?.userId;
+      if (!userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.UNAUTHORIZED,
+          'Authentication required',
+          req
+        );
+      }
+
+      const { id: story_id } = req.params;
+      const { entity_template_id } = req.body;
+
+      // Check story ownership
+      const { data: story, error: storyError } = await supabaseAdmin
+        .from('chimera_stories')
+        .select('owner_user_id')
+        .eq('id', story_id)
+        .single();
+
+      if (storyError || !story) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.NOT_FOUND,
+          'Story not found',
+          req
+        );
+      }
+
+      if (story.owner_user_id !== userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'You do not have permission to modify this story',
+          req
+        );
+      }
+
+      // Verify entity template exists and user has access
+      const { data: entity, error: entityError } = await supabaseAdmin
+        .from('chimera_entity_templates')
+        .select('id, owner_user_id, visibility')
+        .eq('id', entity_template_id)
+        .single();
+
+      if (entityError || !entity) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.NOT_FOUND,
+          'Entity template not found',
+          req
+        );
+      }
+
+      // Check ownership or public visibility
+      if (entity.owner_user_id !== userId && entity.visibility !== 'public') {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'You do not have permission to use this entity template',
+          req
+        );
+      }
+
+      // Check if link already exists
+      const { data: existingLink, error: checkError } = await supabaseAdmin
+        .from('chimera_story_entity_links')
+        .select('story_id, entity_template_id')
+        .eq('story_id', story_id)
+        .eq('entity_template_id', entity_template_id)
+        .single();
+
+      if (existingLink) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.CONFLICT,
+          'Entity is already linked to this story',
+          req
+        );
+      }
+
+      // Create the link
+      const { data: link, error: linkError } = await supabaseAdmin
+        .from('chimera_story_entity_links')
+        .insert({
+          story_id,
+          entity_template_id,
+        })
+        .select()
+        .single();
+
+      if (linkError) {
+        console.error('[Chimera Stories] Error creating entity link:', linkError);
+        if (linkError.code === '23505') {
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.CONFLICT,
+            'Entity is already linked to this story',
+            req
+          );
+        }
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to create entity link',
+          req
+        );
+      }
+
+      return sendSuccess(res, link, req);
+    } catch (error) {
+      console.error('[Chimera Stories] Unexpected error:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Internal server error',
+        req
+      );
+    }
+  }
+);
+
+/**
+ * DELETE /api/v2/chimera/stories/:id/links/entities/:entity_id
+ * Remove an entity link from a story
+ */
+router.delete(
+  '/:id/links/entities/:entity_id',
+  validateRequest(TextIdParamSchema, 'params'),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.ctx?.userId;
+      if (!userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.UNAUTHORIZED,
+          'Authentication required',
+          req
+        );
+      }
+
+      const { id: story_id, entity_id: entity_template_id } = req.params;
+
+      // Check story ownership
+      const { data: story, error: storyError } = await supabaseAdmin
+        .from('chimera_stories')
+        .select('owner_user_id')
+        .eq('id', story_id)
+        .single();
+
+      if (storyError || !story) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.NOT_FOUND,
+          'Story not found',
+          req
+        );
+      }
+
+      if (story.owner_user_id !== userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'You do not have permission to modify this story',
+          req
+        );
+      }
+
+      // Delete the link
+      const { error: deleteError } = await supabaseAdmin
+        .from('chimera_story_entity_links')
+        .delete()
+        .eq('story_id', story_id)
+        .eq('entity_template_id', entity_template_id);
+
+      if (deleteError) {
+        console.error('[Chimera Stories] Error deleting entity link:', deleteError);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to delete entity link',
+          req
+        );
+      }
+
+      return sendSuccess(res, { story_id, entity_template_id, deleted: true }, req);
     } catch (error) {
       console.error('[Chimera Stories] Unexpected error:', error);
       return sendErrorWithStatus(

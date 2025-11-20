@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useStories } from '@/lib/queries/index';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
@@ -9,6 +10,8 @@ import { trackCatalogView, trackCatalogCardClick } from '@/lib/analytics';
 import { useURLFilters } from '@/lib/useURLFilters';
 import type { FilterValue } from '@/lib/useURLFilters';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
+import { isChimeraEnabled } from '@/config/features';
+import { chimeraStoriesService } from '@/services/chimera.stories';
 
 interface StoryFilters {
   q: string;
@@ -28,14 +31,55 @@ export default function StoriesPage() {
     tags: []
   });
 
-  // Load stories with current filters - using canonical hook
-  const { data: stories = [], isLoading, error } = useStories({
+  // Conditionally use Chimera API or legacy API
+  const legacyStoriesQuery = useStories({
     worldId: filters.world,
     filter: filters.q || undefined,
     kind: filters.kind as 'scenario' | 'adventure' | undefined,
     ruleset: filters.ruleset,
     tags: filters.tags.length > 0 ? filters.tags : undefined,
   });
+
+  const chimeraStoriesQuery = useQuery({
+    queryKey: ['chimera-stories', filters],
+    queryFn: async () => {
+      const stories = await chimeraStoriesService.getMyStories();
+      // Apply client-side filtering for search query
+      let filtered = stories;
+      if (filters.q) {
+        const query = filters.q.toLowerCase();
+        filtered = filtered.filter(
+          (s) =>
+            s.display_name.toLowerCase().includes(query) ||
+            s.description_short?.toLowerCase().includes(query)
+        );
+      }
+      // Transform to match legacy format for compatibility
+      return filtered.map((s) => ({
+        id: s.id,
+        slug: s.id, // Use ID as slug for Chimera stories
+        title: s.display_name,
+        short_desc: s.description_short || '',
+        hero_url: null,
+        cover_media: null,
+        world: s.world
+          ? {
+              id: s.world.id,
+              name: s.world.display_name,
+              slug: s.world.id,
+            }
+          : undefined,
+        rulesets: [],
+      }));
+    },
+    enabled: isChimeraEnabled,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const storiesQuery = isChimeraEnabled ? chimeraStoriesQuery : legacyStoriesQuery;
+  const stories = storiesQuery.data || [];
+  const isLoading = storiesQuery.isLoading;
+  const error = storiesQuery.error;
 
   // Track catalog view on mount
   useEffect(() => {

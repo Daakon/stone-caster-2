@@ -15,6 +15,9 @@ export interface ChimeraEntity {
   base_state_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  is_system_asset?: boolean;
+  world_id?: string | null;
+  is_quick_start_template?: boolean;
   tags?: Array<{ id: string; tag_name: string }>;
 }
 
@@ -102,6 +105,17 @@ export const chimeraEntitiesService = {
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to delete entity');
     }
+  },
+
+  /**
+   * Create an entity template (for use in CreateEntityModal)
+   */
+  async createEntityTemplate(payload: CreateEntityData): Promise<ChimeraEntity> {
+    const result = await apiPost<ChimeraEntity>('/api/v2/chimera/entities', payload);
+    if (!result.ok) {
+      throw new Error(result.error.message || 'Failed to create entity template');
+    }
+    return result.data!;
   },
 };
 

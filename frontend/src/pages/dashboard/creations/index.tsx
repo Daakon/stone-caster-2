@@ -11,13 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Loader2, Edit, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Edit, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { chimeraWorldsService } from '@/services/chimera.worlds';
 import { chimeraEntitiesService } from '@/services/chimera.entities';
 import { chimeraStoriesService } from '@/services/chimera.stories';
 import { chimeraPacksService } from '@/services/chimera.packs';
 import { chimeraLoreService } from '@/services/chimera.lore';
+import { isChimeraEnabled } from '@/config/features';
 
 const VISIBILITY_COLORS = {
   private: 'secondary',
@@ -489,14 +490,24 @@ export default function MyCreationsDashboard() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => navigate(`/dashboard/stories/${story.id}/studio`)}
-                            >
-                              Studio
-                            </Button>
-                            {/* Edit button removed - use Studio instead */}
+                            {isChimeraEnabled ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => navigate(`/dashboard/stories/${story.id}/studio`)}
+                              >
+                                Studio
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate(`/stories/${story.id}`)}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Story
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -575,7 +586,7 @@ export default function MyCreationsDashboard() {
                     {lore.map((loreItem) => (
                       <TableRow key={loreItem.id}>
                         <TableCell className="font-medium">{loreItem.display_name}</TableCell>
-                        <TableCell>v{loreItem.version}</TableCell>
+                        <TableCell>v{loreItem.version || 1}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {loreItem.tags && loreItem.tags.length > 0 ? (
@@ -590,8 +601,8 @@ export default function MyCreationsDashboard() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={VISIBILITY_COLORS[loreItem.visibility]}>
-                            {loreItem.visibility.replace('_', ' ')}
+                          <Badge variant={VISIBILITY_COLORS[loreItem.visibility || 'private']}>
+                            {(loreItem.visibility || 'private').replace('_', ' ')}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">

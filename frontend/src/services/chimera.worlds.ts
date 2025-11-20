@@ -12,6 +12,7 @@ export interface ChimeraWorld {
   display_name: string;
   description_short: string | null;
   description_long: string | null;
+  character_schema_contributions: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   ruleset_links?: Array<{ ruleset_template_id: string }>;
@@ -22,6 +23,7 @@ export interface CreateWorldData {
   display_name: string;
   description_short?: string | null;
   description_long?: string | null;
+  character_schema_contributions?: Record<string, unknown>;
   ruleset_template_ids?: string[];
   tag_names?: string[];
 }

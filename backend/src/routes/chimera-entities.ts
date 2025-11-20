@@ -99,8 +99,52 @@ router.get('/selectable', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/v2/chimera/entities/my-creations
+ * GET /api/v2/chimera/entities
  * Get all entities owned by the current user
+ */
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const userId = req.ctx?.userId;
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'Authentication required',
+        req
+      );
+    }
+
+    const { data: entities, error } = await supabaseAdmin
+      .from('chimera_entity_templates')
+      .select('*')
+      .eq('owner_user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[Chimera Entities] Error fetching user entities:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to fetch entities',
+        req
+      );
+    }
+
+    return sendSuccess(res, entities || [], req);
+  } catch (error) {
+    console.error('[Chimera Entities] Unexpected error:', error);
+    return sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Internal server error',
+      req
+    );
+  }
+});
+
+/**
+ * GET /api/v2/chimera/entities/my-creations
+ * Get all entities owned by the current user (alias for /)
  */
 router.get('/my-creations', async (req: Request, res: Response) => {
   try {

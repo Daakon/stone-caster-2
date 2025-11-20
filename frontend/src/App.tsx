@@ -19,10 +19,12 @@ import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
 import StartStoryPage from './pages/play/StartStoryPage';
+import PlayPage from './pages/play/GameStatePage';
+import CharacterCreationPage from './pages/play/CharacterCreationPage';
+import PlayerGatewayPage from './pages/play/PlayerGatewayPage';
 import WorldsPage from './pages/worlds/WorldsPage';
 import NPCsPage from './pages/npcs/NPCsPage';
 import RulesetsPage from './pages/rulesets/RulesetsPage';
-import CharacterCreationPage from './pages/CharacterSelectionPage';
 import CharacterSelectionPage from './pages/CharacterSelectionPage';
 import CharacterCreatorPage from './pages/CharacterCreatorPage';
 import PlayerV3CreationPage from './pages/PlayerV3CreationPage';
@@ -167,6 +169,21 @@ function App() {
                 <Route path="/play/start" element={
                   <EarlyAccessRoute>
                     <StartStoryPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/play/:gameStateId" element={
+                  <EarlyAccessRoute>
+                    <PlayPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/create-character/:storyId" element={
+                  <EarlyAccessRoute>
+                    <CharacterCreationPage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/player-gateway/:storyId" element={
+                  <EarlyAccessRoute>
+                    <PlayerGatewayPage />
                   </EarlyAccessRoute>
                 } />
                 <Route path="/stories/:storyId/characters" element={

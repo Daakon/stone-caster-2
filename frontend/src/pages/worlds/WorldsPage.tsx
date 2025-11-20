@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useWorldsQuery } from '@/lib/queries';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
@@ -9,6 +10,8 @@ import { trackCatalogView, trackCatalogCardClick } from '@/lib/analytics';
 import { useURLFilters } from '@/lib/useURLFilters';
 import type { FilterValue } from '@/lib/useURLFilters';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
+import { isChimeraEnabled } from '@/config/features';
+import { chimeraWorldsService } from '@/services/chimera.worlds';
 
 interface WorldFilters {
   q: string;
@@ -20,13 +23,47 @@ export default function WorldsPage() {
     q: ''
   });
 
-  // Load worlds with current filters
-  const worldsQ: any = useWorldsQuery(filters.q || undefined);
-  const isLoading = worldsQ.isLoading;
-  const error = worldsQ.error;
-  const worlds = Array.isArray(worldsQ?.data)
-    ? worldsQ.data
-    : (worldsQ?.data?.data ?? []);
+  // Conditionally use Chimera API or legacy API
+  const legacyWorldsQuery: any = useWorldsQuery(filters.q || undefined);
+  
+  const chimeraWorldsQuery = useQuery({
+    queryKey: ['chimera-worlds', filters.q],
+    queryFn: async () => {
+      const worlds = await chimeraWorldsService.getSelectableWorlds();
+      // Apply client-side filtering for search query
+      let filtered = worlds;
+      if (filters.q) {
+        const query = filters.q.toLowerCase();
+        filtered = filtered.filter(
+          (w) =>
+            w.display_name.toLowerCase().includes(query) ||
+            w.description_short?.toLowerCase().includes(query) ||
+            w.description_long?.toLowerCase().includes(query)
+        );
+      }
+      // Transform to match legacy format for compatibility
+      return filtered.map((w) => ({
+        id: w.id,
+        slug: w.id, // Use ID as slug for Chimera worlds
+        name: w.display_name,
+        short_desc: w.description_short || '',
+        description: w.description_long || w.description_short || '',
+        hero_url: null,
+        cover_media: null,
+      }));
+    },
+    enabled: isChimeraEnabled,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const worldsQuery = isChimeraEnabled ? chimeraWorldsQuery : legacyWorldsQuery;
+  const isLoading = worldsQuery.isLoading;
+  const error = worldsQuery.error;
+  const worlds = isChimeraEnabled
+    ? (worldsQuery.data || [])
+    : Array.isArray(worldsQuery?.data)
+    ? worldsQuery.data
+    : (worldsQuery?.data?.data ?? []);
 
   // Track catalog view on mount
   useEffect(() => {
@@ -154,7 +191,11 @@ export default function WorldsPage() {
               description={world.description}
               imageUrl={world.cover_url}
               coverMedia={world.cover_media || null}
-              href={`/worlds/${world.slug || world.id}`}
+              href={
+                isChimeraEnabled
+                  ? `/dashboard/worlds/${world.id}`
+                  : `/worlds/${world.slug || world.id}`
+              }
               onCardClick={() => handleCardClick(world.slug || world.id)}
             />
           ))}

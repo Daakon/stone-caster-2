@@ -30,16 +30,21 @@ export function TagSelect({
   const [tagOpen, setTagOpen] = useState(false);
 
   // Load approved tags
-  const { data: tags, isLoading: isLoadingTags } = useQuery({
+  const { data: tags, isLoading: isLoadingTags, error: tagsError } = useQuery({
     queryKey: ['chimera-tags'],
     queryFn: () => chimeraLoreService.getTags(),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 1, // Only retry once
+    // Don't throw on error - allow component to work even if tags can't be loaded
+    throwOnError: false,
   });
 
   // Filter tags based on search
-  const filteredTags = tags?.filter((tag) =>
+  // If query failed, use empty array so user can still create new tags
+  const availableTags = tags || [];
+  const filteredTags = availableTags.filter((tag) =>
     tag.tag_name.toLowerCase().includes(tagSearch.toLowerCase())
-  ) || [];
+  );
 
   // Check if search matches an existing tag
   const searchMatchesExisting = filteredTags.some(

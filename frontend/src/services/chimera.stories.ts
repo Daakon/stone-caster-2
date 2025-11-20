@@ -160,5 +160,24 @@ export const chimeraStoriesService = {
       throw new Error(result.error.message || 'Failed to delete story');
     }
   },
+
+  /**
+   * Link an entity template to a story
+   */
+  async linkEntityToStory(storyId: string, entityTemplateId: string): Promise<{
+    story_id: string;
+    entity_template_id: string;
+  }> {
+    const result = await apiPost<{
+      story_id: string;
+      entity_template_id: string;
+    }>(`/api/v2/chimera/stories/${storyId}/links/entities`, {
+      entity_template_id: entityTemplateId,
+    });
+    if (!result.ok) {
+      throw new Error(result.error.message || 'Failed to link entity to story');
+    }
+    return result.data!;
+  },
 };
 

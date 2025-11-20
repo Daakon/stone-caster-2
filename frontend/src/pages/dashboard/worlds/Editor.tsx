@@ -30,6 +30,7 @@ export default function WorldEditor() {
     display_name: '',
     description_short: null,
     description_long: null,
+    character_schema_contributions: {},
     ruleset_template_ids: [],
     tag_names: [],
   });
@@ -62,6 +63,7 @@ export default function WorldEditor() {
         display_name: existingWorld.display_name,
         description_short: existingWorld.description_short,
         description_long: existingWorld.description_long,
+        character_schema_contributions: existingWorld.character_schema_contributions || {},
         ruleset_template_ids: existingWorld.ruleset_links?.map(
           (link: { ruleset_template_id: string }) => link.ruleset_template_id
         ) || [],
@@ -184,6 +186,28 @@ export default function WorldEditor() {
                 placeholder="Detailed description"
                 rows={4}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="character_schema_contributions">Character Schema Contributions (JSON)</Label>
+              <Textarea
+                id="character_schema_contributions"
+                value={JSON.stringify(formData.character_schema_contributions || {}, null, 2)}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value || '{}');
+                    handleChange('character_schema_contributions', parsed);
+                  } catch {
+                    // Invalid JSON, ignore for now
+                  }
+                }}
+                placeholder='{"essence_alignment": { ... }}'
+                rows={8}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                JSON schema definitions that this World contributes to character creation (e.g., essence_alignment field)
+              </p>
             </div>
 
             <TagSelect

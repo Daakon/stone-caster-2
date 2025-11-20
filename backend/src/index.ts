@@ -175,6 +175,8 @@ app.use('/api', userAuthoringRouter);
 
 // V2 API: Project Chimera engine routes
 app.use('/api/v2/chimera', chimeraRouter);
+import chimeraPlayRouter from './routes/chimera-play.js';
+app.use('/api/v2/play', chimeraPlayRouter);
 
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);

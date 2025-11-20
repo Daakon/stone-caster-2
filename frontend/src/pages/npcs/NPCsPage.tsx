@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNPCsQuery, useMyNPCsQuery } from '@/lib/queries';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
@@ -13,6 +14,8 @@ import type { FilterValue } from '@/lib/useURLFilters';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
 import { useAuthStore } from '@/store/auth';
 import { Lock } from 'lucide-react';
+import { isChimeraEnabled } from '@/config/features';
+import { chimeraEntitiesService } from '@/services/chimera.entities';
 
 interface NPCFilters {
   q: string;
@@ -30,20 +33,85 @@ export default function NPCsPage() {
     tags: undefined,
   });
 
-  // Public NPCs query (cached)
-  const publicNPCsQ: any = useNPCsQuery({
+  // Conditionally use Chimera API or legacy API for public NPCs
+  const legacyPublicNPCsQ: any = useNPCsQuery({
     q: filters.q || undefined,
     world: filters.world,
   });
 
-  // My NPCs query (only enabled when authenticated and on "my" tab)
-  const myNPCsQ: any = useMyNPCsQuery(
+  const chimeraPublicNPCsQ = useQuery({
+    queryKey: ['chimera-entities-public', filters.q, filters.world],
+    queryFn: async () => {
+      const entities = await chimeraEntitiesService.getSelectableEntities();
+      // Filter for NPC type only
+      let filtered = entities.filter((e) => e.entity_type === 'NPC');
+      // Apply client-side filtering
+      if (filters.q) {
+        const query = filters.q.toLowerCase();
+        filtered = filtered.filter((e) =>
+          e.display_name.toLowerCase().includes(query)
+        );
+      }
+      // Transform to match legacy format
+      return filtered.map((e) => ({
+        id: e.id,
+        slug: e.id,
+        name: e.display_name,
+        title: e.display_name,
+        short_desc: '',
+        description: '',
+        hero_url: null,
+        cover_media: null,
+        world: undefined,
+        tags: [],
+      }));
+    },
+    enabled: isChimeraEnabled,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Conditionally use Chimera API or legacy API for my NPCs
+  const legacyMyNPCsQ: any = useMyNPCsQuery(
     {
       q: filters.q || undefined,
       world: filters.world,
     },
-    activeTab === 'my' && !!user // Enable only when on "my" tab and user is authenticated
+    activeTab === 'my' && !!user && !isChimeraEnabled
   );
+
+  const chimeraMyNPCsQ = useQuery({
+    queryKey: ['chimera-entities-my', filters.q, filters.world],
+    queryFn: async () => {
+      const entities = await chimeraEntitiesService.getMyEntities();
+      // Filter for NPC type only
+      let filtered = entities.filter((e) => e.entity_type === 'NPC');
+      // Apply client-side filtering
+      if (filters.q) {
+        const query = filters.q.toLowerCase();
+        filtered = filtered.filter((e) =>
+          e.display_name.toLowerCase().includes(query)
+        );
+      }
+      // Transform to match legacy format
+      return filtered.map((e) => ({
+        id: e.id,
+        slug: e.id,
+        name: e.display_name,
+        title: e.display_name,
+        short_desc: e.description_short || '',
+        description: e.description_short || '',
+        hero_url: null,
+        cover_media: null,
+        world: undefined,
+        tags: e.tags?.map((t) => t.tag_name) || [],
+      }));
+    },
+    enabled: isChimeraEnabled && activeTab === 'my' && !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const publicNPCsQ = isChimeraEnabled ? chimeraPublicNPCsQ : legacyPublicNPCsQ;
+  const myNPCsQ = isChimeraEnabled ? chimeraMyNPCsQ : legacyMyNPCsQ;
 
   // Parse public NPCs response
   const publicNPCs = useMemo(() => {
@@ -212,7 +280,11 @@ export default function NPCsPage() {
                       description={npc.short_desc || npc.description}
                       imageUrl={npc.portrait_url || npc.portraitUrl}
                       coverMedia={npc.cover_media || null}
-                      href={`/npcs/${npc.id}`}
+                      href={
+                        isChimeraEnabled
+                          ? `/dashboard/entities/${npc.id}`
+                          : `/npcs/${npc.id}`
+                      }
                       chips={[
                         ...(npc.world?.name ? [{ label: npc.world.name, variant: 'secondary' as const }] : []),
                         ...((npc.tags || npc.roleTags || npc.doc?.tags || []).slice(0, 2).map((tag: string) => ({ 
@@ -294,7 +366,11 @@ export default function NPCsPage() {
                           title={npc.name}
                           description={npc.short_desc || npc.description}
                           imageUrl={npc.portrait_url || npc.portraitUrl}
-                          href={`/npcs/${npc.id}`}
+                          href={
+                        isChimeraEnabled
+                          ? `/dashboard/entities/${npc.id}`
+                          : `/npcs/${npc.id}`
+                      }
                       chips={[
                         { label: 'Private', variant: 'secondary' as const },
                         ...(npc.world?.name ? [{ label: npc.world.name, variant: 'outline' as const }] : []),
