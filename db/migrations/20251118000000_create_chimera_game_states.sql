@@ -44,3 +44,4 @@ COMMENT ON COLUMN public.chimera_game_states.status IS
 
 COMMIT;
 
+

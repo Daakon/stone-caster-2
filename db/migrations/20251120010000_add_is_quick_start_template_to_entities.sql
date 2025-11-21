@@ -18,3 +18,4 @@ COMMENT ON COLUMN public.chimera_entity_templates.is_quick_start_template IS
 
 COMMIT;
 
+

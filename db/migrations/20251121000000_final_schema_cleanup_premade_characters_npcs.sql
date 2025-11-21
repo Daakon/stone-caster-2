@@ -86,3 +86,4 @@ COMMENT ON COLUMN public.npcs.world_id IS
 
 COMMIT;
 
+

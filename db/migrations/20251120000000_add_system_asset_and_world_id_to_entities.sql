@@ -26,3 +26,4 @@ COMMENT ON COLUMN public.chimera_entity_templates.world_id IS
 
 COMMIT;
 
+

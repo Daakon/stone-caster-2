@@ -1107,3 +1107,4 @@ This document catalogs all Supabase queries used throughout the Stone Caster cod
 - **Cascade deletes** are used for junction tables (links are deleted when parent is deleted)
 - **Versioning** is used for `chimera_ruleset_templates` and `chimera_content_packs` (version increments on update)
 
+
