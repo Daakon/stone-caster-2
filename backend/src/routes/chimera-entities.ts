@@ -15,9 +15,9 @@ import { supabaseAdmin } from '../services/supabase.js';
 
 const router = Router();
 
-// Custom schema for text-based IDs (not UUIDs)
-const TextIdParamSchema = z.object({
-  id: z.string().min(1).max(200),
+// Schema for UUID entity ID
+const EntityIdParamSchema = z.object({
+  id: z.string().uuid(),
 });
 
 // All routes require authentication
@@ -339,7 +339,7 @@ router.post(
  */
 router.get(
   '/:id',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(EntityIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const userId = req.ctx?.userId;
@@ -407,7 +407,7 @@ router.get(
  */
 router.put(
   '/:id',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(EntityIdParamSchema, 'params'),
   validateRequest(UpdateEntitySchema),
   async (req: Request, res: Response) => {
     try {
@@ -540,7 +540,7 @@ router.put(
  */
 router.delete(
   '/:id',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(EntityIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const userId = req.ctx?.userId;

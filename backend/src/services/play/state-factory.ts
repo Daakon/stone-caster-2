@@ -13,7 +13,7 @@ import type { CompiledStoryJson } from '../chimera/rebuild-service.js';
  */
 export interface ChimeraGameState {
   id: string;
-  story_id: string;
+  story_id: string; // UUID reference to chimera_stories.id
   user_id: string;
   current_game_state: Record<string, unknown>;
   turn_count: number;
@@ -25,13 +25,13 @@ export interface ChimeraGameState {
 /**
  * Initialize a new game state from a compiled story
  * 
- * @param storyId - The story ID to start
+ * @param storyId - The story ID (UUID) to start
  * @param compiledStory - The compiled story JSON from the compiler
  * @param userId - The user ID starting the game
  * @returns The created game state
  */
 export async function createInitialState(
-  storyId: string,
+  storyId: string, // UUID
   compiledStory: CompiledStoryJson,
   userId: string
 ): Promise<ChimeraGameState> {

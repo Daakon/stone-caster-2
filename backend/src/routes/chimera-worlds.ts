@@ -118,7 +118,7 @@ router.post(
         .insert({
           id,
           owner_user_id: userId,
-          display_name: worldData.display_name,
+          name: worldData.display_name,
           description_short: worldData.description_short,
           description_long: worldData.description_long,
           character_schema_contributions: worldData.character_schema_contributions || {},
@@ -266,9 +266,9 @@ router.get(
 
       const { data, error } = await supabaseAdmin
         .from('chimera_worlds')
-        .select('id, display_name, version, visibility')
-        .or(`visibility.eq.public,owner_user_id.eq.${userId}`)
-        .order('display_name', { ascending: true });
+      .select('id, name, version, visibility')
+      .or(`visibility.eq.public,owner_user_id.eq.${userId}`)
+      .order('name', { ascending: true });
 
       if (error) {
         console.error('[Chimera Worlds] Error fetching selectable worlds:', error);

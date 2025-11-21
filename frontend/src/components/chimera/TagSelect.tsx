@@ -40,23 +40,31 @@ export function TagSelect({
   });
 
   // Filter tags based on search
-  // If query failed, use empty array so user can still create new tags
-  const availableTags = tags || [];
+  // If query failed or is loading, use empty array so user can still create new tags
+  const availableTags = (tags || []);
   const filteredTags = availableTags.filter((tag) =>
     tag.tag_name.toLowerCase().includes(tagSearch.toLowerCase())
   );
 
-  // Check if search matches an existing tag
-  const searchMatchesExisting = filteredTags.some(
-    (tag) => tag.tag_name.toLowerCase() === tagSearch.toLowerCase()
+  // Normalize search input for comparison (same normalization as handleAddTag)
+  const normalizedSearch = tagSearch.trim().toUpperCase().replace(/\s+/g, '_');
+  const hasSearchText = tagSearch.trim().length > 0;
+
+  // Check if normalized search matches an existing tag (case-insensitive, whitespace-normalized)
+  // Only check if we have tags loaded and search text
+  const searchMatchesExisting = hasSearchText && availableTags.length > 0 && availableTags.some(
+    (tag) => tag.tag_name.toUpperCase().replace(/\s+/g, '_') === normalizedSearch
   );
 
-  // Check if search matches a selected tag
-  const searchMatchesSelected = selectedTagNames.some(
-    (name) => name.toLowerCase() === tagSearch.toLowerCase()
+  // Check if normalized search matches a selected tag (case-insensitive, whitespace-normalized)
+  const searchMatchesSelected = hasSearchText && selectedTagNames.some(
+    (name) => name.toUpperCase().replace(/\s+/g, '_') === normalizedSearch
   );
 
-  const canCreateNew = tagSearch.trim() && !searchMatchesExisting && !searchMatchesSelected;
+  // Universal fix: Always allow creating new tags if there's any text input
+  // Only prevent if it exactly matches (after normalization) an existing or selected tag
+  // This works even when tags are loading or failed to load
+  const canCreateNew = hasSearchText && !searchMatchesExisting && !searchMatchesSelected;
 
   const handleAddTag = (tagName: string) => {
     const normalized = tagName.trim().toUpperCase().replace(/\s+/g, '_');

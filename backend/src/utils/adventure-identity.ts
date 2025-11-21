@@ -53,8 +53,12 @@ function normaliseScenarios(input: AdventureData['scenarios']): string[] {
  */
 function mapAdventureData(adventure: AdventureData): ResolvedAdventureIdentity {
   const slug = adventure.slug ?? adventure.id;
-  const title = adventure.title ?? adventure.name ?? slug;
+  const title = adventure.name ?? adventure.title ?? slug;
   const worldIdentifier = adventure.worldId ?? (adventure as any).world_slug ?? (adventure as any).worldSlug ?? 'unknown';
+  
+  // Defensive fix: Handle legacy subtitle field that no longer exists in schema
+  // Access with null coalescing to prevent "column does not exist" errors
+  const _subtitle = (adventure as any).subtitle ?? null; // Explicitly handle missing subtitle field
 
   return {
     id: computeAdventureId(slug),
@@ -82,7 +86,7 @@ export async function resolveAdventureByIdentifier(identifier: string | undefine
   try {
     const { data: entryPoint, error } = await supabaseAdmin
       .from('entry_points')
-      .select('id, slug, title, description, synopsis, world_id, tags')
+      .select('id, slug, name, description, synopsis, world_id, tags')
       .or(`id.eq.${identifier},slug.eq.${identifier}`)
       .eq('lifecycle', 'active')
       .limit(1)
@@ -100,7 +104,7 @@ export async function resolveAdventureByIdentifier(identifier: string | undefine
       return {
         id: entryPoint.id,
         slug: entryPoint.slug || entryPoint.id,
-        title: entryPoint.title,
+        title: entryPoint.name,
         description: entryPoint.description || entryPoint.synopsis || undefined,
         worldId: entryPoint.world_id, // UUID (FK to world_id_mapping)
         tags: Array.isArray(entryPoint.tags) ? entryPoint.tags : [],

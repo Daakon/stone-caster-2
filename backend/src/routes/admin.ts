@@ -4447,7 +4447,7 @@ router.get('/entry-points/:id', authenticateToken, requireAdminRole, async (req,
  */
 router.post('/entry-points', authenticateToken, requireAdminRole, async (req, res) => {
   try {
-    const { name, slug, type, world_id, rulesetIds, title, subtitle, description, synopsis, tags, visibility, content_rating, prompt } = req.body;
+    const { name, slug, type, world_id, rulesetIds, title, subtitle: _subtitle, description, synopsis, tags, visibility, content_rating, prompt } = req.body;
     const userId = req.user?.id;
     
     if (!name || !type || !world_id || !rulesetIds || !title || !description || !tags || !visibility || !content_rating) {
@@ -4502,7 +4502,6 @@ router.post('/entry-points', authenticateToken, requireAdminRole, async (req, re
         type,
         world_id: resolvedWorldId, // Use resolved TEXT ID
         title,
-        subtitle,
         description,
         synopsis,
         tags,

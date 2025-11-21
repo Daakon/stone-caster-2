@@ -992,13 +992,13 @@ export class TurnsService {
           if (entryPointResult.data) {
             adventureData = {
               id: entryPointResult.data.id,
-              name: entryPointResult.data.name || entryPointResult.data.title,
+              name: entryPointResult.data.name,
               slug: entryPointResult.data.slug,
               description: entryPointResult.data.description,
               synopsis: entryPointResult.data.synopsis,
               type: entryPointResult.data.type,
             };
-            console.log(`[TURNS] Loaded entry point data for ${entryPointResult.data.name || entryPointResult.data.title}`);
+            console.log(`[TURNS] Loaded entry point data for ${entryPointResult.data.name}`);
           }
         } catch (error) {
           console.error('Error loading entry point data:', error);

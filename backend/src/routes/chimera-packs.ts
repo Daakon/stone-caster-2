@@ -18,9 +18,9 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
-// Custom schema for text-based IDs (not UUIDs)
-const TextIdParamSchema = z.object({
-  id: z.string().min(1).max(200),
+// Schema for UUID pack ID
+const PackIdParamSchema = z.object({
+  id: z.string().uuid(),
 });
 
 // Zod schemas for validation
@@ -31,10 +31,10 @@ const CreatePackSchema = z.object({
   display_name: z.string().min(1).max(200),
   description_short: z.string().max(500).optional().nullable(),
   pack_type: PackTypeSchema,
-  entity_template_ids: z.array(z.string()).default([]),
-  ruleset_template_ids: z.array(z.string()).default([]),
-  lore_template_ids: z.array(z.string()).default([]),
-  depends_on_pack_ids: z.array(z.string()).default([]),
+  entity_template_ids: z.array(z.string().uuid()).default([]),
+  ruleset_template_ids: z.array(z.string().uuid()).default([]),
+  lore_template_ids: z.array(z.string().uuid()).default([]),
+  depends_on_pack_ids: z.array(z.string().uuid()).default([]),
   inter_entity_state: z.record(z.unknown()).optional().nullable(),
 });
 
@@ -340,7 +340,7 @@ router.post(
  */
 router.get(
   '/:id/rulesets',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(PackIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const userId = req.ctx?.userId;
@@ -447,7 +447,7 @@ router.get(
  */
 router.get(
   '/:id',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(PackIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -513,7 +513,7 @@ router.get(
  */
 router.put(
   '/:id',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(PackIdParamSchema, 'params'),
   validateRequest(UpdatePackSchema),
   async (req: Request, res: Response) => {
     try {
@@ -754,7 +754,7 @@ router.put(
  */
 router.delete(
   '/:id',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(PackIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const userId = req.ctx?.userId;

@@ -71,7 +71,7 @@ router.get('/my-creations', async (req: Request, res: Response) => {
       .from('chimera_stories')
       .select(`
         *,
-        world:chimera_worlds(id, display_name),
+        world:chimera_worlds(id, name),
         ruleset_links:chimera_story_links(ruleset_template_id),
         entity_links:chimera_story_entity_links(entity_template_id)
       `)
@@ -338,7 +338,7 @@ router.post(
         .from('chimera_stories')
         .select(`
           *,
-          world:chimera_worlds(id, display_name),
+          world:chimera_worlds(id, name),
           ruleset_links:chimera_story_links(ruleset_template_id),
           entity_links:chimera_story_entity_links(entity_template_id)
         `)
@@ -393,7 +393,7 @@ router.get(
         .from('chimera_stories')
         .select(`
           *,
-          world:chimera_worlds(id, display_name, description_short),
+          world:chimera_worlds(id, name, description_short),
           ruleset_links:chimera_story_links(ruleset_template_id),
           pack_links:chimera_story_content_pack_links(pack_id)
         `)
@@ -794,7 +794,7 @@ router.put(
         .from('chimera_stories')
         .select(`
           *,
-          world:chimera_worlds(id, display_name),
+          world:chimera_worlds(id, name),
           ruleset_links:chimera_story_links(ruleset_template_id),
           entity_links:chimera_story_entity_links(entity_template_id)
         `)

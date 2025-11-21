@@ -147,6 +147,9 @@ interface LoreEntry {
 
 /**
  * Rebuild a story's compiled ruleset
+ * 
+ * @param storyId - UUID of the story to rebuild
+ * @param userId - User ID of the story owner
  */
 export async function rebuildStory(storyId: string, userId: string): Promise<{
   story_id: string;
@@ -200,6 +203,7 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
   }
 
   // Step 4: Fetch content pack links and resolve dependencies
+  // All pack IDs are UUIDs
   const { data: packLinks, error: packLinksError } = await supabaseAdmin
     .from('chimera_story_content_pack_links')
     .select('pack_id')
@@ -213,6 +217,7 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
   const allPackIds = new Set<string>(packIds);
 
   // Resolve all pack dependencies recursively
+  // Both pack_id and depends_on_pack_id are UUIDs in chimera_pack_dependencies
   if (allPackIds.size > 0) {
     const packsToProcess = Array.from(allPackIds);
     const processedPacks = new Set<string>();
@@ -239,6 +244,7 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
   }
 
   // Step 5: Fetch ruleset_template_ids from all content packs
+  // pack_id and ruleset_template_id are UUIDs
   let packRulesetIds: string[] = [];
   if (allPackIds.size > 0) {
     const { data: packRulesetLinks, error: packRulesetLinksError } = await supabaseAdmin
@@ -303,6 +309,7 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
   const finalSchema = mergeRulesets(loadOrder);
 
   // Step 10: Fetch linked entities
+  // story_id and entity_template_id are UUIDs
   const { data: entityLinks, error: entityLinksError } = await supabaseAdmin
     .from('chimera_story_entity_links')
     .select('entity_template_id')

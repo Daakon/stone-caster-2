@@ -31,9 +31,9 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
-// Custom schema for text-based IDs (not UUIDs)
-const TextIdParamSchema = z.object({
-  storyId: z.string().min(1).max(200),
+// Schema for UUID story ID
+const StoryIdParamSchema = z.object({
+  storyId: z.string().uuid(),
 });
 
 // Schema for UUID game state ID
@@ -136,7 +136,7 @@ router.get(
  */
 router.post(
   '/:storyId/start',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(StoryIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const userId = req.ctx?.userId;
@@ -299,8 +299,8 @@ router.post(
       let isNewGameState = false; // Track if we created a new game state
       
       try {
-        // Verify story_id and user_id are valid before querying
-        if (!storyId || typeof storyId !== 'string' || storyId.trim().length === 0) {
+        // Verify story_id is a valid UUID (already validated by Zod schema, but double-check)
+        if (!storyId || typeof storyId !== 'string') {
           return sendErrorWithStatus(
             res,
             ApiErrorCode.VALIDATION_FAILED,
@@ -712,7 +712,7 @@ router.post(
  */
 router.get(
   '/:storyId/player-entities',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(StoryIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const userId = req.ctx?.userId;
@@ -875,7 +875,7 @@ const QuickStartBodySchema = z.object({
  */
 router.post(
   '/:storyId/quick-start',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(StoryIdParamSchema, 'params'),
   validateRequest(QuickStartBodySchema),
   async (req: Request, res: Response) => {
     try {
@@ -1062,8 +1062,8 @@ router.post(
 
 // Schema for storyId and entityId params
 const StoryEntityParamsSchema = z.object({
-  storyId: z.string().min(1).max(200),
-  entityId: z.string().min(1).max(200),
+  storyId: z.string().uuid(),
+  entityId: z.string().min(1).max(200), // Entity IDs are still text-based
 });
 
 /**
@@ -1228,7 +1228,7 @@ router.post(
  */
 router.get(
   '/:storyId/character/schema',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(StoryIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const userId = req.ctx?.userId;
@@ -1335,12 +1335,12 @@ router.get(
       if (story.world_id) {
         const { data: world } = await supabaseAdmin
           .from('chimera_worlds')
-          .select('display_name')
+          .select('name')
           .eq('id', story.world_id)
           .single();
 
         if (world) {
-          worldName = world.display_name;
+          worldName = world.name;
         }
       }
 
@@ -1375,7 +1375,7 @@ router.get(
  */
 router.post(
   '/:storyId/character/finalize',
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(StoryIdParamSchema, 'params'),
   validateRequest(FinalizeCharacterBodySchema),
   async (req: Request, res: Response) => {
     try {

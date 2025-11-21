@@ -6,8 +6,8 @@ import { ApiErrorCode } from '@shared';
 
 export interface PremadeCharacterDTO {
   id: string;
-  worldSlug: string;
-  worldId: string; // UUID from world_id_mapping
+  worldId: string; // UUID reference to chimera_worlds.id (canonical)
+  worldSlug?: string; // Optional text slug for display (legacy/denormalized)
   archetypeKey: string;
   displayName: string;
   summary: string;
@@ -17,75 +17,49 @@ export interface PremadeCharacterDTO {
 
 export class PremadeCharactersService {
   /**
-   * Normalize a world identifier (UUID or slug) to a slug if possible.
-   * If a UUID is provided, attempts to resolve via world_id_mapping; otherwise
-   * returns the identifier unchanged (treated as slug).
+   * Validate that a world UUID exists in the canonical world table
+   * @param worldId - World UUID to validate
+   * @returns True if valid, false otherwise
    */
-  private static async resolveWorldSlug(worldIdentifier: string): Promise<string> {
+  private static async validateWorldExists(worldId: string): Promise<boolean> {
     try {
-      // If it's already a textual slug, return as-is
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(worldIdentifier);
-      if (!isUUID) return worldIdentifier;
-
-      // Current schema uses world_id_mapping(text_id, uuid_id)
-      const { data: mapRow, error: mapErr } = await supabaseAdmin
-        .from('world_id_mapping')
-        .select('text_id')
-        .eq('uuid_id', worldIdentifier)
+      const { data, error } = await supabaseAdmin
+        .from('chimera_worlds')
+        .select('id')
+        .eq('id', worldId)
         .single();
 
-      if (!mapErr && mapRow?.text_id) {
-        return mapRow.text_id as string;
-      }
-
-      // Fallback: worlds_admin view exposes slug and id (uuid)
-      const { data: adminWorld, error: adminErr } = await supabaseAdmin
-        .from('worlds_admin')
-        .select('slug')
-        .eq('id', worldIdentifier)
-        .single();
-
-      if (!adminErr && (adminWorld as any)?.slug) {
-        return (adminWorld as any).slug as string;
-      }
+      return !error && !!data;
     } catch {
-      // ignore and fall back
+      return false;
     }
-
-    // As a last resort, return the original identifier (may match world_id column)
-    return worldIdentifier;
   }
 
   /**
    * Get all active premade characters for a specific world
-   * @param worldIdentifier - World identifier (UUID or slug)
+   * @param worldId - World UUID (canonical reference)
    * @returns Array of premade character DTOs
    */
-  static async getPremadeCharactersByWorld(worldIdentifier: string): Promise<PremadeCharacterDTO[]> {
+  static async getPremadeCharactersByWorld(worldId: string): Promise<PremadeCharacterDTO[]> {
     try {
-      // Normalize UUID -> slug if possible
-      const normalized = await this.resolveWorldSlug(worldIdentifier);
-      const isUUID = worldIdentifier.includes('-') && worldIdentifier.length === 36;
-
-      let query = supabaseAdmin
-        .from('premade_characters')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_name');
-
-      // Query by world_id (UUID) or world_slug (text)
-      if (isUUID) {
-        // Prefer resolved slug when available to support slug-only datasets
-        if (normalized && normalized !== worldIdentifier) {
-          query = query.eq('world_slug', normalized);
-        } else {
-          query = query.eq('world_id', worldIdentifier);
-        }
-      } else {
-        query = query.eq('world_slug', normalized);
+      // Validate world UUID format
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(worldId);
+      if (!isUUID) {
+        throw new Error(`Invalid world ID format: ${worldId}. Expected UUID.`);
       }
 
-      const { data, error } = await query;
+      // Validate world exists
+      const isValid = await this.validateWorldExists(worldId);
+      if (!isValid) {
+        throw new Error(`World '${worldId}' not found in chimera_worlds`);
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('premade_characters')
+        .select('*')
+        .eq('world_id', worldId)
+        .eq('is_active', true)
+        .order('display_name');
 
       if (error) {
         console.error('Error fetching premade characters from database:', error);
@@ -102,16 +76,22 @@ export class PremadeCharactersService {
 
   /**
    * Get a specific premade character by world and archetype
-   * @param worldSlug - World identifier
+   * @param worldId - World UUID (canonical reference)
    * @param archetypeKey - Archetype identifier
    * @returns Premade character DTO or null if not found
    */
-  static async getPremadeCharacter(worldSlug: string, archetypeKey: string): Promise<PremadeCharacterDTO | null> {
+  static async getPremadeCharacter(worldId: string, archetypeKey: string): Promise<PremadeCharacterDTO | null> {
     try {
+      // Validate world UUID format
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(worldId);
+      if (!isUUID) {
+        throw new Error(`Invalid world ID format: ${worldId}. Expected UUID.`);
+      }
+
       const { data, error } = await supabaseAdmin
         .from('premade_characters')
         .select('*')
-        .eq('world_slug', worldSlug)
+        .eq('world_id', worldId)
         .eq('archetype_key', archetypeKey)
         .eq('is_active', true)
         .single();
@@ -133,43 +113,40 @@ export class PremadeCharactersService {
   }
 
   /**
-   * Validate that a world identifier (UUID or slug) is supported
-   * @param worldIdentifier - World identifier to validate (UUID or slug)
-   * @returns True if valid, false otherwise
+   * Validate that a world UUID is supported (has premade characters)
+   * @param worldId - World UUID to validate
+   * @returns True if valid and has premade characters, false otherwise
    */
-  static async validateWorldSlug(worldIdentifier: string): Promise<boolean> {
+  static async validateWorldId(worldId: string): Promise<boolean> {
     try {
-      // Normalize to slug when possible
-      const normalized = await this.resolveWorldSlug(worldIdentifier);
-      const isUUID = worldIdentifier.includes('-') && worldIdentifier.length === 36;
-      
-      let query = supabaseAdmin
-        .from('premade_characters')
-        .select('world_slug')
-        .limit(1);
-      
-      // Query by world_id (UUID) or world_slug (text)
-      if (isUUID) {
-        if (normalized && normalized !== worldIdentifier) {
-          query = query.eq('world_slug', normalized);
-        } else {
-          query = query.eq('world_id', worldIdentifier);
-        }
-      } else {
-        query = query.eq('world_slug', normalized);
+      // Validate world UUID format
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(worldId);
+      if (!isUUID) {
+        return false;
       }
 
-      const { data, error } = await query;
+      // Validate world exists in canonical table
+      const worldExists = await this.validateWorldExists(worldId);
+      if (!worldExists) {
+        return false;
+      }
+
+      // Check if world has premade characters
+      const { data, error } = await supabaseAdmin
+        .from('premade_characters')
+        .select('id')
+        .eq('world_id', worldId)
+        .eq('is_active', true)
+        .limit(1);
 
       if (error) {
         console.error('Error validating world from database:', error);
         return false;
       }
 
-      const hasDbCharacters = (data || []).length > 0;
-      return hasDbCharacters;
+      return (data || []).length > 0;
     } catch (error) {
-      console.error('Unexpected error in validateWorldSlug:', error);
+      console.error('Unexpected error in validateWorldId:', error);
       return false;
     }
   }
@@ -181,7 +158,10 @@ export class PremadeCharactersService {
    * @returns PlayerV3 object
    */
   static convertToPlayerV3(premadeCharacter: PremadeCharacterDTO, customName?: string): PlayerV3 {
-    const worldConfig = getWorldConfig(premadeCharacter.worldSlug);
+    // Note: getWorldConfig may need to be updated to accept worldId instead of worldSlug
+    // For now, use worldSlug if available, otherwise fallback
+    const worldSlug = premadeCharacter.worldSlug || 'default';
+    const worldConfig = getWorldConfig(worldSlug);
     const baseTraits = premadeCharacter.baseTraits;
     
     // Extract character data from baseTraits - now using PlayerV3 format
@@ -262,8 +242,8 @@ export class PremadeCharactersService {
   private static mapToDTO(record: any): PremadeCharacterDTO {
     return {
       id: record.id,
-      worldSlug: record.world_slug,
-      worldId: record.world_id, // UUID from world_id_mapping
+      worldId: record.world_id, // UUID reference to chimera_worlds.id (canonical)
+      worldSlug: record.world_slug || undefined, // Optional text slug for display (legacy/denormalized)
       archetypeKey: record.archetype_key,
       displayName: record.display_name,
       summary: record.summary,

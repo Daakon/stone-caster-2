@@ -4,11 +4,25 @@ import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toAdventureDTO } from '../utils/dto-mappers.js';
 import { resolveAdventureByIdentifier } from '../utils/adventure-identity.js';
 import { ContentService } from '../services/content.service.js';
+import { config } from '../config/index.js';
 
 const router = Router();
 
+/**
+ * Check if Chimera V2 is enabled via feature flag
+ * When enabled, legacy routes should return empty responses to force frontend migration
+ */
+function isChimeraV2Enabled(): boolean {
+  return config.admin.enableChimeraUi === true;
+}
+
 // Get all public adventures
 router.get('/', async (req: Request, res: Response) => {
+  // Feature toggle: If Chimera V2 is enabled, return empty list to force frontend migration
+  if (isChimeraV2Enabled()) {
+    return sendSuccess(res, [], req);
+  }
+
   try {
     const adventures = await ContentService.getAdventures();
     
@@ -36,6 +50,16 @@ router.get('/', async (req: Request, res: Response) => {
 
 // Get a single adventure by slug
 router.get('/slug/:slug', async (req: Request, res: Response) => {
+  // Feature toggle: If Chimera V2 is enabled, return 404 to force frontend migration
+  if (isChimeraV2Enabled()) {
+    return sendErrorWithStatus(
+      res,
+      ApiErrorCode.NOT_FOUND,
+      'Adventure not found. Please use the Chimera V2 API: /api/v2/chimera/stories/:id',
+      req
+    );
+  }
+
   try {
     const { slug } = req.params;
 
@@ -77,6 +101,16 @@ router.get('/slug/:slug', async (req: Request, res: Response) => {
 
 // Get a single adventure by ID (UUID) or slug
 router.get('/:id', async (req: Request, res: Response) => {
+  // Feature toggle: If Chimera V2 is enabled, return 404 to force frontend migration
+  if (isChimeraV2Enabled()) {
+    return sendErrorWithStatus(
+      res,
+      ApiErrorCode.NOT_FOUND,
+      'Adventure not found. Please use the Chimera V2 API: /api/v2/chimera/stories/:id',
+      req
+    );
+  }
+
   try {
     const { id } = req.params;
 

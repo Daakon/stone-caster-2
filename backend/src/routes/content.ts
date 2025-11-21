@@ -2,8 +2,17 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode, ContentWorldDTO } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
+import { config } from '../config/index.js';
 
 const router = Router();
+
+/**
+ * Check if Chimera V2 is enabled via feature flag
+ * When enabled, legacy routes should return empty responses to force frontend migration
+ */
+function isChimeraV2Enabled(): boolean {
+  return config.admin.enableChimeraUi === true;
+}
 
 // Load static adventure data
 function loadStaticAdventures() {
@@ -56,6 +65,11 @@ function transformAdventureToDTO(adventure: any) {
 // GET /api/content/worlds - Layer M0: Content endpoint with proper DTO and traceId
 // Loads from database (worlds table) instead of static files for production compatibility
 router.get('/worlds', async (req: Request, res: Response) => {
+  // Feature toggle: If Chimera V2 is enabled, return empty list to force frontend migration
+  if (isChimeraV2Enabled()) {
+    return sendSuccess(res, [], req);
+  }
+
   try {
     // Query active worlds from database
     const { data: worldsData, error } = await supabaseAdmin

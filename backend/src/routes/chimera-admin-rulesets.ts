@@ -19,9 +19,9 @@ const router = Router();
 // Admin-only routes - require publisher role (admin)
 const requireAdmin = requireRole('publisher');
 
-// Custom schema for text-based IDs (not UUIDs)
-const TextIdParamSchema = z.object({
-  id: z.string().min(1).max(200),
+// Schema for UUID ruleset ID
+const RulesetIdParamSchema = z.object({
+  id: z.string().uuid(),
 });
 
 // Zod schemas for validation
@@ -32,7 +32,7 @@ const CreateRulesetTemplateSchemaBase = z.object({
   description_short: z.string().max(500).optional().nullable(),
   description_long: z.string().optional().nullable(),
   rule_type: RuleTypeSchema,
-  main_system_dependency: z.string().optional().nullable(),
+  main_system_dependency: z.string().uuid().optional().nullable(),
   exclusion_group_id: z.string().uuid().optional().nullable(),
   new_exclusion_group_name: z.string().min(1).max(100).optional().nullable(),
   rule_category: z.string().min(1).max(100),
@@ -147,7 +147,7 @@ router.get(
   '/:id',
   authenticateToken,
   requireAdmin,
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(RulesetIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -352,7 +352,7 @@ router.put(
   '/:id',
   authenticateToken,
   requireAdmin,
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(RulesetIdParamSchema, 'params'),
   validateRequest(UpdateRulesetTemplateSchema),
   async (req: Request, res: Response) => {
     try {
@@ -551,7 +551,7 @@ router.delete(
   '/:id',
   authenticateToken,
   requireAdmin,
-  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(RulesetIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
