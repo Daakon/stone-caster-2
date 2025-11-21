@@ -1,0 +1,48 @@
+{
+  "core_identity": {
+    "name": {
+      "label": "Name",
+      "type": "text",
+      "placeholder": "e.g., Kaelen the Lost"
+    },
+    "pronouns": {
+      "label": "Pronouns",
+      "type": "text",
+      "default": "they/them"
+    },
+    "role": {
+      "label": "Role / Occupation",
+      "type": "text",
+      "placeholder": "e.g., Hedge Knight, Starship Pilot, Detective"
+    },
+    "age": {
+      "label": "Age",
+      "type": "number"
+    }
+  },
+  "narrative_profile": {
+    "appearance": {
+      "label": "Appearance",
+      "type": "textarea",
+      "description": "Visuals, style, first impressions."
+    },
+    "backstory": {
+      "label": "Origin & Backstory",
+      "type": "textarea",
+      "description": "Where they came from and what drives them."
+    },
+    "personality_traits": {
+      "label": "Personality Traits",
+      "type": "tags_input",
+      "description": "Keywords like 'Brave', 'Stubborn', 'Curious'."
+    },
+    "drive": {
+      "label": "Primary Goal / Ideal",
+      "type": "text"
+    },
+    "flaw": {
+      "label": "Major Flaw / Weakness",
+      "type": "text"
+    }
+  }
+}

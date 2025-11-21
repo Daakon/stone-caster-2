@@ -48,9 +48,31 @@ function normalizeTagName(tagName: string): string {
     .replace(/[^A-Z0-9_]/g, '');
 }
 
-// Generate ID (using simple timestamp-based approach, can be replaced with CUID)
-function generateId(): string {
-  return `chimera_world_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+// Helper function to generate a slug from display name
+// Converts to lowercase and replaces spaces with dashes (simple approach)
+function generateSlug(displayName: string): string {
+  if (!displayName || !displayName.trim()) {
+    return '';
+  }
+  return displayName
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')  // Replace spaces with dashes
+    .replace(/[^a-z0-9-]/g, '')  // Remove non-alphanumeric except dashes
+    .replace(/-+/g, '-')  // Replace multiple dashes with single dash
+    .replace(/^-+|-+$/g, '');  // Remove leading/trailing dashes
+}
+
+// Helper function to transform database world to API response format
+// Maps 'name' field to 'display_name' for frontend compatibility
+function transformWorldForResponse(world: any): any {
+  if (!world) return world;
+  
+  return {
+    ...world,
+    display_name: world.name || world.display_name || '',  // Map name -> display_name
+    // Keep all other fields as-is
+  };
 }
 
 /**
@@ -73,7 +95,6 @@ router.post(
       }
 
       const worldData = req.body;
-      const id = generateId();
 
       // Validate that all ruleset_template_ids reference MODIFIER templates
       if (worldData.ruleset_template_ids && worldData.ruleset_template_ids.length > 0) {
@@ -113,24 +134,46 @@ router.post(
       }
 
       // Create the world - always set visibility to 'private' for new worlds
+      // Let the database generate the UUID via gen_random_uuid() default
+      // Generate slug from display_name (required field)
+      const slug = generateSlug(worldData.display_name);
+      
+      const worldInsertData: any = {
+        owner_user_id: userId,
+        name: worldData.display_name,
+        slug: slug,
+        description_short: worldData.description_short,
+        description_long: worldData.description_long,
+        visibility: 'private', // Always private for new worlds
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Add character_schema_contributions if provided
+      // Note: This may fail if Supabase schema cache is stale (PGRST204 error)
+      if (worldData.character_schema_contributions && Object.keys(worldData.character_schema_contributions).length > 0) {
+        worldInsertData.character_schema_contributions = worldData.character_schema_contributions;
+      }
+
       const { data: world, error: worldError } = await supabaseAdmin
         .from('chimera_worlds')
-        .insert({
-          id,
-          owner_user_id: userId,
-          name: worldData.display_name,
-          description_short: worldData.description_short,
-          description_long: worldData.description_long,
-          character_schema_contributions: worldData.character_schema_contributions || {},
-          visibility: 'private', // Always private for new worlds
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .insert(worldInsertData)
         .select()
         .single();
 
       if (worldError) {
         console.error('[Chimera Worlds] Error creating world:', worldError);
+        
+        // Provide helpful error message for schema cache issues
+        if (worldError.code === 'PGRST204' && worldError.message?.includes('character_schema_contributions')) {
+          return sendErrorWithStatus(
+            res,
+            ApiErrorCode.INTERNAL_ERROR,
+            'Database schema cache is out of date. The character_schema_contributions column exists in the database but is not in Supabase\'s schema cache. Please refresh the Supabase schema cache via the Supabase dashboard or run: `SELECT pg_notify(\'pgrst\', \'reload schema\');`',
+            req
+          );
+        }
+        
         return sendErrorWithStatus(
           res,
           ApiErrorCode.INTERNAL_ERROR,
@@ -139,10 +182,22 @@ router.post(
         );
       }
 
+      if (!world || !world.id) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to create world: no ID returned',
+          req
+        );
+      }
+
+      // Get the UUID ID from the inserted world (database-generated)
+      const worldId = world.id;
+
       // Create ruleset links if provided
       if (worldData.ruleset_template_ids && worldData.ruleset_template_ids.length > 0) {
         const links = worldData.ruleset_template_ids.map((templateId: string) => ({
-          world_id: id,
+          world_id: worldId,
           ruleset_template_id: templateId,
           created_at: new Date().toISOString(),
         }));
@@ -154,7 +209,7 @@ router.post(
         if (linksError) {
           console.error('[Chimera Worlds] Error creating ruleset links:', linksError);
           // Rollback world creation
-          await supabaseAdmin.from('chimera_worlds').delete().eq('id', id);
+          await supabaseAdmin.from('chimera_worlds').delete().eq('id', worldId);
           return sendErrorWithStatus(
             res,
             ApiErrorCode.INTERNAL_ERROR,
@@ -208,7 +263,7 @@ router.post(
         if (tagIds.length > 0) {
           const assetTagLinks = tagIds.map((tagId) => ({
             tag_id: tagId,
-            asset_id: id,
+            asset_id: worldId,
             asset_type: 'world',
           }));
 
@@ -230,10 +285,12 @@ router.post(
           *,
           ruleset_links:chimera_world_ruleset_link(ruleset_template_id)
         `)
-        .eq('id', id)
+        .eq('id', worldId)
         .single();
 
-      return sendSuccess(res, worldWithLinks || world, req);
+      // Transform to API format (map name -> display_name)
+      const transformedWorld = transformWorldForResponse(worldWithLinks || world);
+      return sendSuccess(res, transformedWorld, req);
     } catch (error) {
       console.error('[Chimera Worlds] Unexpected error:', error);
       return sendErrorWithStatus(
@@ -266,9 +323,9 @@ router.get(
 
       const { data, error } = await supabaseAdmin
         .from('chimera_worlds')
-      .select('id, name, version, visibility')
-      .or(`visibility.eq.public,owner_user_id.eq.${userId}`)
-      .order('name', { ascending: true });
+        .select('*')
+        .or(`visibility.eq.public,owner_user_id.eq.${userId}`)
+        .order('name', { ascending: true });
 
       if (error) {
         console.error('[Chimera Worlds] Error fetching selectable worlds:', error);
@@ -280,7 +337,9 @@ router.get(
         );
       }
 
-      return sendSuccess(res, data || [], req);
+      // Transform worlds to API format (map name -> display_name)
+      const transformedWorlds = (data || []).map(transformWorldForResponse);
+      return sendSuccess(res, transformedWorlds, req);
     } catch (error) {
       console.error('[Chimera Worlds] Unexpected error:', error);
       return sendErrorWithStatus(
@@ -330,7 +389,9 @@ router.get(
         );
       }
 
-      return sendSuccess(res, data || [], req);
+      // Transform worlds to API format (map name -> display_name)
+      const transformedWorlds = (data || []).map(transformWorldForResponse);
+      return sendSuccess(res, transformedWorlds, req);
     } catch (error) {
       console.error('[Chimera Worlds] Unexpected error:', error);
       return sendErrorWithStatus(
@@ -514,7 +575,9 @@ router.get(
         );
       }
 
-      return sendSuccess(res, world, req);
+      // Transform to API format (map name -> display_name)
+      const transformedWorld = transformWorldForResponse(world);
+      return sendSuccess(res, transformedWorld, req);
     } catch (error) {
       console.error('[Chimera Worlds] Unexpected error:', error);
       return sendErrorWithStatus(
@@ -627,11 +690,20 @@ router.put(
       // Visibility can only be changed via a separate publish endpoint, not through this update endpoint
       const { ruleset_template_ids, tag_names, visibility, ...worldUpdateData } = updateData;
       
-      if (Object.keys(worldUpdateData).length > 0) {
+      // Map display_name to name for database
+      const dbUpdateData: any = { ...worldUpdateData };
+      if (dbUpdateData.display_name !== undefined) {
+        dbUpdateData.name = dbUpdateData.display_name;
+        // Update slug when display_name changes
+        dbUpdateData.slug = generateSlug(dbUpdateData.display_name);
+        delete dbUpdateData.display_name; // Remove display_name, we use 'name' in DB
+      }
+      
+      if (Object.keys(dbUpdateData).length > 0) {
         const { error: updateError } = await supabaseAdmin
           .from('chimera_worlds')
           .update({
-            ...worldUpdateData,
+            ...dbUpdateData,
             updated_at: new Date().toISOString(),
           })
           .eq('id', id);
@@ -807,7 +879,9 @@ router.put(
           .filter((tag: any) => tag !== null);
       }
 
-      return sendSuccess(res, updatedWorld, req);
+      // Transform to API format (map name -> display_name)
+      const transformedWorld = transformWorldForResponse(updatedWorld);
+      return sendSuccess(res, transformedWorld, req);
     } catch (error) {
       console.error('[Chimera Worlds] Unexpected error:', error);
       return sendErrorWithStatus(

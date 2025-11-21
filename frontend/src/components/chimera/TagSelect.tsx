@@ -50,21 +50,17 @@ export function TagSelect({
   const normalizedSearch = tagSearch.trim().toUpperCase().replace(/\s+/g, '_');
   const hasSearchText = tagSearch.trim().length > 0;
 
-  // Check if normalized search matches an existing tag (case-insensitive, whitespace-normalized)
-  // Only check if we have tags loaded and search text
-  const searchMatchesExisting = hasSearchText && availableTags.length > 0 && availableTags.some(
-    (tag) => tag.tag_name.toUpperCase().replace(/\s+/g, '_') === normalizedSearch
-  );
-
   // Check if normalized search matches a selected tag (case-insensitive, whitespace-normalized)
+  // Only prevent creation if the tag is already selected
   const searchMatchesSelected = hasSearchText && selectedTagNames.some(
     (name) => name.toUpperCase().replace(/\s+/g, '_') === normalizedSearch
   );
 
   // Universal fix: Always allow creating new tags if there's any text input
-  // Only prevent if it exactly matches (after normalization) an existing or selected tag
+  // Only prevent if it's already selected (user can select existing tags from the list instead)
   // This works even when tags are loading or failed to load
-  const canCreateNew = hasSearchText && !searchMatchesExisting && !searchMatchesSelected;
+  // Note: We don't block on existing tags - user can create duplicates or select from existing list
+  const canCreateNew = hasSearchText && !searchMatchesSelected;
 
   const handleAddTag = (tagName: string) => {
     const normalized = tagName.trim().toUpperCase().replace(/\s+/g, '_');

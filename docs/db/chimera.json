@@ -1,0 +1,278 @@
+[
+  {
+    "table_name": "chimera_asset_tags",
+    "index_name": "pk_chimera_asset_tags",
+    "column_name": "asset_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_asset_tags ON public.chimera_asset_tags USING btree (tag_id, asset_id, asset_type)"
+  },
+  {
+    "table_name": "chimera_asset_tags",
+    "index_name": "pk_chimera_asset_tags",
+    "column_name": "asset_type",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_asset_tags ON public.chimera_asset_tags USING btree (tag_id, asset_id, asset_type)"
+  },
+  {
+    "table_name": "chimera_asset_tags",
+    "index_name": "pk_chimera_asset_tags",
+    "column_name": "tag_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_asset_tags ON public.chimera_asset_tags USING btree (tag_id, asset_id, asset_type)"
+  },
+  {
+    "table_name": "chimera_content_pack_entity_links",
+    "index_name": "pk_pack_entity_link",
+    "column_name": "entity_template_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_pack_entity_link ON public.chimera_content_pack_entity_links USING btree (pack_id, entity_template_id)"
+  },
+  {
+    "table_name": "chimera_content_pack_entity_links",
+    "index_name": "pk_pack_entity_link",
+    "column_name": "pack_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_pack_entity_link ON public.chimera_content_pack_entity_links USING btree (pack_id, entity_template_id)"
+  },
+  {
+    "table_name": "chimera_content_pack_lore_links",
+    "index_name": "chimera_content_pack_lore_links_pkey",
+    "column_name": "lore_template_id",
+    "index_definition": "CREATE UNIQUE INDEX chimera_content_pack_lore_links_pkey ON public.chimera_content_pack_lore_links USING btree (pack_id, lore_template_id)"
+  },
+  {
+    "table_name": "chimera_content_pack_lore_links",
+    "index_name": "chimera_content_pack_lore_links_pkey",
+    "column_name": "pack_id",
+    "index_definition": "CREATE UNIQUE INDEX chimera_content_pack_lore_links_pkey ON public.chimera_content_pack_lore_links USING btree (pack_id, lore_template_id)"
+  },
+  {
+    "table_name": "chimera_content_pack_lore_links",
+    "index_name": "idx_chimera_content_pack_lore_links_lore_template_id",
+    "column_name": "lore_template_id",
+    "index_definition": "CREATE INDEX idx_chimera_content_pack_lore_links_lore_template_id ON public.chimera_content_pack_lore_links USING btree (lore_template_id)"
+  },
+  {
+    "table_name": "chimera_content_pack_lore_links",
+    "index_name": "idx_chimera_content_pack_lore_links_pack_id",
+    "column_name": "pack_id",
+    "index_definition": "CREATE INDEX idx_chimera_content_pack_lore_links_pack_id ON public.chimera_content_pack_lore_links USING btree (pack_id)"
+  },
+  {
+    "table_name": "chimera_content_pack_ruleset_links",
+    "index_name": "pk_pack_ruleset_link",
+    "column_name": "pack_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_pack_ruleset_link ON public.chimera_content_pack_ruleset_links USING btree (pack_id, ruleset_template_id)"
+  },
+  {
+    "table_name": "chimera_content_pack_ruleset_links",
+    "index_name": "pk_pack_ruleset_link",
+    "column_name": "ruleset_template_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_pack_ruleset_link ON public.chimera_content_pack_ruleset_links USING btree (pack_id, ruleset_template_id)"
+  },
+  {
+    "table_name": "chimera_content_packs",
+    "index_name": "pk_chimera_content_packs",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_content_packs ON public.chimera_content_packs USING btree (id)"
+  },
+  {
+    "table_name": "chimera_content_packs",
+    "index_name": "uq_chimera_content_packs_owner_user_id_display_name",
+    "column_name": "display_name",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_content_packs_owner_user_id_display_name ON public.chimera_content_packs USING btree (owner_user_id, display_name)"
+  },
+  {
+    "table_name": "chimera_content_packs",
+    "index_name": "uq_chimera_content_packs_owner_user_id_display_name",
+    "column_name": "owner_user_id",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_content_packs_owner_user_id_display_name ON public.chimera_content_packs USING btree (owner_user_id, display_name)"
+  },
+  {
+    "table_name": "chimera_entity_templates",
+    "index_name": "pk_chimera_entity_templates",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_entity_templates ON public.chimera_entity_templates USING btree (id)"
+  },
+  {
+    "table_name": "chimera_entity_templates",
+    "index_name": "uq_chimera_entity_templates_owner_user_id_display_name",
+    "column_name": "display_name",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_entity_templates_owner_user_id_display_name ON public.chimera_entity_templates USING btree (owner_user_id, display_name)"
+  },
+  {
+    "table_name": "chimera_entity_templates",
+    "index_name": "uq_chimera_entity_templates_owner_user_id_display_name",
+    "column_name": "owner_user_id",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_entity_templates_owner_user_id_display_name ON public.chimera_entity_templates USING btree (owner_user_id, display_name)"
+  },
+  {
+    "table_name": "chimera_exclusion_groups",
+    "index_name": "chimera_exclusion_groups_group_name_key",
+    "column_name": "group_name",
+    "index_definition": "CREATE UNIQUE INDEX chimera_exclusion_groups_group_name_key ON public.chimera_exclusion_groups USING btree (group_name)"
+  },
+  {
+    "table_name": "chimera_exclusion_groups",
+    "index_name": "idx_chimera_exclusion_groups_group_name",
+    "column_name": "group_name",
+    "index_definition": "CREATE INDEX idx_chimera_exclusion_groups_group_name ON public.chimera_exclusion_groups USING btree (group_name)"
+  },
+  {
+    "table_name": "chimera_exclusion_groups",
+    "index_name": "pk_chimera_exclusion_groups",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_exclusion_groups ON public.chimera_exclusion_groups USING btree (id)"
+  },
+  {
+    "table_name": "chimera_game_states",
+    "index_name": "pk_chimera_game_states",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_game_states ON public.chimera_game_states USING btree (id)"
+  },
+  {
+    "table_name": "chimera_lore_entries",
+    "index_name": "pk_chimera_lore_entries",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_lore_entries ON public.chimera_lore_entries USING btree (id)"
+  },
+  {
+    "table_name": "chimera_lore_templates",
+    "index_name": "pk_chimera_lore_templates",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_lore_templates ON public.chimera_lore_templates USING btree (id)"
+  },
+  {
+    "table_name": "chimera_lore_templates",
+    "index_name": "uq_chimera_lore_templates_owner_user_id_display_name",
+    "column_name": "display_name",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_lore_templates_owner_user_id_display_name ON public.chimera_lore_templates USING btree (owner_user_id, display_name)"
+  },
+  {
+    "table_name": "chimera_lore_templates",
+    "index_name": "uq_chimera_lore_templates_owner_user_id_display_name",
+    "column_name": "owner_user_id",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_lore_templates_owner_user_id_display_name ON public.chimera_lore_templates USING btree (owner_user_id, display_name)"
+  },
+  {
+    "table_name": "chimera_pack_dependencies",
+    "index_name": "pk_pack_dependencies",
+    "column_name": "depends_on_pack_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_pack_dependencies ON public.chimera_pack_dependencies USING btree (pack_id, depends_on_pack_id)"
+  },
+  {
+    "table_name": "chimera_pack_dependencies",
+    "index_name": "pk_pack_dependencies",
+    "column_name": "pack_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_pack_dependencies ON public.chimera_pack_dependencies USING btree (pack_id, depends_on_pack_id)"
+  },
+  {
+    "table_name": "chimera_ruleset_templates",
+    "index_name": "idx_chimera_ruleset_templates_exclusion_group_id",
+    "column_name": "exclusion_group_id",
+    "index_definition": "CREATE INDEX idx_chimera_ruleset_templates_exclusion_group_id ON public.chimera_ruleset_templates USING btree (exclusion_group_id)"
+  },
+  {
+    "table_name": "chimera_ruleset_templates",
+    "index_name": "pk_chimera_ruleset_templates",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_ruleset_templates ON public.chimera_ruleset_templates USING btree (id)"
+  },
+  {
+    "table_name": "chimera_stories",
+    "index_name": "pk_chimera_stories",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_stories ON public.chimera_stories USING btree (id)"
+  },
+  {
+    "table_name": "chimera_stories",
+    "index_name": "uq_chimera_stories_owner_user_id_display_name",
+    "column_name": "display_name",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_stories_owner_user_id_display_name ON public.chimera_stories USING btree (owner_user_id, display_name)"
+  },
+  {
+    "table_name": "chimera_stories",
+    "index_name": "uq_chimera_stories_owner_user_id_display_name",
+    "column_name": "owner_user_id",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_stories_owner_user_id_display_name ON public.chimera_stories USING btree (owner_user_id, display_name)"
+  },
+  {
+    "table_name": "chimera_story_compiled_ruleset",
+    "index_name": "pk_story_compiled_ruleset",
+    "column_name": "story_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_story_compiled_ruleset ON public.chimera_story_compiled_ruleset USING btree (story_id)"
+  },
+  {
+    "table_name": "chimera_story_content_pack_links",
+    "index_name": "pk_story_pack_link_v2",
+    "column_name": "pack_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_story_pack_link_v2 ON public.chimera_story_content_pack_links USING btree (story_id, pack_id)"
+  },
+  {
+    "table_name": "chimera_story_content_pack_links",
+    "index_name": "pk_story_pack_link_v2",
+    "column_name": "story_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_story_pack_link_v2 ON public.chimera_story_content_pack_links USING btree (story_id, pack_id)"
+  },
+  {
+    "table_name": "chimera_story_entity_links",
+    "index_name": "pk_story_entity_link",
+    "column_name": "entity_template_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_story_entity_link ON public.chimera_story_entity_links USING btree (story_id, entity_template_id)"
+  },
+  {
+    "table_name": "chimera_story_entity_links",
+    "index_name": "pk_story_entity_link",
+    "column_name": "story_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_story_entity_link ON public.chimera_story_entity_links USING btree (story_id, entity_template_id)"
+  },
+  {
+    "table_name": "chimera_story_links",
+    "index_name": "pk_story_ruleset_link",
+    "column_name": "ruleset_template_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_story_ruleset_link ON public.chimera_story_links USING btree (story_id, ruleset_template_id)"
+  },
+  {
+    "table_name": "chimera_story_links",
+    "index_name": "pk_story_ruleset_link",
+    "column_name": "story_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_story_ruleset_link ON public.chimera_story_links USING btree (story_id, ruleset_template_id)"
+  },
+  {
+    "table_name": "chimera_tags",
+    "index_name": "pk_chimera_tags",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_tags ON public.chimera_tags USING btree (id)"
+  },
+  {
+    "table_name": "chimera_tags",
+    "index_name": "uq_chimera_tags_tag_name",
+    "column_name": "tag_name",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_tags_tag_name ON public.chimera_tags USING btree (tag_name)"
+  },
+  {
+    "table_name": "chimera_world_ruleset_link",
+    "index_name": "pk_world_ruleset_link_v2",
+    "column_name": "ruleset_template_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_world_ruleset_link_v2 ON public.chimera_world_ruleset_link USING btree (world_id, ruleset_template_id)"
+  },
+  {
+    "table_name": "chimera_world_ruleset_link",
+    "index_name": "pk_world_ruleset_link_v2",
+    "column_name": "world_id",
+    "index_definition": "CREATE UNIQUE INDEX pk_world_ruleset_link_v2 ON public.chimera_world_ruleset_link USING btree (world_id, ruleset_template_id)"
+  },
+  {
+    "table_name": "chimera_worlds",
+    "index_name": "idx_chimera_worlds_character_schema_contributions",
+    "column_name": "character_schema_contributions",
+    "index_definition": "CREATE INDEX idx_chimera_worlds_character_schema_contributions ON public.chimera_worlds USING gin (character_schema_contributions)"
+  },
+  {
+    "table_name": "chimera_worlds",
+    "index_name": "pk_chimera_worlds",
+    "column_name": "id",
+    "index_definition": "CREATE UNIQUE INDEX pk_chimera_worlds ON public.chimera_worlds USING btree (id)"
+  },
+  {
+    "table_name": "chimera_worlds",
+    "index_name": "uq_chimera_worlds_slug",
+    "column_name": "slug",
+    "index_definition": "CREATE UNIQUE INDEX uq_chimera_worlds_slug ON public.chimera_worlds USING btree (slug)"
+  }
+]
