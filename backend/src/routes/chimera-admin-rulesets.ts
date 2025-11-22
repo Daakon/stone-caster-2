@@ -72,10 +72,7 @@ router.get(
     try {
       const { data, error } = await supabaseAdmin
         .from('chimera_ruleset_templates')
-        .select(`
-          *,
-          exclusion_group:chimera_exclusion_groups!exclusion_group_id(id, group_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -88,7 +85,35 @@ router.get(
         );
       }
 
-      return sendSuccess(res, data || [], req);
+      // Transform V3 format to V2 format for frontend compatibility
+      const transformed = (data || []).map((row: any) => {
+        // Check if this is V3 format (has 'key' and 'definition' with RulesetDefinition)
+        if (row.key && row.definition && typeof row.definition === 'object') {
+          const def = row.definition;
+          return {
+            id: row.id,
+            key: row.key, // Include key for edit link compatibility
+            display_name: def.name || row.key,
+            description_short: null,
+            description_long: null,
+            version: 1, // V3 doesn't have version, default to 1
+            rule_type: 'MODIFIER' as const, // Default, can be enhanced later
+            main_system_dependency: null,
+            exclusion_group: row.exclusion_group || def.exclusion_group || null,
+            rule_category: row.ui_category || def.ui_category || 'expansion',
+            definition: def,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+          };
+        }
+        // Already in V2 format, return as-is (but ensure key is available if missing)
+        return {
+          ...row,
+          key: row.key || row.id, // Use id as fallback for key
+        };
+      });
+
+      return sendSuccess(res, transformed, req);
     } catch (error) {
       console.error('[Chimera Admin] Unexpected error:', error);
       return sendErrorWithStatus(
@@ -103,7 +128,7 @@ router.get(
 
 /**
  * GET /api/v2/chimera/admin/rulesets/exclusion-groups
- * Get all exclusion groups
+ * Get all exclusion groups (V3: Returns empty array - exclusion_group is now a TEXT column)
  */
 router.get(
   '/exclusion-groups',
@@ -111,22 +136,9 @@ router.get(
   requireAdmin,
   async (req: Request, res: Response) => {
     try {
-      const { data, error } = await supabaseAdmin
-        .from('chimera_exclusion_groups')
-        .select('*')
-        .order('group_name', { ascending: true });
-
-      if (error) {
-        console.error('[Chimera Admin] Error fetching exclusion groups:', error);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to fetch exclusion groups',
-          req
-        );
-      }
-
-      return sendSuccess(res, data || [], req);
+      // V3: exclusion_group is a TEXT column, not a separate table
+      // Return empty array for backward compatibility
+      return sendSuccess(res, [], req);
     } catch (error) {
       console.error('[Chimera Admin] Unexpected error:', error);
       return sendErrorWithStatus(
@@ -141,25 +153,43 @@ router.get(
 
 /**
  * GET /api/v2/chimera/admin/rulesets/:id
- * Get a single ruleset template by ID
+ * Get a single ruleset template by ID (UUID) or key
  */
 router.get(
   '/:id',
   authenticateToken,
   requireAdmin,
-  validateRequest(RulesetIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
 
-      const { data, error } = await supabaseAdmin
-        .from('chimera_ruleset_templates')
-        .select(`
-          *,
-          exclusion_group:chimera_exclusion_groups!exclusion_group_id(id, group_name)
-        `)
-        .eq('id', id)
-        .single();
+      // Try to find by UUID first, then by key (for V3 compatibility)
+      let data = null;
+      let error = null;
+
+      // Check if it looks like a UUID
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      
+      if (isUUID) {
+        const result = await supabaseAdmin
+          .from('chimera_ruleset_templates')
+          .select('*')
+          .eq('id', id)
+          .single();
+        data = result.data;
+        error = result.error;
+      }
+
+      // If not found by UUID, try by key (V3 format)
+      if (!data && error?.code === 'PGRST116') {
+        const result = await supabaseAdmin
+          .from('chimera_ruleset_templates')
+          .select('*')
+          .eq('key', id)
+          .single();
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -178,6 +208,25 @@ router.get(
           'Failed to fetch ruleset template',
           req
         );
+      }
+
+      // Transform V3 format to V2 format if needed
+      if (data && data.key && data.definition && typeof data.definition === 'object') {
+        const def = data.definition;
+        data = {
+          id: data.id,
+          display_name: def.name || data.key,
+          description_short: null,
+          description_long: null,
+          version: 1,
+          rule_type: 'MODIFIER' as const,
+          main_system_dependency: null,
+          exclusion_group: data.exclusion_group || def.exclusion_group || null,
+          rule_category: data.ui_category || def.ui_category || 'expansion',
+          definition: def,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+        };
       }
 
       return sendSuccess(res, data, req);
@@ -315,10 +364,7 @@ router.post(
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .select(`
-          *,
-          exclusion_group:chimera_exclusion_groups!exclusion_group_id(id, group_name)
-        `)
+        .select('*')
         .single();
 
       if (error) {
@@ -514,10 +560,7 @@ router.put(
         .from('chimera_ruleset_templates')
         .update(finalUpdatePayload)
         .eq('id', id)
-        .select(`
-          *,
-          exclusion_group:chimera_exclusion_groups!exclusion_group_id(id, group_name)
-        `)
+        .select('*')
         .single();
 
       if (error) {

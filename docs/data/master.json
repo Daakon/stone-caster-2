@@ -1,0 +1,236 @@
+{
+  "worlds": [
+    {
+      "id": "world_mystika_v3",
+      "key": "mystika",
+      "version": 3,
+      "title": "Mystika",
+      "summary": "A grounded high fantasy world of essence, shifters, and ritual magic.",
+      "images": [],
+      "character_schema_extensions": {
+        "identity": { "species": "string", "essence_alignment": "string[]" },
+        "stats": { "fatigue": 0, "hunger": 0, "thirst": 0 },
+        "appearance": { "shift_form": "string" }
+      },
+      "lore_hooks": ["races_shifters", "region_whispercross", "markets_distant"],
+      "meta": {
+        "author": "System",
+        "legacy_source": "world.mystika.prompt.v3"
+      }
+    }
+  ],
+
+  "rulesets": [
+    {
+      "id": "rs_core_driver_v3",
+      "key": "core_driver",
+      "name": "Core Interaction Driver",
+      "ui_category": "foundation",
+      "exclusion_group": "core_system",
+      "provides_tags": ["mechanics_core", "turn_based"],
+      "state_contributions": {
+        "tier1_global": ["time", "weather"],
+        "tier1_entity": ["skills", "relationships", "fatigue", "needs"]
+      },
+      "actions": {
+        "CHECK": {
+          "kind": "mechanical",
+          "logic": "d20 + skill_score vs dc",
+          "inputs": { "skill": "string", "dc": "number" }
+        },
+        "MOVE": {
+          "kind": "narrative",
+          "inputs": { "to": "location_id" }
+        },
+        "REL_DELTA": {
+          "kind": "mechanical",
+          "logic": "target.relationship[key] += delta",
+          "inputs": { "who": "entity_id", "delta": "number" }
+        }
+      },
+      "ai_instructions": {
+        "mas1_hints": ["Respect scene phase locks.", "Mechanics only in acts array."],
+        "mas2_style": ["2-6 sentences", "cinematic", "second-person", "No mechanics in text"]
+      }
+    },
+    {
+      "id": "rs_mystika_mechanics",
+      "key": "mystika_mechanics",
+      "name": "Mystika World Logic",
+      "ui_category": "expansion",
+      "dependencies": ["rs_core_driver_v3"],
+      "provides_tags": ["magic_essence", "shifter_biology"],
+      "state_contributions": {
+        "tier1_global": {
+          "time_bands": ["dawn_to_mid_day", "mid_day_to_evening", "evening_to_mid_night", "mid_night_to_dawn"]
+        },
+        "tier1_entity": {
+          "essence_alignment": [],
+          "shift_state": "human"
+        }
+      },
+      "ai_instructions": {
+        "mas2_style": ["grounded high fantasy", "sensory woods imagery", "kinship under pressure", "taboo: modern slang"]
+      }
+    },
+    {
+      "id": "rs_whispercross_quest",
+      "key": "quest_whispercross",
+      "name": "Whispercross Rescue Arc",
+      "ui_category": "expansion",
+      "dependencies": ["rs_mystika_mechanics"],
+      "provides_tags": ["quest_arc"],
+      "state_contributions": {
+        "tier1_global": {
+          "objectives": {
+            "rescue_captives": "active",
+            "secure_routes": "locked"
+          },
+          "faction_pressure": { "slavers": 0 }
+        }
+      }
+    },
+    {
+      "id": "rs_magic_basic",
+      "key": "magic_basic",
+      "name": "Basic Magic System",
+      "ui_category": "expansion",
+      "provides_tags": ["magic", "mana"],
+      "character_schema_extensions": {
+        "mana": {
+          "current": 10,
+          "max": 10
+        }
+      },
+      "state_contributions": {
+        "tier1_entity": ["mana"]
+      }
+    },
+    {
+      "id": "rs_combat_d100",
+      "key": "combat_d100",
+      "name": "d100 Combat System",
+      "ui_category": "expansion",
+      "provides_tags": ["combat", "health"],
+      "character_schema_extensions": {
+        "health": {
+          "current": 10,
+          "max": 10
+        }
+      },
+      "state_contributions": {
+        "tier1_entity": ["health"]
+      }
+    }
+  ],
+
+  "entities": [
+    {
+      "id": "npc_kiera",
+      "kind": "npc",
+      "key": "kiera",
+      "raw_data": {
+        "identity": { "name": "Kiera", "species": "Panther Shifter" },
+        "stats": { "hp_status": "injured_minor" },
+        "essence_alignment": ["Life"],
+        "traits": ["tactically sharp", "emotionally guarded"],
+        "relationships": { "player": "trust_0" },
+        "ai_hints": ["Cannot speak in animal form", "Shifting drains energy"]
+      }
+    },
+    {
+      "id": "npc_cael",
+      "kind": "npc",
+      "key": "cael",
+      "raw_data": {
+        "identity": { "name": "Cael", "species": "Dire Wolf Shifter" },
+        "essence_alignment": ["Life", "Chaos"],
+        "traits": ["noble", "fiercely loyal"],
+        "personality": ["guarded", "observant"]
+      }
+    },
+    {
+      "id": "loc_rillford_square",
+      "kind": "location",
+      "key": "rillford_square",
+      "raw_data": {
+        "name": "Rillford Square",
+        "region": "rillford",
+        "type": "market",
+        "description": "Stalls, gossip, and a wary constable."
+      }
+    },
+    {
+      "id": "loc_whispercross_glade",
+      "kind": "location",
+      "key": "whispercross_glade",
+      "raw_data": {
+        "name": "Whispercross Glade",
+        "region": "whisper_glade",
+        "type": "refuge",
+        "description": "Sanctuary under trees; watchful eyes."
+      }
+    },
+    {
+      "id": "fac_slavers",
+      "kind": "faction",
+      "key": "slavers",
+      "raw_data": {
+        "display_name": "Skimmer Cartel",
+        "kind": "raider_network",
+        "notes": "Supply human cargo to distant wealthy markets."
+      }
+    }
+  ],
+
+  "lore": [
+    {
+      "id": "lore_shifters",
+      "key": "races_shifters",
+      "title": "Shifter Biology",
+      "tags": ["species", "shifters"],
+      "content": "Shifters bind to a spirit animal; puberty unlocks partial/true forms. Shifting binds stamina and hunger.",
+      "triggers": { "when_entity_present": "shifter" }
+    },
+    {
+      "id": "lore_whispercross",
+      "key": "region_whispercross",
+      "title": "Whispercross Region",
+      "tags": ["place", "forest"],
+      "content": "Damp glades, ward-scarred roots, old paths watched by quiet eyes.",
+      "triggers": { "location": "whispercross_glade" }
+    }
+  ],
+
+  "compiled_stories": [
+    {
+      "meta": {
+        "story_id": "story_whispercross_v1",
+        "world_key": "mystika",
+        "version": 1
+      },
+      "master_schema": {
+        "tier1_allowlist": ["time", "weather", "skills", "attributes", "essence_alignment"],
+        "tier0_allowlist": ["memory_stream", "relationships", "gossip"],
+        "actions_map": {
+            "CHECK": "rs_core_driver_v3",
+            "MOVE": "rs_core_driver_v3"
+        }
+      },
+      "initial_state": {
+        "tier1_mechanical": {
+          "global": {
+            "time": { "band": "evening_to_mid_night", "ticks": 0 },
+            "weather": "drizzle"
+          },
+          "entities": {}
+        },
+        "tier0_narrative": {
+            "memory_stream": [
+                {"event": "start", "desc": "Dusk. Wounded shifter Kiera shadows path."}
+            ]
+        }
+      }
+    }
+  ]
+}

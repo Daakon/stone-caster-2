@@ -1,6 +1,7 @@
+// [CHIMERA V3] Architecture: Greenfield | Layer: Frontend
 /**
- * Chimera Ruleset Template Editor
- * Create or edit ruleset templates
+ * Chimera Ruleset Template Editor (V3)
+ * Create or edit ruleset templates using V3 schema
  */
 
 import { useState, useEffect } from 'react';
@@ -12,27 +13,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Save, Loader2, Check, ChevronsUpDown, Plus } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { chimeraService, type CreateRulesetTemplateData, type UpdateRulesetTemplateData } from '@/services/admin.chimera';
-
-const RULE_TYPES = ['MAIN_SYSTEM', 'SUBSYSTEM', 'MODIFIER'] as const;
-const RULE_CATEGORIES = [
-  'CHARACTER_INIT',
-  'SKILL_CHECK',
-  'COMBAT_DAMAGE',
-  'TIME_TRACKING',
-  'RESOURCE_MANAGEMENT',
-  'STATUS_EFFECTS',
-  'INVENTORY_CAPACITY',
-  'REPUTATION_CHANGE',
-  'RELATIONSHIPS',
-  'QUESTS',
-] as const;
+import { createRuleset, getRuleset, updateRuleset, getRulesets } from '@/services/chimera-api';
+import type { RulesetDefinition } from '@shared/types/chimera-authoring';
 
 export default function RulesetTemplateEditor() {
   const navigate = useNavigate();
@@ -40,187 +27,191 @@ export default function RulesetTemplateEditor() {
   const queryClient = useQueryClient();
   const isEditing = !!id;
 
-  const [formData, setFormData] = useState<CreateRulesetTemplateData>({
-    display_name: '',
-    description_short: null,
-    description_long: null,
-    rule_type: 'MAIN_SYSTEM',
-    main_system_dependency: null,
-    exclusion_group_id: null,
-    new_exclusion_group_name: null,
-    rule_category: 'SKILL_CHECK',
-    definition: {},
+  const [formData, setFormData] = useState<{
+    name: string;
+    ui_category: 'foundation' | 'expansion' | 'flavor';
+    exclusion_group: string;
+  }>({
+    name: '',
+    ui_category: 'foundation',
+    exclusion_group: '',
   });
 
-  const [exclusionGroupInput, setExclusionGroupInput] = useState<string>('');
-  const [exclusionGroupSearch, setExclusionGroupSearch] = useState<string>('');
-  const [isCreatingNewGroup, setIsCreatingNewGroup] = useState(false);
-  const [exclusionGroupOpen, setExclusionGroupOpen] = useState<boolean>(false);
+  const [jsonFields, setJsonFields] = useState({
+    state_contributions: '{}',
+    actions: '{}',
+  });
 
-  const [definitionJson, setDefinitionJson] = useState('{}');
+  const [dependencies, setDependencies] = useState<string[]>([]);
+  const [availableRulesets, setAvailableRulesets] = useState<RulesetDefinition[]>([]);
+  const [isLoadingRulesets, setIsLoadingRulesets] = useState(true);
+
+  const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [jsonError, setJsonError] = useState<string | null>(null);
 
-  // Load existing template if editing
-  const { data: existingTemplate, isLoading: isLoadingTemplate } = useQuery({
-    queryKey: ['chimera-ruleset-template', id],
-    queryFn: () => chimeraService.getRulesetTemplate(id!),
+  // Load existing ruleset if editing
+  const { data: existingRuleset, isLoading: isLoadingRuleset } = useQuery({
+    queryKey: ['chimera-ruleset', id],
+    queryFn: () => getRuleset(id!),
     enabled: isEditing && !!id,
   });
 
-  // Load exclusion groups
-  const { data: exclusionGroups } = useQuery({
-    queryKey: ['chimera-exclusion-groups'],
-    queryFn: () => chimeraService.listExclusionGroups(),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Populate form when template loads
+  // Load available rulesets for dependencies
   useEffect(() => {
-    if (existingTemplate) {
-      console.log('[Editor] Loading existing template:', existingTemplate);
-      setFormData({
-        display_name: existingTemplate.display_name || '',
-        description_short: existingTemplate.description_short,
-        description_long: existingTemplate.description_long,
-        rule_type: existingTemplate.rule_type || 'MAIN_SYSTEM',
-        main_system_dependency: existingTemplate.main_system_dependency,
-        exclusion_group_id: existingTemplate.exclusion_group_id,
-        new_exclusion_group_name: null, // Always reset to null when loading existing
-        rule_category: existingTemplate.rule_category || 'SKILL_CHECK',
-        definition: existingTemplate.definition || {},
+    setIsLoadingRulesets(true);
+    getRulesets()
+      .then((data) => {
+        // Filter out the current ruleset (cannot depend on self)
+        // Note: When editing, we need to compare by the ruleset's key (id field)
+        // If we're editing and the current ruleset's id is a UUID, we need to handle that
+        const others = id ? data.filter((r) => r.id !== id) : data;
+        setAvailableRulesets(others);
+      })
+      .catch((error) => {
+        console.error('Failed to load rulesets for dependencies:', error);
+        toast.error('Failed to load available rulesets');
+      })
+      .finally(() => {
+        setIsLoadingRulesets(false);
       });
-      setDefinitionJson(JSON.stringify(existingTemplate.definition || {}, null, 2));
+  }, [id]);
+
+  // Populate form when ruleset loads
+  useEffect(() => {
+    if (existingRuleset) {
+      console.log('[Editor] Loading ruleset data:', existingRuleset);
+      const uiCategory = existingRuleset.ui_category;
+      console.log('[Editor] Raw ui_category from API:', uiCategory, typeof uiCategory);
       
-      // Set exclusion group input based on existing data
-      if (existingTemplate.exclusion_group) {
-        console.log('[Editor] Setting exclusion group from template:', existingTemplate.exclusion_group);
-        setExclusionGroupInput(existingTemplate.exclusion_group.group_name);
-        setIsCreatingNewGroup(false);
-      } else if (existingTemplate.exclusion_group_id) {
-        // If we have an ID but no relation loaded, try to find it in the list
-        console.log('[Editor] Template has exclusion_group_id but no relation:', existingTemplate.exclusion_group_id);
-        const foundGroup = exclusionGroups?.find((g) => g.id === existingTemplate.exclusion_group_id);
-        if (foundGroup) {
-          setExclusionGroupInput(foundGroup.group_name);
-          setIsCreatingNewGroup(false);
-        } else {
-          setExclusionGroupInput('');
-          setIsCreatingNewGroup(false);
-        }
-      } else {
-        setExclusionGroupInput('');
-        setIsCreatingNewGroup(false);
-      }
+      // Ensure the category is one of the valid values
+      const validCategory: 'foundation' | 'expansion' | 'flavor' = 
+        (uiCategory === 'foundation' || uiCategory === 'expansion' || uiCategory === 'flavor')
+          ? uiCategory
+          : 'foundation';
+      
+      console.log('[Editor] Validated category:', validCategory);
+      
+      const newFormData = {
+        name: existingRuleset.name || '',
+        ui_category: validCategory,
+        exclusion_group: existingRuleset.exclusion_group || '',
+      };
+      
+      console.log('[Editor] Setting formData to:', newFormData);
+      
+      // Directly set the formData - don't use functional update here since we're replacing the whole object
+      setFormData(newFormData);
+      
+      setJsonFields({
+        state_contributions: JSON.stringify(existingRuleset.state_contributions || {}, null, 2),
+        actions: JSON.stringify(existingRuleset.actions || {}, null, 2),
+      });
+      setDependencies(existingRuleset.dependencies || []);
+    } else if (!isEditing) {
+      // Reset form when creating new (not editing)
+      setFormData({
+        name: '',
+        ui_category: 'foundation',
+        exclusion_group: '',
+      });
     }
-  }, [existingTemplate, exclusionGroups]);
+  }, [existingRuleset, isEditing]);
 
-  const handleChange = (field: keyof CreateRulesetTemplateData, value: unknown) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  // Debug: Log formData changes
+  useEffect(() => {
+    console.log('[Editor] formData changed:', formData);
+  }, [formData]);
 
-  const validateJson = (jsonString: string): boolean => {
+  const parseJsonField = (value: string, fieldName: string): unknown => {
+    if (!value.trim()) {
+      return fieldName === 'dependencies' ? [] : {};
+    }
     try {
-      JSON.parse(jsonString);
-      setJsonError(null);
-      return true;
+      const parsed = JSON.parse(value);
+      setJsonErrors((prev) => {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      });
+      return parsed;
     } catch (error) {
-      setJsonError(error instanceof Error ? error.message : 'Invalid JSON');
-      return false;
+      setJsonErrors((prev) => ({
+        ...prev,
+        [fieldName]: error instanceof Error ? error.message : 'Invalid JSON',
+      }));
+      throw error;
     }
   };
 
-  const handleDefinitionChange = (value: string) => {
-    setDefinitionJson(value);
-    if (validateJson(value)) {
-      handleChange('definition', JSON.parse(value));
+  const handleJsonFieldChange = (fieldName: string, value: string) => {
+    setJsonFields((prev) => ({ ...prev, [fieldName]: value }));
+    // Validate on blur
+    try {
+      parseJsonField(value, fieldName);
+    } catch {
+      // Error already set in parseJsonField
+    }
+  };
+
+  const handleDependencyToggle = (rulesetId: string, checked: boolean) => {
+    if (checked) {
+      setDependencies((prev) => [...prev, rulesetId]);
+    } else {
+      setDependencies((prev) => prev.filter((id) => id !== rulesetId));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate JSON before submit
-    if (!validateJson(definitionJson)) {
+    // Validate all JSON fields
+    let stateContributions: Record<string, unknown>;
+    let actions: Record<string, unknown>;
+
+    try {
+      stateContributions = parseJsonField(jsonFields.state_contributions, 'state_contributions') as Record<string, unknown>;
+      actions = parseJsonField(jsonFields.actions, 'actions') as Record<string, unknown>;
+    } catch {
       toast.error('Please fix JSON errors before submitting');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Prepare exclusion group data
-      // Priority: use formData.new_exclusion_group_name if set, otherwise check formData.exclusion_group_id
-      const exclusionGroupData: { exclusion_group_id?: string | null; new_exclusion_group_name?: string | null } = {};
-      if (formData.new_exclusion_group_name && formData.new_exclusion_group_name.trim()) {
-        // Creating a new exclusion group
-        exclusionGroupData.new_exclusion_group_name = formData.new_exclusion_group_name.trim();
-        exclusionGroupData.exclusion_group_id = null;
-        console.log('[Editor] Creating new exclusion group:', exclusionGroupData.new_exclusion_group_name);
-      } else if (formData.exclusion_group_id) {
-        // Using an existing exclusion group
-        exclusionGroupData.exclusion_group_id = formData.exclusion_group_id;
-        exclusionGroupData.new_exclusion_group_name = null;
-        console.log('[Editor] Using existing exclusion group:', exclusionGroupData.exclusion_group_id);
-      } else {
-        // No exclusion group
-        exclusionGroupData.exclusion_group_id = null;
-        exclusionGroupData.new_exclusion_group_name = null;
-        console.log('[Editor] No exclusion group set');
-      }
-
-      console.log('[Editor] Form data before submit:', {
-        formData,
-        exclusionGroupData,
-        isCreatingNewGroup,
-        exclusionGroupInput,
-      });
+      const rulesetData: RulesetDefinition = {
+        id: id || '', // Will be generated by backend if empty
+        name: formData.name,
+        ui_category: formData.ui_category,
+        exclusion_group: formData.exclusion_group || null,
+        dependencies,
+        provides_tags: [],
+        state_contributions: stateContributions,
+        actions,
+        ai_instructions: {},
+      };
 
       if (isEditing && id) {
-        const updateData: UpdateRulesetTemplateData = {
-          ...formData,
-          ...exclusionGroupData,
-          definition: JSON.parse(definitionJson),
-        };
-        console.log('[Editor] Submitting update with data:', JSON.stringify(updateData, null, 2));
-        console.log('[Editor] Update data keys:', Object.keys(updateData));
-        console.log('[Editor] exclusion_group_id in updateData:', updateData.exclusion_group_id);
-        console.log('[Editor] new_exclusion_group_name in updateData:', updateData.new_exclusion_group_name);
-        await chimeraService.updateRulesetTemplate(id, updateData);
-        toast.success('Ruleset template updated successfully');
+        await updateRuleset(id, rulesetData);
+        toast.success('Ruleset updated successfully');
       } else {
-        const createData: CreateRulesetTemplateData = {
-          ...formData,
-          ...exclusionGroupData,
-          definition: JSON.parse(definitionJson),
-        };
-        console.log('[Editor] Submitting create with data:', createData);
-        await chimeraService.createRulesetTemplate(createData);
-        toast.success('Ruleset template created successfully');
+        await createRuleset(rulesetData);
+        toast.success('Ruleset created successfully');
       }
 
-      // Invalidate and refetch queries to refresh data
-      await queryClient.invalidateQueries({ queryKey: ['chimera-ruleset-templates'] });
-      await queryClient.invalidateQueries({ queryKey: ['chimera-ruleset-template', id] });
-      await queryClient.invalidateQueries({ queryKey: ['chimera-exclusion-groups'] });
-      
-      // Refetch exclusion groups in case a new one was created
-      await queryClient.refetchQueries({ queryKey: ['chimera-exclusion-groups'] });
-      
-      // If editing, refetch the template to show updated data
-      if (isEditing && id) {
-        await queryClient.refetchQueries({ queryKey: ['chimera-ruleset-template', id] });
-      }
+      // Invalidate and refetch queries
+      await queryClient.invalidateQueries({ queryKey: ['chimera-rulesets'] });
+      await queryClient.invalidateQueries({ queryKey: ['chimera-ruleset', id] });
       
       navigate('/admin/chimera/rulesets');
     } catch (error) {
-      console.error('Error saving ruleset template:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to save ruleset template');
+      console.error('Error saving ruleset:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save ruleset');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isEditing && isLoadingTemplate) {
+  if (isEditing && isLoadingRuleset) {
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -237,10 +228,10 @@ export default function RulesetTemplateEditor() {
         </Button>
         <div>
           <h1 className="text-3xl font-bold">
-            {isEditing ? 'Edit Ruleset Template' : 'Create Ruleset Template'}
+            {isEditing ? 'Edit Ruleset' : 'Create Ruleset'}
           </h1>
           <p className="text-muted-foreground mt-2">
-            {isEditing ? 'Update the ruleset template details' : 'Create a new ruleset template for the Chimera V2 engine'}
+            {isEditing ? 'Update the ruleset details' : 'Create a new ruleset (V3 Architecture)'}
           </p>
         </div>
       </div>
@@ -248,400 +239,191 @@ export default function RulesetTemplateEditor() {
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
-            <CardTitle>Template Details</CardTitle>
+            <CardTitle>Basic Information</CardTitle>
             <CardDescription>
-              Configure the ruleset template properties
+              Configure the ruleset properties
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="display_name">Display Name *</Label>
+                <Label htmlFor="name">Name *</Label>
                 <Input
-                  id="display_name"
-                  value={formData.display_name}
-                  onChange={(e) => handleChange('display_name', e.target.value)}
-                  placeholder="Enter display name"
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter ruleset name"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="rule_type">Rule Type *</Label>
+                <Label htmlFor="ui_category">Rule Category *</Label>
                 <Select
-                  key={`rule-type-${existingTemplate?.id || 'new'}-${formData.rule_type}`}
-                  value={formData.rule_type ? String(formData.rule_type) : undefined}
-                  onValueChange={(value) => handleChange('rule_type', value as typeof formData.rule_type)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select rule type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RULE_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description_short">Short Description</Label>
-              <Input
-                id="description_short"
-                value={formData.description_short || ''}
-                onChange={(e) => handleChange('description_short', e.target.value || null)}
-                placeholder="Brief description (max 500 characters)"
-                maxLength={500}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description_long">Long Description</Label>
-              <Textarea
-                id="description_long"
-                value={formData.description_long || ''}
-                onChange={(e) => handleChange('description_long', e.target.value || null)}
-                placeholder="Detailed description"
-                rows={4}
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="rule_category">Rule Category *</Label>
-                <Select
-                  key={`rule-category-${existingTemplate?.id || 'new'}-${formData.rule_category}`}
-                  value={formData.rule_category ? String(formData.rule_category) : undefined}
-                  onValueChange={(value) => handleChange('rule_category', value)}
+                  value={formData.ui_category || existingRuleset?.ui_category || 'foundation'}
+                  onValueChange={(value) => {
+                    console.log('[Editor] Category changed to:', value);
+                    setFormData((prev) => ({ ...prev, ui_category: value as 'foundation' | 'expansion' | 'flavor' }));
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select rule category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {RULE_CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="foundation">Foundation</SelectItem>
+                    <SelectItem value="expansion">Expansion</SelectItem>
+                    <SelectItem value="flavor">Flavor</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Foundation: Core game system. Expansion: Additional mechanics. Flavor: Thematic additions.
+                </p>
               </div>
+            </div>
 
-              {formData.rule_type === 'SUBSYSTEM' && (
-                <div className="space-y-2">
-                  <Label htmlFor="main_system_dependency">Main System Dependency *</Label>
-                  <Input
-                    id="main_system_dependency"
-                    value={formData.main_system_dependency || ''}
-                    onChange={(e) => handleChange('main_system_dependency', e.target.value || null)}
-                    placeholder="ID of MAIN_SYSTEM template"
-                    required={formData.rule_type === 'SUBSYSTEM'}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Reference to a MAIN_SYSTEM template this depends on
+            <div className="space-y-2">
+              <Label htmlFor="exclusion_group">Exclusion Group (optional)</Label>
+              <Input
+                id="exclusion_group"
+                value={formData.exclusion_group}
+                onChange={(e) => setFormData((prev) => ({ ...prev, exclusion_group: e.target.value }))}
+                placeholder="e.g., combat-system, magic-system"
+              />
+              <p className="text-xs text-muted-foreground">
+                Rulesets with the same exclusion group are mutually exclusive
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Separator />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Compiler Configuration</CardTitle>
+            <CardDescription>
+              Define how this ruleset contributes to the compiled game state
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="state_contributions">State Contributions (JSON)</Label>
+              <Textarea
+                id="state_contributions"
+                value={jsonFields.state_contributions}
+                onChange={(e) => handleJsonFieldChange('state_contributions', e.target.value)}
+                onBlur={(e) => handleJsonFieldChange('state_contributions', e.target.value)}
+                placeholder='{"tier1_entity": ["hp", "mana"], "tier0_narrative": ["memories"]}'
+                rows={8}
+                className={`font-mono text-sm ${jsonErrors.state_contributions ? 'border-red-500' : ''}`}
+              />
+              {jsonErrors.state_contributions && (
+                <Alert variant="destructive">
+                  <AlertDescription>{jsonErrors.state_contributions}</AlertDescription>
+                </Alert>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Define which state keys this ruleset contributes. Use <code>tier1_entity</code> for mechanical keys (hp, mana) and <code>tier0_narrative</code> for narrative keys (memories, relationships).
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="actions">Actions (JSON)</Label>
+              <Textarea
+                id="actions"
+                value={jsonFields.actions}
+                onChange={(e) => handleJsonFieldChange('actions', e.target.value)}
+                onBlur={(e) => handleJsonFieldChange('actions', e.target.value)}
+                placeholder='{"attack": {...}, "defend": {...}}'
+                rows={8}
+                className={`font-mono text-sm ${jsonErrors.actions ? 'border-red-500' : ''}`}
+              />
+              {jsonErrors.actions && (
+                <Alert variant="destructive">
+                  <AlertDescription>{jsonErrors.actions}</AlertDescription>
+                </Alert>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Define the actions/moves this ruleset provides
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Dependencies</Label>
+              <div className="border rounded-md p-4 max-h-64 overflow-y-auto">
+                {isLoadingRulesets ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading available rulesets...</span>
+                  </div>
+                ) : availableRulesets.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No other rulesets available</p>
+                ) : (
+                  <div className="space-y-3">
+                    {availableRulesets.map((ruleset) => {
+                      const isChecked = dependencies.includes(ruleset.id);
+                      return (
+                        <div key={ruleset.id} className="flex items-start space-x-3">
+                          <Checkbox
+                            id={`dependency-${ruleset.id}`}
+                            checked={isChecked}
+                            onCheckedChange={(checked) =>
+                              handleDependencyToggle(ruleset.id, checked === true)
+                            }
+                          />
+                          <Label
+                            htmlFor={`dependency-${ruleset.id}`}
+                            className="flex-1 cursor-pointer font-normal"
+                          >
+                            <div className="font-medium">{ruleset.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {ruleset.ui_category} • {ruleset.id}
+                            </div>
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Select other rulesets that this ruleset depends on. Dependencies are stored as ruleset keys for portability.
+              </p>
+              {dependencies.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Selected ({dependencies.length}): {dependencies.join(', ')}
                   </p>
                 </div>
               )}
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="exclusion_group">Exclusion Group</Label>
-              <Popover 
-                open={exclusionGroupOpen} 
-                onOpenChange={(open) => {
-                  setExclusionGroupOpen(open);
-                  // Reset search when opening/closing
-                  if (open) {
-                    // When opening, set search to current selection or empty
-                    if (formData.exclusion_group_id) {
-                      const selectedGroup = exclusionGroups?.find((g) => g.id === formData.exclusion_group_id);
-                      setExclusionGroupSearch(selectedGroup?.group_name || '');
-                    } else {
-                      setExclusionGroupSearch('');
-                    }
-                  } else {
-                    // When closing, clear search
-                    setExclusionGroupSearch('');
-                  }
-                }}
-              >
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={exclusionGroupOpen}
-                    className={cn(
-                      'w-full justify-between',
-                      !formData.exclusion_group_id && !isCreatingNewGroup && 'text-muted-foreground'
-                    )}
-                  >
-                    {isCreatingNewGroup
-                      ? `Create: ${exclusionGroupInput || 'New Group'}`
-                      : formData.exclusion_group_id
-                      ? exclusionGroups?.find((g) => g.id === formData.exclusion_group_id)?.group_name || 'Select group...'
-                      : 'Select or create exclusion group...'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent 
-                  className="w-full p-0" 
-                  align="start"
-                  onOpenAutoFocus={(e) => {
-                    // Prevent auto-focus on open to avoid form interference
-                    e.preventDefault();
-                  }}
-                  onInteractOutside={(e) => {
-                    // Prevent form from interfering when clicking outside
-                    e.preventDefault();
-                  }}
-                >
-                  <Command shouldFilter={false} loop={true}>
-                    <CommandInput
-                      placeholder="Search existing groups or type a new name..."
-                      value={exclusionGroupSearch}
-                      onValueChange={setExclusionGroupSearch}
-                      onKeyDown={(e) => {
-                        // Prevent form submission on Enter in search
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }
-                      }}
-                    />
-                    <CommandList>
-                      <CommandGroup>
-                        <CommandItem
-                          value="none"
-                          disabled={false}
-                          onSelect={() => {
-                            setExclusionGroupInput('');
-                            setExclusionGroupSearch('');
-                            setIsCreatingNewGroup(false);
-                            setFormData({ ...formData, exclusion_group_id: null, new_exclusion_group_name: null });
-                            setExclusionGroupOpen(false);
-                          }}
-                          className={cn(
-                            "cursor-pointer",
-                            "!pointer-events-auto !opacity-100",
-                            "[&[data-disabled]]:!pointer-events-auto [&[data-disabled]]:!opacity-100"
-                          )}
-                          data-disabled="false"
-                          style={{ 
-                            pointerEvents: 'auto', 
-                            opacity: 1,
-                            cursor: 'pointer'
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setExclusionGroupInput('');
-                            setExclusionGroupSearch('');
-                            setIsCreatingNewGroup(false);
-                            setFormData({ ...formData, exclusion_group_id: null, new_exclusion_group_name: null });
-                            setExclusionGroupOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              'mr-2 h-4 w-4',
-                              !formData.exclusion_group_id && !isCreatingNewGroup ? 'opacity-100' : 'opacity-0'
-                            )}
-                          />
-                          None
-                        </CommandItem>
-                        {exclusionGroups
-                          ?.filter((group) => {
-                            // Filter groups based on search
-                            if (!exclusionGroupSearch.trim()) return true;
-                            return group.group_name.toLowerCase().includes(exclusionGroupSearch.toLowerCase());
-                          })
-                          .map((group) => {
-                            const handleSelect = () => {
-                              setExclusionGroupInput(group.group_name);
-                              setExclusionGroupSearch(group.group_name);
-                              setIsCreatingNewGroup(false);
-                              setFormData({
-                                ...formData,
-                                exclusion_group_id: group.id,
-                                new_exclusion_group_name: null,
-                              });
-                              setExclusionGroupOpen(false);
-                            };
-
-                            return (
-                              <CommandItem
-                                key={group.id}
-                                value={group.group_name}
-                                disabled={false}
-                                onSelect={handleSelect}
-                                className={cn(
-                                  "cursor-pointer",
-                                  "!pointer-events-auto !opacity-100",
-                                  "[&[data-disabled]]:!pointer-events-auto [&[data-disabled]]:!opacity-100"
-                                )}
-                                data-disabled="false"
-                                style={{ 
-                                  pointerEvents: 'auto', 
-                                  opacity: 1,
-                                  cursor: 'pointer'
-                                }}
-                                onMouseDown={(e) => {
-                                  // Handle mousedown to ensure click works
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }}
-                                onClick={(e) => {
-                                  // Direct click handler - primary method
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleSelect();
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 h-4 w-4',
-                                    formData.exclusion_group_id === group.id ? 'opacity-100' : 'opacity-0'
-                                  )}
-                                />
-                                {group.group_name}
-                              </CommandItem>
-                            );
-                          })}
-                      </CommandGroup>
-                      {/* Show "Add New" option when search doesn't match any existing group */}
-                      {exclusionGroupSearch.trim() && 
-                       !exclusionGroups?.some((g) => 
-                         g.group_name.toLowerCase() === exclusionGroupSearch.trim().toLowerCase()
-                       ) && (
-                        <CommandGroup heading="Create New">
-                          <CommandItem
-                            value={`add-${exclusionGroupSearch.trim()}`}
-                            disabled={false}
-                            onSelect={() => {
-                              const newName = exclusionGroupSearch.trim();
-                              console.log('[Editor] Add New clicked, setting new exclusion group:', newName);
-                              setExclusionGroupInput(newName);
-                              setIsCreatingNewGroup(true);
-                              setFormData({
-                                ...formData,
-                                exclusion_group_id: null,
-                                new_exclusion_group_name: newName,
-                              });
-                              console.log('[Editor] Form data after Add New:', {
-                                exclusion_group_id: null,
-                                new_exclusion_group_name: newName,
-                              });
-                              setExclusionGroupOpen(false);
-                            }}
-                            className={cn(
-                              "cursor-pointer font-medium",
-                              "!pointer-events-auto !opacity-100",
-                              "[&[data-disabled]]:!pointer-events-auto [&[data-disabled]]:!opacity-100"
-                            )}
-                            data-disabled="false"
-                            style={{ 
-                              pointerEvents: 'auto', 
-                              opacity: 1,
-                              cursor: 'pointer'
-                            }}
-                            onMouseDown={(e) => {
-                              // Handle mousedown to ensure click works
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
-                            onClick={(e) => {
-                              // Direct click handler - primary method
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const newName = exclusionGroupSearch.trim();
-                              console.log('[Editor] Add New onClick, setting new exclusion group:', newName);
-                              setExclusionGroupInput(newName);
-                              setIsCreatingNewGroup(true);
-                              setFormData({
-                                ...formData,
-                                exclusion_group_id: null,
-                                new_exclusion_group_name: newName,
-                              });
-                              console.log('[Editor] Form data after Add New onClick:', {
-                                exclusion_group_id: null,
-                                new_exclusion_group_name: newName,
-                              });
-                              setExclusionGroupOpen(false);
-                            }}
-                          >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add &quot;{exclusionGroupSearch.trim()}&quot;
-                          </CommandItem>
-                        </CommandGroup>
-                      )}
-                      <CommandEmpty>
-                        {exclusionGroupSearch.trim() ? (
-                          <div className="py-2 text-center text-sm text-muted-foreground">
-                            No matching groups found. Use &quot;Add&quot; option above to create a new one.
-                          </div>
-                        ) : (
-                          'Type to search or create a new exclusion group.'
-                        )}
-                      </CommandEmpty>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <p className="text-xs text-muted-foreground">
-                Rules in the same exclusion group cannot be active simultaneously. Select an existing group or type a new name to create one.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="definition">Definition (JSON) *</Label>
-              <Textarea
-                id="definition"
-                value={definitionJson}
-                onChange={(e) => handleDefinitionChange(e.target.value)}
-                placeholder='{"key": "value"}'
-                rows={12}
-                className="font-mono text-sm"
-              />
-              {jsonError && (
-                <Alert variant="destructive">
-                  <AlertDescription>{jsonError}</AlertDescription>
-                </Alert>
-              )}
-              <p className="text-xs text-muted-foreground">
-                JSON definition for the ruleset template. Must be valid JSON.
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-4 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/admin/chimera/rulesets')}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting || !!jsonError}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    {isEditing ? 'Update Template' : 'Create Template'}
-                  </>
-                )}
-              </Button>
-            </div>
           </CardContent>
         </Card>
+
+        <div className="flex justify-end gap-4 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate('/admin/chimera/rulesets')}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting || Object.keys(jsonErrors).length > 0}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                {isEditing ? 'Update Ruleset' : 'Create Ruleset'}
+              </>
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   );
 }
-

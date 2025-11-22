@@ -46,6 +46,11 @@ import PackManage from './pages/dashboard/packs/Manage';
 import LoreEditor from './pages/dashboard/lore/Editor';
 import LoreManage from './pages/dashboard/lore/Manage';
 import CreatorProfileSettings from './pages/settings/CreatorProfile';
+import ChimeraRulesetsPage from './pages/dashboard/RulesetsPage';
+import ChimeraWorldsPage from './pages/dashboard/WorldsPage';
+import ChimeraEntitiesPage from './pages/dashboard/EntitiesPage';
+import CastingCircleWizard from './pages/casting-circle/CastingCircleWizard';
+import GameView from './pages/play/GameView';
 import MyWorldsPage from './pages/my/worlds';
 import MyStoriesPage from './pages/my/stories';
 import MyNPCsPage from './pages/my/npcs';
@@ -173,7 +178,7 @@ function App() {
                 } />
                 <Route path="/play/:gameStateId" element={
                   <EarlyAccessRoute>
-                    <PlayPage />
+                    <GameView />
                   </EarlyAccessRoute>
                 } />
                 <Route path="/create-character/:storyId" element={
@@ -405,6 +410,36 @@ function App() {
                   <ProtectedRoute>
                     <EarlyAccessRoute>
                       <CreatorProfileSettings />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                {/* Chimera V3 Dashboard Pages */}
+                <Route path="/dashboard/chimera/rulesets" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <ChimeraRulesetsPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/chimera/worlds" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <ChimeraWorldsPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard/chimera/entities" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <ChimeraEntitiesPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                {/* Casting Circle Wizard */}
+                <Route path="/casting-circle" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <CastingCircleWizard />
                     </EarlyAccessRoute>
                   </ProtectedRoute>
                 } />

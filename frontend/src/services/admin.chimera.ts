@@ -20,11 +20,7 @@ export interface RulesetTemplate {
   version: number;
   rule_type: 'MAIN_SYSTEM' | 'SUBSYSTEM' | 'MODIFIER';
   main_system_dependency: string | null;
-  exclusion_group_id: string | null;
-  exclusion_group?: {
-    id: string;
-    group_name: string;
-  } | null;
+  exclusion_group: string | null; // V3: Simple TEXT column, not a foreign key
   rule_category: string;
   definition: Record<string, unknown>;
   created_at: string;

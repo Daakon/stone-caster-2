@@ -175,8 +175,25 @@ app.use('/api', userAuthoringRouter);
 
 // V2 API: Project Chimera engine routes
 app.use('/api/v2/chimera', chimeraRouter);
+
+// Phase 2: Chimera API routes (using repositories)
+// Note: These routes use the repository layer and are mounted at /api/chimera/*
+// The existing routes at /api/v2/chimera/* are kept for backward compatibility
+import chimeraWorldsRepoRouter from './routes/chimera-worlds-repo.js';
+import chimeraRulesetsRepoRouter from './routes/chimera-rulesets-repo.js';
+import chimeraEntitiesRepoRouter from './routes/chimera-entities-repo.js';
+import chimeraLoreRepoRouter from './routes/chimera-lore-repo.js';
+import chimeraAssetsRepoRouter from './routes/chimera-assets-repo.js';
+import chimeraCompileRouter from './routes/chimera-compile.js';
 import chimeraPlayRouter from './routes/chimera-play.js';
-app.use('/api/v2/play', chimeraPlayRouter);
+app.use('/api/chimera/worlds', chimeraWorldsRepoRouter);
+console.log('[Server] Mounted /api/chimera/rulesets route');
+app.use('/api/chimera/rulesets', chimeraRulesetsRepoRouter);
+app.use('/api/chimera/entities', chimeraEntitiesRepoRouter);
+app.use('/api/chimera/lore', chimeraLoreRepoRouter);
+app.use('/api/chimera/assets', chimeraAssetsRepoRouter);
+app.use('/api/chimera/compile', chimeraCompileRouter);
+app.use('/api/chimera/play', chimeraPlayRouter);
 
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);
