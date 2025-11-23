@@ -1,10 +1,13 @@
-# StoneCaster MVP Ruleset Library (v1.8 - Backend Determinism)
+# StoneCaster MVP Ruleset Library (v2.1 - Master Complete)
 
-This library defines the core physics and narrative logic for the StoneCaster MVP.
+This library defines the complete MVP stack. It merges the **Backend-Logic Architecture** with the **Casting Circle UI Schema**.
 
 **Architecture Key:**
-* **Logic Layer (Backend):** `system_auto` actions handle all math, comparisons, and state updates.
-* **Narrative Layer (AI):** Instructions strictly map *State Values* to *Descriptions*. No calculations allowed.
+* **`form_hints`**: Instructions for the UI to render sliders/inputs during story creation.
+* **`context_priority`**:
+    * `engine_private`: Math hidden from the AI (e.g., raw `social_dna` numbers).
+    * `ai_visible`: Cues sent to the AI (e.g., `narrative_cues`).
+* **`system_auto`**: Actions that run automatically to convert Private Math into Public Cues.
 
 ---
 
@@ -24,38 +27,135 @@ This library defines the core physics and narrative logic for the StoneCaster MV
     "tier1_entity": {
       "target_kind": ["npc", "player"],
       "definitions": {
-        "social_dna": { "honesty": 50, "order": 50, "altruism": 50, "aggression": 50, "sociability": 50, "curiosity": 50 },
-        "relationships": {},
-        "narrative_cues": { "social_tone": "Neutral" }
+        "social_dna": { 
+          "value": { "honesty": 50, "order": 50, "altruism": 50, "aggression": 50, "sociability": 50, "curiosity": 50 },
+          "context_priority": "engine_private" 
+        },
+        "relationships": { "value": {}, "context_priority": "engine_private" },
+        "narrative_cues": { "value": { "social_tone": "Neutral" }, "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "social_dna.honesty": { "label": "Honesty", "control": "slider", "min": 0, "max": 100, "group": "Personality", "default": 50 },
+        "social_dna.aggression": { "label": "Aggression", "control": "slider", "min": 0, "max": 100, "group": "Personality", "default": 50 },
+        "social_dna.altruism": { "label": "Altruism", "control": "slider", "min": 0, "max": 100, "group": "Personality", "default": 50 },
+        "social_dna.order": { "label": "Orderliness", "control": "slider", "min": 0, "max": 100, "group": "Personality", "default": 50 },
+        "social_dna.sociability": { "label": "Sociability", "control": "slider", "min": 0, "max": 100, "group": "Personality", "default": 50 },
+        "social_dna.curiosity": { "label": "Curiosity", "control": "slider", "min": 0, "max": 100, "group": "Personality", "default": 50 }
       }
     }
   },
   "actions": {
     "modify_relationship": {
-      "description": "Mechanic: Adjusts relationship values.",
       "kind": "mechanical",
-      "params": { "target_id": "string", "stat": "string", "amount": "number" },
-      "logic": "target.relationships[actor_id][stat] += amount"
+      "params": { "target_id": "string", "component": "string", "amount": "number" },
+      "logic": "target.relationships[actor_id][component] += amount"
     },
     "update_social_cues": {
-      "description": "Backend: Calculates tone based on stats.",
       "kind": "system_auto",
       "trigger": "on_stat_change(relationships)",
       "logic": [
         { "if": "relationships[target_id].affection < 30", "then": "narrative_cues.social_tone = 'Hostile'" },
         { "if": "relationships[target_id].trust > 70", "then": "narrative_cues.social_tone = 'Confiding'" },
-        { "if": "relationships[target_id].respect > 70", "then": "narrative_cues.social_tone = 'Deferential'" }
+        { "if": "relationships[target_id].respect > 70", "then": "narrative_cues.social_tone = 'Deferential'" },
+        { "if": "relationships[target_id].attraction > 70", "then": "narrative_cues.social_tone = 'Flirtatious'" }
       ]
     }
   },
   "ai_instructions": {
-    "intent_mappings": "Deception/Truth -> 'social_dna.honesty'; Rule-following/Chaos -> 'social_dna.order'; Generosity/Greed -> 'social_dna.altruism'; Violence/Peace -> 'social_dna.aggression'.",
-    "tone_instructions": "Adopt the 'social_tone' defined in narrative_cues."
+    "mas1": {
+      "intent_mappings": "Deception/Truth -> 'social_dna.honesty'; Violence/Peace -> 'social_dna.aggression'; Generosity -> 'social_dna.altruism'."
+    },
+    "mas2": {
+      "tone_instructions": "Adopt the 'social_tone' defined in narrative_cues."
+    }
   }
 }
 ```
 
-### 1.2 Core Skills System
+### 1.2 Behavior Intent Framework
+**Name:** Behavior Intent Framework
+**Source:**
+
+```json
+{
+  "name": "Behavior Intent Framework",
+  "ui_category": "foundation",
+  "exclusion_group": "ai_brain",
+  "short_description": "The decision-making engine for NPCs.",
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc"],
+      "definitions": {
+        "intents": { 
+          "value": {
+            "flirt": 0, "comfort": 0, "negotiate": 0, "banter": 0,
+            "challenge": 0, "assist": 0, "withdraw": 0, "observe": 0
+          },
+          "context_priority": "engine_private"
+        },
+        "current_intent": { "value": "observe", "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "current_intent": { "label": "Default Intent", "control": "select", "options": ["observe", "guard", "wander"], "default": "observe", "group": "AI Behavior" }
+      }
+    }
+  },
+  "actions": {
+    "calculate_base_intents": {
+      "kind": "system_auto",
+      "trigger": "on_turn_start",
+      "logic": [
+        { "if": "social_dna.aggression > 70", "then": "intents.challenge += 20" },
+        { "if": "social_dna.altruism > 70", "then": "intents.assist += 20" },
+        { "if": "social_dna.sociability > 70", "then": "intents.banter += 20" },
+        { "if": "relationships[target_id].attraction > 50", "then": "intents.flirt += 30" },
+        { "if": "relationships[target_id].trust < 20", "then": "intents.withdraw += 40" }
+      ]
+    },
+    "resolve_intent": {
+      "kind": "system_auto",
+      "trigger": "after_calculation",
+      "logic": "current_intent = intents.sort_by_value().top()"
+    }
+  },
+  "ai_instructions": {
+    "mas2": {
+      "outcome_instructions": "The NPC has chosen to [current_intent]. Describe this action consistent with their Social DNA."
+    }
+  }
+}
+```
+
+### 1.3 Backstory & Context
+**Name:** Static Backstory Context
+**Source:**
+
+```json
+{
+  "name": "Static Backstory Context",
+  "ui_category": "foundation",
+  "exclusion_group": "backstory_engine",
+  "short_description": "Provides historical context and summary to the AI.",
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc", "player"],
+      "definitions": {
+        "backstory_summary": { "value": "", "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "backstory_summary": { "label": "Character History", "control": "textarea", "group": "Identity", "default": "A stranger with no past." }
+      }
+    }
+  },
+  "ai_instructions": {
+    "mas2": {
+      "framing_instructions": "Use 'backstory_summary' to inform the character's knowledge and biases. Do not contradict facts established here."
+    }
+  }
+}
+```
+
+### 1.4 Core Skills System
 **Name:** D100 Skill System
 **Source:**
 
@@ -64,14 +164,16 @@ This library defines the core physics and narrative logic for the StoneCaster MV
   "name": "D100 Skill System",
   "ui_category": "foundation",
   "exclusion_group": "skill_engine",
-  "short_description": "The fundamental physics for skill checks.",
   "state_contributions": {
     "tier1_entity": {
       "target_kind": ["npc", "player"],
       "definitions": { 
-        "skills": {}, 
-        "xp_progress": 0,
-        "narrative_cues": { "last_action_quality": "Average" }
+        "skills": { "value": {}, "context_priority": "engine_private" }, 
+        "xp_progress": { "value": 0, "context_priority": "engine_private" }, 
+        "narrative_cues": { "value": { "last_action_quality": "Average" }, "context_priority": "ai_visible" } 
+      },
+      "form_hints": {
+        "skills": { "label": "Skill List", "control": "key_value_map", "group": "Capabilities", "default": {} }
       }
     }
   },
@@ -85,18 +187,17 @@ This library defines the core physics and narrative logic for the StoneCaster MV
         "if (roll <= target_val / 5) { narrative_cues.last_action_quality = 'Cinematic'; return 'critical_success' }",
         "if (roll <= target_val) { narrative_cues.last_action_quality = 'Competent'; return 'success' }",
         "narrative_cues.last_action_quality = 'Complicated'; return 'failure'"
-      ],
-      "effects": { "success": "xp_progress += 1" }
+      ]
     }
   },
   "ai_instructions": {
-    "mechanical_triggers": "If User action matches a key in 'entity.skills', trigger 'roll_skill(skill_id)'.",
-    "outcome_instructions": "Describe the action using the style defined in 'narrative_cues.last_action_quality'. (Cinematic=Flawless, Competent=Standard, Complicated=Setback)."
+    "mas1": { "mechanical_triggers": "If User action matches a key in 'entity.skills', trigger 'roll_skill(skill_id)'." },
+    "mas2": { "outcome_instructions": "Describe the action using the style defined in 'narrative_cues.last_action_quality'." }
   }
 }
 ```
 
-### 1.3 Conditions & Statuses
+### 1.5 Conditions & Statuses
 **Name:** Base Character Status System
 **Source:**
 
@@ -104,103 +205,69 @@ This library defines the core physics and narrative logic for the StoneCaster MV
 {
   "name": "Base Character Status System",
   "ui_category": "foundation",
-  "exclusion_group": "status_engine",
-  "short_description": "Manages temporary physical and emotional states.",
   "state_contributions": {
     "tier1_entity": {
       "target_kind": ["npc", "player"],
       "definitions": { 
-        "active_statuses": [],
-        "narrative_cues": { "dominant_emotion": null }
+        "active_statuses": { "value": [], "context_priority": "ai_visible" }, 
+        "narrative_cues": { "value": { "dominant_emotion": null }, "context_priority": "ai_visible" } 
+      },
+      "form_hints": {
+        "active_statuses": { "label": "Starting Statuses", "control": "array_object", "group": "Condition", "default": [] }
       }
     }
   },
   "actions": {
     "add_status": {
       "kind": "mechanical",
-      "params": { "status_id": "string", "severity": "number", "duration": "string" },
-      "logic": "active_statuses.push({ id: status_id, severity: severity, duration: duration })"
+      "params": { "status_id": "string", "severity": "number" },
+      "logic": "active_statuses.push({ id: status_id, severity: severity })"
     },
     "update_emotional_cues": {
-      "description": "Backend: Determines if a status is strong enough to dominate narration.",
       "kind": "system_auto",
       "trigger": "on_stat_change(active_statuses)",
       "logic": [
-        { "if": "active_statuses.some(s => s.severity > 3)", "then": "narrative_cues.dominant_emotion = active_statuses.find(s => s.severity > 3).id" },
-        { "if": "!active_statuses.some(s => s.severity > 3)", "then": "narrative_cues.dominant_emotion = null" }
+        { "if": "active_statuses.some(s => s.severity > 3)", "then": "narrative_cues.dominant_emotion = active_statuses.find(s => s.severity > 3).id" }
       ]
     }
   },
   "ai_instructions": {
-    "tone_instructions": "If 'narrative_cues.dominant_emotion' is set, that emotion must override all other tones."
+    "mas2": { "tone_instructions": "If 'narrative_cues.dominant_emotion' is set, that emotion must override all other tones." }
   }
 }
 ```
 
-### 1.4 Stamina & Exertion
-**Name:** Stamina & Exertion
+### 1.6 Cinematic Time Tracker
+**Name:** Cinematic Time Tracker
 **Source:**
 
 ```json
 {
-  "name": "Stamina & Exertion",
+  "name": "Cinematic Time Tracker",
   "ui_category": "foundation",
-  "exclusion_group": "base_energy_system",
-  "short_description": "Tracks physical energy and the toll of heavy activity.",
-  "state_contributions": {
-    "tier1_entity": {
-      "target_kind": ["npc", "player"],
-      "definitions": { 
-        "fatigue": { "current": 0, "max": 100 },
-        "narrative_cues": { "physical_state": "Fresh" }
-      }
-    }
-  },
-  "actions": {
-    "exertion": { "kind": "mechanical", "params": { "amount": "number" }, "logic": "fatigue.current += amount" },
-    "update_fatigue_cues": {
-      "description": "Backend: Translates fatigue number into descriptive state.",
-      "kind": "system_auto",
-      "trigger": "on_stat_change(fatigue)",
-      "logic": [
-        { "if": "fatigue.current < 50", "then": "narrative_cues.physical_state = 'Fresh'" },
-        { "if": "fatigue.current >= 50", "then": "narrative_cues.physical_state = 'Winded'" },
-        { "if": "fatigue.current >= 90", "then": "narrative_cues.physical_state = 'Exhausted'" }
-      ]
-    }
-  },
-  "ai_instructions": {
-    "tone_instructions": "Describe movement based on 'narrative_cues.physical_state'. (Winded=Heavy Breathing, Exhausted=Stumbling)."
-  }
-}
-```
-
-### 1.5 Environmental Context
-**Name:** Core Scene Tracker
-**Source:**
-
-```json
-{
-  "name": "Core Scene Tracker",
-  "ui_category": "foundation",
-  "exclusion_group": "scene_engine",
-  "short_description": "The world state tracking time, location, and atmosphere.",
   "state_contributions": {
     "tier1_global": {
       "definitions": {
-        "scene_context": { "location_id": "unknown", "time_band": "midday", "environment_tags": [], "entities_present": [] }
+        "time_state": { "value": { "ticks": 0, "band": "Morning" }, "context_priority": "engine_private" },
+        "narrative_cues": { "value": { "lighting": "Dim", "activity_level": "Low" }, "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "time_state.band": { "label": "Start Time", "control": "select", "options": ["Morning", "Midday", "Evening", "Night"], "default": "Morning" }
       }
     }
   },
   "actions": {
-    "set_context": {
+    "update_time_band": {
       "kind": "system_auto",
-      "params": { "key": "string", "value": "any" },
-      "logic": "scene_context[key] = value"
+      "trigger": "on_stat_change(time_state.ticks)",
+      "logic": [
+        { "if": "time_state.ticks < 10", "then": "time_state.band = 'Morning'; narrative_cues.lighting = 'Dawn'" },
+        { "if": "time_state.ticks >= 40", "then": "time_state.band = 'Night'; narrative_cues.lighting = 'Dark'" }
+      ]
     }
   },
   "ai_instructions": {
-    "framing_instructions": "Frame scenes using 'scene_context'. Lighting must match 'time_band'. NPC volume/tone must match 'environment_tags' (e.g., whispering in a 'quiet' library)."
+    "mas2": { "framing_instructions": "Establish scene lighting based on 'narrative_cues.lighting'." }
   }
 }
 ```
@@ -219,13 +286,16 @@ This library defines the core physics and narrative logic for the StoneCaster MV
   "name": "Relationship Dynamics",
   "ui_category": "expansion",
   "dependencies": ["Deep NPC Behaviors"],
-  "short_description": "Evolves raw numbers into meaningful relationships like 'Rival' or 'Friend'.",
+  "short_description": "Applies Friend/Rival tags based on complex thresholds.",
   "state_contributions": {
     "tier1_entity": {
       "target_kind": ["npc", "player"],
       "definitions": { 
-        "social_tags": [],
-        "narrative_cues": { "relationship_label": "Stranger" }
+        "social_tags": { "value": [], "context_priority": "ai_visible" },
+        "narrative_cues": { "value": { "relationship_label": "Stranger" }, "context_priority": "ai_visible" } 
+      },
+      "form_hints": {
+        "social_tags": { "label": "Initial Tags", "control": "tag_list", "default": [] }
       }
     }
   },
@@ -234,19 +304,80 @@ This library defines the core physics and narrative logic for the StoneCaster MV
       "kind": "system_auto",
       "trigger": "on_stat_change(relationships)",
       "logic": [
-        { "if": "relationships[target_id].affection > 70", "then": "add_tag('friend'); narrative_cues.relationship_label = 'Friend'" },
+        { "if": "relationships[target_id].affection > 70 && relationships[target_id].trust > 60", "then": "add_tag('friend'); narrative_cues.relationship_label = 'Friend'" },
         { "if": "relationships[target_id].respect > 80 && relationships[target_id].affection < 40", "then": "add_tag('rival'); narrative_cues.relationship_label = 'Rival'" },
-        { "if": "relationships[target_id].trust < 20 && has_tag('friend')", "then": "narrative_cues.relationship_label = 'Estranged'" }
+        { "if": "relationships[target_id].trust < 20 && has_tag('friend')", "then": "remove_tag('friend'); add_tag('estranged'); narrative_cues.relationship_label = 'Estranged'" }
       ]
     }
   },
   "ai_instructions": {
-    "tone_instructions": "Adopt the tone associated with 'narrative_cues.relationship_label'. (Rival=Competitive, Estranged=Cold, Friend=Warm)."
+    "mas2": { "tone_instructions": "Adopt the tone associated with 'narrative_cues.relationship_label'. (Rival=Competitive, Estranged=Cold, Friend=Warm)." }
   }
 }
 ```
 
-### 2.2 Influence & Manipulation
+### 2.2 Skill-Driven Behaviors
+**Name:** Skill-Driven Behaviors
+**Source:**
+**Depends On:** Behavior Intent Framework, D100 Skill System
+
+```json
+{
+  "name": "Skill-Driven Behaviors",
+  "ui_category": "expansion",
+  "dependencies": ["Behavior Intent Framework", "D100 Skill System"],
+  "short_description": "Allows skills to influence NPC decision making.",
+  "actions": {
+    "apply_skill_weights": {
+      "kind": "system_auto",
+      "trigger": "on_turn_start",
+      "logic": [
+        { "if": "skills.persuade > 50", "then": "intents.negotiate += 15" },
+        { "if": "skills.intimidate > 50", "then": "intents.challenge += 15" },
+        { "if": "skills.empathy > 50", "then": "intents.comfort += 15" }
+      ]
+    }
+  }
+}
+```
+
+### 2.3 Quirks & Traits
+**Name:** Quirks & Traits
+**Source:** New Request
+**Depends On:** Behavior Intent Framework
+
+```json
+{
+  "name": "Quirks & Traits",
+  "ui_category": "expansion",
+  "dependencies": ["Behavior Intent Framework"],
+  "short_description": "Adds flavor and micro-modifiers to behavior.",
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc"],
+      "definitions": { "quirks": { "value": [], "context_priority": "ai_visible" } },
+      "form_hints": {
+        "quirks": { "label": "Personality Quirks", "control": "tag_list", "options": ["Hot-Headed", "Shy", "Greedy"], "default": [], "group": "Personality" }
+      }
+    }
+  },
+  "actions": {
+    "apply_quirk_modifiers": {
+      "kind": "system_auto",
+      "trigger": "on_turn_start",
+      "logic": [
+        { "if": "quirks.includes('Hot-Headed')", "then": "intents.challenge += 10; intents.negotiate -= 10" },
+        { "if": "quirks.includes('Shy')", "then": "intents.withdraw += 10; intents.flirt -= 20" }
+      ]
+    }
+  },
+  "ai_instructions": {
+    "mas2": { "tone_instructions": "Incorporate the entity's 'quirks' into their dialogue style." }
+  }
+}
+```
+
+### 2.4 Social Skillset
 **Name:** Social Skillset
 **Source:**
 **Depends On:** D100 Skill System, Deep NPC Behaviors
@@ -256,13 +387,16 @@ This library defines the core physics and narrative logic for the StoneCaster MV
   "name": "Social Skillset",
   "ui_category": "expansion",
   "dependencies": ["D100 Skill System", "Deep NPC Behaviors"],
-  "short_description": "Unlocks active social abilities like Persuade, Intimidate, and Deceive.",
   "state_contributions": {
     "tier1_entity": {
       "target_kind": ["npc", "player"],
       "definitions": { 
-        "skills": { "persuade": 30, "intimidate": 30, "deceive": 30, "empathy": 30 },
-        "narrative_cues": { "target_reaction": null }
+        "skills": { "value": { "persuade": 30, "intimidate": 30, "deceive": 30, "empathy": 30 }, "context_priority": "engine_private" },
+        "narrative_cues": { "value": { "target_reaction": null }, "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "skills.persuade": { "label": "Persuasion", "control": "slider", "min": 0, "max": 100, "group": "Social Skills", "default": 30 },
+        "skills.intimidate": { "label": "Intimidation", "control": "slider", "min": 0, "max": 100, "group": "Social Skills", "default": 30 }
       }
     }
   },
@@ -270,69 +404,30 @@ This library defines the core physics and narrative logic for the StoneCaster MV
     "intimidate": {
       "kind": "interaction",
       "logic": "roll_skill('intimidate')",
-      "social_signature": { "aggression": 80, "sociability": 60 },
+      "social_signature": { "aggression": 80 },
       "effects": {
         "success": "modify_relationship(target_id, 'respect', 10); narrative_cues.target_reaction = 'Cower'",
         "failure": "modify_relationship(target_id, 'affection', -10); narrative_cues.target_reaction = 'Scoff'"
       }
     },
-    "persuade": {
+    "flirt": {
       "kind": "interaction",
       "logic": "roll_skill('persuade')",
-      "social_signature": { "sociability": 80, "aggression": 10 },
+      "social_signature": { "sociability": 80 },
       "effects": {
-        "success": "modify_relationship(target_id, 'trust', 10); narrative_cues.target_reaction = 'Agree'",
-        "failure": "narrative_cues.target_reaction = 'Doubt'"
+        "success": "modify_relationship(target_id, 'attraction', 10); narrative_cues.target_reaction = 'Blush'",
+        "failure": "modify_relationship(target_id, 'respect', -5); narrative_cues.target_reaction = 'Awkward'"
       }
     }
   },
   "ai_instructions": {
-    "intent_mappings": "Threats/Coercion -> 'intimidate'; Charm/Logic/Diplomacy -> 'persuade'.",
-    "outcome_instructions": "Describe the NPC's response based on 'narrative_cues.target_reaction'."
+    "mas1": { "intent_mappings": "Threats -> 'intimidate'; Flirting/Romance -> 'flirt'." },
+    "mas2": { "outcome_instructions": "Describe the NPC's response based on 'narrative_cues.target_reaction'." }
   }
 }
 ```
 
-### 2.3 NPC Motivations
-**Name:** NPC Motivations
-**Source:**
-**Depends On:** Deep NPC Behaviors
-
-```json
-{
-  "name": "NPC Motivations",
-  "ui_category": "expansion",
-  "dependencies": ["Deep NPC Behaviors"],
-  "short_description": "Gives NPCs the agency to form their own plans and desires.",
-  "state_contributions": {
-    "tier1_entity": {
-      "target_kind": ["npc"],
-      "definitions": {
-        "current_intent": null,
-        "intent_scores": { "intimidate": 0, "assist": 0 }
-      }
-    }
-  },
-  "actions": {
-    "assess_npc_intent": {
-      "kind": "system_auto",
-      "trigger": "on_turn_start",
-      "logic": [
-        { "if": "social_dna.aggression > 80", "then": "intent_scores.intimidate += 20" },
-        { "if": "social_dna.altruism > 70", "then": "intent_scores.assist += 30" },
-        { "if": "intent_scores.intimidate > intent_scores.assist", "then": "current_intent = 'Intimidate'" },
-        { "if": "intent_scores.assist > intent_scores.intimidate", "then": "current_intent = 'Assist'" }
-      ]
-    }
-  },
-  "ai_instructions": {
-    "mechanical_triggers": "Calculate 'intent_scores' strictly using Logic.",
-    "outcome_instructions": "Narrate the NPC acting out the 'current_intent'."
-  }
-}
-```
-
-### 2.4 Survival Needs
+### 2.5 Survival Needs
 **Name:** Survival Needs
 **Source:**
 **Depends On:** Stamina & Exertion
@@ -342,35 +437,36 @@ This library defines the core physics and narrative logic for the StoneCaster MV
   "name": "Survival Needs",
   "ui_category": "expansion",
   "dependencies": ["Stamina & Exertion"],
-  "short_description": "Converts fatigue into hunger and thirst mechanics.",
   "state_contributions": {
     "tier1_entity": {
       "target_kind": ["npc", "player"],
       "definitions": { 
-        "needs": { "hunger": 0, "thirst": 0 },
-        "narrative_cues": { "distraction_level": "None" }
+        "needs": { "value": { "hunger": 0, "thirst": 0 }, "context_priority": "engine_private" },
+        "narrative_cues": { "value": { "distraction_level": "None" }, "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "needs.hunger": { "label": "Hunger", "control": "slider", "min": 0, "max": 100, "group": "Needs", "default": 0 },
+        "needs.thirst": { "label": "Thirst", "control": "slider", "min": 0, "max": 100, "group": "Needs", "default": 0 }
       }
     }
   },
   "actions": {
     "check_needs": {
-      "description": "Backend: Updates distraction cues based on hunger.",
       "kind": "system_auto",
       "trigger": "on_scene_end",
       "logic": [
-        { "if": "fatigue.current > 70", "then": "needs.hunger += 10; needs.thirst += 10" },
-        { "if": "needs.hunger > 50", "then": "narrative_cues.distraction_level = 'Mild'" },
+        { "if": "fatigue.current > 70", "then": "needs.hunger += 10" },
         { "if": "needs.hunger > 80", "then": "narrative_cues.distraction_level = 'Severe'" }
       ]
     }
   },
   "ai_instructions": {
-    "tone_instructions": "Describe focus based on 'narrative_cues.distraction_level'. (Mild=Discomfort, Severe=Pain/Distraction)."
+    "mas2": { "tone_instructions": "Describe focus based on 'narrative_cues.distraction_level'." }
   }
 }
 ```
 
-### 2.5 Emotional Memory
+### 2.6 Emotional Memory
 **Name:** Emotional Memory
 **Source:**
 **Depends On:** Base Character Status System, Deep NPC Behaviors
@@ -380,13 +476,15 @@ This library defines the core physics and narrative logic for the StoneCaster MV
   "name": "Emotional Memory",
   "ui_category": "expansion",
   "dependencies": ["Base Character Status System", "Deep NPC Behaviors"],
-  "short_description": "Allows past events to leave lingering emotional scars or boons.",
   "state_contributions": {
     "tier1_entity": {
       "target_kind": ["npc", "player"],
       "definitions": { 
-        "emotional_memory": [],
-        "narrative_cues": { "recall_event": null }
+        "emotional_memory": { "value": [], "context_priority": "engine_private" }, 
+        "narrative_cues": { "value": { "recall_event": null }, "context_priority": "ai_visible" } 
+      },
+      "form_hints": {
+        "emotional_memory": { "label": "Memories", "control": "array_object", "group": "Backstory", "default": [] }
       }
     }
   },
@@ -400,7 +498,7 @@ This library defines the core physics and narrative logic for the StoneCaster MV
     }
   },
   "ai_instructions": {
-    "tone_instructions": "Reference the event in 'narrative_cues.recall_event' if it is not null."
+    "mas2": { "tone_instructions": "Reference the event in 'narrative_cues.recall_event' if it is not null." }
   }
 }
 ```
