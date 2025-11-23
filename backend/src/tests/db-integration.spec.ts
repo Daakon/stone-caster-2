@@ -28,6 +28,10 @@ const createMockSupabaseClient = () => {
         data: { definition: null },
         error: null,
       }),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: null, // Key doesn't exist (for uniqueness check)
+        error: null,
+      }),
       in: vi.fn().mockResolvedValue({
         data: [],
         error: null,
@@ -96,8 +100,19 @@ describe('RulesetsRepository Integration', () => {
         };
       });
 
+      // Mock the uniqueness check (select key to see if it exists)
+      const mockSelectForUniqueness = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: null, // Key doesn't exist (for uniqueness check)
+            error: null,
+          }),
+        }),
+      });
+
       (mockSupabase.from as any) = vi.fn(() => ({
         insert: mockInsert,
+        select: mockSelectForUniqueness,
       }));
 
       const id = await repository.create(mockRuleset);
@@ -147,8 +162,19 @@ describe('RulesetsRepository Integration', () => {
         };
       });
 
+      // Mock the uniqueness check
+      const mockSelectForUniqueness = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: null, // Key doesn't exist
+            error: null,
+          }),
+        }),
+      });
+
       (mockSupabase.from as any) = vi.fn(() => ({
         insert: mockInsert,
+        select: mockSelectForUniqueness,
       }));
 
       await repository.create(mockRuleset);
@@ -156,6 +182,94 @@ describe('RulesetsRepository Integration', () => {
       expect(capturedInsert.exclusion_group).toBeNull();
       expect(capturedInsert.ui_category).toBe('expansion');
       expect(capturedInsert.dependencies).toEqual(['rs_d100_core']);
+    });
+
+    it('should generate a unique key when id is empty', async () => {
+      const mockRuleset: RulesetDefinition = {
+        id: '', // Empty id should trigger key generation
+        name: 'Test Ruleset Name',
+        ui_category: 'foundation',
+        exclusion_group: null,
+        dependencies: [],
+        provides_tags: [],
+        state_contributions: {},
+        actions: {},
+        ai_instructions: {},
+      };
+
+      let capturedInsert: any = null;
+      const mockInsert = vi.fn().mockImplementation((data) => {
+        capturedInsert = data;
+        return {
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: 'test-id-789' },
+              error: null,
+            }),
+          }),
+        };
+      });
+
+      // Mock the uniqueness check - key doesn't exist (first attempt succeeds)
+      const mockSelectForUniqueness = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: null, // Key doesn't exist
+            error: null,
+          }),
+        }),
+      });
+
+      (mockSupabase.from as any) = vi.fn(() => ({
+        insert: mockInsert,
+        select: mockSelectForUniqueness,
+      }));
+
+      const id = await repository.create(mockRuleset);
+
+      // Verify a key was generated from the name
+      expect(capturedInsert).toBeDefined();
+      expect(capturedInsert.key).toBeTruthy();
+      expect(capturedInsert.key).toContain('test-ruleset-name'); // Generated from name
+      
+      // Verify the definition has the generated key
+      const storedDefinition = capturedInsert.definition as RulesetDefinition;
+      expect(storedDefinition.id).toBe(capturedInsert.key);
+      
+      expect(id).toBe('test-id-789');
+    });
+
+    it('should throw error when provided id already exists', async () => {
+      const mockRuleset: RulesetDefinition = {
+        id: 'existing-key',
+        name: 'Test Ruleset',
+        ui_category: 'foundation',
+        exclusion_group: null,
+        dependencies: [],
+        provides_tags: [],
+        state_contributions: {},
+        actions: {},
+        ai_instructions: {},
+      };
+
+      // Mock the uniqueness check - key already exists
+      const mockSelectForUniqueness = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { key: 'existing-key' }, // Key exists
+            error: null,
+          }),
+        }),
+      });
+
+      (mockSupabase.from as any) = vi.fn(() => ({
+        select: mockSelectForUniqueness,
+      }));
+
+      // Should throw error about duplicate key
+      await expect(repository.create(mockRuleset)).rejects.toThrow(
+        'Ruleset with key "existing-key" already exists'
+      );
     });
 
     it('should validate RulesetDefinition before inserting', async () => {
@@ -173,8 +287,19 @@ describe('RulesetsRepository Integration', () => {
         }),
       });
 
+      // Mock uniqueness check
+      const mockSelectForUniqueness = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: null,
+            error: null,
+          }),
+        }),
+      });
+
       (mockSupabase.from as any) = vi.fn(() => ({
         insert: mockInsert,
+        select: mockSelectForUniqueness,
       }));
 
       // Should throw validation error

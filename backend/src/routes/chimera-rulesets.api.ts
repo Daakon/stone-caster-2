@@ -200,10 +200,8 @@ router.get('/', async (req: Request, res: Response) => {
       // Filter by category
       rulesets = await repo.findByCategory(query.category);
     } else {
-      // Get all rulesets (by fetching all IDs - this is a limitation of current repo)
-      // For now, return empty array if no category specified
-      // TODO: Add listAll() method to repository
-      rulesets = [];
+      // Get all rulesets
+      rulesets = await repo.listAll();
     }
     
     return sendSuccess(res, rulesets, req);

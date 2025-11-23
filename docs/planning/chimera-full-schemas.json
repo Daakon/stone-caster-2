@@ -1,19 +1,56 @@
 {
-  "__comment": "CHIMERA V3.4 COMPLETE LIBRARY - Architecture + Full Standard Ruleset Catalog",
+  "__comment": "CHIMERA V3.5 COMPLETE LIBRARY - Backend-Logic Architecture + Schema Definitions",
 
   "0_SYSTEM_SCHEMAS": {
     "chimera_ruleset_schema": {
-      "description": "The strict definition for any module in the system.",
+      "description": "The strict definition for any module in the system. updated for v1.8 architecture.",
       "fields": {
-        "id": "Unique String (e.g., rs_d100_core)",
-        "name": "Display Name",
+        "name": "Display Name (ID is now system-managed)",
         "ui_category": "Enum: [foundation, expansion, flavor]",
         "exclusion_group": "String (Optional) - Only one allowed per group per story",
-        "dependencies": "Array[String] - IDs of rulesets that MUST be present",
+        "dependencies": "Array[String] - Names of rulesets that MUST be present",
         "provides_tags": "Array[String] - Metadata tags for the Compiler",
-        "state_contributions": "Object - Defines Tier 1 (Mechanical) keys",
-        "actions": "Object - Defines executable logic",
-        "ai_instructions": "Object - Prompts for MAS 1 and MAS 2"
+        
+        "state_contributions": {
+          "description": "Defines Tier 1 keys. Must use target filters.",
+          "structure": {
+            "tier1_entity": {
+              "target_kind": "Array[String] (e.g., ['npc', 'player'])",
+              "definitions": {
+                "__key_name": "Initial Value (e.g., fatigue: {current: 0, max: 100})",
+                "narrative_cues": "Object (Required for AI readability) - Stores derived state (e.g., social_tone: 'Hostile')"
+              }
+            },
+            "tier1_global": {
+              "definitions": "Object - Global state keys"
+            }
+          }
+        },
+
+        "actions": {
+          "description": "Defines executable logic (Mechanical, Interaction, or System Auto).",
+          "structure": {
+            "__action_key": {
+              "kind": "Enum: [mechanical, interaction, system_auto]",
+              "description": "String - Human readable tooltip",
+              "trigger": "String (Optional) - Event listener for system_auto (e.g., 'on_stat_change(fatigue)')",
+              "params": "Object - Required inputs (e.g., { amount: 'number' })",
+              "logic": "String (Math expression) OR Array (Conditional Objects: [{ if: '...', then: '...' }])",
+              "effects": "Object (Optional) - Side effects for interactions (e.g., { success: '...' })"
+            }
+          }
+        },
+
+        "ai_instructions": {
+          "description": "Semantic instructions for the Compiler. No logic allowed here.",
+          "fields": {
+            "intent_mappings": "(MAS1) Dictionary of User Verbs -> Data Keys",
+            "mechanical_triggers": "(MAS1) Rules for manual system triggers",
+            "tone_instructions": "(MAS2) How narrative_cues influence voice/mood",
+            "outcome_instructions": "(MAS2) How narrative_cues influence success/failure description",
+            "framing_instructions": "(MAS2) Environmental description rules"
+          }
+        }
       }
     }
   },
@@ -22,227 +59,183 @@
     
     "__comment_foundations": "=== STEP 1: FOUNDATIONS (THE HUBS) ===",
 
+    "rs_relationship_core": {
+      "name": "Deep NPC Behaviors",
+      "ui_category": "foundation",
+      "exclusion_group": "social_engine",
+      "provides_tags": ["mechanics_social"],
+      "description": "Tracks Personality DNA and ATR Model.",
+      "state_contributions": {
+        "tier1_entity": {
+          "target_kind": ["npc", "player"],
+          "definitions": {
+            "social_dna": { "honesty": 50, "order": 50, "altruism": 50, "aggression": 50, "sociability": 50, "curiosity": 50 },
+            "relationships": {},
+            "narrative_cues": { "social_tone": "Neutral" }
+          }
+        }
+      },
+      "actions": {
+        "modify_relationship": {
+          "kind": "mechanical",
+          "params": { "target_id": "string", "stat": "string", "amount": "number" },
+          "logic": "target.relationships[actor_id][stat] += amount"
+        },
+        "update_social_cues": {
+          "kind": "system_auto",
+          "trigger": "on_stat_change(relationships)",
+          "logic": [
+            { "if": "relationships[target_id].affection < 30", "then": "narrative_cues.social_tone = 'Hostile'" },
+            { "if": "relationships[target_id].trust > 70", "then": "narrative_cues.social_tone = 'Confiding'" }
+          ]
+        }
+      },
+      "ai_instructions": {
+        "intent_mappings": "Deception/Truth -> 'social_dna.honesty'; Violence/Peace -> 'social_dna.aggression'.",
+        "tone_instructions": "Adopt the 'social_tone' defined in narrative_cues."
+      }
+    },
+
     "rs_d100_core": {
-      "id": "rs_d100_core",
-      "name": "D100 Skill Engine",
+      "name": "D100 Skill System",
       "ui_category": "foundation",
       "exclusion_group": "skill_engine",
       "provides_tags": ["mechanics_d100", "skills"],
-      "description": "Percentile-based physics. Roll under Skill Level.",
-      "state_contributions": {
-        "tier1_entity": ["skills"]
-      }
-    },
-
-    "rs_d20_core": {
-      "id": "rs_d20_core",
-      "name": "D20 Attribute Engine",
-      "ui_category": "foundation",
-      "exclusion_group": "skill_engine",
-      "provides_tags": ["mechanics_d20", "attributes"],
-      "description": "Classic D20 physics. Roll + Modifier vs DC.",
-      "state_contributions": {
-        "tier1_entity": ["attributes"]
-      }
-    },
-
-    "rs_time_simple": {
-      "id": "rs_time_simple",
-      "name": "Day/Night Cycle",
-      "ui_category": "foundation",
-      "exclusion_group": "time_engine",
-      "provides_tags": ["mechanics_time"],
-      "state_contributions": {
-        "tier1_global": ["time"] 
-      }
-    },
-
-    "__comment_vitals": "=== STEP 2: VITALS & ATTRIBUTES (EXPANSIONS) ===",
-
-    "rs_attributes_classic": {
-      "id": "rs_attributes_classic",
-      "name": "Classic 6 Attributes",
-      "ui_category": "expansion",
-      "dependencies": [], 
-      "exclusion_group": "attribute_system",
       "state_contributions": {
         "tier1_entity": {
-          "attributes": { "str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10 }
+          "target_kind": ["npc", "player"],
+          "definitions": {
+            "skills": {},
+            "xp_progress": 0,
+            "narrative_cues": { "last_action_quality": "Average" }
+          }
         }
-      }
-    },
-
-    "rs_health_simple": {
-      "id": "rs_health_simple",
-      "name": "Standard HP",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "exclusion_group": "health_system",
-      "state_contributions": {
-        "tier1_entity": { "health": { "current": 100, "max": 100 } }
       },
       "actions": {
-        "take_damage": { "logic": "health.current -= amount" },
-        "heal": { "logic": "health.current += amount" }
-      }
-    },
-
-    "rs_health_locational": {
-      "id": "rs_health_locational",
-      "name": "Complex Limb Health",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "exclusion_group": "health_system",
-      "state_contributions": {
-        "tier1_entity": {
-          "limbs": { "head": 20, "torso": 50, "arms": 30, "legs": 30 }
+        "roll_skill": {
+          "kind": "interaction",
+          "params": { "skill_id": "string" },
+          "logic": [
+            "let target_val = skills[skill_id] || 10",
+            "let roll = 1d100",
+            "if (roll <= target_val / 5) { narrative_cues.last_action_quality = 'Cinematic'; return 'critical_success' }",
+            "if (roll <= target_val) { narrative_cues.last_action_quality = 'Competent'; return 'success' }",
+            "narrative_cues.last_action_quality = 'Complicated'; return 'failure'"
+          ],
+          "effects": { "success": "xp_progress += 1" }
         }
-      }
-    },
-
-    "rs_stamina_simple": {
-      "id": "rs_stamina_simple",
-      "name": "Action Stamina",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "exclusion_group": "stamina_system",
-      "state_contributions": {
-        "tier1_entity": { "stamina": { "current": 50, "max": 50 } }
-      }
-    },
-
-    "rs_mana_points": {
-      "id": "rs_mana_points",
-      "name": "Mana Pool",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "exclusion_group": "mana_system",
-      "state_contributions": {
-        "tier1_entity": { "mana": { "current": 20, "max": 20 } }
       },
       "ai_instructions": {
-        "mas2": "Describe magical exhaustion when mana is low."
+        "mechanical_triggers": "If User action matches a key in 'entity.skills', trigger 'roll_skill(skill_id)'.",
+        "outcome_instructions": "Describe the action using the style defined in 'narrative_cues.last_action_quality'."
       }
     },
 
-    "__comment_survival": "=== STEP 3: SURVIVAL & ENVIRONMENT (EXPANSIONS) ===",
-
-    "rs_survival_basic": {
-      "id": "rs_survival_basic",
-      "name": "Hunger & Thirst",
-      "ui_category": "expansion",
-      "dependencies": ["rs_time_simple"],
-      "description": "Requires Time Engine.",
-      "state_contributions": {
-        "tier1_entity": { "hunger": 0, "thirst": 0 }
-      },
-      "logic": {
-        "on_time_pass": { "action": "increase_needs", "params": { "rate": 5 } }
-      }
-    },
-
-    "rs_weather_basic": {
-      "id": "rs_weather_basic",
-      "name": "Dynamic Weather",
-      "ui_category": "expansion",
-      "dependencies": ["rs_time_simple"],
-      "state_contributions": {
-        "tier1_global": { "weather": "clear" }
-      }
-    },
-
-    "__comment_items": "=== STEP 4: INVENTORY & GEAR (EXPANSIONS) ===",
-
-    "rs_inventory_slots": {
-      "id": "rs_inventory_slots",
-      "name": "Slot-Based Inventory",
-      "ui_category": "expansion",
-      "exclusion_group": "inventory_system",
-      "state_contributions": {
-        "tier1_entity": { "inventory": { "capacity": 20, "items": [] } }
-      }
-    },
-
-    "rs_equipment_paperdoll": {
-      "id": "rs_equipment_paperdoll",
-      "name": "Standard Equipment",
-      "ui_category": "expansion",
-      "dependencies": ["rs_inventory_slots"],
+    "rs_stamina_core": {
+      "name": "Stamina & Exertion",
+      "ui_category": "foundation",
+      "exclusion_group": "base_energy_system",
       "state_contributions": {
         "tier1_entity": {
-          "equipment": { "head": null, "chest": null, "hands": null, "weapon": null }
+          "target_kind": ["npc", "player"],
+          "definitions": { 
+            "fatigue": { "current": 0, "max": 100 },
+            "narrative_cues": { "physical_state": "Fresh" }
+          }
         }
-      }
-    },
-
-    "__comment_meta": "=== STEP 5: META & WORLD (EXPANSIONS) ===",
-
-    "rs_progression_xp": {
-      "id": "rs_progression_xp",
-      "name": "XP & Leveling",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "state_contributions": {
-        "tier1_entity": { "xp": 0, "level": 1 }
-      }
-    },
-
-    "rs_factions_dynamic": {
-      "id": "rs_factions_dynamic",
-      "name": "Faction Reputation",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "state_contributions": {
-        "tier1_global": { "factions": {} }
-      }
-    },
-
-    "rs_quests_linear": {
-      "id": "rs_quests_linear",
-      "name": "Quest Tracker",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "state_contributions": {
-        "tier1_global": { "quest_log": { "active": [], "completed": [] } }
-      }
-    },
-
-    "__comment_flavor": "=== STEP 6: FLAVOR (THEMES) ===",
-
-    "rs_theme_gothic": {
-      "id": "rs_theme_gothic",
-      "name": "Gothic Horror Theme",
-      "ui_category": "flavor",
-      "dependencies": [],
+      },
+      "actions": {
+        "exertion": { "kind": "mechanical", "params": { "amount": "number" }, "logic": "fatigue.current += amount" },
+        "update_fatigue_cues": {
+          "kind": "system_auto",
+          "trigger": "on_stat_change(fatigue)",
+          "logic": [
+            { "if": "fatigue.current < 50", "then": "narrative_cues.physical_state = 'Fresh'" },
+            { "if": "fatigue.current >= 50", "then": "narrative_cues.physical_state = 'Winded'" }
+          ]
+        }
+      },
       "ai_instructions": {
-        "mas2": "Use a lexicon of decay, shadows, and psychological tension."
+        "tone_instructions": "Describe movement based on 'narrative_cues.physical_state'."
       }
     },
 
-    "rs_theme_steampunk": {
-      "id": "rs_theme_steampunk",
-      "name": "Steampunk Aesthetics",
-      "ui_category": "flavor",
-      "dependencies": [],
+    "__comment_expansions": "=== STEP 2: EXPANSIONS (THE SPOKES) ===",
+
+    "rs_social_skills": {
+      "name": "Social Skillset",
+      "ui_category": "expansion",
+      "dependencies": ["D100 Skill System", "Deep NPC Behaviors"],
+      "state_contributions": {
+        "tier1_entity": {
+          "target_kind": ["npc", "player"],
+          "definitions": { 
+            "skills": { "persuade": 30, "intimidate": 30 },
+            "narrative_cues": { "target_reaction": null }
+          }
+        }
+      },
+      "actions": {
+        "intimidate": {
+          "kind": "interaction",
+          "logic": "roll_skill('intimidate')",
+          "social_signature": { "aggression": 80 },
+          "effects": {
+            "success": "modify_relationship(target_id, 'respect', 10); narrative_cues.target_reaction = 'Cower'",
+            "failure": "modify_relationship(target_id, 'affection', -10); narrative_cues.target_reaction = 'Scoff'"
+          }
+        }
+      },
       "ai_instructions": {
-        "mas2": "Describe technology with brass, steam, and gears."
+        "intent_mappings": "Threats/Coercion -> 'intimidate'; Charm/Logic -> 'persuade'.",
+        "outcome_instructions": "Describe the NPC's response based on 'narrative_cues.target_reaction'."
+      }
+    },
+
+    "rs_survival_needs": {
+      "name": "Survival Needs",
+      "ui_category": "expansion",
+      "dependencies": ["Stamina & Exertion"],
+      "state_contributions": {
+        "tier1_entity": {
+          "target_kind": ["npc", "player"],
+          "definitions": { 
+            "needs": { "hunger": 0, "thirst": 0 },
+            "narrative_cues": { "distraction_level": "None" }
+          }
+        }
+      },
+      "actions": {
+        "check_needs": {
+          "kind": "system_auto",
+          "trigger": "on_scene_end",
+          "logic": [
+            { "if": "fatigue.current > 70", "then": "needs.hunger += 10; needs.thirst += 10" },
+            { "if": "needs.hunger > 50", "then": "narrative_cues.distraction_level = 'Mild'" },
+            { "if": "needs.hunger > 80", "then": "narrative_cues.distraction_level = 'Severe'" }
+          ]
+        }
+      },
+      "ai_instructions": {
+        "tone_instructions": "Describe focus based on 'narrative_cues.distraction_level'. (Mild=Discomfort, Severe=Pain)."
       }
     }
   },
 
   "2_COMPILER_ARTIFACTS": {
     "compiled_story_example": {
-      "description": "Example of a fully compiled story using the above rulesets.",
+      "description": "Example of a fully compiled story using the v1.8 Architecture.",
       "meta": {
-        "active_rulesets": ["rs_d100_core", "rs_time_simple", "rs_health_simple", "rs_survival_basic", "rs_theme_gothic"],
-        "tags": ["mechanics_d100", "mechanics_time", "theme_horror"]
+        "active_rulesets": ["Deep NPC Behaviors", "D100 Skill System"],
+        "tags": ["mechanics_d100", "mechanics_social"]
       },
       "master_schema": {
-        "tier1_allowlist": ["skills", "time", "health", "hunger", "thirst"],
-        "actions_map": {
-          "take_damage": "rs_health_simple",
-          "eat": "rs_survival_basic"
-        }
+        "tier1_allowlist": ["skills", "xp_progress", "social_dna", "relationships", "narrative_cues"],
+        "intent_mappings": {
+          "threaten": "intimidate",
+          "charm": "persuade"
+        },
+        "system_triggers": ["on_stat_change(relationships)", "on_turn_start"]
       }
     }
   }

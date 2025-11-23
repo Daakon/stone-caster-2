@@ -94,6 +94,16 @@ export const RulesetDefinitionSchema = z.object({
   name: z.string().min(1),
 
   /**
+   * Short description (max 255 chars) - shown in lists and dependency views
+   */
+  description_short: z.string().max(255).optional().nullable(),
+
+  /**
+   * Long description (max 2000 chars) - shown in detail views
+   */
+  description_long: z.string().max(2000).optional().nullable(),
+
+  /**
    * UI category classification
    */
   ui_category: z.enum(['foundation', 'expansion', 'flavor']),
