@@ -65,6 +65,11 @@ export const WorldDefinitionSchema = z.object({
   images: z.array(ChimeraAssetRefSchema).default([]),
 
   /**
+   * Array of tags for categorizing and filtering worlds
+   */
+  tags: z.array(z.string()).default([]),
+
+  /**
    * Character schema extensions specific to this world
    * Allows worlds to define custom character properties
    */

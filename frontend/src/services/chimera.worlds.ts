@@ -26,6 +26,8 @@ export interface CreateWorldData {
   character_schema_contributions?: Record<string, unknown>;
   ruleset_template_ids?: string[];
   tag_names?: string[];
+  tags?: string[]; // Direct tags array
+  images?: Array<{ path: string; alt?: string }>; // Image references
 }
 
 export interface UpdateWorldData extends Partial<CreateWorldData> {}

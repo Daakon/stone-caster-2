@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArrowLeft, ArrowRight, Loader2, Sparkles, AlertTriangle, Zap } from 'lucide-react';
 import { getWorlds, getRulesets, getEntities, compileStory } from '@/services/chimera-api';
+import { apiFetch } from '@/lib/api';
 import { startGame } from '@/services/game-client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -52,10 +53,29 @@ export function CastingWizard() {
   const currentStepIndex = STEPS.indexOf(currentStep);
   const progress = ((currentStepIndex + 1) / STEPS.length) * 100;
 
-  // Fetch data
+  // Map intent to tag for API filtering
+  const intentToTagMap: Record<IntentGenre, string | undefined> = {
+    'high-fantasy': 'fantasy',
+    'sci-fi': 'sci-fi',
+    'horror': 'horror',
+    'survival': 'survival',
+    'custom': undefined,
+  };
+  
+  const tag = intent ? intentToTagMap[intent] : undefined;
+
+  // Fetch data with tag filtering if intent is set
   const { data: worlds, isLoading: isLoadingWorlds } = useQuery({
-    queryKey: ['chimera-worlds'],
-    queryFn: () => getWorlds(),
+    queryKey: ['chimera-worlds-selectable', tag],
+    queryFn: async () => {
+      // Use selectable worlds endpoint with tag filter
+      const url = `/api/v2/chimera/worlds/selectable${tag ? `?tag=${encodeURIComponent(tag)}` : ''}`;
+      const result = await apiFetch<WorldDefinition[]>(url);
+      if (!result.ok) {
+        throw new Error(result.error.message || 'Failed to fetch worlds');
+      }
+      return result.data || [];
+    },
     staleTime: 30 * 1000,
   });
 
@@ -71,33 +91,8 @@ export function CastingWizard() {
     staleTime: 30 * 1000,
   });
 
-  // Filter worlds by intent
-  const filteredWorlds = useMemo(() => {
-    if (!worlds) return [];
-    if (!intent || intent === 'custom') return worlds;
-
-    // Filter worlds by genre tags (assuming worlds have tags or genre metadata)
-    return worlds.filter((world) => {
-      const worldDef = world as any;
-      const tags = worldDef.tags || [];
-      const genre = worldDef.genre || '';
-      
-      // Match intent to tags/genre
-      const intentMap: Record<IntentGenre, string[]> = {
-        'high-fantasy': ['fantasy', 'high-fantasy', 'magic', 'medieval'],
-        'sci-fi': ['sci-fi', 'science-fiction', 'space', 'futuristic', 'technology'],
-        'horror': ['horror', 'dark', 'gothic', 'thriller'],
-        'survival': ['survival', 'post-apocalyptic', 'resource-management'],
-        'custom': [],
-      };
-
-      const matchingTags = intentMap[intent] || [];
-      return matchingTags.some((tag) => 
-        tags.some((t: string) => t.toLowerCase().includes(tag.toLowerCase())) ||
-        genre.toLowerCase().includes(tag.toLowerCase())
-      );
-    });
-  }, [worlds, intent]);
+  // Worlds are already filtered by API based on intent/tag
+  const filteredWorlds = worlds || [];
 
   // Handle intent selection
   const handleIntentSelect = (selectedIntent: IntentGenre) => {

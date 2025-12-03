@@ -34,6 +34,7 @@ const CreateWorldSchema = z.object({
   character_schema_contributions: z.record(z.unknown()).optional().default({}),
   ruleset_template_ids: z.array(z.string()).default([]),
   tag_names: z.array(z.string()).default([]),
+  tags: z.array(z.string()).optional().default([]), // Direct tags array on world
 });
 
 // UpdateWorldSchema explicitly excludes visibility - it can only be changed via publish endpoint
@@ -170,6 +171,7 @@ router.post(
         description_short: worldData.description_short,
         description_long: worldData.description_long,
         visibility: 'private', // Always private for new worlds
+        tags: worldData.tags || [], // Store tags directly on world
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -361,6 +363,8 @@ router.post(
 /**
  * GET /api/v2/chimera/worlds/selectable
  * Get all selectable worlds (public or owned by user)
+ * Query params:
+ *   - tag: Filter worlds by tag (e.g., ?tag=fantasy)
  */
 router.get(
   '/selectable',
@@ -376,11 +380,19 @@ router.get(
         );
       }
 
-      const { data, error } = await supabaseAdmin
+      const tag = req.query.tag as string | undefined;
+
+      let query = supabaseAdmin
         .from('chimera_worlds')
         .select('*')
-        .or(`visibility.eq.public,owner_user_id.eq.${userId}`)
-        .order('name', { ascending: true });
+        .or(`visibility.eq.public,owner_user_id.eq.${userId}`);
+
+      // Filter by tag if provided
+      if (tag) {
+        query = query.contains('tags', [tag]);
+      }
+
+      const { data, error } = await query.order('name', { ascending: true });
 
       if (error) {
         console.error('[Chimera Worlds] Error fetching selectable worlds:', error);
@@ -722,7 +734,12 @@ router.put(
 
       // Update world fields (excluding ruleset_template_ids, tag_names, and visibility)
       // Visibility can only be changed via a separate publish endpoint, not through this update endpoint
-      const { ruleset_template_ids, tag_names, visibility, ...worldUpdateData } = updateData;
+      const { ruleset_template_ids, tag_names, visibility, tags, ...worldUpdateData } = updateData;
+      
+      // Handle tags if provided
+      if (tags !== undefined) {
+        worldUpdateData.tags = tags;
+      }
       
       // Map display_name to name for database
       const dbUpdateData: any = { ...worldUpdateData };

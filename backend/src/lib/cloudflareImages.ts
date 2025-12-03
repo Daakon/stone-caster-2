@@ -45,14 +45,22 @@ export async function requestDirectUpload(
 
   // Cloudflare Images direct upload endpoint
   // Request an upload URL that the client will use to upload the image directly
+  // Note: v1 endpoint is still supported and working; v2 may have different requirements
   const url = `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/images/v1/direct_upload`;
 
   // Build request body - only include if we have metadata
+  // Cloudflare v1 API accepts requests with or without body
   const requestBody: Record<string, unknown> | null = opts?.metadata && Object.keys(opts.metadata).length > 0
     ? { metadata: opts.metadata }
     : null;
 
   try {
+    // Validate API token format (API tokens are typically longer than signature tokens)
+    // Signature tokens are ~32 chars, API tokens are usually 40+ chars
+    if (config.apiToken.length < 35) {
+      console.warn('[Cloudflare Images] API token appears to be too short. Make sure you\'re using an API Token from "My Profile > API Tokens", not a signature token from the Images dashboard.');
+    }
+
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${config.apiToken}`,
     };
@@ -62,11 +70,11 @@ export async function requestDirectUpload(
       headers['Content-Type'] = 'application/json';
     }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: requestBody ? JSON.stringify(requestBody) : undefined,
-      });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: requestBody ? JSON.stringify(requestBody) : undefined,
+    });
 
       const data = await response.json() as any;
 
@@ -75,6 +83,30 @@ export async function requestDirectUpload(
         const errorMessage =
           data.errors?.[0]?.message || data.message || `HTTP ${response.status}`;
         const errorCode = response.status;
+
+        // Log detailed error for debugging (but don't expose sensitive info)
+        console.error('[Cloudflare Images] API Error:', {
+          code: errorCode,
+          message: errorMessage,
+          accountId: config.accountId ? `${config.accountId.substring(0, 8)}...` : 'missing',
+          hasApiToken: !!config.apiToken,
+          errors: data.errors,
+        });
+
+        // Provide helpful error message for common issues
+        if (errorCode === 401 || errorCode === 403 || (data.errors?.[0]?.code === 5403) || errorMessage.toLowerCase().includes('authenticate')) {
+          throw new CloudflareImagesError(
+            errorCode,
+            `Cloudflare Images authentication failed. Please verify:
+1. CF_ACCOUNT_ID matches your Cloudflare account ID (found in dashboard URL or account details)
+2. CF_API_TOKEN is an API Token created in "My Profile > API Tokens" (NOT a signature token from Images > Keys)
+3. The API token has "Cloudflare Images:Edit" permission
+4. The API token is scoped to the correct account
+
+Original error: ${errorMessage}`,
+            data.errors
+          );
+        }
 
         throw new CloudflareImagesError(
           errorCode,

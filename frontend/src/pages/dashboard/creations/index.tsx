@@ -172,18 +172,8 @@ export default function MyCreationsDashboard() {
   };
 
   const handleCreateStory = async () => {
-    setCreatingStory(true);
-    try {
-      const newStory = await chimeraStoriesService.createDraftStory();
-      await queryClient.invalidateQueries({ queryKey: ['chimera-my-stories'] });
-      toast.success('Draft story created');
-      navigate(`/dashboard/stories/${newStory.id}/studio`);
-    } catch (error) {
-      console.error('Error creating draft story:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create draft story');
-    } finally {
-      setCreatingStory(false);
-    }
+    // Navigate to the Casting Circle wizard instead of creating a draft story
+    navigate('/casting-circle');
   };
 
   const handleDeleteStory = async (id: string, displayName: string) => {
