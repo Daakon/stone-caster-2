@@ -25,6 +25,53 @@ const StartSessionRequestSchema = z.object({
 });
 
 /**
+ * GET /api/chimera/play/:gameStateId
+ * Get the current game state
+ */
+router.get(
+  '/:gameStateId',
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      const { gameStateId } = req.params;
+
+      if (!gameStateId || !z.string().uuid().safeParse(gameStateId).success) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.VALIDATION_FAILED,
+          'Invalid game state ID',
+          req
+        );
+      }
+
+      const supabase = getChimeraSupabaseClient(req);
+      const storiesRepo = new StoriesRepository(supabase);
+
+      const gameState = await storiesRepo.loadGameState(gameStateId);
+
+      if (!gameState) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.NOT_FOUND,
+          'Game state not found',
+          req
+        );
+      }
+
+      return sendSuccess(res, gameState, req);
+    } catch (error) {
+      console.error('[Chimera Play] Error loading game state:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        error instanceof Error ? error.message : 'Failed to load game state',
+        req
+      );
+    }
+  }
+);
+
+/**
  * POST /api/chimera/play/:gameStateId/cast
  * Execute the game loop: process player input through MAS1 -> Engine -> MAS2
  */

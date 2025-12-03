@@ -273,3 +273,49 @@ export async function compileStory(
   return { compiledStoryId: result.data!.id };
 }
 
+/**
+ * Get a compiled story by ID
+ */
+export async function getCompiledStory(id: string): Promise<import('@shared/types/chimera-compiled').CompiledStory> {
+  const result = await apiFetch<import('@shared/types/chimera-compiled').CompiledStory>(`/api/chimera/stories/${id}`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to fetch compiled story');
+  }
+  return result.data!;
+}
+
+/**
+ * Initialize a game from a compiled story
+ */
+export interface InitializeGameRequest {
+  storyId: string;
+  playerInput: {
+    identity: {
+      name: string;
+      pronouns?: string;
+      role?: string;
+      age?: number;
+    };
+    appearance?: Record<string, unknown>;
+    backstory?: string;
+    personality_traits?: string[];
+    drive?: string;
+    flaw?: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface InitializeGameResponse {
+  gameStateId: string;
+}
+
+export async function initializeGame(
+  data: InitializeGameRequest
+): Promise<InitializeGameResponse> {
+  const result = await apiPost<{ id: string }>('/api/chimera/game/init', data);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to initialize game');
+  }
+  return { gameStateId: result.data!.id };
+}
+

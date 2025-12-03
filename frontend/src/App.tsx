@@ -21,6 +21,7 @@ import StoryDetailPage from './pages/stories/StoryDetailPage';
 import StartStoryPage from './pages/play/StartStoryPage';
 import PlayPage from './pages/play/GameStatePage';
 import CharacterCreationPage from './pages/play/CharacterCreationPage';
+import CharacterCreatorPageV2 from './pages/play/create/CharacterCreatorPage';
 import PlayerGatewayPage from './pages/play/PlayerGatewayPage';
 import WorldsPage from './pages/worlds/WorldsPage';
 import NPCsPage from './pages/npcs/NPCsPage';
@@ -51,11 +52,11 @@ import ChimeraWorldsPage from './pages/dashboard/WorldsPage';
 import ChimeraEntitiesPage from './pages/dashboard/EntitiesPage';
 import CastingCircleWizard from './pages/casting-circle/CastingCircleWizard';
 import GameView from './pages/play/GameView';
+import GamePage from './pages/play/GamePage';
 import MyWorldsPage from './pages/my/worlds';
 import MyStoriesPage from './pages/my/stories';
 import MyNPCsPage from './pages/my/npcs';
 import SupportPage from './pages/SupportPage';
-import GamePage from './pages/GamePage';
 import UnifiedGamePage from './pages/UnifiedGamePage';
 import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
@@ -178,7 +179,12 @@ function App() {
                 } />
                 <Route path="/play/:gameStateId" element={
                   <EarlyAccessRoute>
-                    <GameView />
+                    <GamePage />
+                  </EarlyAccessRoute>
+                } />
+                <Route path="/play/create/:storyId" element={
+                  <EarlyAccessRoute>
+                    <CharacterCreatorPageV2 />
                   </EarlyAccessRoute>
                 } />
                 <Route path="/create-character/:storyId" element={

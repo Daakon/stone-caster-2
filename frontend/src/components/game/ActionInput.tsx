@@ -61,9 +61,15 @@ export function ActionInput({ onSend, disabled = false }: ActionInputProps) {
         className="self-end"
       >
         {isProcessing ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Casting...
+          </>
         ) : (
-          <Send className="h-4 w-4" />
+          <>
+            <Send className="h-4 w-4 mr-2" />
+            Cast
+          </>
         )}
       </Button>
     </form>

@@ -4,7 +4,7 @@
  * Multi-step wizard for creating a new game configuration
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { ForcesSelector } from '@/components/chimera/ForcesSelector';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import type { WorldDefinition, RulesetDefinition, EntityTemplate } from '@shared/types/chimera-authoring';
+import { useCastingStore } from '@/stores/useCastingStore';
 
 type WizardStep = 'world' | 'forces' | 'elements' | 'summary';
 
@@ -38,13 +39,12 @@ const STEP_LABELS: Record<WizardStep, string> = {
 export default function CastingCircleWizard() {
   const navigate = useNavigate();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [state, setState] = useState<WizardState>({
-    worldId: null,
-    rulesetIds: new Set(),
-    entityIds: new Set(),
-  });
   const [isCompiling, setIsCompiling] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+
+  // Use casting store for state management
+  const store = useCastingStore();
+  const { worldId, selectedRulesetIds, entityIds, setWorld, toggleEntity } = store;
 
   const currentStep = STEPS[currentStepIndex];
   const progress = ((currentStepIndex + 1) / STEPS.length) * 100;
@@ -68,24 +68,30 @@ export default function CastingCircleWizard() {
     staleTime: 30 * 1000,
   });
 
+  // Sync store with world selection
   const handleWorldSelect = (worldId: string) => {
-    setState((prev) => ({ ...prev, worldId }));
+    setWorld(worldId, worlds || [], rulesets || []);
   };
 
+  // Sync store with ruleset changes from ForcesSelector
   const handleRulesetsChange = (rulesetIds: Set<string>) => {
-    setState((prev) => ({ ...prev, rulesetIds }));
+    // The store already manages this, but we need to ensure sync
+    // ForcesSelector will call store methods directly
   };
 
   const handleEntityToggle = (entityId: string, checked: boolean) => {
-    setState((prev) => {
-      const newEntityIds = new Set(prev.entityIds);
-      if (checked) {
-        newEntityIds.add(entityId);
-      } else {
-        newEntityIds.delete(entityId);
-      }
-      return { ...prev, entityIds: newEntityIds };
-    });
+    if (checked) {
+      toggleEntity(entityId);
+    } else {
+      toggleEntity(entityId); // Toggle removes if already selected
+    }
+  };
+
+  // Sync store state to local state for compatibility
+  const state: WizardState = {
+    worldId,
+    rulesetIds: selectedRulesetIds,
+    entityIds,
   };
 
   const handleNext = () => {
@@ -105,11 +111,12 @@ export default function CastingCircleWizard() {
       case 'world':
         return state.worldId !== null;
       case 'forces':
-        return state.rulesetIds.size > 0;
+        // Must have at least one foundation selected
+        return store.selectedFoundationId !== null && state.rulesetIds.size > 0;
       case 'elements':
         return true; // Elements are optional
       case 'summary':
-        return state.worldId !== null && state.rulesetIds.size > 0;
+        return state.worldId !== null && store.selectedFoundationId !== null && state.rulesetIds.size > 0;
       default:
         return false;
     }

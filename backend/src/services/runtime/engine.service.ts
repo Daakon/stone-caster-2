@@ -31,8 +31,17 @@ export class EngineService {
       };
     }
 
-    // Parse action definition
-    const action = actionDef as Record<string, unknown>;
+    // Parse action definition (may be JSON string or object)
+    let action: Record<string, unknown>;
+    if (typeof actionDef === 'string') {
+      try {
+        action = JSON.parse(actionDef);
+      } catch {
+        action = { logic: actionDef };
+      }
+    } else {
+      action = actionDef as Record<string, unknown>;
+    }
     
     // Extract action logic (e.g., "1d20 + str vs 15")
     const logic = action.logic as string | undefined;
@@ -40,9 +49,9 @@ export class EngineService {
     let success = false;
     let outcomeSummary = '';
 
-    if (logic) {
+    if (logic && logic !== 'none') {
       // Parse dice codes and resolve action
-      const result = this.parseAndResolveLogic(logic, gameState, mas1Result.parameters);
+      const result = this.parseAndResolveLogic(logic, gameState, mas1Result.parameters, actionSlug, mas1Result, action);
       success = result.success;
       outcomeSummary = result.summary;
       Object.assign(numericDeltas, result.deltas);
@@ -78,7 +87,10 @@ export class EngineService {
   private parseAndResolveLogic(
     logic: string,
     gameState: GameState,
-    parameters: Record<string, unknown>
+    parameters: Record<string, unknown>,
+    actionSlug: string,
+    mas1Result: Mas1ResponseDto,
+    actionDef: Record<string, unknown>
   ): { success: boolean; summary: string; deltas: Record<string, number> } {
     // Parse dice codes: (\d+)d(\d+)
     const dicePattern = /(\d+)d(\d+)/g;
@@ -156,11 +168,23 @@ export class EngineService {
     // Calculate deltas based on success/failure
     const deltas: Record<string, number> = {};
     
-    // Extract damage/healing from logic or parameters
-    if (parameters.damage && typeof parameters.damage === 'number') {
-      deltas.hp = success ? -parameters.damage : 0;
-    } else if (parameters.healing && typeof parameters.healing === 'number') {
-      deltas.hp = success ? parameters.healing : 0;
+    // Extract damage/healing from action definition, parameters, or default
+    const damage = (actionDef.damage as number) || (parameters.damage as number);
+    const healing = (actionDef.healing as number) || (parameters.healing as number);
+    
+    if (damage && typeof damage === 'number') {
+      const target = (mas1Result.parameters.target as string) || (parameters.target as string) || 'enemy';
+      const deltaPath = `entities.${target}.stats.hp`;
+      deltas[deltaPath] = success ? -damage : 0;
+    } else if (healing && typeof healing === 'number') {
+      const target = (mas1Result.parameters.target as string) || (parameters.target as string) || 'player';
+      const deltaPath = `entities.${target}.stats.hp`;
+      deltas[deltaPath] = success ? healing : 0;
+    } else if (actionSlug === 'attack' && success) {
+      // Default attack damage if not specified - roll 1d6
+      const target = (mas1Result.parameters.target as string) || 'enemy';
+      const rolledDamage = this.rollDice('1d6');
+      deltas[`entities.${target}.stats.hp`] = -rolledDamage;
     }
 
     return { success, summary, deltas };
@@ -187,6 +211,35 @@ export class EngineService {
 
     // Default to 0 if not found
     return 0;
+  }
+
+  /**
+   * Roll dice from a dice code string (e.g., "1d6", "2d8+3")
+   */
+  private rollDice(diceCode: string): number {
+    const dicePattern = /(\d+)d(\d+)/;
+    const match = diceCode.match(dicePattern);
+    
+    if (!match) {
+      return 0;
+    }
+
+    const count = parseInt(match[1], 10);
+    const sides = parseInt(match[2], 10);
+    let total = 0;
+
+    for (let i = 0; i < count; i++) {
+      total += Math.floor(Math.random() * sides) + 1;
+    }
+
+    // Extract modifiers
+    const modifierMatch = diceCode.match(/[+-]\s*(\d+)/);
+    if (modifierMatch) {
+      const modifier = parseInt(modifierMatch[0].replace(/\s+/g, ''), 10);
+      total += modifier;
+    }
+
+    return total;
   }
 }
 

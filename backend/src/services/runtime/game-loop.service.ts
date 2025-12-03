@@ -71,7 +71,7 @@ export class GameLoopService {
     const engineResult = await this.engine.execute(mas1Result, gameState, actionsMap);
 
     // Step 4: Call MAS2 (Narrator)
-    const mas2Result = await this.mas2.narrate(engineResult, gameState);
+    const mas2Result = await this.mas2.narrate(engineResult, gameState, mas1Result.action_slug);
 
     // Step 5: State Reducer - Apply deltas
     const updatedState = this.applyStateUpdates(gameState, engineResult, mas2Result);
@@ -140,26 +140,36 @@ export class GameLoopService {
 
   /**
    * Apply state updates from engine and MAS2 results
+   * Supports deep path updates (e.g., "entities.enemy.stats.hp")
    */
   private applyStateUpdates(
     currentState: GameState,
     engineResult: EngineResultDto,
     mas2Result: Mas2ResponseDto
   ): GameState {
+    // Deep clone to avoid mutations
     const updatedState: GameState = {
-      tier1_mechanical: { ...currentState.tier1_mechanical },
-      tier0_narrative: { ...currentState.tier0_narrative },
+      tier1_mechanical: JSON.parse(JSON.stringify(currentState.tier1_mechanical)),
+      tier0_narrative: JSON.parse(JSON.stringify(currentState.tier0_narrative)),
     };
 
     // Apply Tier 1 (Mechanical) deltas from Engine
-    for (const [key, delta] of Object.entries(engineResult.numeric_deltas)) {
-      const currentValue = updatedState.tier1_mechanical[key];
+    // Support deep paths like "entities.enemy.stats.hp"
+    for (const [path, delta] of Object.entries(engineResult.numeric_deltas)) {
       const deltaNum = typeof delta === 'number' ? delta : 0;
-      if (typeof currentValue === 'number') {
-        updatedState.tier1_mechanical[key] = currentValue + deltaNum;
+      
+      if (path.includes('.')) {
+        // Deep path update (e.g., "entities.enemy.stats.hp")
+        this.setDeepValue(updatedState.tier1_mechanical, path, deltaNum);
       } else {
-        // Initialize if doesn't exist
-        updatedState.tier1_mechanical[key] = deltaNum;
+        // Simple path update
+        const currentValue = updatedState.tier1_mechanical[path];
+        if (typeof currentValue === 'number') {
+          updatedState.tier1_mechanical[path] = currentValue + deltaNum;
+        } else {
+          // Initialize if doesn't exist
+          updatedState.tier1_mechanical[path] = deltaNum;
+        }
       }
     }
 
@@ -169,6 +179,33 @@ export class GameLoopService {
     }
 
     return GameStateSchema.parse(updatedState);
+  }
+
+  /**
+   * Set a value at a deep path in an object, creating intermediate objects as needed
+   * Supports paths like "entities.enemy.stats.hp"
+   */
+  private setDeepValue(obj: Record<string, unknown>, path: string, delta: number): void {
+    const parts = path.split('.');
+    let current: Record<string, unknown> = obj;
+
+    // Navigate/create path except for the last part
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part] || typeof current[part] !== 'object') {
+        current[part] = {};
+      }
+      current = current[part] as Record<string, unknown>;
+    }
+
+    // Set the final value (add delta to existing value or initialize)
+    const finalKey = parts[parts.length - 1];
+    const currentValue = current[finalKey];
+    if (typeof currentValue === 'number') {
+      current[finalKey] = currentValue + delta;
+    } else {
+      current[finalKey] = delta;
+    }
   }
 
   /**

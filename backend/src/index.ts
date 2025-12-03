@@ -186,6 +186,7 @@ import chimeraLoreRepoRouter from './routes/chimera-lore-repo.js';
 import chimeraAssetsRepoRouter from './routes/chimera-assets-repo.js';
 import chimeraCompileRouter from './routes/chimera-compile.js';
 import chimeraPlayRouter from './routes/chimera-play.js';
+import chimeraGameInitRouter from './routes/chimera-game-init.js';
 app.use('/api/chimera/worlds', chimeraWorldsRepoRouter);
 console.log('[Server] Mounted /api/chimera/rulesets route');
 app.use('/api/chimera/rulesets', chimeraRulesetsRepoRouter);
@@ -194,6 +195,7 @@ app.use('/api/chimera/lore', chimeraLoreRepoRouter);
 app.use('/api/chimera/assets', chimeraAssetsRepoRouter);
 app.use('/api/chimera/compile', chimeraCompileRouter);
 app.use('/api/chimera/play', chimeraPlayRouter);
+app.use('/api/chimera/game', chimeraGameInitRouter);
 
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);

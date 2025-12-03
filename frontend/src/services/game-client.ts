@@ -66,9 +66,6 @@ export async function castStone(
  * Load the current game state
  */
 export async function loadState(gameStateId: string): Promise<GameState> {
-  // Note: This endpoint may need to be created on the backend
-  // For now, we'll get the state from castStone response
-  // If a dedicated endpoint is needed, it would be: GET /api/chimera/play/:gameStateId
   const result = await apiFetch<GameState>(`/api/chimera/play/${gameStateId}`);
 
   if (!result.ok) {

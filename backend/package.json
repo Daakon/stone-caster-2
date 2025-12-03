@@ -63,7 +63,8 @@
     "docs:spec": "tsx scripts/api-docs-ci.ts spec",
     "docs:contract": "tsx scripts/api-docs-ci.ts post-merge",
     "tidy": "npm run type-check && npm run lint && npm run tidy:dead-code",
-    "tidy:dead-code": "echo 'Running dead code analysis...' && (npx ts-prune --project tsconfig.json 2>/dev/null || echo 'Note: Install ts-prune with: npm install -D ts-prune')"
+    "tidy:dead-code": "echo 'Running dead code analysis...' && (npx ts-prune --project tsconfig.json 2>/dev/null || echo 'Note: Install ts-prune with: npm install -D ts-prune')",
+    "verify": "tsx scripts/verify-data-integrity.ts"
   },
   "keywords": [
     "rpg",

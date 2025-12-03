@@ -1,7 +1,11 @@
 // [CHIMERA V3] Architecture: Greenfield | Layer: Frontend
 /**
  * Stats Panel Component
- * Dynamically renders Tier 1 mechanical state (HP, Mana, Stats, Inventory, etc.)
+ * Phase 7: Game Play Interface (Frontend)
+ * Visualizes gameState.tier1_mechanical.entities.player
+ * - HP/MP as progress bars (if keys exist)
+ * - Attributes (Str, Dex, etc.) as a grid
+ * - Handles missing keys gracefully
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,20 +18,28 @@ interface StatsPanelProps {
 }
 
 export function StatsPanel({ tier1Data }: StatsPanelProps) {
-  const renderValue = (key: string, value: unknown): React.ReactNode => {
+  // Extract player entity from tier1_mechanical.entities.player
+  const entities = tier1Data.entities as Record<string, unknown> | undefined;
+  const player = entities?.player as Record<string, unknown> | undefined;
+  const playerStats = player?.stats as Record<string, unknown> | undefined;
+  
+  // Use player data if available, otherwise fall back to top-level data
+  const displayData = playerStats || player || tier1Data;
+  const renderValue = (key: string, value: unknown, parentData?: Record<string, unknown>): React.ReactNode => {
     // Handle numbers
     if (typeof value === 'number') {
-      // Check if there's a corresponding max value (e.g., hp and max_hp)
+      // Check for HP/MP pattern - look for max_hp, max_mp, or hp_max, mp_max
       const maxKey = `max_${key}`;
-      const maxValue = tier1Data[maxKey];
+      const altMaxKey = `${key}_max`;
+      const maxValue = parentData?.[maxKey] || parentData?.[altMaxKey];
       
-      if (typeof maxValue === 'number' && maxValue > 0) {
-        // Render as progress bar
+      // HP and MP should be progress bars if max exists
+      if ((key === 'hp' || key === 'mp' || key === 'mana') && typeof maxValue === 'number' && maxValue > 0) {
         const percentage = Math.min((value / maxValue) * 100, 100);
         return (
           <div key={key} className="space-y-1">
             <div className="flex justify-between text-sm">
-              <span className="font-medium capitalize">{key.replace(/_/g, ' ')}</span>
+              <span className="font-medium uppercase">{key}</span>
               <span className="text-muted-foreground">
                 {value} / {maxValue}
               </span>
@@ -36,11 +48,11 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
           </div>
         );
       } else {
-        // Render as badge
+        // Attributes (Str, Dex, etc.) as badges in a grid
         return (
-          <div key={key} className="flex justify-between items-center">
-            <span className="text-sm font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-            <Badge variant="secondary">{value}</Badge>
+          <div key={key} className="flex flex-col items-center p-2 border rounded">
+            <span className="text-xs text-muted-foreground uppercase mb-1">{key}</span>
+            <Badge variant="secondary" className="text-lg">{value}</Badge>
           </div>
         );
       }
@@ -89,7 +101,7 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
     );
   };
 
-  const entries = Object.entries(tier1Data);
+  const entries = Object.entries(displayData);
 
   if (entries.length === 0) {
     return (
@@ -104,6 +116,17 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
     );
   }
 
+  // Separate HP/MP from attributes
+  const resourceEntries = entries.filter(([key]) => 
+    key === 'hp' || key === 'mp' || key === 'mana'
+  );
+  const attributeEntries = entries.filter(([key]) => 
+    key !== 'hp' && key !== 'mp' && key !== 'mana' && typeof displayData[key] === 'number'
+  );
+  const otherEntries = entries.filter(([key]) => 
+    key !== 'hp' && key !== 'mp' && key !== 'mana' && typeof displayData[key] !== 'number'
+  );
+
   return (
     <Card className="h-full">
       <CardHeader>
@@ -112,7 +135,25 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
       <CardContent>
         <ScrollArea className="h-[calc(100vh-200px)]">
           <div className="space-y-4">
-            {entries.map(([key, value]) => renderValue(key, value))}
+            {/* Resources (HP/MP) */}
+            {resourceEntries.length > 0 && (
+              <div className="space-y-3">
+                {resourceEntries.map(([key, value]) => renderValue(key, value, displayData))}
+              </div>
+            )}
+            
+            {/* Attributes Grid */}
+            {attributeEntries.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold mb-2">Attributes</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {attributeEntries.map(([key, value]) => renderValue(key, value, displayData))}
+                </div>
+              </div>
+            )}
+            
+            {/* Other entries */}
+            {otherEntries.map(([key, value]) => renderValue(key, value, displayData))}
           </div>
         </ScrollArea>
       </CardContent>
