@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { chimeraWorldsService, type CreateWorldData } from '@/services/chimera.worlds';
@@ -61,6 +62,10 @@ export default function WorldEditor() {
   // Populate form when world loads
   useEffect(() => {
     if (existingWorld) {
+      // Debug logging to verify images are coming from API
+      console.log('Loaded World:', existingWorld);
+      console.log('World Images:', (existingWorld as any).images);
+      
       // Extract tags from tags array if available, otherwise from tag_names
       const worldTags = (existingWorld as any).tags;
       const tagsArray = Array.isArray(worldTags) 
@@ -68,6 +73,20 @@ export default function WorldEditor() {
             typeof t === 'string' ? t : t.tag_name
           )
         : (existingWorld as any).tags?.map((t: { tag_name: string }) => t.tag_name) || [];
+      
+      // Extract images - handle both world.images and world.definition.images
+      let imagesArray: any[] = [];
+      if ((existingWorld as any).images) {
+        imagesArray = Array.isArray((existingWorld as any).images) 
+          ? (existingWorld as any).images 
+          : [];
+      } else if ((existingWorld as any).definition?.images) {
+        imagesArray = Array.isArray((existingWorld as any).definition.images)
+          ? (existingWorld as any).definition.images
+          : [];
+      }
+      
+      console.log('Extracted Images Array:', imagesArray);
       
       setFormData({
         display_name: existingWorld.display_name,
@@ -79,7 +98,7 @@ export default function WorldEditor() {
         ) || [],
         tag_names: tagsArray,
         tags: tagsArray,
-        images: (existingWorld as any).images || [],
+        images: imagesArray, // Use extracted images array
       });
     }
   }, [existingWorld]);
@@ -117,9 +136,24 @@ export default function WorldEditor() {
         tags: formData.tag_names || formData.tags || [], // Use tag_names as source of truth, fallback to tags
       };
 
+      // Debug logging to verify images are in payload
+      console.log('[Editor] Submitting payload:', {
+        images: payload.images,
+        imagesCount: payload.images?.length || 0,
+        imagesType: typeof payload.images,
+        imagesIsArray: Array.isArray(payload.images),
+      });
+
       if (isEditing && id) {
-        await chimeraWorldsService.updateWorld(id, payload);
+        const updatedWorld = await chimeraWorldsService.updateWorld(id, payload);
+        console.log('[Editor] Update response received:', {
+          updatedWorldImages: updatedWorld.images,
+          updatedWorldImagesLength: updatedWorld.images?.length || 0,
+        });
         toast.success('World updated successfully');
+        
+        // Invalidate the specific world query to force refetch
+        await queryClient.invalidateQueries({ queryKey: ['chimera-world', id] });
       } else {
         await chimeraWorldsService.createWorld(payload);
         toast.success('World created successfully');
@@ -241,26 +275,48 @@ export default function WorldEditor() {
               <ImageUploader
                 folder="worlds"
                 onUploadComplete={(publicUrl) => {
-                  const newImages = [...(formData.images || []), { path: publicUrl }];
-                  handleChange('images', newImages);
+                  // Construct a new ChimeraAssetRef object
+                  const newAsset = {
+                    id: self.crypto.randomUUID(),
+                    url: publicUrl,
+                    role: 'banner' as const,
+                    label: 'Main Banner',
+                  };
+                  
+                  // Filter out any existing banner to replace it
+                  const existingImages = formData.images || [];
+                  const otherImages = existingImages.filter(
+                    (img: any) => img.role !== 'banner'
+                  );
+                  
+                  // Append new banner (newest upload becomes the primary banner)
+                  const updatedImages = [newAsset, ...otherImages];
+                  handleChange('images', updatedImages);
                 }}
               />
               {formData.images && formData.images.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
-                  {formData.images.map((img, idx) => (
-                    <div key={idx} className="relative">
+                  {formData.images.map((img: any, idx) => (
+                    <div key={img.id || idx} className="relative">
                       <img
-                        src={img.path}
-                        alt={img.alt || `World image ${idx + 1}`}
+                        src={img.url || img.path}
+                        alt={img.label || img.alt || `World image ${idx + 1}`}
                         className="w-full h-24 object-cover rounded-md"
                       />
+                      {img.role === 'banner' && (
+                        <Badge variant="secondary" className="absolute top-1 left-1 text-xs">
+                          Banner
+                        </Badge>
+                      )}
                       <Button
                         type="button"
                         variant="destructive"
                         size="sm"
                         className="absolute top-1 right-1 h-6 w-6 p-0"
                         onClick={() => {
-                          const updatedImages = formData.images?.filter((_, i) => i !== idx) || [];
+                          const updatedImages = formData.images?.filter(
+                            (i: any, index: number) => index !== idx
+                          ) || [];
                           handleChange('images', updatedImages);
                         }}
                       >

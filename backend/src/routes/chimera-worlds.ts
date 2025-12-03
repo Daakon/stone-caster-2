@@ -12,6 +12,7 @@ import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
+import { ChimeraAssetRefSchema } from '@shared/types/chimera-assets';
 
 const router = Router();
 
@@ -35,6 +36,7 @@ const CreateWorldSchema = z.object({
   ruleset_template_ids: z.array(z.string()).default([]),
   tag_names: z.array(z.string()).default([]),
   tags: z.array(z.string()).optional().default([]), // Direct tags array on world
+  images: z.array(ChimeraAssetRefSchema).optional().default([]), // CRITICAL: Include images in schema
 });
 
 // UpdateWorldSchema explicitly excludes visibility - it can only be changed via publish endpoint
@@ -67,12 +69,42 @@ function generateSlug(displayName: string): string {
 
 // Helper function to transform database world to API response format
 // Maps 'name' field to 'display_name' for frontend compatibility
+// Extracts 'images' from definition JSONB if present
 function transformWorldForResponse(world: any): any {
   if (!world) return world;
+  
+  // Extract images from definition JSONB if present
+  let images: any[] = [];
+  if (world.definition && typeof world.definition === 'object') {
+    const definitionImages = (world.definition as any).images;
+    if (Array.isArray(definitionImages)) {
+      images = definitionImages;
+    } else if (definitionImages !== undefined && definitionImages !== null) {
+      // Handle edge case where images might be stored incorrectly
+      console.warn('[transformWorldForResponse] Images is not an array:', {
+        images: definitionImages,
+        type: typeof definitionImages,
+      });
+      images = [];
+    }
+  }
+  
+  // Debug logging
+  if (process.env.NODE_ENV === 'development' || process.env.DEBUG) {
+    console.log('[transformWorldForResponse] Transforming world:', {
+      worldId: world.id,
+      worldName: world.name,
+      hasDefinition: !!world.definition,
+      definitionKeys: world.definition ? Object.keys(world.definition) : [],
+      extractedImages: images,
+      extractedImagesLength: images.length,
+    });
+  }
   
   return {
     ...world,
     display_name: world.name || world.display_name || '',  // Map name -> display_name
+    images: images, // Extract images from definition JSONB
     // Keep all other fields as-is
   };
 }
@@ -153,13 +185,14 @@ router.post(
       
       // Build definition JSONB - Supabase schema requires this field
       // Store world metadata in definition for compatibility with V3 schema
-      // Include ruleset_template_ids in definition (junction table is deprecated)
+      // Include ruleset_template_ids and images in definition (junction table is deprecated)
       const definition = {
         id: key,
         name: worldData.display_name,
         description_short: worldData.description_short || null,
         description_long: worldData.description_long || null,
         ruleset_template_ids: worldData.ruleset_template_ids || [],
+        images: worldData.images || [],
       };
       
       const worldInsertData: any = {
@@ -699,6 +732,16 @@ router.put(
 
       const updateData = req.body;
 
+      // Debug logging to see what we received
+      console.log('[Chimera Worlds] Update request received:', {
+        hasImages: 'images' in updateData,
+        imagesValue: updateData.images,
+        imagesType: typeof updateData.images,
+        imagesIsArray: Array.isArray(updateData.images),
+        imagesLength: Array.isArray(updateData.images) ? updateData.images.length : 'N/A',
+        allKeys: Object.keys(updateData),
+      });
+
       // Validate ruleset_template_ids if provided
       // Note: rule_type is stored in definition JSONB in Supabase schema, so we skip MODIFIER validation
       if (updateData.ruleset_template_ids !== undefined) {
@@ -732,9 +775,10 @@ router.put(
         }
       }
 
-      // Update world fields (excluding ruleset_template_ids, tag_names, and visibility)
+      // Update world fields (excluding ruleset_template_ids, tag_names, visibility, and images)
       // Visibility can only be changed via a separate publish endpoint, not through this update endpoint
-      const { ruleset_template_ids, tag_names, visibility, tags, ...worldUpdateData } = updateData;
+      // Images are stored in definition JSONB, handled separately below
+      const { ruleset_template_ids, tag_names, visibility, tags, images, ...worldUpdateData } = updateData;
       
       // Handle tags if provided
       if (tags !== undefined) {
@@ -770,9 +814,19 @@ router.put(
         }
       }
 
-      // Handle ruleset links if provided
-      // Note: Rulesets are stored in world definition JSONB, not in junction table
-      if (ruleset_template_ids !== undefined) {
+      // Handle ruleset links and images if provided
+      // Note: Rulesets and images are stored in world definition JSONB, not in junction table
+      // Always update definition if images or ruleset_template_ids are provided (even if empty array)
+      if (ruleset_template_ids !== undefined || updateData.images !== undefined) {
+        // Debug logging
+        console.log('[Chimera Worlds] Updating definition with:', {
+          ruleset_template_ids: ruleset_template_ids !== undefined,
+          images: updateData.images !== undefined,
+          imagesValue: updateData.images,
+          imagesType: typeof updateData.images,
+          imagesIsArray: Array.isArray(updateData.images),
+        });
+
         // Fetch current world to get existing definition
         const { data: currentWorld, error: fetchWorldError } = await supabaseAdmin
           .from('chimera_worlds')
@@ -790,21 +844,39 @@ router.put(
           );
         }
 
-        // Merge ruleset_template_ids into definition JSONB
+        // Merge ruleset_template_ids and images into definition JSONB
         const currentDefinition = (currentWorld?.definition as any) || {};
-        const updatedDefinition = {
+        const updatedDefinition: any = {
           ...currentDefinition,
-          ruleset_template_ids: ruleset_template_ids || [],
         };
+        
+        if (ruleset_template_ids !== undefined) {
+          updatedDefinition.ruleset_template_ids = ruleset_template_ids || [];
+        }
+        
+        // Explicitly save images to definition JSONB (even if empty array)
+        if (updateData.images !== undefined) {
+          updatedDefinition.images = Array.isArray(updateData.images) ? updateData.images : [];
+          console.log('[Chimera Worlds] Saving images to definition:', updatedDefinition.images);
+        }
 
         // Update the definition JSONB
-        const { error: definitionUpdateError } = await supabaseAdmin
+        console.log('[Chimera Worlds] Updating definition JSONB with:', {
+          id,
+          updatedDefinitionKeys: Object.keys(updatedDefinition),
+          updatedDefinitionImages: updatedDefinition.images,
+          updatedDefinitionImagesLength: Array.isArray(updatedDefinition.images) ? updatedDefinition.images.length : 'N/A',
+        });
+
+        const { error: definitionUpdateError, data: updateResult } = await supabaseAdmin
           .from('chimera_worlds')
           .update({
             definition: updatedDefinition,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', id);
+          .eq('id', id)
+          .select('definition')
+          .single();
 
         if (definitionUpdateError) {
           console.error('[Chimera Worlds] Error updating world definition:', definitionUpdateError);
@@ -815,6 +887,19 @@ router.put(
             req
           );
         }
+
+        // Verify the update actually saved
+        if (updateResult) {
+          const savedDefinition = updateResult.definition as any;
+          console.log('[Chimera Worlds] Verified definition update saved:', {
+            savedImages: savedDefinition?.images,
+            savedImagesLength: Array.isArray(savedDefinition?.images) ? savedDefinition.images.length : 'N/A',
+          });
+        }
+
+        console.log('[Chimera Worlds] Successfully updated definition JSONB');
+      } else {
+        console.log('[Chimera Worlds] Skipping definition update - no images or ruleset_template_ids provided');
       }
 
       // Handle tags if provided
@@ -887,11 +972,27 @@ router.put(
       }
 
       // Fetch updated world (no junction table joins)
-      const { data: updatedWorld } = await supabaseAdmin
+      const { data: updatedWorld, error: fetchUpdatedError } = await supabaseAdmin
         .from('chimera_worlds')
         .select('*')
         .eq('id', id)
         .single();
+
+      if (fetchUpdatedError) {
+        console.error('[Chimera Worlds] Error fetching updated world:', fetchUpdatedError);
+      }
+
+      // Debug: Log what we fetched from DB
+      if (updatedWorld) {
+        const fetchedDefinition = (updatedWorld as any).definition as any;
+        console.log('[Chimera Worlds] Fetched updated world from DB:', {
+          hasDefinition: !!fetchedDefinition,
+          definitionImages: fetchedDefinition?.images,
+          definitionImagesType: typeof fetchedDefinition?.images,
+          definitionImagesIsArray: Array.isArray(fetchedDefinition?.images),
+          definitionImagesLength: Array.isArray(fetchedDefinition?.images) ? fetchedDefinition.images.length : 'N/A',
+        });
+      }
 
       // Fetch tags
       const { data: assetTags } = await supabaseAdmin
@@ -910,6 +1011,16 @@ router.put(
 
       // Transform to API format (map name -> display_name)
       const transformedWorld = transformWorldForResponse(updatedWorld);
+      
+      // Debug: Log what we're returning
+      console.log('[Chimera Worlds] Returning transformed world:', {
+        hasImages: 'images' in transformedWorld,
+        imagesValue: transformedWorld.images,
+        imagesType: typeof transformedWorld.images,
+        imagesIsArray: Array.isArray(transformedWorld.images),
+        imagesLength: Array.isArray(transformedWorld.images) ? transformedWorld.images.length : 'N/A',
+      });
+      
       return sendSuccess(res, transformedWorld, req);
     } catch (error) {
       console.error('[Chimera Worlds] Unexpected error:', error);

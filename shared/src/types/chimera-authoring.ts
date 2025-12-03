@@ -62,7 +62,7 @@ export const WorldDefinitionSchema = z.object({
   /**
    * Array of image references for the world
    */
-  images: z.array(ChimeraAssetRefSchema).default([]),
+  images: z.array(ChimeraAssetRefSchema).optional().default([]),
 
   /**
    * Array of tags for categorizing and filtering worlds

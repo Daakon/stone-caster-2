@@ -128,10 +128,16 @@ export class WorldsRepository {
     // Validate the world definition
     const validated = WorldDefinitionSchema.parse(world);
 
+    // Explicitly ensure images are preserved in definition JSONB
+    const definitionToSave: any = {
+      ...validated,
+      images: validated.images || [], // Explicitly save images array (even if empty)
+    };
+
     const { error } = await (this.supabase
       .from('chimera_worlds') as any)
       .update({
-        definition: validated as unknown as Record<string, unknown>,
+        definition: definitionToSave as unknown as Record<string, unknown>,
         updated_at: new Date().toISOString(),
       })
       .eq('key', key);
@@ -163,7 +169,7 @@ export class WorldsRepository {
   async listAll(): Promise<WorldDefinition[]> {
     const { data, error } = await (this.supabase
       .from('chimera_worlds') as any)
-      .select('definition');
+      .select('id, definition');
 
     if (error) {
       throw new Error(`Failed to list worlds: ${error.message}`);
@@ -173,9 +179,41 @@ export class WorldsRepository {
       return [];
     }
 
-    // Parse and validate each world definition
+    // Parse and validate each world definition, ensuring images are preserved
     return data.map((row) => {
-      return WorldDefinitionSchema.parse(row.definition);
+      const definition = row.definition as any;
+      
+      // Extract images from definition if present (CRITICAL: preserve images)
+      const images = Array.isArray(definition?.images) ? definition.images : [];
+      
+      // Parse with schema (may fail if structure doesn't match exactly)
+      try {
+        const parsed = WorldDefinitionSchema.parse(definition);
+        // CRITICAL: Always use images from definition, even if schema parsing changed them
+        return {
+          ...parsed,
+          id: row.id || parsed.id, // Use database UUID as ID
+          images: images, // Explicitly preserve images from definition
+        };
+      } catch (parseError) {
+        // If schema parsing fails, construct a valid WorldDefinition
+        // This handles cases where definition structure doesn't match schema exactly
+        // CRITICAL: Always preserve images from definition
+        const description = definition?.description 
+          || definition?.description_long 
+          || definition?.description_short 
+          || '';
+        
+        return {
+          id: row.id || definition?.id || '',
+          name: definition?.name || definition?.display_name || '',
+          description: description,
+          images: images, // Explicitly preserve images from definition JSONB
+          tags: definition?.tags || [],
+          character_schema_extensions: definition?.character_schema_extensions || {},
+          lore_fragments: definition?.lore_fragments || [],
+        };
+      }
     });
   }
 }

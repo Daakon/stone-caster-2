@@ -15,6 +15,7 @@ import { ArrowLeft, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { getWorlds, getRulesets, getEntities, compileStory } from '@/services/chimera-api';
 import { startGame } from '@/services/game-client';
 import { ForcesSelector } from '@/components/chimera/ForcesSelector';
+import { WorldCard } from '@/components/casting/WorldCard';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import type { WorldDefinition, RulesetDefinition, EntityTemplate } from '@shared/types/chimera-authoring';
@@ -273,38 +274,14 @@ function WorldStoneStep({
       <CardContent>
         {worlds.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {worlds.map((world) => {
-              const isSelected = selectedWorldId === world.id;
-              return (
-                <Card
-                  key={world.id}
-                  className={`cursor-pointer transition-all hover:shadow-md ${
-                    isSelected ? 'ring-2 ring-purple-500 ring-offset-2' : ''
-                  }`}
-                  onClick={() => onSelect(world.id)}
-                >
-                  {world.images && world.images.length > 0 && world.images[0]?.path ? (
-                    <div className="aspect-video bg-muted relative">
-                      <img
-                        src={world.images[0].path}
-                        alt={world.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="aspect-video bg-muted flex items-center justify-center">
-                      <span className="text-muted-foreground text-sm">No image</span>
-                    </div>
-                  )}
-                  <CardHeader>
-                    <CardTitle className="line-clamp-1">{world.name}</CardTitle>
-                    <CardDescription className="line-clamp-2">
-                      {world.description || 'No description'}
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              );
-            })}
+            {worlds.map((world) => (
+              <WorldCard
+                key={world.id}
+                world={world}
+                isSelected={selectedWorldId === world.id}
+                onClick={() => onSelect(world.id)}
+              />
+            ))}
           </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">

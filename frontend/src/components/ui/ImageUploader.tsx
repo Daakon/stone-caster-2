@@ -112,8 +112,27 @@ export function ImageUploader({
           throw new Error(uploadData.errors?.[0]?.message || 'Cloudflare upload failed');
         }
 
-        // Step 3: Call completion callback
-        onUploadComplete(accessUrl);
+        // Step 3: Extract the actual image URL from the upload result
+        // Cloudflare returns the actual image ID in result.variants[0], not the temporary upload ID
+        // The accessUrl from sign-upload contains a temporary upload ID that won't work after upload completes
+        let finalImageUrl = accessUrl; // Fallback to accessUrl if variants not available
+        
+        if (uploadData.result?.variants && Array.isArray(uploadData.result.variants) && uploadData.result.variants.length > 0) {
+          // Use the variant URL from the upload result (this is the actual image URL)
+          finalImageUrl = uploadData.result.variants[0];
+          console.log('[ImageUploader] Using variant URL from upload result:', finalImageUrl);
+        } else if (uploadData.result?.id) {
+          // Fallback: construct URL from image ID if variants not available
+          const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL || 'https://imagedelivery.net/H1wcHgsbpczAJHyB61JpRw';
+          finalImageUrl = `${deliveryUrl.replace(/\/$/, '')}/${uploadData.result.id}/public`;
+          console.log('[ImageUploader] Constructed URL from image ID:', finalImageUrl);
+        } else {
+          console.warn('[ImageUploader] No variants or image ID found, using accessUrl fallback:', accessUrl);
+        }
+
+        // Step 4: Call completion callback with the actual image URL
+        console.log('[ImageUploader] Final image URL being passed to callback:', finalImageUrl);
+        onUploadComplete(finalImageUrl);
         toast.success('Image uploaded successfully');
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Upload failed';

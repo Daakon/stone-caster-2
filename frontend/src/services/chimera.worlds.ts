@@ -4,6 +4,7 @@
  */
 
 import { apiFetch, apiPost, apiPut, apiDelete } from '@/lib/api';
+import type { ChimeraAssetRef } from '@shared/types/chimera-assets';
 
 export interface ChimeraWorld {
   id: string;
@@ -17,6 +18,7 @@ export interface ChimeraWorld {
   updated_at: string;
   ruleset_links?: Array<{ ruleset_template_id: string }>;
   tags?: Array<{ id: string; tag_name: string }>;
+  images?: ChimeraAssetRef[]; // Images array from definition JSONB
 }
 
 export interface CreateWorldData {
@@ -27,7 +29,7 @@ export interface CreateWorldData {
   ruleset_template_ids?: string[];
   tag_names?: string[];
   tags?: string[]; // Direct tags array
-  images?: Array<{ path: string; alt?: string }>; // Image references
+  images?: ChimeraAssetRef[]; // Chimera asset references
 }
 
 export interface UpdateWorldData extends Partial<CreateWorldData> {}
