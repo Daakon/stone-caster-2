@@ -82,7 +82,7 @@ export class EntitiesRepository {
   async findById(id: string): Promise<EntityTemplate | null> {
     const { data, error } = await this.supabase
       .from('chimera_entities')
-      .select('key, kind, raw_data')
+      .select('id, kind, raw_data')
       .eq('id', id)
       .single();
 
@@ -98,7 +98,7 @@ export class EntitiesRepository {
     }
 
     return EntityTemplateSchema.parse({
-      id: data.key,
+      id: data.id,
       kind: data.kind,
       raw_data: data.raw_data,
     });
@@ -154,7 +154,7 @@ export class EntitiesRepository {
 
     const { data, error } = await this.supabase
       .from('chimera_entities')
-      .select('key, kind, raw_data')
+      .select('id, kind, raw_data')
       .in('id', ids);
 
     if (error) {
@@ -168,7 +168,7 @@ export class EntitiesRepository {
     // Parse and validate each entity template
     return data.map((row) => {
       return EntityTemplateSchema.parse({
-        id: row.key,
+        id: row.id,
         kind: row.kind,
         raw_data: row.raw_data,
       });
@@ -182,7 +182,7 @@ export class EntitiesRepository {
   async listAll(): Promise<EntityTemplate[]> {
     const { data, error } = await this.supabase
       .from('chimera_entities')
-      .select('key, kind, raw_data');
+      .select('id, kind, raw_data');
 
     if (error) {
       throw new Error(`Failed to list entities: ${error.message}`);
@@ -195,7 +195,7 @@ export class EntitiesRepository {
     // Parse and validate each entity template
     return data.map((row) => {
       return EntityTemplateSchema.parse({
-        id: row.key,
+        id: row.id,
         kind: row.kind,
         raw_data: row.raw_data,
       });

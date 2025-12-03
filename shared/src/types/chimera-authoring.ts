@@ -163,7 +163,7 @@ export const EntityTemplateSchema = z.object({
   /**
    * Kind of entity
    */
-  kind: z.enum(['npc', 'item', 'location']),
+  kind: z.enum(['npc', 'item', 'location', 'faction']),
 
   /**
    * Raw entity data as JSON

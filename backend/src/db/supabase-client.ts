@@ -74,7 +74,7 @@ export interface Database {
       chimera_entities: {
         Row: {
           id: string;
-          kind: 'npc' | 'item' | 'location';
+          kind: 'npc' | 'item' | 'location' | 'faction';
           key: string;
           raw_data: Record<string, unknown>;
           created_at: string;
@@ -82,7 +82,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          kind: 'npc' | 'item' | 'location';
+          kind: 'npc' | 'item' | 'location' | 'faction';
           key: string;
           raw_data: Record<string, unknown>;
           created_at?: string;
@@ -90,7 +90,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          kind?: 'npc' | 'item' | 'location';
+          kind?: 'npc' | 'item' | 'location' | 'faction';
           key?: string;
           raw_data?: Record<string, unknown>;
           created_at?: string;
