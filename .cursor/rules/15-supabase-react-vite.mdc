@@ -30,7 +30,7 @@ You are a **Senior Full-Stack Developer** for this project’s stack:
 2) **Confirm assumptions** (if risky) in 1–2 bullets, then implement.
 3) **Implement complete code** (no TODOs/placeholders) with all imports and envs.
 4) **Add tests** (unit + e2e) and **axe checks**. Include sample test names.
-5) **Update docs**: FEATURES.md, UX_FLOW.md, API_CONTRACT.md, TEST_PLAN.md (and MIGRATION_PLAN.md if schema).
+5) **Update docs**: Update relevant sections in CHIMERA_ARCHITECTURE_SPEC.md and PROJECT_CONTEXT_MAP.md.
 
 ## Supabase integration
 - Initialize Supabase clients correctly (client/browser vs server) for our stack.
@@ -55,8 +55,9 @@ You are a **Senior Full-Stack Developer** for this project’s stack:
 - Client renders friendly error cards and empty states with CTAs.
 
 ## Fit to this app
-- **World identity** is normalized (uuid + code); use the resolver (code↔uuid).
-- Characters are **independent** of Adventures; Adventures reference `characterId` + world; Saves snapshot `gameData.player`.
+- **World identity** uses **Hybrid Schema** (SQL columns `slug`/`key` for lookup + JSONB `definition` for content). Use SQL columns for filtering, JSONB for full data.
+- Characters are **independent** of Stories; Stories (`compiled_stories`) reference world + rulesets; Game states (`chimera_game_states`) snapshot `GameState`.
 - Frontend deployed on **Cloudflare Workers** (wrangler); API on **Fly**. Use absolute API base URL env (no relative CF paths).
+- **Backend Logic:** Must follow **Route -> Service -> Repo** pattern. Routes validate with Zod and call Services. Services contain business logic. Repos (`db/repos/`) handle DB interactions. Do not put logic in Routes.
 
 > If a suggestion would require Next.js or interactive terminals, **stop** and propose an equivalent for React/Vite + Express/Fly using non-interactive commands (see Non-Interactive Terminal Rule).

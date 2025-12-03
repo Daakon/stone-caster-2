@@ -15,4 +15,4 @@ alwaysApply: false
 - Axe: 0 serious/critical on Dashboard, Character Creation, Game pages.
 
 See:
-@docs/TEST_PLAN.md
+@docs/CHIMERA_ARCHITECTURE_SPEC.md#testing-strategy

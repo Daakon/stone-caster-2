@@ -11,15 +11,12 @@ ALWAYS:
 - TDD: add/adjust Vitest unit tests and Playwright e2e for every change.
 - A11Y: run @axe-core/playwright; zero serious/critical issues.
 - ZOD VALIDATION on all API inputs; return consistent JSON errors.
-- DOCS UPDATED in same PR: FEATURES.md, UX_FLOW.md, API_CONTRACT.md, TEST_PLAN.md (and MIGRATION_PLAN.md for schema).
+- DOCS UPDATED in same PR: Update relevant sections in CHIMERA_ARCHITECTURE_SPEC.md and PROJECT_CONTEXT_MAP.md.
 - SECURITY: verify JWT, enforce Supabase RLS; never log secrets/PII.
 - TYPES: strict TypeScript; no `any`; exhaustive unions.
 - PR: use PR template; attach mobile+desktop screenshots; add manual QA steps.
+- LEGACY CODE BAN: Do not import or create files matching `awf_*`, `stone_*`, or `mod_*` patterns. These are deprecated.
 
 Use these references when planning or reviewing:
-@docs/RULEBOOK.md
-@docs/FEATURES.md
-@docs/UX_FLOW.md
-@docs/API_CONTRACT.md
-@docs/TEST_PLAN.md
-@docs/MIGRATION_PLAN.md
+@docs/PROJECT_CONTEXT_MAP.md
+@docs/CHIMERA_ARCHITECTURE_SPEC.md
