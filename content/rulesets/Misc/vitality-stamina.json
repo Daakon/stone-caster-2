@@ -1,0 +1,105 @@
+{
+  "id": "fnd_vitality_stamina_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Vitality & Stamina System",
+  "ui_category": "foundation",
+  "exclusion_group": "vitality_core",
+  "description": "Tracks physical energy. Enforces resting mechanics and pacing through exhaustion penalties.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["player", "npc"],
+      "definitions": {
+        "current_stamina": { "value": 100, "context_priority": "engine_private" },
+        "physical_condition": { "value": "Rested", "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "current_stamina": { "control": "slider", "min": 0, "max": 100, "label": "Initial Energy" }
+      }
+    }
+  },
+
+  "actions": {
+    "apply_travel_fatigue": {
+      "kind": "system_auto",
+      "trigger": { "type": "intent_match", "keyword_id": "travel_action" },
+      "logic": [
+        {
+          "step_id": "drain_stamina",
+          "function": "cat_02_state_mutation.modify_stat",
+          "args": { "path": "tier1_entity.current_stamina", "amount": -20 }
+        },
+        {
+          "step_id": "check_exhaustion",
+          "function": "cat_03_logic_calculators.check_thresholds",
+          "args": {
+            "source_path": "tier1_entity.current_stamina",
+            "output_path": "tier1_entity.physical_condition",
+            "thresholds": {
+              "0": "Collapsed",
+              "20": "Exhausted",
+              "50": "Winded",
+              "90": "Rested"
+            }
+          }
+        }
+      ]
+    },
+    "force_rest_scenario": {
+        "kind": "system_auto",
+        "trigger": { "type": "stat_change", "target": "tier1_entity.current_stamina" },
+        "logic": [
+            {
+                "step_id": "trigger_collapse",
+                "function": "cat_04_event_logging.trigger_system_alert",
+                "args": { 
+                    "alert_id": "force_camp", 
+                    "message": "The character is too exhausted to continue. They stumble and must rest." 
+                },
+                "conditions": [
+                    { "left": "tier1_entity.current_stamina", "op": "lte", "right": 0 }
+                ]
+            }
+        ]
+    },
+    "take_rest": {
+        "kind": "player_initiated",
+        "trigger": { "type": "intent_match", "keyword_id": "rest_action" },
+        "logic": [
+            {
+                "step_id": "restore_stamina",
+                "function": "cat_02_state_mutation.modify_stat",
+                "args": { "path": "tier1_entity.current_stamina", "amount": 100, "clamp_max": 100 }
+            },
+            {
+                "step_id": "set_rested_tag",
+                "function": "cat_02_state_mutation.set_flag",
+                "args": { "path": "tier1_entity.physical_condition", "value": "Rested" }
+            }
+        ]
+    }
+  },
+
+  "mas_directives": {
+    "mas1_interpreter": {
+        "intent_keywords": [
+            { "verb": "rest", "trigger_id": "rest_action" },
+            { "verb": "camp", "trigger_id": "rest_action" },
+            { "verb": "sleep", "trigger_id": "rest_action" }
+        ]
+    },
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.physical_condition", "label": "PHYSICAL CONDITION" }
+      ],
+      "style_injections": [
+        {
+          "category": "sensory",
+          "unique_id": "fatigue_narration",
+          "priority": 90,
+          "content": "If [PHYSICAL CONDITION] is 'Exhausted' or 'Collapsed', NPCs must urge the player to stop. Narration should describe heavy limbs and stumbling."
+        }
+      ]
+    }
+  }
+}

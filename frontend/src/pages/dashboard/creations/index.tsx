@@ -100,6 +100,7 @@ export default function MyCreationsDashboard() {
     NPC: 'default',
     ITEM: 'secondary',
     FACTION: 'outline',
+    LOCATION: 'destructive',
   } as const;
 
   const handleDeleteWorld = async (id: string, displayName: string) => {

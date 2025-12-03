@@ -11,7 +11,7 @@ export interface ChimeraEntity {
   visibility: 'private' | 'pending_approval' | 'public';
   display_name: string;
   description_short: string | null;
-  entity_type: 'NPC' | 'ITEM' | 'FACTION';
+  entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
   base_state_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -24,7 +24,7 @@ export interface ChimeraEntity {
 export interface CreateEntityData {
   display_name: string;
   description_short?: string | null;
-  entity_type: 'NPC' | 'ITEM' | 'FACTION';
+  entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
   base_state_json: Record<string, unknown>;
   tag_names?: string[];
 }
@@ -36,7 +36,7 @@ export interface UpdateEntityData extends Partial<CreateEntityData> {
 export interface SelectableEntity {
   id: string;
   display_name: string;
-  entity_type: 'NPC' | 'ITEM' | 'FACTION';
+  entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
   version: number;
   visibility: 'private' | 'pending_approval' | 'public';
 }

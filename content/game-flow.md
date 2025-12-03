@@ -1,28 +1,29 @@
-# StoneCaster Game Flow Specification (v2.0)
+# StoneCaster Game Flow Specification (v2.1)
 
 **Context:** The execution pipeline from Content Creation to Runtime.
-**Architecture:** v3.0 Ruleset Compatible (Compiler-Driven State Injection).
+**Architecture:** Compiler-Safe (Strict Logic/Data Separation).
 
 ---
 
 ## Phase 1: content_initialization
 
 ### 1. Content Creation & Selection
-* **User Action:** Player creates a Story and selects Rulesets (e.g., "Survival Core", "Grimdark Expansion").
-* **System Check:** The UI enforces that entities have the necessary form fields defined in `state_contributions` (e.g., "Hunger Slider").
+* **User Action:** Player creates a Story and selects Rulesets.
+* **System Check:** The UI enforces that entities have the necessary form fields defined in `state_contributions`.
 
 ### 2. The Compiler (Static Assembly)
-* **Pipeline Validation:** Checks `pipeline_compatibility` of all selected rulesets to ensure they match the Engine Version.
-* **Intent Aggregation:** Merges `intent_keywords` from all rulesets into a single **Master Intent Map** for MAS 1.
+* **Pipeline Validation:** Checks `pipeline_compatibility` of all selected rulesets.
+* **Intent Aggregation:** Merges `intent_keywords` into a single **Master Intent Map** for MAS 1.
 * **Prompt Template Assembly:**
     * Aggregates `style_injections` (Tone, Formatting).
     * Resolves conflicts using `priority` and `unique_id`.
     * Builds the static "System Instructions" block for MAS 2.
-    * Compiles a list of `state_readouts` (pointers to data) required for the dynamic context.
+    * Compiles a list of `state_readouts` (pointers to data).
+* **Logic Validation:** Validates all Ruleset Actions against the Engine Registry Schema. **(No Eval Check)**.
 
 ### 3. Story Start (Instantiation)
 * **State Gen:** The Engine creates the initial JSON State Tree (World, Player, NPCs).
-* **Data Injection:** Values from the creation forms (Step 1) are injected into the State (e.g., `hunger: 0`).
+* **Data Injection:** Values from creation forms are injected into the State.
 
 ---
 
@@ -37,35 +38,39 @@
 ### 6. Input Processing (MAS 1 - The Interpreter)
 * **Input:** User Text + **Master Intent Map** (from Step 2).
 * **Process:**
-    * Scans text for `intent_keywords` (e.g., "bandage" -> `skills.medicine`).
+    * Scans text for `intent_keywords` (e.g., "bandage" -> `action_medical_check`).
     * Checks `sentiment_thresholds`.
-    * Extracts parameters defined in `param_extraction`.
-* **Output:** structured JSON Action Request (e.g., `{ "verb": "heal", "target": "self" }`).
+* **Output:** structured JSON Action Request (e.g., `{ "trigger_id": "action_medical_check", "target": "self" }`).
 
 ### 7. Chimera Engine Processing (The Logic)
 * **Input:** MAS 1 JSON Request + Current State.
 * **Process:**
-    * Executes Ruleset `actions` (Logic/Math).
-    * Updates **State Variables** (e.g., `blood_loss: 40`).
-    * Writes to **Event Logs** (e.g., Appends "Bandaging failed" to `tier1_global.event_log`).
-* **Constraint:** The Engine **NEVER** writes to the Prompt directly. It only mutates State.
+    * **Trigger Match:** Finds the Ruleset Action matching `trigger_id`.
+    * **Pipeline Execution:** Runs the `logic` steps sequentially.
+        * *Step A:* Resolve Roll (Stores result in `temp_var`).
+        * *Step B:* Check Condition (e.g., `temp_var == success`).
+        * *Step C:* Mutate State (Updates `blood_loss`).
+    * **Logging:** Writes results to `tier1_global.event_log`.
+* **Security:** **NO AI** is involved in this step. All logic is deterministic Engine code.
 
-### 8. Prompt Creation for MAS 2 (The Assembler)
-* **Action:** The Compiler constructs the final prompt for the LLM.
+### 8. Prompt Assembly (Runtime Execution)
+* **Action:** The Engine constructs the final prompt for MAS 2 using the **Compiled Template**.
 * **Step A (Static):** Loads the "System Instructions" (Tone/Style from Step 2).
-* **Step B (Dynamic Fetch):** Iterates through the compiled `state_readouts` list.
-    * *Read:* `tier1_entity.injury_description`
+* **Step B (Dynamic Fetch):** Iterates through the template's `state_readouts`.
+    * *Read Path:* `tier1_entity.injury_description`
     * *Fetch Value:* "Bleeding profusely"
     * *Format:* Label as `[VISIBLE WOUNDS]`
 * **Step C (Logs):** Appends the recent `event_log` from Step 7.
 
 ### 9. MAS 2 Processing (The Narrator)
 * **Input:** The fully assembled Prompt (Instructions + Context + Logs).
+* **Constraint:** **Read-Only Context.** MAS 2 cannot see the raw State Tree, only the `state_readouts`.
 * **Process:** Generates narrative prose adhering to the injected Style/Tone.
 * **Output:**
     * Narrative Text (displayed to user).
-    * Optional JSON side-effects (e.g., `{"remove_item": "bandage"}`).
+    * **System Tags Only:** (e.g., `[SCENE_END]`).
+    * **Prohibited:** MAS 2 cannot output JSON state changes (e.g., `{"hp": -10}`). This ensures the AI cannot hallucinate game rules.
 
 ### 10. Post-Narrative Processing
-* **Process:** Engine executes any side-effects returned by MAS 2.
+* **Process:** Engine parses narrative for System Tags.
 * **Cleanup:** Flushes `event_log` and prepares for the next turn.

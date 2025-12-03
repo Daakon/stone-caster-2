@@ -1,8 +1,8 @@
-# StoneCaster Ruleset Schema Specification (v3.0)
+# StoneCaster Ruleset Schema Specification (v3.1)
 
-**Version:** 3.0
+**Version:** 3.1
 **Context:** Backend-Logic & Compiler Pipeline
-**Purpose:** Defines the strict JSON structure for Rulesets. This version introduces **Pipeline Versioning** and **Structured MAS Directives** to support the automated Compiler.
+**Purpose:** Defines the strict JSON structure for Rulesets. This version enforces **Compiler-Safe Logic** (no eval) and **Structured Triggers**.
 
 ---
 
@@ -15,7 +15,7 @@
 | **`pipeline_compatibility`** | Array | ✅ | List of Compiler Pipelines this ruleset supports (e.g., `["v2025_01"]`). **Critical for versioning.** |
 | **`name`** | String | ✅ | Display name (e.g., "D100 Skill System"). |
 | **`ui_category`** | Enum | ✅ | `foundation` (Core System), `expansion` (Add-on), or `flavor` (Narrative only). |
-| **`exclusion_group`** | String | ❌ | If defined, only *one* ruleset with this group ID can be active per story (e.g., `health_system`). |
+| **`exclusion_group`** | String | ❌ | If defined, only *one* ruleset with this group ID can be active per story. |
 | **`dependencies`** | Array | ❌ | List of **IDs** of other rulesets that must be loaded for this one to function. |
 | **`state_contributions`** | Object | ✅ | See Section 2. |
 | **`actions`** | Object | ❌ | See Section 3. |
@@ -48,22 +48,64 @@
 ---
 
 ## 3. Actions (`actions`)
-*Defines executable logic (Verbs).*
+*Defines executable logic. This section is strictly typed to avoid `eval()` security risks.*
 
-Logic must utilize the **Engine Standard Library Registry**.
+### 3.1 The Logic Pipeline
+Actions execute as a linear chain of steps. Intermediate results can be captured in temporary variables.
 
-### 3.1 Syntax Example
+#### A. Trigger Structure (`trigger`)
+Must be a structured object, not a string.
+* **`type`**: `intent_match` (Player input), `stat_change` (Passive), `timer` (Turn based).
+* **`target`**: The specific ID or Path to watch.
+
+#### B. Logic Steps (`logic`)
+An array of function calls.
+* **`step_id`**: Internal label for debugging.
+* **`function`**: Reference to Registry ID.
+* **`args`**: Arguments matching the Registry Schema.
+* **`output_to`**: (Optional) Saves the return value to a temp variable (e.g., `roll_result`).
+* **`conditions`**: (Optional) An array of strict comparisons. The step ONLY executes if all conditions pass.
+
+### 3.2 Syntax Example: Passive Monitor
 ```json
 "check_exhaustion": {
   "kind": "system_auto",
-  "trigger": "on_stat_change(stamina)",
+  "trigger": { 
+    "type": "stat_change", 
+    "target": "tier1_entity.stamina" 
+  },
   "logic": [
     {
-      "if": "stamina < 10",
-      "then": { 
-        "function": "cat_02_state_mutation.set_flag", 
-        "args": { "path": "visible_status", "value": "Panting heavily" } 
-      }
+      "step_id": "apply_status",
+      "function": "cat_02_state_mutation.set_flag",
+      "args": { "path": "tier1_entity.visible_status", "value": "Panting heavily" },
+      "conditions": [
+        { "left": "tier1_entity.stamina", "op": "lt", "right": 10 }
+      ]
+    }
+  ]
+}
+```
+
+### 3.3 Syntax Example: Dice Roll Sequence
+```json
+"attempt_force_door": {
+  "kind": "player_initiated",
+  "trigger": { "type": "intent_match", "keyword_id": "force_open" },
+  "logic": [
+    {
+      "step_id": "roll_dice",
+      "function": "cat_01_resolution.resolve_roll_over",
+      "args": { "stat_path": "tier1_entity.skills.force", "dc": 15, "modifier": 0 },
+      "output_to": "check_result"
+    },
+    {
+      "step_id": "on_success",
+      "function": "cat_02_state_mutation.set_flag",
+      "args": { "path": "tier1_world.door_status", "value": "broken" },
+      "conditions": [
+        { "left": "check_result", "op": "eq", "right": "success" }
+      ]
     }
   ]
 }
@@ -72,45 +114,40 @@ Logic must utilize the **Engine Standard Library Registry**.
 ---
 
 ## 4. MAS Directives (`mas_directives`)
-*Replaces "AI Instructions". These are strict injection slots for Game Flow Steps 6, 8, and 9.*
+*Configuration for AI Inputs and Outputs.*
 
 ### 4.1 MAS 1: The Interpreter (Input Processing)
-*Configures how the Engine parses user text into data (Step 6).*
+*Configures how the Engine parses user text into data.*
 
 | Key | Type | Description |
 | :--- | :--- | :--- |
-| **`intent_keywords`** | Array | Maps specific verbs/phrases to Engine Stats. |
+| **`intent_keywords`** | Array | Maps specific verbs/phrases to Ruleset Trigger IDs. |
 | **`sentiment_thresholds`** | Array | Maps Sentiment/Intensity to Engine Flags. |
-| **`param_extraction`** | Array | Explicit keys the JSON output must attempt to fill. |
 
 **Example:**
 ```json
 "mas1_interpreter": {
   "intent_keywords": [
-    { "verb": "intimidate", "mapped_stat": "skills.force", "tags": ["hostile"] },
-    { "verb": "beg", "mapped_stat": "skills.persuasion", "tags": ["social"] }
-  ],
-  "sentiment_thresholds": [
-    { "metric": "intensity", "operator": ">=", "value": 80, "flag_trigger": "high_intensity_input" }
+    { "verb": "intimidate", "trigger_id": "action_intimidate", "tags": ["hostile"] }
   ]
 }
 ```
 
 ### 4.2 MAS 2: The Narrator (Prompt Generation)
-*Configures how the Engine assembles the System Prompt (Steps 8 & 9).*
+*Configures how the Engine assembles the System Prompt.*
 
 #### A. Style Injections (`style_injections`)
-*Static instructions merged into the System Prompt. The Compiler uses `category`, `priority`, and `unique_id` to resolve conflicts.*
+*Static instructions merged into the System Prompt.*
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| **`category`** | Enum | `tone` (Mood), `sensory` (Sights/Sounds), `formatting` (Structure), `mechanics` (Rules), `prohibited` (Constraints). |
+| **`category`** | Enum | `tone`, `sensory`, `formatting`, `mechanics`, `prohibited`. |
 | **`content`** | String | The actual instruction text. |
-| **`priority`** | Int | 1-100. Higher numbers appear later in the prompt (overriding earlier ones). |
-| **`unique_id`** | String | **(Optional)** If two rulesets provide an injection with the same ID, only the one with the higher Priority is used. |
+| **`priority`** | Int | 1-100. Higher numbers override lower ones. |
+| **`unique_id`** | String | Used to resolve collisions between Rulesets. |
 
 #### B. State Readouts (`state_readouts`)
-*Dynamic data injection. The Compiler fetches the value from the Engine State and labels it.*
+*Dynamic data injection pointers.*
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
@@ -120,8 +157,6 @@ Logic must utilize the **Engine Standard Library Registry**.
 ---
 
 ## 5. Complete Example: "Grimdark Injury System"
-
-This example demonstrates how a ruleset overrides the default tone using `unique_id` collision and provides dynamic state readouts.
 
 ```json
 {
@@ -146,14 +181,15 @@ This example demonstrates how a ruleset overrides the default tone using `unique
   "actions": {
     "calc_bleed": {
       "kind": "system_auto",
-      "trigger": "on_turn_start",
+      "trigger": { "type": "turn_start" },
       "logic": [
         { 
-          "if": "blood_loss > 50", 
-          "then": { 
-             "function": "cat_02_state_mutation.set_flag",
-             "args": { "path": "injury_description", "value": "Bleeding profusely, pale skin" }
-          }
+          "step_id": "update_status",
+          "function": "cat_02_state_mutation.set_flag",
+          "args": { "path": "tier1_entity.injury_description", "value": "Bleeding profusely" },
+          "conditions": [
+            { "left": "tier1_entity.blood_loss", "op": "gt", "right": 50 }
+          ]
         }
       ]
     }
@@ -162,7 +198,7 @@ This example demonstrates how a ruleset overrides the default tone using `unique
   "mas_directives": {
     "mas1_interpreter": {
       "intent_keywords": [
-        { "verb": "bandage", "mapped_stat": "skills.medicine" }
+        { "verb": "bandage", "trigger_id": "action_medical_check" }
       ]
     },
     "mas2_narrator": {
@@ -171,23 +207,13 @@ This example demonstrates how a ruleset overrides the default tone using `unique
           "category": "tone",
           "unique_id": "global_mood",
           "priority": 90,
-          "content": "The tone is gritty, visceral, and hopeless. Emphasize the fragility of the body."
-        },
-        {
-          "category": "sensory",
-          "priority": 10,
-          "content": "Describe the metallic smell of blood if injury is present."
-        },
-        {
-          "category": "formatting",
-          "priority": 50,
-          "content": "Do not use flowery language. Be blunt."
+          "content": "The tone is gritty. Emphasize the fragility of the body."
         }
       ],
       "state_readouts": [
         {
           "path": "tier1_entity.injury_description",
-          "label": "VISIBLE WOUNDS & STATUS"
+          "label": "VISIBLE WOUNDS"
         }
       ]
     }

@@ -15,6 +15,13 @@ export function validateRequest<T>(
       switch (source) {
         case 'body':
           data = req.body;
+          // Debug logging for lore entry creation
+          if (req.path.includes('/lore') && req.method === 'POST') {
+            console.log('[Validation] Request body:', JSON.stringify(req.body, null, 2));
+            console.log('[Validation] Request body type:', typeof req.body);
+            console.log('[Validation] Request body keys:', req.body ? Object.keys(req.body) : 'null/undefined');
+            console.log('[Validation] Content-Type:', req.headers['content-type']);
+          }
           break;
         case 'params':
           data = req.params;

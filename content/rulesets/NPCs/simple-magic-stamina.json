@@ -1,0 +1,124 @@
+{
+  "id": "stamina-based-magic",
+  "name": "Stamina-Based Magic",
+  "ui_category": "expansion",
+  "exclusion_group": "magic_core",
+  "dependencies": [
+    "vitality-stamina-system",
+    "d100-5-pillars"
+  ],
+  "definition": {
+    "id": "stamina-based-magic",
+    "name": "Stamina-Based Magic",
+    "actions": {
+      "cast_spell": {
+        "kind": "player_initiated",
+        "logic": [
+          {
+            "args": {
+              "path": "tier1_entity.current_stamina",
+              "amount": -25,
+              "clamp_min": 0
+            },
+            "step_id": "deduct_cost",
+            "function": "cat_02_state_mutation.modify_stat",
+            "description": "Magic is heavy. Costs 25 Stamina (1/4 of tank)."
+          },
+          {
+            "args": {
+              "entity": "@request.actor_id",
+              "skill_id": "@tier1_entity.casting_stat_id",
+              "difficulty_mod": 0
+            },
+            "step_id": "resolve_skill",
+            "function": "cat_01_resolution.resolve_skill_check",
+            "description": "Uses the entity's preferred casting stat (defined in state) to control the energy."
+          },
+          {
+            "args": {
+              "thresholds": {
+                "0": "Collapsed",
+                "20": "Exhausted",
+                "100": "Rested"
+              },
+              "output_path": "tier1_entity.physical_condition",
+              "source_path": "tier1_entity.current_stamina"
+            },
+            "step_id": "trigger_exhaustion_check",
+            "function": "cat_03_logic_calculators.check_thresholds",
+            "description": "Updates physical condition immediately after cast."
+          }
+        ],
+        "trigger": {
+          "type": "intent_match",
+          "keyword_id": "cast_magic"
+        }
+      }
+    },
+    "ui_category": "expansion",
+    "dependencies": [
+      "vitality-stamina-system",
+      "d100-5-pillars"
+    ],
+    "provides_tags": [],
+    "ai_instructions": {
+      "mas2_narrator": {
+        "style_injections": [
+          {
+            "content": "Describe magic as physically taxing. If [PHYSICAL CONDITION] becomes 'Exhausted' after a spell, describe the caster gasping for breath or their vision swimming.",
+            "category": "sensory",
+            "priority": 90,
+            "unique_id": "magic_fatigue"
+          }
+        ]
+      },
+      "mas1_interpreter": {
+        "intent_keywords": [
+          {
+            "verb": "cast",
+            "trigger_id": "cast_magic"
+          },
+          {
+            "verb": "blast",
+            "trigger_id": "cast_magic"
+          },
+          {
+            "verb": "heal",
+            "trigger_id": "cast_magic"
+          }
+        ]
+      }
+    },
+    "exclusion_group": "magic_core",
+    "description_long": "Casting spells requires significant physical energy. Overcasting leads to exhaustion or collapse. The stat used for casting is configurable per entity.",
+    "description_short": "Magic that drains physical stamina.",
+    "state_contributions": {
+      "tier1_entity": {
+        "form_hints": {
+          "casting_stat_id": {
+            "label": "Magic Source Stat",
+            "control": "dropdown",
+            "options": [
+              "root_insight",
+              "root_force",
+              "root_finesse",
+              "root_awareness",
+              "root_influence"
+            ]
+          }
+        },
+        "definitions": {
+          "casting_stat_id": {
+            "value": "root_insight",
+            "description": "The ID of the stat used to resolve spellcasting.",
+            "context_priority": "engine_private"
+          }
+        },
+        "target_kind": [
+          "npc",
+          "player"
+        ]
+      }
+    }
+  }
+}

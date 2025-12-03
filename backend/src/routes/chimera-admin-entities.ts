@@ -25,7 +25,7 @@ const TextIdParamSchema = z.object({
 });
 
 // Zod schemas for validation
-const EntityTypeSchema = z.enum(['NPC', 'ITEM', 'FACTION']);
+const EntityTypeSchema = z.enum(['NPC', 'ITEM', 'FACTION', 'LOCATION']);
 const VisibilitySchema = z.enum(['private', 'pending_approval', 'public']);
 
 const CreateSystemEntitySchema = z.object({

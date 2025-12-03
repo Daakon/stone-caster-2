@@ -4,7 +4,8 @@
  * Modal for creating new lore entries (Pure RAG system)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Loader2, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { chimeraLoreEntriesService } from '@/services/chimera.lore-entries';
+import { chimeraStoriesService } from '@/services/chimera.stories';
+import { ComplexAssetSelector } from '@/components/chimera/ComplexAssetSelector';
 
 const MAX_ENTRY_TEXT_LENGTH = 1000;
 
@@ -34,36 +37,71 @@ interface CreateLoreModalProps {
 export function CreateLoreModal({ isOpen, onClose, storyId, onSuccess }: CreateLoreModalProps) {
   const [displayName, setDisplayName] = useState('');
   const [entryText, setEntryText] = useState('');
+  const [selectedWorldId, setSelectedWorldId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch story to get world_id
+  const { data: story, isLoading: isLoadingStory } = useQuery({
+    queryKey: ['chimera-story', storyId],
+    queryFn: () => chimeraStoriesService.getStory(storyId),
+    enabled: isOpen && !!storyId,
+  });
+
+  // Set selected world from story when it loads
+  useEffect(() => {
+    if (story?.world_id && !selectedWorldId) {
+      setSelectedWorldId(story.world_id);
+    }
+  }, [story?.world_id, selectedWorldId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!displayName.trim()) {
+    // Use selected world ID (from story or manually selected)
+    const worldId = selectedWorldId || story?.world_id;
+    if (!worldId || typeof worldId !== 'string' || worldId.trim() === '') {
+      toast.error('Please select a world for this lore entry.');
+      return;
+    }
+
+    const trimmedDisplayName = displayName.trim();
+    const trimmedEntryText = entryText.trim();
+
+    if (!trimmedDisplayName) {
       toast.error('Display name is required');
       return;
     }
 
-    if (!entryText.trim()) {
+    if (!trimmedEntryText) {
       toast.error('Entry text is required');
       return;
     }
 
-    if (entryText.length > MAX_ENTRY_TEXT_LENGTH) {
+    if (trimmedEntryText.length > MAX_ENTRY_TEXT_LENGTH) {
       toast.error(`Entry text must be ${MAX_ENTRY_TEXT_LENGTH} characters or less`);
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await chimeraLoreEntriesService.createLoreEntry(storyId, {
-        display_name: displayName.trim(),
-        entry_text: entryText.trim(),
+      const requestBody = {
+        world_id: worldId.trim(),
+        display_name: trimmedDisplayName,
+        entry_text: trimmedEntryText,
+      };
+
+      // Debug logging
+      console.log('[CreateLoreModal] Submitting lore entry:', requestBody);
+
+      await chimeraLoreEntriesService.createLoreEntry(worldId.trim(), {
+        display_name: trimmedDisplayName,
+        entry_text: trimmedEntryText,
       });
 
       toast.success('Lore entry created successfully');
       setDisplayName('');
       setEntryText('');
+      setSelectedWorldId(null);
       onClose();
       onSuccess?.();
     } catch (error) {
@@ -78,12 +116,22 @@ export function CreateLoreModal({ isOpen, onClose, storyId, onSuccess }: CreateL
     if (!isSubmitting) {
       setDisplayName('');
       setEntryText('');
+      setSelectedWorldId(null);
       onClose();
     }
   };
 
+  const handleWorldChange = (worldIds: string[]) => {
+    setSelectedWorldId(worldIds[0] || null);
+  };
+
+  // Determine the world ID to use (selected or from story)
+  const effectiveWorldId = selectedWorldId || story?.world_id || null;
+
   const remainingChars = MAX_ENTRY_TEXT_LENGTH - entryText.length;
   const isNearLimit = remainingChars < 100;
+
+  const isLoading = isLoadingStory;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -91,13 +139,40 @@ export function CreateLoreModal({ isOpen, onClose, storyId, onSuccess }: CreateL
         <DialogHeader>
           <DialogTitle>New Lore Entry</DialogTitle>
           <DialogDescription>
-            Create a new lore entry for this story. This will be used by the AI for narrative generation.
+            Create a new lore entry for this world. This will be used by the AI for narrative generation in stories set in this world.
           </DialogDescription>
         </DialogHeader>
 
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="display-name">Display Name</Label>
+            <Label>World *</Label>
+            <ComplexAssetSelector
+              assetType="world"
+              selectedIds={effectiveWorldId ? [effectiveWorldId] : []}
+              onSelectionChange={handleWorldChange}
+              mode="single"
+              emptyMessage="No worlds available. Create one first!"
+              itemLabel="world"
+              onCreateNew={() => {
+                onClose();
+                window.open('/dashboard/worlds/new', '_blank');
+              }}
+              createNewLabel="Create New World"
+            />
+            {story?.world_id && (
+              <p className="text-xs text-muted-foreground">
+                Using world from story: {story.world?.display_name || story.world_id}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="display-name">Display Name *</Label>
             <Input
               id="display-name"
               value={displayName}
@@ -158,7 +233,10 @@ export function CreateLoreModal({ isOpen, onClose, storyId, onSuccess }: CreateL
             <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !displayName.trim() || !entryText.trim()}>
+            <Button 
+              type="submit" 
+              disabled={isSubmitting || !displayName.trim() || !entryText.trim() || !effectiveWorldId}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -170,6 +248,7 @@ export function CreateLoreModal({ isOpen, onClose, storyId, onSuccess }: CreateL
             </Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

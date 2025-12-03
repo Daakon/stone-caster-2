@@ -1,0 +1,70 @@
+{
+  "id": "fnd_core_personality_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Core Personality Traits",
+  "ui_category": "foundation",
+  "exclusion_group": "personality_core",
+  "description": "Defines the fundamental character archetypes using semantic tags (e.g., 'Lazy', 'Brave'). These act as the primary acting instructions for the AI Narrator.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc", "player"],
+      "definitions": {
+        "core_traits": {
+          "value": ["Neutral"],
+          "context_priority": "ai_visible",
+          "description": "The defining adjectives of the character."
+        }
+      },
+      "form_hints": {
+        "core_traits": {
+          "control": "tag_list",
+          "label": "Personality Archetypes",
+          "allow_custom": true,
+          "suggestions": [
+            "Lazy", "Energetic", "Brave", "Cowardly", 
+            "Optimistic", "Pessimistic", "Cruel", "Kind",
+            "Stoic", "Volatile", "Honorable", "Deceitful"
+          ]
+        }
+      }
+    }
+  },
+
+  "actions": {
+    "add_personality_trait": {
+      "kind": "system_auto",
+      "trigger": { "type": "intent_match", "keyword_id": "develop_character" },
+      "logic": [
+        {
+          "step_id": "append_trait",
+          "function": "cat_02_state_mutation.manage_list",
+          "args": {
+            "path": "tier1_entity.core_traits",
+            "operation": "add",
+            "item": "New Trait"
+          }
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        {
+          "path": "tier1_entity.core_traits",
+          "label": "CORE PERSONALITY"
+        }
+      ],
+      "style_injections": [
+        {
+          "category": "tone",
+          "unique_id": "trait_enforcement",
+          "priority": 90,
+          "content": "You must embody the archetypes listed in [CORE PERSONALITY]. If 'Lazy', avoid physical exertion in description. If 'Cruel', show lack of empathy."
+        }
+      ]
+    }
+  }
+}

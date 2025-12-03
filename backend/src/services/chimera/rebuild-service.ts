@@ -160,7 +160,7 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
   // Step 1: Fetch the story and verify ownership
   const { data: story, error: storyError } = await supabaseAdmin
     .from('chimera_stories')
-    .select('id, owner_user_id, world_id')
+    .select('id, owner_user_id, world_id, configuration')
     .eq('id', storyId)
     .single();
 
@@ -175,31 +175,18 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
     throw new Error('You do not have permission to rebuild this story');
   }
 
-  // Step 2: Fetch all linked ruleset templates
-  const { data: storyLinks, error: storyLinksError } = await supabaseAdmin
-    .from('chimera_story_links')
-    .select('ruleset_template_id')
-    .eq('story_id', storyId);
-
-  if (storyLinksError) {
-    throw new Error(`Failed to fetch story links: ${storyLinksError.message}`);
-  }
-
-  const storyRulesetIds = (storyLinks || []).map((link) => link.ruleset_template_id);
+  // Step 2: Extract ruleset IDs from configuration JSONB
+  const configuration = (story.configuration as any) || {};
+  const storyRulesetIds = configuration.rulesetIds || [];
 
   // Step 3: Fetch world ruleset_template_ids if story has a world
+  // Note: World rulesets are stored in world definition JSONB, not in junction table
+  // For now, return empty array - world rulesets should be read from world definition
   let worldRulesetIds: string[] = [];
   if (story.world_id) {
-    const { data: worldLinks, error: worldLinksError } = await supabaseAdmin
-      .from('chimera_world_ruleset_link')
-      .select('ruleset_template_id')
-      .eq('world_id', story.world_id);
-
-    if (worldLinksError) {
-      throw new Error(`Failed to fetch world links: ${worldLinksError.message}`);
-    }
-
-    worldRulesetIds = (worldLinks || []).map((link) => link.ruleset_template_id);
+    // TODO: Read world ruleset IDs from world definition JSONB
+    // For now, skip world rulesets to avoid junction table dependency
+    console.warn('[Rebuild Service] World rulesets not yet supported from definition JSONB');
   }
 
   // Step 4: Fetch content pack links and resolve dependencies
@@ -269,7 +256,7 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
   // Step 7: Fetch all ruleset templates with their definitions
   const { data: rulesetTemplates, error: templatesError } = await supabaseAdmin
     .from('chimera_ruleset_templates')
-    .select('id, rule_type, main_system_dependency, definition, version')
+    .select('id, definition, dependencies')
     .in('id', allRulesetIds);
 
   if (templatesError) {
@@ -280,25 +267,44 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
     throw new Error('No valid ruleset templates found');
   }
 
+  // Extract rule_type from definition JSONB and add helper fields
+  const templatesWithRuleType = rulesetTemplates.map((t) => {
+    const def = t.definition as any;
+    // rule_type may be in definition.rule_type or definition.metadata.rule_type
+    // Default to 'MODIFIER' if not found (most common for world/pack rulesets)
+    const ruleType = def?.rule_type || def?.metadata?.rule_type || 'MODIFIER';
+    // main_system_dependency may be in dependencies array or definition
+    const mainSystemDep = def?.main_system_dependency || 
+                         (Array.isArray(t.dependencies) && t.dependencies.length > 0 ? t.dependencies[0] : null);
+    
+    return {
+      id: t.id,
+      definition: t.definition,
+      version: (def?.version as number) || 1, // Extract version from definition or default to 1
+      rule_type: ruleType,
+      main_system_dependency: mainSystemDep,
+    };
+  });
+
   // Step 8: Build the load order and validate MAIN_SYSTEM
-  const mainSystem = rulesetTemplates.find((t) => t.rule_type === 'MAIN_SYSTEM');
+  const mainSystem = templatesWithRuleType.find((t) => t.rule_type === 'MAIN_SYSTEM');
   if (!mainSystem) {
     throw new Error('Story must have a MAIN_SYSTEM ruleset template');
   }
 
   const mainSystemId = mainSystem.id;
-  const subsystems = rulesetTemplates.filter(
+  const subsystems = templatesWithRuleType.filter(
     (t) => t.rule_type === 'SUBSYSTEM' && t.main_system_dependency === mainSystemId
   );
-  const worldModifiers = rulesetTemplates.filter(
+  const worldModifiers = templatesWithRuleType.filter(
     (t) => t.rule_type === 'MODIFIER' && worldRulesetIds.includes(t.id)
   );
-  const packModifiers = rulesetTemplates.filter(
+  const packModifiers = templatesWithRuleType.filter(
     (t) => t.rule_type === 'MODIFIER' && packRulesetIds.includes(t.id)
   );
 
   // Build load order: MAIN_SYSTEM -> SUBSYSTEM -> MODIFIER
-  const loadOrder: RulesetTemplate[] = [
+  const loadOrder = [
     mainSystem,
     ...subsystems,
     ...worldModifiers,

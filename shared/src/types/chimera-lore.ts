@@ -6,7 +6,8 @@
 /**
  * ChimeraLoreEntry
  * The standard structure for lore entries in the chimera_lore_entries table
- * These entries are story-specific and will be vectorized by the compiler for RAG search
+ * These entries are world-specific and will be vectorized by the compiler for RAG search
+ * Stories reference lore entries from their world during compilation
  */
 export interface ChimeraLoreEntry {
   /**
@@ -15,10 +16,10 @@ export interface ChimeraLoreEntry {
   id: string;
 
   /**
-   * Foreign key to chimera_stories.id
-   * Lore entries are story-specific
+   * Foreign key to chimera_worlds.id (UUID)
+   * Lore entries are world-specific. Stories can reference lore entries from their world.
    */
-  story_id: string;
+  world_id: string;
 
   /**
    * Display name for the lore entry (for UI purposes)
@@ -53,13 +54,13 @@ export function isChimeraLoreEntry(value: unknown): value is ChimeraLoreEntry {
   const obj = value as Record<string, unknown>;
   return (
     'id' in obj &&
-    'story_id' in obj &&
+    'world_id' in obj &&
     'display_name' in obj &&
     'entry_text' in obj &&
     'created_at' in obj &&
     'updated_at' in obj &&
     typeof obj.id === 'string' &&
-    typeof obj.story_id === 'string' &&
+    typeof obj.world_id === 'string' &&
     typeof obj.display_name === 'string' &&
     typeof obj.entry_text === 'string' &&
     typeof obj.created_at === 'string' &&

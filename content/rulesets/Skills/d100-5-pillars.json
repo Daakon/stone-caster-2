@@ -1,0 +1,133 @@
+{
+  "id": "fnd_skills_5pillars_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "The 5 Universal Pillars (Core System)",
+  "ui_category": "foundation",
+  "exclusion_group": "skill_system_core",
+  "dependency": ["mech_d100_foundation_v1"],
+  "description": "The master ruleset for the 5-stat skill system. Includes the stat definitions, the cascade resolution logic (Specific -> Root), and the narrative directives.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc", "player"],
+      "definitions": {
+        "root_force": {
+          "value": 50,
+          "context_priority": "ai_visible",
+          "description": "Physical power: Push, Break, Wrestle.",
+          "tags": ["root_node", "stat"]
+        },
+        "root_finesse": {
+          "value": 50,
+          "context_priority": "ai_visible",
+          "description": "Precision: Stealth, Aim, Lockpick.",
+          "tags": ["root_node", "stat"]
+        },
+        "root_awareness": {
+          "value": 50,
+          "context_priority": "ai_visible",
+          "description": "Perception: Search, Sense, Track.",
+          "tags": ["root_node", "stat"]
+        },
+        "root_insight": {
+          "value": 50,
+          "context_priority": "ai_visible",
+          "description": "Analysis: Logic, Lore, Repair.",
+          "tags": ["root_node", "stat"]
+        },
+        "root_influence": {
+          "value": 50,
+          "context_priority": "ai_visible",
+          "description": "Social: Persuade, Deceive, Lead.",
+          "tags": ["root_node", "stat"]
+        }
+      },
+      "form_hints": {
+        "root_force": { "control": "slider", "min": 1, "max": 100, "label": "FORCE (Power)" },
+        "root_finesse": { "control": "slider", "min": 1, "max": 100, "label": "FINESSE (Precision)" },
+        "root_awareness": { "control": "slider", "min": 1, "max": 100, "label": "AWARENESS (Senses)" },
+        "root_insight": { "control": "slider", "min": 1, "max": 100, "label": "INSIGHT (Mind)" },
+        "root_influence": { "control": "slider", "min": 1, "max": 100, "label": "INFLUENCE (Social)" }
+      }
+    }
+  },
+
+  "actions": {
+    "resolve_skill_check": {
+      "kind": "system_compute",
+      "trigger": { 
+        "type": "request_match", 
+        "id": "execute_check", 
+        "required_params": ["actor_id", "skill_id", "difficulty_mod"] 
+      },
+      "logic": [
+        {
+          "step_id": "1_resolve_cascade_value",
+          "description": "Look for the specific skill. If null, automatically find the parent 'root_' tag in the schema and use that value.",
+          "function": "cat_02_state_lookup.cascade_value",
+          "args": {
+            "entity": "@request.actor_id",
+            "target_node": "@request.skill_id",
+            "fallback_strategy": "nearest_root_node"
+          }
+        },
+        {
+          "step_id": "2_calculate_target",
+          "description": "Add the difficulty modifier to the resolved skill value.",
+          "function": "cat_03_math.add",
+          "args": {
+            "base": "@1_resolve_cascade_value.result",
+            "modifier": "@request.difficulty_mod"
+          }
+        },
+        {
+          "step_id": "3_roll_dice",
+          "description": "Roll the D100 using the physics engine.",
+          "function": "cat_03_rng.roll_d100",
+          "args": { "mode": "roll_under" }
+        },
+        {
+          "step_id": "4_determine_outcome",
+          "description": "Compare roll to target. Returns 'CRIT', 'SUCCESS', 'FAIL', 'FUMBLE'.",
+          "function": "cat_03_logic.compare_thresholds",
+          "args": {
+            "roll_value": "@3_roll_dice.result",
+            "target_value": "@2_calculate_target.result",
+            "bands": "@tier2_global.success_bands" 
+          }
+        },
+        {
+          "step_id": "5_broadcast_narrative",
+          "description": "Send the structured result to MAS 2.",
+          "function": "cat_04_output.construct_narrative_payload",
+          "args": {
+            "outcome": "@4_determine_outcome.result",
+            "skill_used": "@request.skill_id",
+            "stat_source": "@1_resolve_cascade_value.source_node" 
+          }
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas1_action_parser": {
+      "instructions": [
+        {
+          "intent": "map_intent_to_pillar",
+          "logic": "Analyze the user's verb. If it matches a known Expansion Skill (e.g. 'Hide'), request that ID. If not, map to the nearest of the 5 Roots. DEFAULT: 'root_finesse' for dexterity, 'root_force' for strength."
+        }
+      ]
+    },
+    "mas2_narrator": {
+      "style_injections": [
+        {
+          "category": "action_resolution",
+          "unique_id": "5_pillar_flavor",
+          "priority": 90,
+          "content": "Narrate the outcome based on the Stat Source. If the source was FORCE, describe physical impact/strain. If FINESSE, describe speed/grace. If INSIGHT, describe sudden realization. Reflect the Degree of Success (Margin) in the intensity."
+        }
+      ]
+    }
+  }
+}

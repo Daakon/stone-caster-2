@@ -19,6 +19,7 @@ export interface ChimeraLore {
   version: number;
   display_name: string;
   content_chunk: string;
+  world_id?: string; // Optional for backward compatibility
   tags?: Array<{ id: string; tag_name: string }>;
   embedding: number[] | null;
   created_at: string;
@@ -34,9 +35,10 @@ export interface SelectableLore {
 }
 
 export interface CreateLoreData {
+  world_id: string;
   display_name: string;
-  content_chunk: string;
-  tag_names?: string[];
+  entry_text: string;
+  tag_names: string[];
 }
 
 export interface UpdateLoreData extends Partial<CreateLoreData> {

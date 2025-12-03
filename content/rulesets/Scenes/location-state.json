@@ -1,0 +1,82 @@
+{
+  "id": "exp_location_state_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Location State & Destructibility",
+  "ui_category": "expansion",
+  "dependencies": ["fnd_location_core_v1"],
+  "description": "Tracks the physical condition of a location (e.g., Burnt, Flooded).",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["location"],
+      "definitions": {
+        "structural_integrity": { "value": 100, "context_priority": "engine_private" },
+        "current_state_tag": { "value": "Pristine", "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "structural_integrity": { "control": "slider", "min": 0, "max": 100, "label": "Initial Integrity" }
+      }
+    }
+  },
+
+  "actions": {
+    "damage_location": {
+      "kind": "player_initiated",
+      "trigger": { "type": "intent_match", "keyword_id": "destructive_act" },
+      "logic": [
+        {
+          "step_id": "reduce_integrity",
+          "function": "cat_02_state_mutation.modify_stat",
+          "args": { "path": "tier1_entity.structural_integrity", "amount": -20 }
+        },
+        {
+          "step_id": "update_state_tag",
+          "function": "cat_03_logic_calculators.check_thresholds",
+          "args": {
+            "source_path": "tier1_entity.structural_integrity",
+            "output_path": "tier1_entity.current_state_tag",
+            "thresholds": {
+              "0": "Destroyed / Rubble",
+              "40": "Heavily Damaged",
+              "80": "Pristine"
+            }
+          }
+        }
+      ]
+    },
+    "repair_location": {
+        "kind": "player_initiated",
+        "trigger": { "type": "intent_match", "keyword_id": "repair_act" },
+        "logic": [
+            {
+                "step_id": "increase_integrity",
+                "function": "cat_02_state_mutation.modify_stat",
+                "args": { "path": "tier1_entity.structural_integrity", "amount": 20 }
+            }
+        ]
+    }
+  },
+
+  "mas_directives": {
+    "mas1_interpreter": {
+        "intent_keywords": [
+            { "verb": "burn", "trigger_id": "destructive_act" },
+            { "verb": "smash", "trigger_id": "destructive_act" },
+            { "verb": "repair", "trigger_id": "repair_act" }
+        ]
+    },
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.current_state_tag", "label": "STRUCTURAL CONDITION" }
+      ],
+      "style_injections": [
+        {
+          "category": "sensory",
+          "unique_id": "damage_narration",
+          "priority": 80,
+          "content": "Describe the location as [STRUCTURAL CONDITION]. If 'Destroyed', emphasize debris and lack of utility."
+        }
+      ]
+    }
+  }
+}

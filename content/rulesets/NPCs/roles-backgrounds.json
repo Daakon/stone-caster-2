@@ -1,0 +1,55 @@
+{
+  "id": "exp_roles_background_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Roles & Backgrounds",
+  "ui_category": "expansion",
+  "dependencies": ["fnd_core_personality_v1"],
+  "description": "Provides context on the entity's past and profession. Affects their knowledge base, jargon, and social standing.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc", "player"],
+      "definitions": {
+        "background_origin": {
+          "value": "Commoner",
+          "context_priority": "ai_visible",
+          "description": "Social class or place of origin."
+        },
+        "occupation_tags": {
+          "value": [],
+          "context_priority": "ai_visible",
+          "description": "Jobs or roles held (past and present)."
+        }
+      },
+      "form_hints": {
+        "background_origin": {
+          "control": "dropdown",
+          "options": ["Noble", "Commoner", "Outlander", "Criminal", "Clergy"],
+          "label": "Social Origin"
+        },
+        "occupation_tags": {
+          "control": "tag_list",
+          "label": "Occupations / Roles",
+          "suggestions": ["Soldier", "Merchant", "Thief", "Scholar", "Smith", "Farmer", "Guard"]
+        }
+      }
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.background_origin", "label": "SOCIAL ORIGIN" },
+        { "path": "tier1_entity.occupation_tags", "label": "KNOWN SKILLS/ROLES" }
+      ],
+      "style_injections": [
+        {
+          "category": "tone",
+          "unique_id": "competence_display",
+          "priority": 60,
+          "content": "Assume the character possesses high competence and jargon knowledge related to their [KNOWN SKILLS/ROLES]. Adjust their vocabulary to match their [SOCIAL ORIGIN] (e.g., Highborn uses formal speech, Criminal uses slang)."
+        }
+      ]
+    }
+  }
+}

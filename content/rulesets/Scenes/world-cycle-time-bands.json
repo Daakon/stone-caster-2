@@ -1,0 +1,129 @@
+{
+    "id": "world-cycle-time-bands",
+    "name": "World Cycle & Time Bands",
+    "ui_category": "foundation",
+    "exclusion_group": "time_core",
+    "dependencies": [],
+    "definition": {
+        "id": "world-cycle-time-bands",
+        "name": "World Cycle & Time Bands",
+        "actions": {
+            "advance_clock_dynamic": {
+                "kind": "system_compute",
+                "logic": [
+                    {
+                        "args": {
+                            "map": {
+                                "scene": 1,
+                                "moment": 0,
+                                "journey": 4,
+                                "long_rest": 8,
+                                "short_rest": 1
+                            },
+                            "default": 0,
+                            "input_value": "input.duration_tag"
+                        },
+                        "step_id": "resolve_duration",
+                        "function": "cat_03_logic_calculators.map_value",
+                        "output_to": "tick_delta"
+                    },
+                    {
+                        "args": {
+                            "add": "@resolve_duration.result",
+                            "max": 24,
+                            "current": "tier1_world.current_tick"
+                        },
+                        "step_id": "increment_tick",
+                        "function": "cat_03_math.add_wrap",
+                        "output_to": "new_tick"
+                    },
+                    {
+                        "args": {
+                            "path": "tier1_world.current_tick",
+                            "value": "@increment_tick.result"
+                        },
+                        "step_id": "update_world_tick",
+                        "function": "cat_02_state_mutation.set_value"
+                    },
+                    {
+                        "args": {
+                            "input": "@increment_tick.result",
+                            "ranges": [
+                                {"min": 0, "max": 4, "label": "Deep Night"},
+                                {"min": 4, "max": 6, "label": "Pre-Dawn"},
+                                {"min": 6, "max": 9, "label": "Early Morning"},
+                                {"min": 9, "max": 11, "label": "Late Morning"},
+                                {"min": 11, "max": 13, "label": "High Noon"},
+                                {"min": 13, "max": 16, "label": "Early Afternoon"},
+                                {"min": 16, "max": 19, "label": "Late Afternoon"},
+                                {"min": 19, "max": 21, "label": "Dusk"},
+                                {"min": 21, "max": 24, "label": "Nightfall"}
+                            ]
+                        },
+                        "step_id": "calculate_band",
+                        "function": "cat_03_logic.map_range",
+                        "output_to": "calculated_band"
+                    },
+                    {
+                        "args": {
+                            "path": "tier1_world.time_band",
+                            "value": "@calculate_band.result"
+                        },
+                        "step_id": "commit_band",
+                        "function": "cat_02_state_mutation.set_value"
+                    }
+                ],
+                "trigger": {
+                    "type": "intent_match",
+                    "keyword_id": "trigger_time_pass"
+                }
+            }
+        },
+        "ai_instructions": {
+            "mas2_narrator": {
+                "state_readouts": [
+                    {"path": "tier1_world.time_band", "label": "TIME OF DAY"},
+                    {"path": "tier1_world.current_tick", "label": "CLOCK TICK (0-24)"}
+                ],
+                "style_injections": [
+                    {
+                        "content": "Use [TIME OF DAY] to strictly dictate lighting and NPC activity levels. 'High Noon' is bright/active. 'Deep Night' is dark/quiet/dangerous. 'Pre-Dawn' is foggy/cold.",
+                        "category": "sensory",
+                        "priority": 95,
+                        "unique_id": "temporal_grounding"
+                    }
+                ]
+            },
+            "mas1_interpreter": {
+                "instructions": [
+                    {
+                        "logic": "If action implies time passing, attach 'duration_tag'. 'moment' (0h), 'scene' (1h), 'short_rest' (1h), 'long_rest' (8h), 'journey' (4h).",
+                        "intent": "analyze_duration"
+                    }
+                ],
+                "intent_keywords": [
+                    {"verb": "wait", "trigger_id": "trigger_time_pass"},
+                    {"verb": "sleep", "trigger_id": "trigger_time_pass"},
+                    {"verb": "travel", "trigger_id": "trigger_time_pass"},
+                    {"verb": "explore", "trigger_id": "trigger_time_pass"}
+                ]
+            }
+        },
+        "state_contributions": {
+            "tier1_world": {
+                "definitions": {
+                    "time_band": {
+                        "value": "Early Morning",
+                        "description": "Narrative phase of the day (e.g. High Noon, Deep Night).",
+                        "context_priority": "ai_visible"
+                    },
+                    "current_tick": {
+                        "value": 7,
+                        "description": "Abstract time unit (0-24).",
+                        "context_priority": "engine_private"
+                    }
+                }
+            }
+        }
+    }
+}

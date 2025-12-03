@@ -63,11 +63,17 @@ export default function StoryStudio() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch lore entries
+  // Fetch lore entries for the story's world
   const { data: loreEntries, isLoading: isLoadingLore } = useQuery({
-    queryKey: ['chimera-lore-entries', id],
-    queryFn: () => chimeraLoreEntriesService.fetchLoreEntries(id!),
-    enabled: !!id,
+    queryKey: ['chimera-lore-entries', story?.world_id],
+    queryFn: () => {
+      if (story?.world_id) {
+        return chimeraLoreEntriesService.fetchLoreEntries(story.world_id);
+      }
+      // Fallback to story_id for backward compatibility during migration
+      return chimeraLoreEntriesService.fetchLoreEntries(id!, { storyId: id! });
+    },
+    enabled: !!id && !!story,
   });
 
   // Fetch linked entities
@@ -135,7 +141,7 @@ export default function StoryStudio() {
   const deleteLoreMutation = useMutation({
     mutationFn: (loreId: string) => chimeraLoreEntriesService.deleteLoreEntry(loreId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chimera-lore-entries', id] });
+      queryClient.invalidateQueries({ queryKey: ['chimera-lore-entries', story?.world_id] });
       toast.success('Lore entry deleted');
     },
     onError: (error) => {
@@ -612,7 +618,7 @@ export default function StoryStudio() {
             onClose={() => setIsLoreModalOpen(false)}
             storyId={id}
             onSuccess={() => {
-              queryClient.invalidateQueries({ queryKey: ['chimera-lore-entries', id] });
+              queryClient.invalidateQueries({ queryKey: ['chimera-lore-entries', story?.world_id] });
             }}
           />
           <CreateEntityModal

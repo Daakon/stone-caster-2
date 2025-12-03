@@ -22,6 +22,7 @@ const ENTITY_TYPE_OPTIONS = [
   { value: 'NPC', label: 'NPC' },
   { value: 'ITEM', label: 'Item' },
   { value: 'FACTION', label: 'Faction' },
+  { value: 'LOCATION', label: 'Location' },
 ] as const;
 
 export default function EntityEditor() {

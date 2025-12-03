@@ -1,0 +1,83 @@
+{
+  "id": "fnd_abstract_capability_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Abstract Capability & Wealth",
+  "ui_category": "foundation",
+  "exclusion_group": "capability_core",
+  "description": "Replaces Inventory and Economy with abstract Tags. Defines what a character 'has' based on who they 'are'.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["player", "npc"],
+      "definitions": {
+        "archetype_loadout": { 
+          "value": "Civilian", 
+          "context_priority": "ai_visible",
+          "description": "Implied gear (e.g., 'Heavy Infantry' implies armor)." 
+        },
+        "wealth_tier": { 
+          "value": 1, 
+          "context_priority": "engine_private",
+          "description": "Economic power (0=Destitute, 1=Struggling, 2=Comfortable, 3=Wealthy, 4=Aristocrat)." 
+        }
+      },
+      "form_hints": {
+        "archetype_loadout": { 
+          "control": "dropdown", 
+          "options": ["Civilian", "Light Skirmisher", "Heavy Infantry", "Mage", "Rogue"],
+          "label": "Combat Loadout"
+        },
+        "wealth_tier": {
+          "control": "slider",
+          "min": 0,
+          "max": 4,
+          "label": "Wealth Level"
+        }
+      }
+    }
+  },
+
+  "actions": {
+    "check_affordability": {
+      "kind": "system_auto",
+      "trigger": { "type": "intent_match", "keyword_id": "purchase_attempt" },
+      "logic": [
+        {
+          "step_id": "compare_wealth",
+          "function": "cat_01_resolution.resolve_contest",
+          "args": {
+            "actor_stat": "tier1_entity.wealth_tier",
+            "target_stat": "input.cost_tier",
+            "actor_mod": 0,
+            "target_mod": 0
+          },
+          "output_to": "purchase_result"
+        },
+        {
+          "step_id": "deny_purchase",
+          "function": "cat_02_state_mutation.stop_execution",
+          "args": { "reason": "You cannot afford this lifestyle." },
+          "conditions": [
+            { "left": "purchase_result", "op": "eq", "right": "target_win" }
+          ]
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.archetype_loadout", "label": "VISIBLE GEAR" }
+      ],
+      "style_injections": [
+        {
+          "category": "sensory",
+          "unique_id": "loadout_rendering",
+          "priority": 80,
+          "content": "Do not list inventory. Instead, describe the character's appearance based on [VISIBLE GEAR]. If 'Heavy Infantry', mention clanking steel. If 'Rogue', mention concealed blades."
+        }
+      ]
+    }
+  }
+}

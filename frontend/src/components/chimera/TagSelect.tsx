@@ -105,7 +105,7 @@ export function TagSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0" onInteractOutside={(e) => e.preventDefault()}>
-          <Command shouldFilter={false} loop={true}>
+          <Command shouldFilter={false} loop={true} filter={() => 1}>
             <CommandInput
               placeholder="Search existing tags or type a new name..."
               value={tagSearch}
@@ -142,12 +142,12 @@ export function TagSelect({
               {canCreateNew && (
                 <CommandGroup heading="Create New">
                   <CommandItem
-                    value="__create__"
+                    value={tagSearch.trim().toLowerCase() || '__create_new__'}
                     onSelect={() => {
                       const newTagName = tagSearch.trim().toUpperCase().replace(/\s+/g, '_');
                       handleAddTag(newTagName);
                     }}
-                    className="cursor-pointer"
+                    className="cursor-pointer !pointer-events-auto !opacity-100 [&[data-disabled]]:!pointer-events-auto [&[data-disabled]]:!opacity-100"
                     disabled={false}
                     onMouseDown={(e) => {
                       e.preventDefault();

@@ -1,0 +1,31 @@
+{
+  "rulesetId": "SKILL_EXP_GEN",
+  "type": "skill_list",
+  "dependency": ["MECH_RES_D100", "ATTR_ABSTRACT_CAPABILITY"], 
+  "skills": [
+    {
+      "id": "SKILL_ATHLETICS",
+      "name": "Athletics",
+      "baseAttribute": "ATTR_BODY", 
+      "defaultBaseValue": 50,
+      "triggerVerbs": ["climb", "jump", "lift", "smash", "run", "chase"],
+      "narrativeFunction": "Overcoming physical obstacles."
+    },
+    {
+      "id": "SKILL_INFLUENCE",
+      "name": "Influence",
+      "baseAttribute": "ATTR_SPIRIT",
+      "defaultBaseValue": 50,
+      "triggerVerbs": ["persuade", "lie", "intimidate", "charm", "beguile"],
+      "narrativeFunction": "Altering the emotional state of NPCs."
+    },
+    {
+      "id": "SKILL_AWARENESS",
+      "name": "Awareness",
+      "baseAttribute": "ATTR_MIND",
+      "defaultBaseValue": 50,
+      "triggerVerbs": ["search", "listen", "spot", "analyze", "inspect"],
+      "narrativeFunction": "Gathering details from the environment."
+    }
+  ]
+}

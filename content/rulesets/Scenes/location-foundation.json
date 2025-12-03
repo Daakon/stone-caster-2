@@ -1,0 +1,60 @@
+{
+  "id": "fnd_location_core_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Location Core System",
+  "ui_category": "foundation",
+  "exclusion_group": "location_core",
+  "description": "Defines an entity as a physical space. Strictly limits data to topological and descriptive fields.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["location"],
+      "definitions": {
+        "scene_header": { 
+            "value": "Unnamed Location", 
+            "context_priority": "ai_visible" 
+        },
+        "visual_description": { 
+            "value": "A void.", 
+            "context_priority": "ai_visible" 
+        },
+        "navigation_nodes": { 
+            "value": [], 
+            "context_priority": "ai_visible",
+            "description": "List of { target_id: string, label: string, is_locked: boolean }."
+        }
+      },
+      "form_hints": {
+        "scene_header": { "control": "text_input", "label": "Location Name" },
+        "visual_description": { "control": "text_area", "label": "Description" },
+        "navigation_nodes": { 
+            "control": "complex_list", 
+            "label": "Exits / Connections",
+            "fields": [
+                { "key": "target_id", "type": "entity_picker", "target_kind": "location", "label": "Destination" },
+                { "key": "label", "type": "text", "label": "Direction (e.g. North)" },
+                { "key": "is_locked", "type": "checkbox", "label": "Locked?" }
+            ]
+        }
+      }
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.scene_header", "label": "CURRENT LOCATION" },
+        { "path": "tier1_entity.visual_description", "label": "SCENE VISUALS" },
+        { "path": "tier1_entity.navigation_nodes", "label": "VISIBLE EXITS" }
+      ],
+      "style_injections": [
+        {
+          "category": "formatting",
+          "unique_id": "location_grounding",
+          "priority": 100,
+          "content": "You are narrating the scene at [CURRENT LOCATION]. Use [SCENE VISUALS] to set the stage. Restrict movement to [VISIBLE EXITS] only."
+        }
+      ]
+    }
+  }
+}

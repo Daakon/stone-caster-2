@@ -1,0 +1,72 @@
+{
+  "id": "fnd_world_navigation_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "World Navigation System",
+  "ui_category": "foundation",
+  "exclusion_group": "navigation_core",
+  "description": "Manages the pointer to the current active location and handles travel logic.",
+
+  "state_contributions": {
+    "tier1_world": {
+      "definitions": {
+        "active_location_id": { "value": null, "context_priority": "engine_private" },
+        "travel_log": { "value": [], "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "active_location_id": { 
+            "control": "entity_picker", 
+            "target_kind": "location", 
+            "label": "Starting Location" 
+        }
+      }
+    }
+  },
+
+  "actions": {
+    "travel_to_node": {
+      "kind": "player_initiated",
+      "trigger": { "type": "intent_match", "keyword_id": "travel_action" },
+      "logic": [
+        {
+            "step_id": "validate_connection",
+            "function": "cat_03_logic_calculators.check_list_contains",
+            "args": {
+                "list_path": "tier1_entity.{active_location_id}.navigation_nodes",
+                "search_key": "target_id",
+                "value": "input.target_id"
+            },
+            "output_to": "is_valid_move"
+        },
+        {
+          "step_id": "update_pointer",
+          "function": "cat_02_state_mutation.set_flag",
+          "args": { 
+            "path": "tier1_world.active_location_id", 
+            "value": "input.target_id" 
+          },
+          "conditions": [
+              { "left": "is_valid_move", "op": "eq", "right": true }
+          ]
+        },
+        {
+            "step_id": "log_travel",
+            "function": "cat_04_event_logging.log_event",
+            "args": { "message": "Traveled to new location." },
+            "conditions": [
+              { "left": "is_valid_move", "op": "eq", "right": true }
+            ]
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas1_interpreter": {
+      "intent_keywords": [
+        { "verb": "go to", "trigger_id": "travel_action" },
+        { "verb": "enter", "trigger_id": "travel_action" },
+        { "verb": "walk to", "trigger_id": "travel_action" }
+      ]
+    }
+  }
+}
