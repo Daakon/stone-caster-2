@@ -30,28 +30,37 @@ export function TagSelect({
   const [tagOpen, setTagOpen] = useState(false);
 
   // Load approved tags
-  const { data: tags, isLoading: isLoadingTags } = useQuery({
+  const { data: tags, isLoading: isLoadingTags, error: tagsError } = useQuery({
     queryKey: ['chimera-tags'],
     queryFn: () => chimeraLoreService.getTags(),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 1, // Only retry once
+    // Don't throw on error - allow component to work even if tags can't be loaded
+    throwOnError: false,
   });
 
   // Filter tags based on search
-  const filteredTags = tags?.filter((tag) =>
+  // If query failed or is loading, use empty array so user can still create new tags
+  const availableTags = (tags || []);
+  const filteredTags = availableTags.filter((tag) =>
     tag.tag_name.toLowerCase().includes(tagSearch.toLowerCase())
-  ) || [];
-
-  // Check if search matches an existing tag
-  const searchMatchesExisting = filteredTags.some(
-    (tag) => tag.tag_name.toLowerCase() === tagSearch.toLowerCase()
   );
 
-  // Check if search matches a selected tag
-  const searchMatchesSelected = selectedTagNames.some(
-    (name) => name.toLowerCase() === tagSearch.toLowerCase()
+  // Normalize search input for comparison (same normalization as handleAddTag)
+  const normalizedSearch = tagSearch.trim().toUpperCase().replace(/\s+/g, '_');
+  const hasSearchText = tagSearch.trim().length > 0;
+
+  // Check if normalized search matches a selected tag (case-insensitive, whitespace-normalized)
+  // Only prevent creation if the tag is already selected
+  const searchMatchesSelected = hasSearchText && selectedTagNames.some(
+    (name) => name.toUpperCase().replace(/\s+/g, '_') === normalizedSearch
   );
 
-  const canCreateNew = tagSearch.trim() && !searchMatchesExisting && !searchMatchesSelected;
+  // Universal fix: Always allow creating new tags if there's any text input
+  // Only prevent if it's already selected (user can select existing tags from the list instead)
+  // This works even when tags are loading or failed to load
+  // Note: We don't block on existing tags - user can create duplicates or select from existing list
+  const canCreateNew = hasSearchText && !searchMatchesSelected;
 
   const handleAddTag = (tagName: string) => {
     const normalized = tagName.trim().toUpperCase().replace(/\s+/g, '_');
@@ -96,7 +105,7 @@ export function TagSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0" onInteractOutside={(e) => e.preventDefault()}>
-          <Command shouldFilter={false} loop={true}>
+          <Command shouldFilter={false} loop={true} filter={() => 1}>
             <CommandInput
               placeholder="Search existing tags or type a new name..."
               value={tagSearch}
@@ -133,12 +142,12 @@ export function TagSelect({
               {canCreateNew && (
                 <CommandGroup heading="Create New">
                   <CommandItem
-                    value="__create__"
+                    value={tagSearch.trim().toLowerCase() || '__create_new__'}
                     onSelect={() => {
                       const newTagName = tagSearch.trim().toUpperCase().replace(/\s+/g, '_');
                       handleAddTag(newTagName);
                     }}
-                    className="cursor-pointer"
+                    className="cursor-pointer !pointer-events-auto !opacity-100 [&[data-disabled]]:!pointer-events-auto [&[data-disabled]]:!opacity-100"
                     disabled={false}
                     onMouseDown={(e) => {
                       e.preventDefault();

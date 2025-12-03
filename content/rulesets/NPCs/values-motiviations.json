@@ -1,0 +1,54 @@
+{
+  "id": "exp_values_motivations_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Values & Motivations",
+  "ui_category": "expansion",
+  "dependencies": ["fnd_core_personality_v1"],
+  "description": "Defines the moral compass and current objectives of the entity. These act as hard constraints on what the NPC is willing to do.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc"],
+      "definitions": {
+        "core_values": {
+          "value": [],
+          "context_priority": "ai_visible",
+          "description": "Principles the NPC will not violate (e.g., 'Honor', 'Protect Children')."
+        },
+        "current_objective": {
+          "value": "Survive",
+          "context_priority": "ai_visible",
+          "description": " The immediate goal driving the NPC's actions."
+        }
+      },
+      "form_hints": {
+        "core_values": {
+          "control": "tag_list",
+          "label": "Core Values",
+          "suggestions": ["Wealth", "Honor", "Family", "Power", "Survival", "Knowledge", "Justice"]
+        },
+        "current_objective": {
+          "control": "text_area",
+          "label": "Current Goal"
+        }
+      }
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.core_values", "label": "MORAL COMPASS" },
+        { "path": "tier1_entity.current_objective", "label": "CURRENT OBJECTIVE" }
+      ],
+      "style_injections": [
+        {
+          "category": "mechanics",
+          "unique_id": "value_adherence",
+          "priority": 85,
+          "content": "The character MUST refuse requests that conflict with their [MORAL COMPASS]. They must actively steer conversation toward their [CURRENT OBJECTIVE]."
+        }
+      ]
+    }
+  }
+}

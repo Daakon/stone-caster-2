@@ -11,17 +11,20 @@ export interface ChimeraEntity {
   visibility: 'private' | 'pending_approval' | 'public';
   display_name: string;
   description_short: string | null;
-  entity_type: 'NPC' | 'ITEM' | 'FACTION';
+  entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
   base_state_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  is_system_asset?: boolean;
+  world_id?: string | null;
+  is_quick_start_template?: boolean;
   tags?: Array<{ id: string; tag_name: string }>;
 }
 
 export interface CreateEntityData {
   display_name: string;
   description_short?: string | null;
-  entity_type: 'NPC' | 'ITEM' | 'FACTION';
+  entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
   base_state_json: Record<string, unknown>;
   tag_names?: string[];
 }
@@ -33,7 +36,7 @@ export interface UpdateEntityData extends Partial<CreateEntityData> {
 export interface SelectableEntity {
   id: string;
   display_name: string;
-  entity_type: 'NPC' | 'ITEM' | 'FACTION';
+  entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
   version: number;
   visibility: 'private' | 'pending_approval' | 'public';
 }
@@ -102,6 +105,17 @@ export const chimeraEntitiesService = {
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to delete entity');
     }
+  },
+
+  /**
+   * Create an entity template (for use in CreateEntityModal)
+   */
+  async createEntityTemplate(payload: CreateEntityData): Promise<ChimeraEntity> {
+    const result = await apiPost<ChimeraEntity>('/api/v2/chimera/entities', payload);
+    if (!result.ok) {
+      throw new Error(result.error.message || 'Failed to create entity template');
+    }
+    return result.data!;
   },
 };
 

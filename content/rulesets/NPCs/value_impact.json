@@ -1,0 +1,56 @@
+{
+  "id": "exp_value_impact_final",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Value-Based Impact Writer",
+  "ui_category": "expansion",
+  "dependencies": ["fnd_social_relations_final", "exp_values_motivations_v1"],
+  "description": "Writes lasting relationship tags based on Value Conflicts (e.g., 'Violated Honor').",
+
+  "actions": {
+    "commit_impact_to_memory": {
+      "kind": "system_auto",
+      "trigger": { "type": "intent_match", "keyword_id": "impact_event" },
+      "logic": [
+        {
+          "step_id": "calc_conflict",
+          "function": "cat_03_logic_calculators.check_intersection",
+          "args": {
+            "list_a": "tier1_entity.core_values",
+            "list_b": "input.violation_tags"
+          },
+          "output_to": "violated_value"
+        },
+        {
+          "step_id": "write_memory_tag",
+          "function": "cat_02_state_mutation.manage_list",
+          "args": {
+            "path": "tier1_entity.relationships.{target_id}.tags",
+            "operation": "add",
+            "item": {
+                "role": "Offender",
+                "origin": "Player violated my value of {violated_value}",
+                "severity": 10,
+                "turn_added": "tier1_world.current_turn"
+            }
+          },
+          "conditions": [
+            { "left": "violated_value", "op": "neq", "right": null }
+          ]
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "style_injections": [
+        {
+          "category": "mechanics",
+          "unique_id": "value_consistency",
+          "priority": 90,
+          "content": "If the [CRITICAL MEMORY SPOTLIGHT] mentions a Value Violation (e.g., Honor, Safety), react with personal offense rather than generic anger."
+        }
+      ]
+    }
+  }
+}

@@ -9,6 +9,7 @@ import { StoneCost } from '@/components/gameplay/StoneCost';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
+import { useQuery } from '@tanstack/react-query';
 import { useStoryQuery } from '@/lib/queries';
 import { track } from '@/lib/analytics';
 import { buildImageUrl } from '@shared/media/url';
@@ -22,16 +23,73 @@ import {
   Shield,
   Eye,
   Play,
+  Edit,
 } from 'lucide-react';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty, injectJSONLD } from '@/lib/meta';
+import { isChimeraEnabled } from '@/config/features';
+import { useAuthStore } from '@/store/auth';
+import { chimeraStoriesService } from '@/services/chimera.stories';
+import { toast } from 'sonner';
 
 export default function StoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
+  const { user } = useAuthStore();
   
-  const { data: storyData, isLoading, error } = useStoryQuery(id || '');
-  const story = storyData?.data;
+  // Conditionally use Chimera API or legacy API
+  const legacyStoryQuery = useStoryQuery(id || '');
+  
+  const chimeraStoryQuery = useQuery({
+    queryKey: ['chimera-story', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Story ID is required');
+      const chimeraStory = await chimeraStoriesService.getStory(id);
+      // Transform Chimera story format to legacy format for component compatibility
+      return {
+        ok: true,
+        data: {
+          id: chimeraStory.id,
+          slug: chimeraStory.id, // Use ID as slug for Chimera stories
+          title: chimeraStory.display_name,
+          short_desc: chimeraStory.description_short || '',
+          description: chimeraStory.description_short || '',
+          kind: 'adventure' as const, // Default to adventure
+          type: 'adventure' as const,
+          world: chimeraStory.world
+            ? {
+                id: chimeraStory.world.id,
+                name: chimeraStory.world.display_name,
+                slug: chimeraStory.world.id,
+              }
+            : null,
+          world_name: chimeraStory.world?.display_name || null,
+          world_id: chimeraStory.world_id,
+          rulesets: [],
+          tags: [],
+          hero_url: null,
+          cover_media: null,
+          content_rating: chimeraStory.content_rating,
+          created_at: chimeraStory.created_at,
+          updated_at: chimeraStory.updated_at,
+        },
+      };
+    },
+    enabled: isChimeraEnabled && !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const storyQuery = isChimeraEnabled ? chimeraStoryQuery : legacyStoryQuery;
+  const storyData = storyQuery.data as { ok: boolean; data?: any } | undefined;
+  // Both legacy and Chimera queries return { ok: true, data: {...} } format
+  const story = storyData?.ok ? storyData.data : undefined;
+  const isLoading = storyQuery.isLoading;
+  const error = storyQuery.error;
+  
+  // Check if story is a Chimera story (has owner_user_id or is from Chimera API)
+  // For now, we'll show the Studio button for all stories when Chimera is enabled
+  // In the future, we can check ownership more precisely
+  const showStudioButton = isChimeraEnabled && !!user;
 
   // Build image URL from cover_media or fallback to hero_url
   const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL;
@@ -49,7 +107,7 @@ export default function StoryDetailPage() {
   // Track story view and update document head for SEO
   // MUST be called before any early returns to satisfy Rules of Hooks
   useEffect(() => {
-    if (!storyData || !('data' in storyData) || !storyData.data) return;
+    if (!storyData?.ok || !storyData.data) return;
     const storyDetail = storyData.data;
     const title = makeTitle([storyDetail.title, storyDetail.world_name ?? storyDetail.world ?? 'World', 'StoneCaster']);
     const desc = makeDescription(storyDetail.short_desc || storyDetail.description || 'Play an interactive story on StoneCaster.');
@@ -101,9 +159,17 @@ export default function StoryDetailPage() {
     );
   }
 
-  const handleStartStory = () => {
+  const handleStartStory = async () => {
     track('begin_story_click', { story_id: story.id });
-    navigate(`/stories/${story.id}/characters`);
+    
+    // Always route to Player Gateway for character selection/creation
+    // The gateway will handle checking for existing characters and starting the game
+    if (isChimeraEnabled) {
+      navigate(`/player-gateway/${story.id}`);
+    } else {
+      // Legacy flow
+      navigate(`/stories/${story.id}/characters`);
+    }
   };
 
   const handleLearnAboutWorld = () => {
@@ -222,8 +288,19 @@ export default function StoryDetailPage() {
                 {story.short_desc}
               </p>
 
-              {/* Start Story Button */}
-              <div className="mt-6 pt-6 border-t">
+              {/* Action Buttons */}
+              <div className="mt-6 pt-6 border-t space-y-3">
+                {showStudioButton && (
+                  <Button
+                    onClick={() => navigate(`/dashboard/stories/${id}/studio`)}
+                    size="lg"
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Go to Studio
+                  </Button>
+                )}
                 <Button
                   onClick={handleStartStory}
                   size="lg"

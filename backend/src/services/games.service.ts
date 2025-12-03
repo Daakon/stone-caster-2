@@ -15,12 +15,12 @@ import { rulesetCache, npcListCache } from '../utils/cache.js';
 
 export interface Game {
   id: string;
-  entry_point_id: string; // TEXT reference to entry_points.id (legacy: was adventure_id)
+  entry_point_id: string; // UUID reference to entry_points.id
   entry_point_type: string; // Denormalized type from entry_points.type ('adventure', 'scenario', 'sandbox', 'quest')
   character_id?: string;
   user_id?: string;
   cookie_group_id?: string;
-  world_slug: string;
+  world_slug: string; // Optional text slug for display/filtering (denormalized)
   state_snapshot: any;
   turn_count: number;
   status: 'active' | 'completed' | 'paused' | 'abandoned';
@@ -37,7 +37,7 @@ export interface SpawnRequest {
 }
 
 export interface SpawnRequestV3 {
-  entry_point_id: string;
+  entry_point_id: string; // UUID
   world_id: string; // UUID
   entry_start_slug: string;
   scenario_slug?: string | null;
@@ -141,8 +141,8 @@ export class GamesService {
         };
       }
       
-      // Resolve worldSlug from worldId (for games table)
-      // First try to get from adventure, then from character, then resolve from world_id_mapping
+      // Get worldSlug for games table (denormalized field for display/filtering)
+      // First try to get from adventure, then from character
       let worldSlug: string | undefined = adventure.worldSlug;
       
       // If character is specified, validate it exists and is available
@@ -196,22 +196,10 @@ export class GamesService {
         }
       }
       
-      // If still no worldSlug, resolve from world_id_mapping
-      if (!worldSlug && adventureWorldId) {
-        const { data: worldMapping } = await supabaseAdmin
-          .from('world_id_mapping')
-          .select('text_id')
-          .eq('uuid_id', adventureWorldId)
-          .single();
-        
-        if (worldMapping) {
-          worldSlug = worldMapping.text_id;
-        }
-      }
-      
       // Fallback to 'unknown' if we still don't have it
+      // Note: worldSlug is now optional/denormalized - world_id (UUID) is the source of truth
       if (!worldSlug) {
-        console.warn('[GAME_SPAWN] Could not resolve worldSlug for worldId:', adventureWorldId);
+        console.warn('[GAME_SPAWN] No worldSlug available for worldId:', adventureWorldId);
         worldSlug = 'unknown';
       }
 
@@ -242,12 +230,12 @@ export class GamesService {
 
       // Create new game
       const newGame = {
-        entry_point_id: adventure.id, // entry_points.id is TEXT (e.g., 'test-entry-point-1')
+        entry_point_id: adventure.id, // UUID reference to entry_points.id
         entry_point_type: entryPointType, // Denormalized type from entry_points.type
-        world_id: adventureWorldId, // UUID reference to world_id_mapping.uuid_id
-        ruleset_id: rulesetId, // Ruleset ID from entry_points.ruleset_id
+        world_id: adventureWorldId, // UUID reference to canonical world table
+        ruleset_id: rulesetId, // UUID reference to rulesets.id
         character_id: characterId || null,
-        world_slug: worldSlug, // TEXT slug for display/filtering (denormalized)
+        world_slug: worldSlug, // Optional text slug for display/filtering (denormalized - world_id is source of truth)
         prompt_snapshot_id: promptSnapshotId, // Phase 5: Link to frozen prompt snapshot
         state_snapshot: {
           metadata: {
@@ -394,25 +382,8 @@ export class GamesService {
       }
 
       // Validate world_id matches entry point's world_id
-      // Note: entry_points.world_id is text, but we're comparing with UUID
-      // We need to resolve the entry point's world_id to UUID for comparison
-      let entryPointWorldId: string | null = null;
-      if (entryPoint.world_id) {
-        // entry_points.world_id might be text or UUID depending on schema
-        // Check if it's a UUID
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(entryPoint.world_id)) {
-          entryPointWorldId = entryPoint.world_id;
-        } else {
-          // It's a text slug, resolve to UUID
-          const { data: worldMapping } = await supabaseAdmin
-            .from('world_id_mapping')
-            .select('uuid_id')
-            .eq('text_id', entryPoint.world_id)
-            .single();
-          entryPointWorldId = worldMapping?.uuid_id || null;
-        }
-      }
+      // entry_points.world_id is now UUID, so direct comparison
+      const entryPointWorldId: string | null = entryPoint.world_id || null;
 
       if (entryPointWorldId && entryPointWorldId !== world_id) {
         return {
@@ -549,23 +520,11 @@ export class GamesService {
         }
       }
 
-      // 6. Resolve worldSlug from worldId
-      const { data: worldMapping } = await supabaseAdmin
-        .from('world_id_mapping')
-        .select('text_id')
-        .eq('uuid_id', world_id)
-        .single();
-
-      if (!worldMapping) {
-        return {
-          success: false,
-          error: ApiErrorCode.VALIDATION_FAILED,
-          message: `World UUID '${world_id}' not found in world_id_mapping`,
-          code: 'WORLD_NOT_FOUND',
-        };
-      }
-
-      const worldSlug = worldMapping.text_id;
+      // 6. Get worldSlug for games table (denormalized field for display/filtering)
+      // Note: worldSlug is optional - world_id (UUID) is the source of truth
+      // For now, we'll use a fallback since worldSlug resolution is no longer available
+      // This may need to be resolved from the canonical world table if needed
+      const worldSlug = 'unknown'; // Fallback - can be resolved from world table if needed
 
       // 7. For guest users, ensure they have a cookie group
       if (isGuest) {
@@ -658,7 +617,7 @@ export class GamesService {
           
           const result = await txClient.query(
             `SELECT * FROM spawn_game_v3_atomic(
-              $1::text, $2::text, $3::uuid, $4::text, $5::uuid,
+              $1::uuid, $2::text, $3::uuid, $4::uuid, $5::uuid,
               $6::text, $7::jsonb, $8::uuid, $9::uuid,
               $10::text, $11::text, $12::jsonb
             )`,

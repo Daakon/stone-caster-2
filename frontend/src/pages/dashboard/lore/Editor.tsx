@@ -17,6 +17,7 @@ import { ArrowLeft, Loader2, Check, ChevronsUpDown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { chimeraLoreService, type CreateLoreData, type UpdateLoreData, type ChimeraTag } from '@/services/chimera.lore';
+import { ComplexAssetSelector } from '@/components/chimera/ComplexAssetSelector';
 
 export default function LoreEditor() {
   const navigate = useNavigate();
@@ -25,9 +26,10 @@ export default function LoreEditor() {
   const isEditing = !!id;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedWorldId, setSelectedWorldId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     display_name: '',
-    content_chunk: '',
+    entry_text: '',
     tag_names: [] as string[],
   });
   const [tagSearch, setTagSearch] = useState('');
@@ -52,9 +54,13 @@ export default function LoreEditor() {
     if (existingLore) {
       setFormData({
         display_name: existingLore.display_name || '',
-        content_chunk: existingLore.content_chunk || '',
+        entry_text: existingLore.content_chunk || '', // Map content_chunk to entry_text
         tag_names: existingLore.tags?.map((t) => t.tag_name) || [],
       });
+      // Set world_id if available
+      if (existingLore.world_id) {
+        setSelectedWorldId(existingLore.world_id);
+      }
     }
   }, [existingLore]);
 
@@ -77,14 +83,25 @@ export default function LoreEditor() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate world_id is selected for new lore entries
+    if (!isEditing && !selectedWorldId) {
+      toast.error('Please select a world for this lore entry.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const loreData: CreateLoreData | UpdateLoreData = {
+        ...(isEditing ? {} : { world_id: selectedWorldId! }), // Only include world_id for new entries
         display_name: formData.display_name,
-        content_chunk: formData.content_chunk,
+        entry_text: formData.entry_text,
         tag_names: formData.tag_names,
       };
+
+      // Debug logging
+      console.log('[LoreEditor] Submitting lore:', loreData);
 
       if (isEditing && id) {
         await chimeraLoreService.updateLore(id, loreData);
@@ -135,6 +152,27 @@ export default function LoreEditor() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
+              <Label>World {!isEditing && '*'}</Label>
+              <ComplexAssetSelector
+                assetType="world"
+                selectedIds={selectedWorldId ? [selectedWorldId] : []}
+                onSelectionChange={(worldIds) => setSelectedWorldId(worldIds[0] || null)}
+                mode="single"
+                emptyMessage="No worlds available. Create one first!"
+                itemLabel="world"
+                onCreateNew={() => {
+                  window.open('/dashboard/worlds/new', '_blank');
+                }}
+                createNewLabel="Create New World"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                {isEditing 
+                  ? 'The world this lore entry belongs to. Lore entries are world-specific and will be used by stories in that world.'
+                  : 'Select the world this lore entry belongs to. Lore entries are world-specific and will be used by stories in that world.'}
+              </p>
+            </div>
+
+            <div>
               <Label htmlFor="display_name">Display Name *</Label>
               <Input
                 id="display_name"
@@ -146,11 +184,11 @@ export default function LoreEditor() {
             </div>
 
             <div>
-              <Label htmlFor="content_chunk">Content *</Label>
+              <Label htmlFor="entry_text">Content *</Label>
               <Textarea
-                id="content_chunk"
-                value={formData.content_chunk}
-                onChange={(e) => setFormData({ ...formData, content_chunk: e.target.value })}
+                id="entry_text"
+                value={formData.entry_text}
+                onChange={(e) => setFormData({ ...formData, entry_text: e.target.value })}
                 placeholder="Enter the lore content here..."
                 rows={12}
                 required
@@ -362,7 +400,7 @@ export default function LoreEditor() {
           <Button type="button" variant="outline" onClick={() => navigate('/dashboard/creations/lore')}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting || !formData.display_name || !formData.content_chunk}>
+          <Button type="submit" disabled={isSubmitting || !formData.display_name || !formData.entry_text || (!isEditing && !selectedWorldId)}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

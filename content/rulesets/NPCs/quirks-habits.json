@@ -1,0 +1,85 @@
+{
+  "id": "exp_quirks_habits_v2",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Contextual Quirks & Habits",
+  "ui_category": "expansion",
+  "dependencies": ["fnd_core_personality_v1"],
+  "description": "Adds behavioral flavor text that triggers only under specific conditions (e.g., Stress, Low Health, Lying).",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc"],
+      "definitions": {
+        "quirk_registry": {
+          "value": [],
+          "context_priority": "engine_private",
+          "description": "List of { behavior: string, trigger_state: string } objects."
+        },
+        "active_quirks": {
+          "value": [],
+          "context_priority": "ai_visible",
+          "description": "The subset of quirks currently relevant to the scene."
+        }
+      },
+      "form_hints": {
+        "quirk_registry": {
+          "control": "complex_list",
+          "label": "Conditional Behaviors",
+          "fields": [
+            { "key": "behavior", "label": "Quirk (e.g., Stutters)", "type": "text" },
+            { 
+              "key": "trigger_state", 
+              "label": "Trigger Condition", 
+              "type": "dropdown",
+              "options": ["Always", "Nervous", "Angry", "Injured", "Lying", "Joyful"]
+            }
+          ]
+        }
+      }
+    }
+  },
+
+  "actions": {
+    "filter_quirks_by_context": {
+      "kind": "system_auto",
+      "trigger": { "type": "stat_change", "target": "tier1_entity.emotional_label" },
+      "logic": [
+        {
+          "step_id": "clear_active",
+          "function": "cat_02_state_mutation.manage_list",
+          "args": { "path": "tier1_entity.active_quirks", "operation": "clear" }
+        },
+        {
+          "step_id": "populate_active",
+          "function": "cat_03_logic_calculators.filter_list_by_key",
+          "args": {
+            "source_list": "tier1_entity.quirk_registry",
+            "target_list": "tier1_entity.active_quirks",
+            "filter_key": "trigger_state",
+            "match_values": ["Always", "tier1_entity.emotional_label"] 
+          },
+          "description": "Copies quirks to active_quirks IF their trigger matches 'Always' OR the current mood label."
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        {
+          "path": "tier1_entity.active_quirks",
+          "label": "CURRENT VISIBLE MANNERISMS"
+        }
+      ],
+      "style_injections": [
+        {
+          "category": "sensory",
+          "unique_id": "quirk_narration",
+          "priority": 70,
+          "content": "You must incorporate the [CURRENT VISIBLE MANNERISMS] into the description of the character's actions immediately."
+        }
+      ]
+    }
+  }
+}

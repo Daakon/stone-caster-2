@@ -1,0 +1,44 @@
+{
+  "id": "exp_location_atmosphere_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Location Atmosphere Tags",
+  "ui_category": "expansion",
+  "dependencies": ["fnd_location_core_v1"],
+  "description": "Adds sensory tags to a location that influence the narrator's tone.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["location"],
+      "definitions": {
+        "atmosphere_tags": { 
+            "value": [], 
+            "context_priority": "ai_visible",
+            "description": "Passive descriptors like 'Foggy', 'Sacred', 'Claustrophobic'."
+        }
+      },
+      "form_hints": {
+        "atmosphere_tags": { 
+            "control": "tag_list", 
+            "label": "Atmosphere / Vibes",
+            "suggestions": ["Dark", "Cold", "Sacred", "Noisy", "Smelly", "Luxurious"]
+        }
+      }
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.atmosphere_tags", "label": "ENVIRONMENTAL ATMOSPHERE" }
+      ],
+      "style_injections": [
+        {
+          "category": "tone",
+          "unique_id": "atmosphere_coloring",
+          "priority": 90,
+          "content": "Incorporate the [ENVIRONMENTAL ATMOSPHERE] tags into your description. If 'Sacred', use respectful language. If 'Claustrophobic', emphasize the tight walls."
+        }
+      ]
+    }
+  }
+}

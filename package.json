@@ -33,6 +33,7 @@
     "test:e2e:ci": "npm run test:e2e:ci --workspace=frontend",
     "seed:core": "tsx backend/scripts/seed-awf-core-contract.ts",
     "seed:v3": "tsx backend/scripts/seed-v3-fixtures.ts",
+    "seed:master": "tsx backend/scripts/seed-v3-master.ts",
     "clear:v3": "tsx backend/scripts/clear-v3-fixtures.ts",
     "typecheck:strict": "cd backend && tsc --noEmit --strict",
     "preview:all": "tsx backend/scripts/preview-all-entry-points.ts",

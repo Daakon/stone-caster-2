@@ -15,6 +15,7 @@ import { useSubmitForPublish } from '@/hooks/useSubmitForPublish';
 import { PUBLISH_STATUS_LABELS, type PublishStatus } from '@shared/types/publishing';
 import { USER_QUOTAS } from '@/lib/constants';
 import { buildImageUrl } from '@shared/media/url';
+import { isChimeraEnabled } from '@/config/features';
 
 interface Story {
   id: string;
@@ -286,14 +287,26 @@ export default function MyStoriesPage() {
                         </Button>
                       )}
                       {status === 'published' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/stories/${story.id}`)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
-                        </Button>
+                        <>
+                          {isChimeraEnabled ? (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => navigate(`/dashboard/stories/${story.id}/studio`)}
+                            >
+                              Studio
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/stories/${story.id}`)}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

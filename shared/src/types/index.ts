@@ -505,3 +505,18 @@ export type CreatePlayerV3Request = z.infer<typeof CreatePlayerV3RequestSchema>;
 
 // Export Chimera Ruleset Types
 export * from './chimera-rulesets';
+
+// Export Chimera Lore Types
+export * from './chimera-lore';
+
+// Export Chimera Asset Types
+export * from './chimera-assets';
+
+// Export Chimera Authoring Types
+export * from './chimera-authoring';
+
+// Export Chimera Compiled Types
+export * from './chimera-compiled';
+
+// Export Chimera Runtime Types
+export * from './chimera-runtime';

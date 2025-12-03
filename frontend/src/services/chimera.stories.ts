@@ -14,6 +14,11 @@ export interface ChimeraStory {
   content_rating: 'safe' | 'mature' | 'explicit';
   world_id: string | null;
   story_definition?: Record<string, unknown> | null;
+  configuration?: {
+    worldId: string;
+    rulesetIds: string[];
+    entityIds: string[];
+  } | null;
   created_at: string;
   updated_at: string;
   world?: {
@@ -21,6 +26,7 @@ export interface ChimeraStory {
     display_name: string;
     description_short?: string | null;
   } | null;
+  // Deprecated: These fields are now in configuration JSONB
   ruleset_links?: Array<{ ruleset_template_id: string }>;
   pack_links?: Array<{ pack_id: string }>;
   entity_links?: Array<{ entity_template_id: string }>;
@@ -159,6 +165,25 @@ export const chimeraStoriesService = {
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to delete story');
     }
+  },
+
+  /**
+   * Link an entity template to a story
+   */
+  async linkEntityToStory(storyId: string, entityTemplateId: string): Promise<{
+    story_id: string;
+    entity_template_id: string;
+  }> {
+    const result = await apiPost<{
+      story_id: string;
+      entity_template_id: string;
+    }>(`/api/v2/chimera/stories/${storyId}/links/entities`, {
+      entity_template_id: entityTemplateId,
+    });
+    if (!result.ok) {
+      throw new Error(result.error.message || 'Failed to link entity to story');
+    }
+    return result.data!;
   },
 };
 

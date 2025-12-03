@@ -11,16 +11,22 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, RefreshCw, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, Save, Plus, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { chimeraStoriesService } from '@/services/chimera.stories';
+import { chimeraPlayService } from '@/services/chimera.play';
+import { CreateLoreModal } from '@/components/chimera/modals/CreateLoreModal';
+import { CreateEntityModal } from '@/components/chimera/modals/CreateEntityModal';
 
 export default function StoryManage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isRebuilding, setIsRebuilding] = useState(false);
+  const [isStartingGame, setIsStartingGame] = useState(false);
   const [storyDefinitionJson, setStoryDefinitionJson] = useState('');
+  const [isLoreModalOpen, setIsLoreModalOpen] = useState(false);
+  const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
 
   // Fetch story details
   const { data: story, isLoading, error } = useQuery({
@@ -75,6 +81,30 @@ export default function StoryManage() {
       toast.error(error instanceof Error ? error.message : 'Failed to rebuild story');
     } finally {
       setIsRebuilding(false);
+    }
+  };
+
+  const handlePlay = async () => {
+    if (!id) return;
+
+    setIsStartingGame(true);
+    try {
+      const gameState = await chimeraPlayService.startGame(id);
+      navigate(`/play/${gameState.id}`);
+    } catch (error: any) {
+      console.error('Error starting game:', error);
+      // Check if character creation is required - redirect to gateway instead
+      if (error.requiresCharacterCreation) {
+        navigate(`/player-gateway/${id}`);
+        return;
+      }
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to start game. Make sure the story has been compiled first.'
+      );
+    } finally {
+      setIsStartingGame(false);
     }
   };
 
@@ -141,10 +171,36 @@ export default function StoryManage() {
         <TabsContent value="editor" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Story Definition</CardTitle>
-              <CardDescription>
-                Edit the JSON definition for this story. This will be merged with compiled rulesets during compilation.
-              </CardDescription>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle>Story Definition</CardTitle>
+                  <CardDescription>
+                    Edit the JSON definition for this story. This will be merged with compiled rulesets during compilation.
+                  </CardDescription>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsLoreModalOpen(true)}
+                    className="w-full sm:w-auto"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Lore
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEntityModalOpen(true)}
+                    className="w-full sm:w-auto"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Element
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -194,29 +250,77 @@ export default function StoryManage() {
                 </ul>
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button
-                onClick={handleRebuild}
-                disabled={isRebuilding}
-                size="lg"
-                className="w-full sm:w-auto"
-              >
-                {isRebuilding ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Rebuilding...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Rebuild Story
-                  </>
-                )}
-              </Button>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  onClick={handleRebuild}
+                  disabled={isRebuilding}
+                  size="lg"
+                  className="w-full sm:w-auto"
+                >
+                  {isRebuilding ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Rebuilding...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Rebuild Story
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handlePlay}
+                  disabled={isStartingGame || isRebuilding}
+                  size="lg"
+                  variant="default"
+                  className="w-full sm:w-auto"
+                >
+                  {isStartingGame ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Play Story
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Rebuild the story first to compile all rulesets, then click Play to start a new game session.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modals */}
+      {id && (
+        <>
+          <CreateLoreModal
+            isOpen={isLoreModalOpen}
+            onClose={() => setIsLoreModalOpen(false)}
+            storyId={id}
+            onSuccess={() => {
+              // Optionally refresh any lore-related queries here
+              queryClient.invalidateQueries({ queryKey: ['chimera-story', id] });
+            }}
+          />
+          <CreateEntityModal
+            isOpen={isEntityModalOpen}
+            onClose={() => setIsEntityModalOpen(false)}
+            storyId={id}
+            onSuccess={() => {
+              // Refresh story to get updated entity links
+              queryClient.invalidateQueries({ queryKey: ['chimera-story', id] });
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

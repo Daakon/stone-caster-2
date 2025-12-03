@@ -6,7 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateCharacterInput {
   name: string;
-  worldSlug: string;
+  worldId: string; // UUID reference to world
+  worldSlug?: string; // Optional text slug for display (legacy support)
   // Generic world-specific data
   worldData?: Record<string, unknown>;
   // Legacy fields for backward compatibility
@@ -34,7 +35,8 @@ export interface CreateCharacterInput {
 }
 
 export interface CreateCharacterFromPremadeInput {
-  worldSlug: string;
+  worldId: string; // UUID reference to world
+  worldSlug?: string; // Optional text slug for display (legacy support)
   name?: string;
   archetypeKey?: string;
   fromPremade: boolean;
@@ -72,8 +74,8 @@ export interface UpdateCharacterInput {
 export interface CharacterQueryOptions {
   userId?: string;
   cookieId?: string;
-  worldSlug?: string;
-  worldId?: string; // UUID for world_id
+  worldSlug?: string; // Optional text slug for filtering (legacy support)
+  worldId?: string; // UUID for world_id (preferred - direct reference)
   limit?: number;
   offset?: number;
 }
@@ -92,32 +94,18 @@ export class CharactersService {
     isGuest: boolean = false
   ): Promise<Character> {
     try {
-      // Validate world slug using PremadeCharactersService
-      const hasPremadeCharacters = await PremadeCharactersService.validateWorldSlug(input.worldSlug);
-      if (!hasPremadeCharacters) {
-        throw new Error(`Invalid world slug: ${input.worldSlug}`);
-      }
-
+      // Validate world exists (optional validation - can be removed if not needed)
+      // Note: world_id is now a UUID that directly references the canonical world table
+      
       // Calculate health if not provided (for legacy characters)
       const currentHealth = input.currentHealth ?? input.maxHealth ?? (input.attributes?.constitution ? this.calculateMaxHealth(input.attributes.constitution) : 100);
       const maxHealth = input.maxHealth ?? (input.attributes?.constitution ? this.calculateMaxHealth(input.attributes.constitution) : 100);
 
-      // Resolve world_id UUID from world_slug
-      const { data: worldMapping, error: mappingError } = await supabaseAdmin
-        .from('world_id_mapping')
-        .select('uuid_id')
-        .eq('text_id', input.worldSlug)
-        .single();
-      
-      if (mappingError || !worldMapping) {
-        throw new Error(`World '${input.worldSlug}' not found in world_id_mapping`);
-      }
-
       const characterData = {
         id: uuidv4(),
         name: input.name,
-        world_slug: input.worldSlug, // TEXT identifier for display
-        world_id: worldMapping.uuid_id, // UUID (source of truth)
+        world_slug: input.worldSlug || null, // Optional text slug for display (legacy support)
+        world_id: input.worldId, // UUID (source of truth - direct reference)
         world_data: input.worldData ?? {},
         // Legacy fields for backward compatibility
         race: input.race,
@@ -175,43 +163,27 @@ export class CharactersService {
     isGuest: boolean = false
   ): Promise<Character> {
     try {
-      // Validate world slug using PremadeCharactersService
-      const hasPremadeCharacters = await PremadeCharactersService.validateWorldSlug(input.worldSlug);
-      if (!hasPremadeCharacters) {
-        throw new Error(`Invalid world slug: ${input.worldSlug}`);
-      }
-
       if (!input.fromPremade || !input.archetypeKey) {
         throw new Error('Archetype key is required when creating from premade');
       }
 
       // Get the premade character template from database
-      const premadeCharacter = await PremadeCharactersService.getPremadeCharacter(input.worldSlug, input.archetypeKey);
+      // PremadeCharactersService now uses worldId (UUID) directly
+      const premadeCharacter = await PremadeCharactersService.getPremadeCharacter(input.worldId, input.archetypeKey);
 
       if (!premadeCharacter) {
-        throw new Error(`Premade character '${input.archetypeKey}' not found for world '${input.worldSlug}'`);
+        throw new Error(`Premade character '${input.archetypeKey}' not found for world`);
       }
 
       // Convert premade character to PlayerV3 format
       const playerV3 = PremadeCharactersService.convertToPlayerV3(premadeCharacter, input.name);
 
-      // Resolve world_id UUID from world_slug
-      const { data: worldMapping, error: mappingError } = await supabaseAdmin
-        .from('world_id_mapping')
-        .select('uuid_id')
-        .eq('text_id', input.worldSlug)
-        .single();
-      
-      if (mappingError || !worldMapping) {
-        throw new Error(`World '${input.worldSlug}' not found in world_id_mapping`);
-      }
-
       // Create character data with PlayerV3 format stored in world_data
       const characterData = {
         id: uuidv4(),
         name: playerV3.name,
-        world_slug: input.worldSlug, // TEXT identifier for display
-        world_id: worldMapping.uuid_id, // UUID (source of truth)
+        world_slug: input.worldSlug || null, // Optional text slug for display (legacy support)
+        world_id: input.worldId, // UUID (source of truth - direct reference)
         world_data: {
           playerV3: playerV3
         },
@@ -288,26 +260,16 @@ export class CharactersService {
         console.log('[CHARACTERS_GET] Filtering by user_id:', ownerId);
       }
 
-      // Additional filters - support both world_id (UUID) and world_slug (text)
-      if (options.worldSlug) {
-        // Check if it's a UUID (world_id) or a slug (world_slug)
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(options.worldSlug);
-        
-        if (isUUID) {
-          // Filter by world_id (UUID)
-          query = query.eq('world_id', options.worldSlug);
-          console.log('[CHARACTERS_GET] Filtering by world_id (UUID):', options.worldSlug);
-        } else {
-          // Filter by world_slug (text)
-          query = query.eq('world_slug', options.worldSlug);
-          console.log('[CHARACTERS_GET] Filtering by world_slug:', options.worldSlug);
-        }
-      }
-
-      // Also support explicit world_id if provided in options
+      // Additional filters - support both world_id (UUID) and world_slug (text for legacy)
+      // Prefer world_id (UUID) as it's the source of truth
       if (options.worldId) {
         query = query.eq('world_id', options.worldId);
-        console.log('[CHARACTERS_GET] Filtering by explicit world_id:', options.worldId);
+        console.log('[CHARACTERS_GET] Filtering by world_id (UUID):', options.worldId);
+      } else if (options.worldSlug) {
+        // Legacy support: filter by world_slug (text)
+        // Note: world_slug is denormalized and may not be reliable
+        query = query.eq('world_slug', options.worldSlug);
+        console.log('[CHARACTERS_GET] Filtering by world_slug (legacy):', options.worldSlug);
       }
 
       if (options.limit) {
@@ -561,8 +523,8 @@ export class CharactersService {
       userId: dbRow.user_id || undefined,
       cookieId: dbRow.cookie_id || undefined,
       name: dbRow.name,
-      worldSlug: dbRow.world_slug || undefined, // TEXT slug for display only
-      worldId: dbRow.world_id, // UUID (FK to world_id_mapping) - source of truth
+      worldSlug: dbRow.world_slug || undefined, // Optional text slug for display (legacy/denormalized)
+      worldId: dbRow.world_id, // UUID (direct reference to canonical world table) - source of truth
       activeGameId: dbRow.active_game_id || undefined,
       createdAt: dbRow.created_at,
       updatedAt: dbRow.updated_at,

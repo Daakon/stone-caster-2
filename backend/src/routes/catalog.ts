@@ -5,8 +5,17 @@ import { ContentService } from '../services/content.service.js';
 import { supabase, supabaseAdmin } from '../services/supabase.js';
 import { z } from 'zod';
 import type { PostgrestError } from '@supabase/supabase-js';
+import { config } from '../config/index.js';
 
 const router = Router();
+
+/**
+ * Check if Chimera V2 is enabled via feature flag
+ * When enabled, legacy routes should return empty responses to force frontend migration
+ */
+function isChimeraV2Enabled(): boolean {
+  return config.admin.enableChimeraUi === true;
+}
 
 type WorldVisibilityAwareResult<T> = {
   data: T | null;
@@ -314,6 +323,21 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
 
 // GET /api/catalog/stories (unified - mirrors entry-points)
 router.get('/stories', async (req: Request, res: Response) => {
+  // Feature toggle: If Chimera V2 is enabled, return empty list to force frontend migration
+  if (isChimeraV2Enabled()) {
+    return res.json({
+      ok: true,
+      data: [],
+      meta: {
+        total: 0,
+        limit: 20,
+        offset: 0,
+        filters: {},
+        sort: '-updated'
+      }
+    });
+  }
+
   try {
     // Use the same validation schema as entry-points
     const queryValidation = ListQuerySchema.safeParse(req.query);
@@ -335,8 +359,7 @@ router.get('/stories', async (req: Request, res: Response) => {
         id,
         slug,
         type,
-        title,
-        subtitle,
+        name,
         description,
         synopsis,
         tags,
@@ -376,7 +399,7 @@ router.get('/stories', async (req: Request, res: Response) => {
     
     if (filters.q) {
       query = query.or(
-        `title.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
+        `name.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
       );
     }
     
@@ -482,6 +505,14 @@ router.get('/stories', async (req: Request, res: Response) => {
 
 // GET /api/catalog/stories/:idOrSlug (unified - mirrors entry-points)
 router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
+  // Feature toggle: If Chimera V2 is enabled, return 404 to force frontend migration
+  if (isChimeraV2Enabled()) {
+    return res.status(404).json({
+      ok: false,
+      error: 'Story not found. Please use the Chimera V2 API: /api/v2/chimera/stories/:id'
+    });
+  }
+
   try {
     const { idOrSlug } = req.params;
     
@@ -493,8 +524,7 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
         id,
         slug,
         type,
-        title,
-        subtitle,
+        name,
         description,
         synopsis,
         tags,
@@ -927,8 +957,8 @@ function transformToCatalogDTO(row: any, includeDetail = false): any {
     id: row.id,
     slug: row.slug,
     type: row.type,
-    title: row.title,
-    subtitle: row.subtitle || null,
+    title: row.name,
+    subtitle: null,
     description: row.description || row.synopsis || 'No description available',
     synopsis: row.synopsis || null,
     tags: row.tags || [],
@@ -999,8 +1029,7 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         id,
         slug,
         type,
-        title,
-        subtitle,
+        name,
         description,
         synopsis,
         tags,
@@ -1047,7 +1076,7 @@ router.get('/entry-points', async (req: Request, res: Response) => {
 
       if (filters.q) {
         query = query.or(
-          `title.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
+          `name.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
         );
       }
 
@@ -1166,8 +1195,7 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
         id,
         slug,
         type,
-        title,
-        subtitle,
+        name,
         description,
         synopsis,
         tags,

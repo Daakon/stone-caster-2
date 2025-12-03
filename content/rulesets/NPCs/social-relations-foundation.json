@@ -1,0 +1,95 @@
+{
+  "id": "fnd_social_relations_final",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Social Relations & Context Spotlight",
+  "ui_category": "foundation",
+  "exclusion_group": "social_core",
+  "dependencies": ["fnd_core_personality_v1"],
+  "description": "Manages the relationship graph and mathematically determines the 'Active Context' for the AI based on tag severity.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc"],
+      "definitions": {
+        "relationships": {
+          "value": {},
+          "context_priority": "engine_private",
+          "description": "Map: TargetID -> { affinity: 50, tags: [{role: 'Rival', origin: 'Stole Amulet', severity: 10, turn_added: 5}] }"
+        },
+        "current_interaction_context": {
+          "value": "None",
+          "context_priority": "ai_visible",
+          "description": "The single most relevant context string promoted for this turn."
+        }
+      },
+      "form_hints": {
+        "relationships": { "control": "hidden", "label": "Relationship Graph" }
+      }
+    }
+  },
+
+  "actions": {
+    "run_context_spotlight": {
+      "kind": "system_auto",
+      "trigger": { "type": "intent_match", "keyword_id": "general_interaction" },
+      "logic": [
+        {
+          "step_id": "reset_context",
+          "function": "cat_02_state_mutation.set_flag",
+          "args": { 
+            "path": "tier1_entity.current_interaction_context", 
+            "value": "None" 
+          }
+        },
+        {
+          "step_id": "filter_high_severity",
+          "function": "cat_03_logic_calculators.filter_list_by_key",
+          "args": {
+            "source_list": "tier1_entity.relationships.{target_id}.tags",
+            "filter_key": "severity",
+            "min_value": 8, 
+            "output_format": "object_list"
+          },
+          "output_to": "critical_memories"
+        },
+        {
+          "step_id": "promote_most_recent",
+          "function": "cat_02_state_mutation.set_flag",
+          "args": {
+            "path": "tier1_entity.current_interaction_context",
+            "value": "REMEMBER: {critical_memories[0].origin} ({critical_memories[0].role})"
+          },
+          "conditions": [
+            { "left": "critical_memories", "op": "is_not_empty", "right": true }
+          ]
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas1_interpreter": {
+      "intent_keywords": [
+        { "verb": "greet", "trigger_id": "general_interaction" },
+        { "verb": "talk", "trigger_id": "general_interaction" },
+        { "verb": "ask", "trigger_id": "general_interaction" }
+      ]
+    },
+    "mas2_narrator": {
+      "state_readouts": [
+        { 
+            "path": "tier1_entity.current_interaction_context", 
+            "label": "CRITICAL MEMORY SPOTLIGHT" 
+        }
+      ],
+      "style_injections": [
+        {
+          "category": "tone",
+          "unique_id": "spotlight_enforcement",
+          "priority": 100,
+          "content": "Check [CRITICAL MEMORY SPOTLIGHT]. If it is not 'None', you MUST color your dialogue with this specific history. Do not explicitly recite the memory; allow it to dictate your emotional tone (e.g., Cold, Grateful)."
+        }
+      ]
+    }
+  }
+}

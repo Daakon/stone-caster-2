@@ -11,14 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { chimeraWorldsService, type CreateWorldData, type UpdateWorldData } from '@/services/chimera.worlds';
+import { chimeraWorldsService, type CreateWorldData } from '@/services/chimera.worlds';
 import { chimeraService, type RulesetTemplate } from '@/services/admin.chimera';
 import { TagSelect } from '@/components/chimera/TagSelect';
+import { ImageUploader } from '@/components/ui/ImageUploader';
 
 export default function WorldEditor() {
   const navigate = useNavigate();
@@ -30,8 +31,11 @@ export default function WorldEditor() {
     display_name: '',
     description_short: null,
     description_long: null,
+    character_schema_contributions: {},
     ruleset_template_ids: [],
     tag_names: [],
+    tags: [],
+    images: [],
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,14 +62,43 @@ export default function WorldEditor() {
   // Populate form when world loads
   useEffect(() => {
     if (existingWorld) {
+      // Debug logging to verify images are coming from API
+      console.log('Loaded World:', existingWorld);
+      console.log('World Images:', (existingWorld as any).images);
+      
+      // Extract tags from tags array if available, otherwise from tag_names
+      const worldTags = (existingWorld as any).tags;
+      const tagsArray = Array.isArray(worldTags) 
+        ? worldTags.map((t: string | { tag_name: string }) => 
+            typeof t === 'string' ? t : t.tag_name
+          )
+        : (existingWorld as any).tags?.map((t: { tag_name: string }) => t.tag_name) || [];
+      
+      // Extract images - handle both world.images and world.definition.images
+      let imagesArray: any[] = [];
+      if ((existingWorld as any).images) {
+        imagesArray = Array.isArray((existingWorld as any).images) 
+          ? (existingWorld as any).images 
+          : [];
+      } else if ((existingWorld as any).definition?.images) {
+        imagesArray = Array.isArray((existingWorld as any).definition.images)
+          ? (existingWorld as any).definition.images
+          : [];
+      }
+      
+      console.log('Extracted Images Array:', imagesArray);
+      
       setFormData({
         display_name: existingWorld.display_name,
         description_short: existingWorld.description_short,
         description_long: existingWorld.description_long,
+        character_schema_contributions: existingWorld.character_schema_contributions || {},
         ruleset_template_ids: existingWorld.ruleset_links?.map(
           (link: { ruleset_template_id: string }) => link.ruleset_template_id
         ) || [],
-        tag_names: (existingWorld as any).tags?.map((t: { tag_name: string }) => t.tag_name) || [],
+        tag_names: tagsArray,
+        tags: tagsArray,
+        images: imagesArray, // Use extracted images array
       });
     }
   }, [existingWorld]);
@@ -96,15 +129,33 @@ export default function WorldEditor() {
 
     setIsSubmitting(true);
     try {
+      // Prepare payload: ensure tags is a string array from tag_names
+      // TagSelect manages tag_names, but API expects tags for filtering
+      const payload = {
+        ...formData,
+        tags: formData.tag_names || formData.tags || [], // Use tag_names as source of truth, fallback to tags
+      };
+
+      // Debug logging to verify images are in payload
+      console.log('[Editor] Submitting payload:', {
+        images: payload.images,
+        imagesCount: payload.images?.length || 0,
+        imagesType: typeof payload.images,
+        imagesIsArray: Array.isArray(payload.images),
+      });
+
       if (isEditing && id) {
-        // Explicitly exclude visibility from update data
-        const { visibility, ...updateData } = formData;
-        await chimeraWorldsService.updateWorld(id, updateData);
+        const updatedWorld = await chimeraWorldsService.updateWorld(id, payload);
+        console.log('[Editor] Update response received:', {
+          updatedWorldImages: updatedWorld.images,
+          updatedWorldImagesLength: updatedWorld.images?.length || 0,
+        });
         toast.success('World updated successfully');
+        
+        // Invalidate the specific world query to force refetch
+        await queryClient.invalidateQueries({ queryKey: ['chimera-world', id] });
       } else {
-        // Explicitly exclude visibility from create data
-        const { visibility, ...createData } = formData;
-        await chimeraWorldsService.createWorld(createData);
+        await chimeraWorldsService.createWorld(payload);
         toast.success('World created successfully');
       }
 
@@ -186,11 +237,96 @@ export default function WorldEditor() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="character_schema_contributions">Character Schema Contributions (JSON)</Label>
+              <Textarea
+                id="character_schema_contributions"
+                value={JSON.stringify(formData.character_schema_contributions || {}, null, 2)}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value || '{}');
+                    handleChange('character_schema_contributions', parsed);
+                  } catch {
+                    // Invalid JSON, ignore for now
+                  }
+                }}
+                placeholder='{"essence_alignment": { ... }}'
+                rows={8}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                JSON schema definitions that this World contributes to character creation (e.g., essence_alignment field)
+              </p>
+            </div>
+
             <TagSelect
               selectedTagNames={formData.tag_names || []}
-              onTagNamesChange={(tagNames) => handleChange('tag_names', tagNames)}
+              onTagNamesChange={(tagNames) => {
+                // TagSelect works with tag_names (string array)
+                // Map to tags array for API compatibility
+                handleChange('tag_names', tagNames);
+                handleChange('tags', tagNames); // Sync tags array for Wizard filtering
+              }}
               description="Select existing approved tags or create new ones (new tags require admin approval)"
             />
+
+            <div className="space-y-2">
+              <Label>World Images</Label>
+              <ImageUploader
+                folder="worlds"
+                onUploadComplete={(publicUrl) => {
+                  // Construct a new ChimeraAssetRef object
+                  const newAsset = {
+                    id: self.crypto.randomUUID(),
+                    url: publicUrl,
+                    role: 'banner' as const,
+                    label: 'Main Banner',
+                  };
+                  
+                  // Filter out any existing banner to replace it
+                  const existingImages = formData.images || [];
+                  const otherImages = existingImages.filter(
+                    (img: any) => img.role !== 'banner'
+                  );
+                  
+                  // Append new banner (newest upload becomes the primary banner)
+                  const updatedImages = [newAsset, ...otherImages];
+                  handleChange('images', updatedImages);
+                }}
+              />
+              {formData.images && formData.images.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                  {formData.images.map((img: any, idx) => (
+                    <div key={img.id || idx} className="relative">
+                      <img
+                        src={img.url || img.path}
+                        alt={img.label || img.alt || `World image ${idx + 1}`}
+                        className="w-full h-24 object-cover rounded-md"
+                      />
+                      {img.role === 'banner' && (
+                        <Badge variant="secondary" className="absolute top-1 left-1 text-xs">
+                          Banner
+                        </Badge>
+                      )}
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-1 right-1 h-6 w-6 p-0"
+                        onClick={() => {
+                          const updatedImages = formData.images?.filter(
+                            (i: any, index: number) => index !== idx
+                          ) || [];
+                          handleChange('images', updatedImages);
+                        }}
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="space-y-4">
               <div>

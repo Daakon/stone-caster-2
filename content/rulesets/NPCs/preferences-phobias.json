@@ -1,0 +1,94 @@
+{
+  "id": "exp_preferences_phobias_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Preferences & Phobias",
+  "ui_category": "expansion",
+  "dependencies": ["fnd_core_personality_v1"],
+  "description": "Defines specific topics, objects, or actions that trigger strong positive or negative emotional responses in the entity.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc"],
+      "definitions": {
+        "interest_triggers": {
+          "value": [],
+          "context_priority": "ai_visible",
+          "description": "Topics that improve mood and engagement."
+        },
+        "aversion_triggers": {
+          "value": [],
+          "context_priority": "ai_visible",
+          "description": "Topics that cause fear, disgust, or anger."
+        }
+      },
+      "form_hints": {
+        "interest_triggers": {
+          "control": "tag_list",
+          "label": "Likes / Interests",
+          "suggestions": ["Ancient History", "Gold", "Gossip", "Magic", "Fine Wine", "Technology"]
+        },
+        "aversion_triggers": {
+          "control": "tag_list",
+          "label": "Dislikes / Phobias",
+          "suggestions": ["Spiders", "Undead", "Rudeness", "Authority", "Water", "Fire"]
+        }
+      }
+    }
+  },
+
+  "actions": {
+    "detect_interest_match": {
+      "kind": "system_auto",
+      "trigger": { "type": "intent_match", "keyword_id": "general_conversation" },
+      "logic": [
+        {
+          "step_id": "boost_mood",
+          "function": "cat_02_state_mutation.modify_stat",
+          "args": { "path": "tier1_entity.emotional_valence", "amount": 10 },
+          "conditions": [
+            { 
+              "left": "tier1_entity.interest_triggers", 
+              "op": "contains_any", 
+              "right": "input.keywords" 
+            }
+          ]
+        }
+      ]
+    },
+    "detect_aversion_match": {
+      "kind": "system_auto",
+      "trigger": { "type": "intent_match", "keyword_id": "general_conversation" },
+      "logic": [
+        {
+          "step_id": "damage_mood",
+          "function": "cat_02_state_mutation.modify_stat",
+          "args": { "path": "tier1_entity.emotional_valence", "amount": -15 },
+          "conditions": [
+            { 
+              "left": "tier1_entity.aversion_triggers", 
+              "op": "contains_any", 
+              "right": "input.keywords" 
+            }
+          ]
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.interest_triggers", "label": "SUBJECTS OF FASCINATION" },
+        { "path": "tier1_entity.aversion_triggers", "label": "SUBJECTS OF FEAR/DISGUST" }
+      ],
+      "style_injections": [
+        {
+          "category": "tone",
+          "unique_id": "preference_reaction",
+          "priority": 75,
+          "content": "If a topic in [SUBJECTS OF FASCINATION] is mentioned, the NPC becomes enthusiastic and talkative. If a topic in [SUBJECTS OF FEAR/DISGUST] is mentioned, the NPC becomes defensive, terse, or tries to leave."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "id": "exp_npc_plot_drivers_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "NPC Plot Drivers",
+  "ui_category": "expansion",
+  "dependencies": ["fnd_core_personality_v1"],
+  "description": "Gives NPCs specific narrative agendas. They will actively encourage the player to pursue these goals, functioning as organic quest givers.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["npc"],
+      "definitions": {
+        "plot_agenda": {
+          "value": "None",
+          "context_priority": "ai_visible",
+          "description": "The specific task the NPC wants the player to accomplish."
+        },
+        "agenda_urgency": {
+          "value": "Low",
+          "context_priority": "ai_visible",
+          "description": "How pushy the NPC is about this goal."
+        }
+      },
+      "form_hints": {
+        "plot_agenda": { "control": "text_area", "label": "Narrative Goal / Quest" },
+        "agenda_urgency": { 
+            "control": "dropdown", 
+            "options": ["Passive", "Suggestive", "Demanding", "Desperate"],
+            "label": "Urgency"
+        }
+      }
+    }
+  },
+
+  "mas_directives": {
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.plot_agenda", "label": "ACTIVE AGENDA" },
+        { "path": "tier1_entity.agenda_urgency", "label": "AGENDA URGENCY" }
+      ],
+      "style_injections": [
+        {
+          "category": "tone",
+          "unique_id": "agenda_pushing",
+          "priority": 85,
+          "content": "The NPC wants to achieve [ACTIVE AGENDA]. If [AGENDA URGENCY] is 'Demanding', they should interrupt unrelated actions to remind the player of the goal. If 'Passive', they only mention it if asked."
+        }
+      ]
+    }
+  }
+}

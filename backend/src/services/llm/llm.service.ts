@@ -1,0 +1,180 @@
+// [CHIMERA V3] Architecture: Greenfield | Layer: Backend
+/**
+ * LLM Service (Adapter)
+ * Phase 6-B: Real LLM Integration
+ * Wraps LLM provider with JSON mode enforcement and creative text generation
+ */
+
+import { z, type ZodSchema } from 'zod';
+import { createLlmProvider, type LlmProvider } from '../runtime/llm.provider';
+import { ServiceError } from '../../utils/serviceError';
+import { ApiErrorCode } from '@shared';
+
+export class LlmService {
+  private provider: LlmProvider;
+  private model: string;
+
+  constructor(provider?: LlmProvider, model?: string) {
+    this.provider = provider || createLlmProvider();
+    this.model = model || process.env.LLM_MODEL || 'gpt-4o-mini';
+  }
+
+  /**
+   * Generate structured JSON response with schema validation
+   * @param system - System prompt with instructions
+   * @param user - User prompt/input
+   * @param schema - Optional Zod schema for validation
+   * @returns Parsed and validated JSON response
+   */
+  async generateJSON<T>(
+    system: string,
+    user: string,
+    schema?: ZodSchema<T>
+  ): Promise<T> {
+    try {
+      const response = await this.provider.generateJson<T>(system, user);
+
+      // Validate against schema if provided
+      if (schema) {
+        const validated = schema.parse(response);
+        return validated;
+      }
+
+      return response;
+    } catch (error) {
+      // Handle Zod validation errors
+      if (error instanceof z.ZodError) {
+        throw new ServiceError(500, {
+          code: ApiErrorCode.VALIDATION_FAILED,
+          message: 'LLM response validation failed',
+          details: error.errors,
+        });
+      }
+
+      // Handle API failures
+      if (error instanceof Error) {
+        // Check for API key errors
+        if (error.message.includes('API key') || error.message.includes('OPENAI_API_KEY')) {
+          throw new ServiceError(500, {
+            code: ApiErrorCode.INTERNAL_ERROR,
+            message: 'LLM API key not configured. Please set OPENAI_API_KEY environment variable.',
+            details: { originalError: error.message },
+          });
+        }
+
+        // Check for rate limiting
+        if (error.message.includes('rate limit') || error.message.includes('429')) {
+          throw new ServiceError(429, {
+            code: ApiErrorCode.RATE_LIMITED,
+            message: 'LLM API rate limit exceeded',
+            details: { originalError: error.message },
+          });
+        }
+
+        // Generic API error
+        throw new ServiceError(500, {
+          code: ApiErrorCode.INTERNAL_ERROR,
+          message: `LLM API error: ${error.message}`,
+          details: { originalError: error.message },
+        });
+      }
+
+      // Unknown error type
+      throw new ServiceError(500, {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: 'Unknown LLM service error',
+        details: { error: String(error) },
+      });
+    }
+  }
+
+  /**
+   * Generate creative text response (non-JSON mode)
+   * @param system - System prompt with instructions
+   * @param user - User prompt/input
+   * @returns Generated text response
+   */
+  async generateText(system: string, user: string): Promise<string> {
+    try {
+      // Use OpenAI API directly for text generation (non-JSON mode)
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new ServiceError(500, {
+          code: ApiErrorCode.INTERNAL_ERROR,
+          message: 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.',
+        });
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          temperature: 0.8, // Higher temperature for creative writing
+          max_tokens: 500, // Reasonable limit for narrative text
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+      const content = data.choices?.[0]?.message?.content;
+
+      if (!content) {
+        throw new Error('No content in OpenAI response');
+      }
+
+      return content;
+    } catch (error) {
+      // Handle API failures
+      if (error instanceof ServiceError) {
+        throw error;
+      }
+
+      if (error instanceof Error) {
+        // Check for API key errors
+        if (error.message.includes('API key') || error.message.includes('OPENAI_API_KEY')) {
+          throw new ServiceError(500, {
+            code: ApiErrorCode.INTERNAL_ERROR,
+            message: 'LLM API key not configured. Please set OPENAI_API_KEY environment variable.',
+            details: { originalError: error.message },
+          });
+        }
+
+        // Check for rate limiting
+        if (error.message.includes('rate limit') || error.message.includes('429')) {
+          throw new ServiceError(429, {
+            code: ApiErrorCode.RATE_LIMITED,
+            message: 'LLM API rate limit exceeded',
+            details: { originalError: error.message },
+          });
+        }
+
+        // Generic API error
+        throw new ServiceError(500, {
+          code: ApiErrorCode.INTERNAL_ERROR,
+          message: `LLM API error: ${error.message}`,
+          details: { originalError: error.message },
+        });
+      }
+
+      // Unknown error type
+      throw new ServiceError(500, {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: 'Unknown LLM service error',
+        details: { error: String(error) },
+      });
+    }
+  }
+}
+

@@ -1,0 +1,249 @@
+{
+  "__comment": "CHIMERA V3.4 COMPLETE LIBRARY - Architecture + Full Standard Ruleset Catalog",
+
+  "0_SYSTEM_SCHEMAS": {
+    "chimera_ruleset_schema": {
+      "description": "The strict definition for any module in the system.",
+      "fields": {
+        "id": "Unique String (e.g., rs_d100_core)",
+        "name": "Display Name",
+        "ui_category": "Enum: [foundation, expansion, flavor]",
+        "exclusion_group": "String (Optional) - Only one allowed per group per story",
+        "dependencies": "Array[String] - IDs of rulesets that MUST be present",
+        "provides_tags": "Array[String] - Metadata tags for the Compiler",
+        "state_contributions": "Object - Defines Tier 1 (Mechanical) keys",
+        "actions": "Object - Defines executable logic",
+        "ai_instructions": "Object - Prompts for MAS 1 and MAS 2"
+      }
+    }
+  },
+
+  "1_STANDARD_LIBRARY_CATALOG": {
+    
+    "__comment_foundations": "=== STEP 1: FOUNDATIONS (THE HUBS) ===",
+
+    "rs_d100_core": {
+      "id": "rs_d100_core",
+      "name": "D100 Skill Engine",
+      "ui_category": "foundation",
+      "exclusion_group": "skill_engine",
+      "provides_tags": ["mechanics_d100", "skills"],
+      "description": "Percentile-based physics. Roll under Skill Level.",
+      "state_contributions": {
+        "tier1_entity": ["skills"]
+      }
+    },
+
+    "rs_d20_core": {
+      "id": "rs_d20_core",
+      "name": "D20 Attribute Engine",
+      "ui_category": "foundation",
+      "exclusion_group": "skill_engine",
+      "provides_tags": ["mechanics_d20", "attributes"],
+      "description": "Classic D20 physics. Roll + Modifier vs DC.",
+      "state_contributions": {
+        "tier1_entity": ["attributes"]
+      }
+    },
+
+    "rs_time_simple": {
+      "id": "rs_time_simple",
+      "name": "Day/Night Cycle",
+      "ui_category": "foundation",
+      "exclusion_group": "time_engine",
+      "provides_tags": ["mechanics_time"],
+      "state_contributions": {
+        "tier1_global": ["time"] 
+      }
+    },
+
+    "__comment_vitals": "=== STEP 2: VITALS & ATTRIBUTES (EXPANSIONS) ===",
+
+    "rs_attributes_classic": {
+      "id": "rs_attributes_classic",
+      "name": "Classic 6 Attributes",
+      "ui_category": "expansion",
+      "dependencies": [], 
+      "exclusion_group": "attribute_system",
+      "state_contributions": {
+        "tier1_entity": {
+          "attributes": { "str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10 }
+        }
+      }
+    },
+
+    "rs_health_simple": {
+      "id": "rs_health_simple",
+      "name": "Standard HP",
+      "ui_category": "expansion",
+      "dependencies": [],
+      "exclusion_group": "health_system",
+      "state_contributions": {
+        "tier1_entity": { "health": { "current": 100, "max": 100 } }
+      },
+      "actions": {
+        "take_damage": { "logic": "health.current -= amount" },
+        "heal": { "logic": "health.current += amount" }
+      }
+    },
+
+    "rs_health_locational": {
+      "id": "rs_health_locational",
+      "name": "Complex Limb Health",
+      "ui_category": "expansion",
+      "dependencies": [],
+      "exclusion_group": "health_system",
+      "state_contributions": {
+        "tier1_entity": {
+          "limbs": { "head": 20, "torso": 50, "arms": 30, "legs": 30 }
+        }
+      }
+    },
+
+    "rs_stamina_simple": {
+      "id": "rs_stamina_simple",
+      "name": "Action Stamina",
+      "ui_category": "expansion",
+      "dependencies": [],
+      "exclusion_group": "stamina_system",
+      "state_contributions": {
+        "tier1_entity": { "stamina": { "current": 50, "max": 50 } }
+      }
+    },
+
+    "rs_mana_points": {
+      "id": "rs_mana_points",
+      "name": "Mana Pool",
+      "ui_category": "expansion",
+      "dependencies": [],
+      "exclusion_group": "mana_system",
+      "state_contributions": {
+        "tier1_entity": { "mana": { "current": 20, "max": 20 } }
+      },
+      "ai_instructions": {
+        "mas2": "Describe magical exhaustion when mana is low."
+      }
+    },
+
+    "__comment_survival": "=== STEP 3: SURVIVAL & ENVIRONMENT (EXPANSIONS) ===",
+
+    "rs_survival_basic": {
+      "id": "rs_survival_basic",
+      "name": "Hunger & Thirst",
+      "ui_category": "expansion",
+      "dependencies": ["rs_time_simple"],
+      "description": "Requires Time Engine.",
+      "state_contributions": {
+        "tier1_entity": { "hunger": 0, "thirst": 0 }
+      },
+      "logic": {
+        "on_time_pass": { "action": "increase_needs", "params": { "rate": 5 } }
+      }
+    },
+
+    "rs_weather_basic": {
+      "id": "rs_weather_basic",
+      "name": "Dynamic Weather",
+      "ui_category": "expansion",
+      "dependencies": ["rs_time_simple"],
+      "state_contributions": {
+        "tier1_global": { "weather": "clear" }
+      }
+    },
+
+    "__comment_items": "=== STEP 4: INVENTORY & GEAR (EXPANSIONS) ===",
+
+    "rs_inventory_slots": {
+      "id": "rs_inventory_slots",
+      "name": "Slot-Based Inventory",
+      "ui_category": "expansion",
+      "exclusion_group": "inventory_system",
+      "state_contributions": {
+        "tier1_entity": { "inventory": { "capacity": 20, "items": [] } }
+      }
+    },
+
+    "rs_equipment_paperdoll": {
+      "id": "rs_equipment_paperdoll",
+      "name": "Standard Equipment",
+      "ui_category": "expansion",
+      "dependencies": ["rs_inventory_slots"],
+      "state_contributions": {
+        "tier1_entity": {
+          "equipment": { "head": null, "chest": null, "hands": null, "weapon": null }
+        }
+      }
+    },
+
+    "__comment_meta": "=== STEP 5: META & WORLD (EXPANSIONS) ===",
+
+    "rs_progression_xp": {
+      "id": "rs_progression_xp",
+      "name": "XP & Leveling",
+      "ui_category": "expansion",
+      "dependencies": [],
+      "state_contributions": {
+        "tier1_entity": { "xp": 0, "level": 1 }
+      }
+    },
+
+    "rs_factions_dynamic": {
+      "id": "rs_factions_dynamic",
+      "name": "Faction Reputation",
+      "ui_category": "expansion",
+      "dependencies": [],
+      "state_contributions": {
+        "tier1_global": { "factions": {} }
+      }
+    },
+
+    "rs_quests_linear": {
+      "id": "rs_quests_linear",
+      "name": "Quest Tracker",
+      "ui_category": "expansion",
+      "dependencies": [],
+      "state_contributions": {
+        "tier1_global": { "quest_log": { "active": [], "completed": [] } }
+      }
+    },
+
+    "__comment_flavor": "=== STEP 6: FLAVOR (THEMES) ===",
+
+    "rs_theme_gothic": {
+      "id": "rs_theme_gothic",
+      "name": "Gothic Horror Theme",
+      "ui_category": "flavor",
+      "dependencies": [],
+      "ai_instructions": {
+        "mas2": "Use a lexicon of decay, shadows, and psychological tension."
+      }
+    },
+
+    "rs_theme_steampunk": {
+      "id": "rs_theme_steampunk",
+      "name": "Steampunk Aesthetics",
+      "ui_category": "flavor",
+      "dependencies": [],
+      "ai_instructions": {
+        "mas2": "Describe technology with brass, steam, and gears."
+      }
+    }
+  },
+
+  "2_COMPILER_ARTIFACTS": {
+    "compiled_story_example": {
+      "description": "Example of a fully compiled story using the above rulesets.",
+      "meta": {
+        "active_rulesets": ["rs_d100_core", "rs_time_simple", "rs_health_simple", "rs_survival_basic", "rs_theme_gothic"],
+        "tags": ["mechanics_d100", "mechanics_time", "theme_horror"]
+      },
+      "master_schema": {
+        "tier1_allowlist": ["skills", "time", "health", "hunger", "thirst"],
+        "actions_map": {
+          "take_damage": "rs_health_simple",
+          "eat": "rs_survival_basic"
+        }
+      }
+    }
+  }
+}

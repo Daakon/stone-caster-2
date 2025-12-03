@@ -1,0 +1,104 @@
+{
+  "id": "fnd_combat_lite_v1",
+  "pipeline_compatibility": ["v2025_01"],
+  "name": "Cinematic Combat Lite",
+  "ui_category": "foundation",
+  "exclusion_group": "combat_core",
+  "dependencies": ["fnd_abstract_capability_v1"],
+  "description": "A narrative combat system using abstract States (Healthy -> Defeated) and Skill Checks rather than HP and Damage math.",
+
+  "state_contributions": {
+    "tier1_entity": {
+      "target_kind": ["player", "npc"],
+      "definitions": {
+        "combat_prowess": { "value": 50, "context_priority": "engine_private" },
+        "combat_condition": { "value": "Healthy", "context_priority": "ai_visible" }
+      },
+      "form_hints": {
+        "combat_prowess": { "control": "slider", "min": 0, "max": 100, "label": "Combat Skill / Power" }
+      }
+    }
+  },
+
+  "actions": {
+    "resolve_clash": {
+      "kind": "player_initiated",
+      "trigger": { "type": "intent_match", "keyword_id": "combat_action" },
+      "logic": [
+        {
+          "step_id": "calculate_advantage",
+          "function": "cat_03_logic_calculators.map_value",
+          "args": {
+            "input_value": "input.tactic_tag",
+            "map": { "aggressive": 10, "defensive": -10, "trickery": 20, "reckless": -20 },
+            "default": 0
+          },
+          "output_to": "tactic_modifier"
+        },
+        {
+          "step_id": "roll_contest",
+          "function": "cat_01_resolution.resolve_contest",
+          "args": {
+            "actor_stat": "tier1_player.combat_prowess",
+            "target_stat": "tier1_entity.combat_prowess",
+            "actor_mod": "tactic_modifier",
+            "target_mod": 0
+          },
+          "output_to": "clash_result"
+        },
+        {
+          "step_id": "apply_npc_wound",
+          "function": "cat_02_state_mutation.set_flag",
+          "args": { "path": "tier1_entity.combat_condition", "value": "Wounded" },
+          "conditions": [
+            { "left": "clash_result", "op": "eq", "right": "actor_win" },
+            { "left": "tier1_entity.combat_condition", "op": "eq", "right": "Healthy" }
+          ]
+        },
+        {
+          "step_id": "apply_npc_defeat",
+          "function": "cat_02_state_mutation.set_flag",
+          "args": { "path": "tier1_entity.combat_condition", "value": "Defeated" },
+          "conditions": [
+            { "left": "clash_result", "op": "eq", "right": "actor_win" },
+            { "left": "tier1_entity.combat_condition", "op": "eq", "right": "Wounded" }
+          ]
+        },
+        {
+          "step_id": "apply_player_wound",
+          "function": "cat_02_state_mutation.set_flag",
+          "args": { "path": "tier1_player.combat_condition", "value": "Wounded" },
+          "conditions": [
+            { "left": "clash_result", "op": "eq", "right": "target_win" }
+          ]
+        }
+      ]
+    }
+  },
+
+  "mas_directives": {
+    "mas1_interpreter": {
+      "intent_keywords": [
+        { "verb": "attack", "trigger_id": "combat_action", "tags": ["aggressive"] },
+        { "verb": "defend", "trigger_id": "combat_action", "tags": ["defensive"] },
+        { "verb": "dodge", "trigger_id": "combat_action", "tags": ["defensive"] },
+        { "verb": "feint", "trigger_id": "combat_action", "tags": ["trickery"] },
+        { "verb": "charge", "trigger_id": "combat_action", "tags": ["reckless"] }
+      ]
+    },
+    "mas2_narrator": {
+      "state_readouts": [
+        { "path": "tier1_entity.combat_condition", "label": "OPPONENT STATUS" },
+        { "path": "tier1_player.combat_condition", "label": "PLAYER STATUS" }
+      ],
+      "style_injections": [
+        {
+          "category": "sensory",
+          "unique_id": "cinematic_combat",
+          "priority": 90,
+          "content": "Narrate the combat as a dynamic sequence. Use the [OPPONENT STATUS] to dictate the flow. If 'Wounded', describe them staggering or bleeding. If 'Defeated', describe the final blow."
+        }
+      ]
+    }
+  }
+}

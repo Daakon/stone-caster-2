@@ -12,13 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { chimeraService, type RulesetTemplate } from '@/services/admin.chimera';
+import { chimeraService } from '@/services/admin.chimera';
 
-const RULE_TYPE_COLORS = {
-  MAIN_SYSTEM: 'default',
-  SUBSYSTEM: 'secondary',
-  MODIFIER: 'outline',
-} as const;
 
 export default function RulesetTemplatesDashboard() {
   const navigate = useNavigate();
@@ -111,7 +106,6 @@ export default function RulesetTemplatesDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Display Name</TableHead>
-                  <TableHead>Rule Type</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Exclusions</TableHead>
                   <TableHead>Version</TableHead>
@@ -122,15 +116,10 @@ export default function RulesetTemplatesDashboard() {
                 {templates.map((template) => (
                   <TableRow key={template.id}>
                     <TableCell className="font-medium">{template.display_name}</TableCell>
-                    <TableCell>
-                      <Badge variant={RULE_TYPE_COLORS[template.rule_type]}>
-                        {template.rule_type}
-                      </Badge>
-                    </TableCell>
                     <TableCell>{template.rule_category}</TableCell>
                     <TableCell>
                       {template.exclusion_group ? (
-                        <Badge variant="secondary">{template.exclusion_group.group_name}</Badge>
+                        <Badge variant="secondary">{template.exclusion_group}</Badge>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -143,7 +132,7 @@ export default function RulesetTemplatesDashboard() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/admin/chimera/rulesets/edit/${template.id}`)}
+                          onClick={() => navigate(`/admin/chimera/rulesets/edit/${(template as any).key || template.id}`)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
