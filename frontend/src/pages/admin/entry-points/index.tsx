@@ -1,6 +1,14 @@
 /**
  * Stories Admin Page
  * Phase 3: Full CRUD interface for stories management
+ * 
+ * ⚠️ LEGACY: This page uses the legacy `entry_points` table.
+ * TODO: Refactor to use `compiled_stories` table (Chimera V3).
+ * 
+ * Current dependencies:
+ * - Uses `entryPointsService` which calls `/api/admin/entry-points`
+ * - Backend route queries `entry_points` table (backend/src/routes/admin.ts:4115)
+ * - Should be migrated to use Chimera Stories API (`/api/v2/chimera/stories`)
  */
 
 import { useState, useMemo } from 'react';

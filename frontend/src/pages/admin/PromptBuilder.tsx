@@ -20,9 +20,10 @@ import { ContextChips } from '@/components/admin/prompt-authoring/ContextChips';
 import { isAdminPromptFormsEnabled } from '@/lib/feature-flags';
 import { trackAdminEvent } from '@/lib/admin-telemetry';
 import { api } from '@/lib/api';
-import { worldsService } from '@/services/admin.worlds';
-import { rulesetsService } from '@/services/admin.rulesets';
-import { npcsService } from '@/services/admin.npcs';
+// PHASE 1.7: Legacy services removed - will be replaced with Chimera V3 in Phase 2
+// import { worldsService } from '@/services/admin.worlds';
+// import { rulesetsService } from '@/services/admin.rulesets';
+// import { npcsService } from '@/services/admin.npcs';
 import { searchRefs, type RefItem } from '@/services/refs';
 
 interface ContextState {
@@ -70,7 +71,9 @@ export default function PromptBuilder() {
     queryKey: ['admin', 'npcs', 'search', npcSearch],
     queryFn: async () => {
       if (!npcSearch || npcSearch.length < 2) return [];
-      const result = await npcsService.listNPCs({ search: npcSearch }, 1, 20);
+      // PHASE 1.7: Legacy service removed
+      // const result = await npcsService.listNPCs({ search: npcSearch }, 1, 20);
+      const result = { data: [], count: 0, hasMore: false }; // Temporary - will be replaced in Phase 2
       return result.data.map(npc => ({ id: npc.id, name: npc.name, slug: npc.id }));
     },
     enabled: npcSearch.length >= 2,
@@ -120,7 +123,9 @@ export default function PromptBuilder() {
     queryKey: ['admin', 'world', context.worldId],
     queryFn: async () => {
       if (!context.worldId) return null;
-      return worldsService.getWorld(context.worldId);
+      // PHASE 1.7: Legacy service removed
+      // return worldsService.getWorld(context.worldId);
+      return Promise.resolve(null); // Temporary - will be replaced in Phase 2
     },
     enabled: !!context.worldId,
   });
@@ -129,7 +134,9 @@ export default function PromptBuilder() {
     queryKey: ['admin', 'ruleset', context.rulesetId],
     queryFn: async () => {
       if (!context.rulesetId) return null;
-      return rulesetsService.getRuleset(context.rulesetId);
+      // PHASE 1.7: Legacy service removed
+      // return rulesetsService.getRuleset(context.rulesetId);
+      return Promise.resolve(null); // Temporary - will be replaced in Phase 2
     },
     enabled: !!context.rulesetId,
   });

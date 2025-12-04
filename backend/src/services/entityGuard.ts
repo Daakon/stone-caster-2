@@ -4,7 +4,7 @@
  */
 
 import type { Request } from 'express';
-import { isAdmin } from '../middleware/auth-admin.js';
+import { isAdmin } from '../middleware/auth.unified.js';
 
 export interface EntityWithPublishStatus {
   owner_user_id: string;

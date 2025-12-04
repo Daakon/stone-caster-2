@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { validateRequest } from '../middleware/validation.js';
-import { jwtAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { rateLimit } from '../middleware/validation.js';
 import { ProfileService } from '../services/profile.service.js';
 import { UpdateProfileRequestSchema, RevokeSessionsRequestSchema, ApiErrorCode } from '@shared';
@@ -14,7 +14,7 @@ router.use((req, res, next) => {
   if (req.path.startsWith('/guest') || req.path === '/link-guest') {
     return next();
   }
-  return jwtAuth(req, res, next);
+  return requireAuth(req, res, next);
 });
 
 // Check if user can access gated routes

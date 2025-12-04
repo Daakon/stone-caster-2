@@ -229,8 +229,9 @@ export async function buildTurnPacketV3FromV3(
         .eq('story_id', v3Output.meta.entryPointId);
 
       if (!modulesError && storyModules && storyModules.length > 0) {
-        // Load module params service for getting merged params
-        const { getModuleParams, getModuleParamsDef } = await import('../services/module-params.service.js');
+        // LEGACY - module-params.service.ts removed in Phase 1 cleanup
+        // Module params functionality disabled
+        // const { getModuleParams, getModuleParamsDef } = await import('../services/module-params.service.js');
         
         for (const row of storyModules) {
           const module = (row as any).modules;
@@ -245,8 +246,9 @@ export async function buildTurnPacketV3FromV3(
             storyParams = overrides.moduleParamsOverrides[module.id];
           }
 
-          // Get params definition for merging
-          const paramsDef = await getModuleParamsDef(module.id);
+          // LEGACY - Module params definition merging disabled
+          // const paramsDef = await getModuleParamsDef(module.id);
+          const paramsDef = null;
           
           // Merge params (defaults + story/override)
           let mergedParams: Record<string, unknown> | null = null;
@@ -265,12 +267,14 @@ export async function buildTurnPacketV3FromV3(
               ...storyParams,
             };
           } else {
+            // LEGACY - Module params loading disabled
             // No story params: use defaults only (or load from DB for normal flow)
-            if (v3Output.meta.entryPointId && v3Output.meta.entryPointId !== 'preview-entry') {
-              mergedParams = await getModuleParams(v3Output.meta.entryPointId, module.id);
-            } else {
-              mergedParams = paramsDef?.defaults || null;
-            }
+            // if (v3Output.meta.entryPointId && v3Output.meta.entryPointId !== 'preview-entry') {
+            //   mergedParams = await getModuleParams(v3Output.meta.entryPointId, module.id);
+            // } else {
+            //   mergedParams = paramsDef?.defaults || null;
+            // }
+            mergedParams = paramsDef?.defaults || null;
           }
 
           // Render module slots using Mustache

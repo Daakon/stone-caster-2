@@ -5,8 +5,7 @@
  */
 
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
-import { requireRole } from '../middleware/rbac.js';
+import { requireAuth, requireRole } from '../middleware/auth.unified.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { getTelemetrySummary, getTelemetryTimeseries } from '../services/telemetry-read.service.js';
 
@@ -34,8 +33,7 @@ function getCached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
  */
 router.get(
   '/summary',
-  authenticateToken,
-  requireRole('viewer'),
+  requireRole(['admin', 'moderator', 'viewer']),
   rateLimit({ windowMs: 60 * 1000, max: 60 }),
   async (req, res) => {
     try {
@@ -74,8 +72,7 @@ router.get(
  */
 router.get(
   '/timeseries',
-  authenticateToken,
-  requireRole('viewer'),
+  requireRole(['admin', 'moderator', 'viewer']),
   rateLimit({ windowMs: 60 * 1000, max: 60 }),
   async (req, res) => {
     try {

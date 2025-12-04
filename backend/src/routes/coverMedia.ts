@@ -6,7 +6,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -28,7 +28,7 @@ const EntityIdParamSchema = z.object({
  */
 router.patch(
   '/worlds/:id/cover-media',
-  authenticateToken,
+  requireAuth,
   validateRequest(EntityIdParamSchema, 'params'),
   validateRequest(SetCoverMediaRequestSchema, 'body'),
   async (req: Request, res: Response) => {
@@ -156,7 +156,7 @@ router.patch(
  */
 router.patch(
   '/stories/:id/cover-media',
-  authenticateToken,
+  requireAuth,
   validateRequest(EntityIdParamSchema, 'params'),
   validateRequest(SetCoverMediaRequestSchema, 'body'),
   async (req: Request, res: Response) => {
@@ -272,7 +272,7 @@ router.patch(
  */
 router.patch(
   '/npcs/:id/cover-media',
-  authenticateToken,
+  requireAuth,
   validateRequest(EntityIdParamSchema, 'params'),
   validateRequest(SetCoverMediaRequestSchema, 'body'),
   async (req: Request, res: Response) => {

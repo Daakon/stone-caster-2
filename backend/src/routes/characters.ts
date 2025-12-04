@@ -6,7 +6,7 @@ import { aiService } from '../services/ai.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toCharacterDTO } from '../utils/dto-mappers.js';
 import { validateRequest } from '../middleware/validation.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/auth.unified.js';
 import { ApiErrorCode } from '@shared';
 import { CharactersService } from '../services/characters.service.js';
 

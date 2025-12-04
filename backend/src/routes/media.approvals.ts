@@ -5,12 +5,12 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { isAdminMediaEnabled } from '../config/featureFlags.js';
-import { isAdmin } from '../middleware/auth-admin.js';
+import { isAdmin } from '../middleware/auth.unified.js';
 import { listPending, reviewOne, reviewBulk } from '../services/mediaApprovalService.js';
 import { ListPendingQuerySchema, ReviewMediaRequestSchema, BulkReviewMediaRequestSchema } from '@shared/types/media.js';
 
@@ -38,7 +38,7 @@ async function requireAdmin(req: Request, res: Response, next: any) {
  */
 router.get(
   '/pending',
-  authenticateToken,
+  requireAuth,
   requireAdmin,
   validateRequest(ListPendingQuerySchema, 'query'),
   async (req: Request, res: Response) => {
@@ -87,7 +87,7 @@ const MediaIdParamSchema = z.object({
 
 router.post(
   '/:id/approve',
-  authenticateToken,
+  requireAuth,
   requireAdmin,
   validateRequest(MediaIdParamSchema, 'params'),
   validateRequest(ReviewMediaRequestSchema, 'body'),
@@ -151,7 +151,7 @@ router.post(
  */
 router.post(
   '/approve-bulk',
-  authenticateToken,
+  requireAuth,
   requireAdmin,
   validateRequest(BulkReviewMediaRequestSchema, 'body'),
   async (req: Request, res: Response) => {

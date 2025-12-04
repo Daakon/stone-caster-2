@@ -15,7 +15,7 @@ import {
   PublishingErrorMessages,
   PublishingTelemetryEvents,
 } from '@shared/types/publishing.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { recordPublishRequest } from '../dal/publishing.js';
 import {
   QUOTA_DEFAULTS,
@@ -45,7 +45,7 @@ function emitTelemetry(event: string, props: Record<string, unknown>): void {
  */
 router.post(
   '/:type/:id/request',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     // Check feature flag
     if (!isPublishGatesOwnerEnabled()) {
@@ -247,7 +247,7 @@ router.post(
  */
 router.get(
   '/:type/:id/preflight',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     // Check feature flags
     if (!isPublishingPreflightEnabled() || !isPublishingQualityGatesEnabled()) {

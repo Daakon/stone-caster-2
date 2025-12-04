@@ -4,8 +4,7 @@
  */
 
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
-import { requireRole } from '../middleware/rbac.js';
+import { requireAuth, requireRole } from '../middleware/auth.unified.js';
 import { supabase } from '../services/supabase.js';
 
 const router = Router();
@@ -14,7 +13,7 @@ const router = Router();
  * POST /api/admin/prompt-budget-report
  * Generate budget report without persisting
  */
-router.post('/prompt-budget-report', authenticateToken, requireRole('publisher'), async (req, res) => {
+router.post('/prompt-budget-report', requireRole(['admin', 'publisher']), async (req, res) => {
   try {
     const { 
       worldId, 

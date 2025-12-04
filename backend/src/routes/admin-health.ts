@@ -4,8 +4,7 @@
  */
 
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
-import { requireRole } from '../middleware/rbac.js';
+import { requireAuth, requireRole } from '../middleware/auth.unified.js';
 import { supabaseAdmin } from '../services/supabase.js';
 import { listSlots } from '../services/slots.service.js';
 import { getActiveTemplates } from '../services/templates.service.js';
@@ -17,7 +16,7 @@ const router = Router();
  * GET /api/admin/templates/health
  * Get template and prompt health metrics
  */
-router.get('/templates/health', authenticateToken, requireRole('viewer'), async (req, res) => {
+router.get('/templates/health', requireRole(['admin', 'moderator', 'viewer']), async (req, res) => {
   try {
     const { fromDate, toDate, worldId, rulesetId, storyId } = req.query;
     

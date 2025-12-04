@@ -51,7 +51,7 @@ export default function Telemetry() {
       params.set('to', toDate);
       if (storyId) params.set('storyId', storyId);
       
-      const res = await api.get(`/api/admin/telemetry/summary?${params.toString()}`);
+      const res = await api.get(`/api/system/telemetry/summary?${params.toString()}`);
       if (!res.ok) throw new Error(res.error.message || 'Failed to fetch summary');
       return res.data;
     },
@@ -69,7 +69,7 @@ export default function Telemetry() {
       params.set('to', toDate);
       if (storyId) params.set('storyId', storyId);
       
-      const res = await api.get(`/api/admin/telemetry/timeseries?${params.toString()}`);
+      const res = await api.get(`/api/system/telemetry/timeseries?${params.toString()}`);
       if (!res.ok) throw new Error(res.error.message || 'Failed to fetch timeseries');
       return res.data;
     },
@@ -86,7 +86,7 @@ export default function Telemetry() {
       params.set('to', toDate);
       if (storyId) params.set('storyId', storyId);
       
-      const res = await api.get(`/api/admin/telemetry/timeseries?${params.toString()}`);
+      const res = await api.get(`/api/system/telemetry/timeseries?${params.toString()}`);
       if (!res.ok) throw new Error(res.error.message || 'Failed to fetch timeseries');
       return res.data;
     },

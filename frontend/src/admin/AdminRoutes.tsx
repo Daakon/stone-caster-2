@@ -11,21 +11,9 @@ import AdminHome from '@/pages/admin/index';
 import EntryPointsAdmin from '@/pages/admin/entry-points/index';
 import EntryPointEditPage from '@/pages/admin/entry-points/id';
 import EntryWizardPage from '@/pages/admin/entry-points/wizard/[id]';
-import NPCsAdmin from '@/pages/admin/npcs/index';
-import CreateNPCPage from '@/pages/admin/npcs/new';
-import NPCDetailPage from '@/pages/admin/npcs/[id]';
-import EditNPCPage from '@/pages/admin/npcs/edit';
-import WorldsAdmin from '@/pages/admin/worlds/index';
-import WorldDetailPage from '@/pages/admin/worlds/[id]';
-import WorldNewPage from '@/pages/admin/worlds/new';
-import WorldEditPage from '@/pages/admin/worlds/edit';
-import RulesetsAdmin from '@/pages/admin/rulesets/index';
-import RulesetDetailPage from '@/pages/admin/rulesets/[id]';
-import ImportExportPage from '@/pages/admin/tools/import-export';
-import ReviewsAdmin from '@/pages/admin/reviews/index';
-import ReportsAdmin from '@/pages/admin/reports/index';
-import ReportDetailPage from '@/pages/admin/reports/id';
-import AnalyticsAdmin from '@/pages/admin/analytics/index';
+// PHASE 1.7: Legacy routes removed - NPCs, Worlds, and Rulesets
+// These pages used legacy tables and have been deleted.
+// Will be replaced with Chimera V3 routes in Phase 2.
 import RolesAdmin from '@/pages/admin/roles/index';
 import AccessRequestsAdmin from '@/pages/admin/access-requests/index';
 import TemplatesManager from '@/pages/admin/TemplatesManager';
@@ -52,10 +40,7 @@ export function AdminRoutes() {
       <Route path="/entry-points" element={<EntryPointsAdmin />} />
       <Route path="/entry-points/:id" element={<EntryPointEditPage />} />
       <Route path="/entry-points/wizard/:id" element={<EntryWizardPage />} />
-      <Route path="/npcs" element={<NPCsAdmin />} />
-      <Route path="/npcs/new" element={<CreateNPCPage />} />
-      <Route path="/npcs/:id" element={<NPCDetailPage />} />
-      <Route path="/npcs/:id/edit" element={<EditNPCPage />} />
+      {/* PHASE 1.7: Legacy routes removed - NPCs, Worlds, and Rulesets */}
       <Route 
         path="/publishing-wizard/:entityType/:entityId" 
         element={
@@ -63,101 +48,6 @@ export function AdminRoutes() {
             <PublishingWizardPage />
           </Guarded>
         }
-      />
-      
-      <Route
-          path="/tools/import-export"
-          element={
-            <Guarded allow={['admin']}>
-              <ImportExportPage />
-            </Guarded>
-          }
-        />
-      
-      {/* Worlds routes (Creators: read; Mods/Admin: CRUD) */}
-      <Route 
-        path="/worlds" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <WorldsAdmin />
-          </Guarded>
-        } 
-      />
-      <Route 
-        path="/worlds/new" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <WorldNewPage />
-          </Guarded>
-        } 
-      />
-      <Route 
-        path="/worlds/:id" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <WorldDetailPage />
-          </Guarded>
-        } 
-      />
-      <Route 
-        path="/worlds/:id/edit" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <WorldEditPage />
-          </Guarded>
-        } 
-      />
-      
-      {/* Rulesets routes (Creators: read; Mods/Admin: CRUD) */}
-      <Route 
-        path="/rulesets" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <RulesetsAdmin />
-          </Guarded>
-        } 
-      />
-      <Route 
-        path="/rulesets/:id" 
-        element={
-          <Guarded allow={['creator', 'moderator', 'admin']}>
-            <RulesetDetailPage />
-          </Guarded>
-        } 
-      />
-      
-      {/* Moderator routes */}
-      <Route 
-        path="/reviews" 
-        element={
-          <Guarded allow={['moderator', 'admin']}>
-            <ReviewsAdmin />
-          </Guarded>
-        } 
-      />
-      <Route 
-        path="/reports" 
-        element={
-          <Guarded allow={['moderator', 'admin']}>
-            <ReportsAdmin />
-          </Guarded>
-        } 
-      />
-      <Route 
-        path="/reports/:id" 
-        element={
-          <Guarded allow={['moderator', 'admin']}>
-            <ReportDetailPage />
-          </Guarded>
-        } 
-      />
-      <Route 
-        path="/analytics" 
-        element={
-          <Guarded allow={['moderator', 'admin']}>
-            <AnalyticsAdmin />
-          </Guarded>
-        } 
       />
       
       {/* Admin-only routes */}

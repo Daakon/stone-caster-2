@@ -4,7 +4,11 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { AwfModelProvider } from '../model/awf-model-provider.js';
+// LEGACY - awf-model-provider.js removed in Phase 1 cleanup
+// import { AwfModelProvider } from '../model/awf-model-provider.js';
+
+// Stub type for AwfModelProvider
+type AwfModelProvider = any;
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;

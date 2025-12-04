@@ -2,14 +2,14 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toSubscriptionDTO } from '../utils/dto-mappers.js';
 import { validateRequest } from '../middleware/validation.js';
-import { jwtAuth, requireAuth } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { CreateSubscriptionRequestSchema, CancelSubscriptionRequestSchema } from '@shared';
 import { ApiErrorCode } from '@shared';
 
 const router = Router();
 
 // Get subscription info (auth only)
-router.get('/', jwtAuth, requireAuth, async (req: Request, res: Response) => {
+router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
     // Mock subscription data - in real implementation, this would come from database
     const subscription = {
@@ -36,7 +36,7 @@ router.get('/', jwtAuth, requireAuth, async (req: Request, res: Response) => {
 });
 
 // Create subscription (auth only)
-router.post('/create', jwtAuth, requireAuth, validateRequest(CreateSubscriptionRequestSchema, 'body'), async (req: Request, res: Response) => {
+router.post('/create', requireAuth, validateRequest(CreateSubscriptionRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
     // const { priceId, paymentMethodId } = req.body; // TODO: Implement subscription creation
 
@@ -65,7 +65,7 @@ router.post('/create', jwtAuth, requireAuth, validateRequest(CreateSubscriptionR
 });
 
 // Cancel subscription (auth only)
-router.post('/cancel', jwtAuth, requireAuth, validateRequest(CancelSubscriptionRequestSchema, 'body'), async (req: Request, res: Response) => {
+router.post('/cancel', requireAuth, validateRequest(CancelSubscriptionRequestSchema, 'body'), async (req: Request, res: Response) => {
   try {
     const { subscriptionId } = req.body;
 
@@ -94,7 +94,7 @@ router.post('/cancel', jwtAuth, requireAuth, validateRequest(CancelSubscriptionR
 });
 
 // Get subscription portal (auth only)
-router.post('/portal', jwtAuth, requireAuth, async (req: Request, res: Response) => {
+router.post('/portal', requireAuth, async (req: Request, res: Response) => {
   try {
     // Mock portal URL - in real implementation, this would generate a Stripe portal URL
     const portalUrl = 'https://billing.stripe.com/p/login/test_portal';

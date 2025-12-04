@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -18,7 +18,7 @@ import { CloudflareImagesError } from '../lib/cloudflareImages.js';
 import { supabaseAdmin } from '../services/supabase.js';
 import { assertCanMutateEntity } from '../services/entityGuard.js';
 import { assertMediaOwnershipOrAdmin } from '../services/mediaGuard.js';
-import { isAdmin } from '../middleware/auth-admin.js';
+import { isAdmin } from '../middleware/auth.unified.js';
 
 const router = Router();
 
@@ -61,7 +61,7 @@ router.get('/links',
     console.error('[media/links] MIDDLEWARE 1 - Before auth');
     next();
   },
-  authenticateToken,
+  requireAuth,
   (req, res, next) => {
     console.error('[media/links] MIDDLEWARE 2 - After auth, before handler');
     next();
@@ -239,7 +239,7 @@ const CreateUploadRequestSchema = z.object({
 
 router.post(
   '/uploads',
-  authenticateToken,
+  requireAuth,
   validateRequest(CreateUploadRequestSchema, 'body'),
   async (req: Request, res: Response) => {
     // Check feature flag
@@ -307,7 +307,7 @@ const MediaIdParamSchema = z.object({
 
 router.get(
   '/:id',
-  authenticateToken,
+  requireAuth,
   validateRequest(MediaIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     if (!isAdminMediaEnabled()) {
@@ -405,7 +405,7 @@ const UpdateMediaBodySchema = z.object({
 
 router.patch(
   '/:id',
-  authenticateToken,
+  requireAuth,
   validateRequest(UpdateMediaParamsSchema, 'params'),
   validateRequest(UpdateMediaBodySchema, 'body'),
   async (req: Request, res: Response) => {
@@ -533,7 +533,7 @@ const FinalizeUploadBodySchema = z.object({
 
 router.post(
   '/:id/finalize',
-  authenticateToken,
+  requireAuth,
   validateRequest(FinalizeUploadParamsSchema, 'params'),
   validateRequest(FinalizeUploadBodySchema, 'body'),
   async (req: Request, res: Response) => {
@@ -631,7 +631,7 @@ const WorldIdParamSchema = z.object({
 
 router.patch(
   '/worlds/:id/cover-media',
-  authenticateToken,
+  requireAuth,
   validateRequest(WorldIdParamSchema, 'params'),
   validateRequest(SetCoverMediaRequestSchema, 'body'),
   async (req: Request, res: Response) => {
@@ -759,7 +759,7 @@ router.patch(
  */
 router.patch(
   '/stories/:id/cover-media',
-  authenticateToken,
+  requireAuth,
   validateRequest(WorldIdParamSchema, 'params'),
   validateRequest(SetCoverMediaRequestSchema, 'body'),
   async (req: Request, res: Response) => {
@@ -879,7 +879,7 @@ const NpcIdParamSchema = z.object({
 
 router.patch(
   '/npcs/:id/cover-media',
-  authenticateToken,
+  requireAuth,
   validateRequest(NpcIdParamSchema, 'params'),
   validateRequest(SetCoverMediaRequestSchema, 'body'),
   async (req: Request, res: Response) => {
@@ -1001,7 +1001,7 @@ router.patch(
  */
 router.post(
   '/links',
-  authenticateToken,
+  requireAuth,
   validateRequest(CreateMediaLinkRequestSchema, 'body'),
   async (req: Request, res: Response) => {
     if (!isAdminMediaEnabled()) {
@@ -1196,7 +1196,7 @@ const LinkIdParamSchema = z.object({
 
 router.delete(
   '/links/:linkId',
-  authenticateToken,
+  requireAuth,
   validateRequest(LinkIdParamSchema, 'params'),
   async (req: Request, res: Response) => {
     if (!isAdminMediaEnabled()) {
@@ -1322,7 +1322,7 @@ router.delete(
  */
 router.patch(
   '/links/reorder',
-  authenticateToken,
+  requireAuth,
   validateRequest(ReorderMediaLinksRequestSchema, 'body'),
   async (req: Request, res: Response) => {
     if (!isAdminMediaEnabled()) {

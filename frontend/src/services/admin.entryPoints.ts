@@ -216,13 +216,19 @@ export class EntryPointsService {
 
   /**
    * Get available worlds for entry point creation
+   * PHASE 1.7: Legacy route removed - will be replaced with Chimera V3 in Phase 2
    */
   async getWorlds(): Promise<Array<{ id: string; name: string }>> {
-    const result = await apiGet<{ data: Array<{ id: string; name: string }> }>('/api/admin/worlds?limit=100');
+    // PHASE 1.7: Legacy route commented out - /api/admin/worlds no longer exists
+    // const result = await apiGet<{ data: Array<{ id: string; name: string }> }>('/api/admin/worlds?limit=100');
+    // 
+    // if (!result.ok) {
+    //   throw new Error(`Failed to fetch worlds: ${result.error.message}`);
+    // }
+    // return result.data.data;
     
-    if (!result.ok) {
-      throw new Error(`Failed to fetch worlds: ${result.error.message}`);
-    }
+    // Temporary stub - will be replaced in Phase 2
+    return [];
     
     return result.data.data;
   }

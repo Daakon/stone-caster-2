@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -21,7 +21,7 @@ const EntityIdParamSchema = z.object({
 });
 
 // All routes require authentication
-router.use(authenticateToken);
+router.use(requireAuth);
 
 // Zod schemas for validation
 const EntityTypeSchema = z.enum(['NPC', 'ITEM', 'FACTION', 'LOCATION']);

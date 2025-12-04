@@ -10,7 +10,7 @@ import { publicRequestSchema, type PublicRequestInput } from '../validation/acce
 import { supabaseAdmin } from '../services/supabase.js';
 import { accessRequestRateLimiter } from '../lib/rateLimiter.js';
 import { getTraceId } from '../utils/response.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/auth.unified.js';
 
 const router = Router();
 

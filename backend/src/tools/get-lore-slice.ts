@@ -7,8 +7,20 @@ import { createClient } from '@supabase/supabase-js';
 import { compactSlice } from '../compactors/slice-compactor.js';
 import { CacheProvider } from '../cache/CacheProvider.js';
 import { InMemoryCacheProvider } from '../cache/CacheProvider.js';
-import { AwfToolCall, AwfToolResult } from '../model/awf-model-provider.js';
+// LEGACY - awf-model-provider.js removed in Phase 1 cleanup
+// import { AwfToolCall, AwfToolResult } from '../model/awf-model-provider.js';
 import crypto from 'crypto';
+
+// Local type definitions (replacing AwfToolCall/AwfToolResult)
+export interface AwfToolCall {
+  name: string;
+  arguments: Record<string, any>;
+}
+
+export interface AwfToolResult {
+  name: string;
+  result: any;
+}
 
 export interface GetLoreSliceParams {
   scope: 'world' | 'adventure';

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { MetricsService } from '../../services/metrics.service.js';
 import { sendSuccess, sendErrorWithStatus } from '../../utils/response.js';
-import { requireAdmin } from '../../middleware/adminAuth.js';
+import { requireAdmin } from '../../middleware/auth.unified.js';
 import { ApiErrorCode } from '@shared';
 import type { Request, Response } from 'express';
 

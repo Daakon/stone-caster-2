@@ -11,7 +11,7 @@ import { StoriesRepository } from '../db/repos/stories.repo.js';
 import { GameInitService } from '../services/game/game-init.service.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared/types/api.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 
 const router = Router();
 
@@ -39,7 +39,7 @@ const InitializeGameRequestSchema = z.object({
  */
 router.post(
   '/init',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     try {
       const validated = InitializeGameRequestSchema.parse(req.body);
@@ -106,7 +106,7 @@ router.post(
  */
 router.get(
   '/stories/:id',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;

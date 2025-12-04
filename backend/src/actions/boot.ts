@@ -82,6 +82,7 @@ function registerCoreActions() {
 
 /**
  * Register module actions from database
+ * LEGACY: Modules table may not exist after Phase 1 cleanup
  */
 async function registerModuleActions() {
   try {
@@ -91,6 +92,11 @@ async function registerModuleActions() {
       .select('id, base_id, state_slice, exports');
 
     if (error) {
+      // Table doesn't exist (PGRST205) - this is expected after legacy purge
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+        console.log('[ActionRegistry] Modules table not found (legacy table removed) - skipping module actions');
+        return;
+      }
       console.error('[ActionRegistry] Error loading modules:', error);
       return;
     }
@@ -120,7 +126,7 @@ async function registerModuleActions() {
       };
 
       // Map action types to reducers
-      const reducerMap: Record<string, (state: any, payload: any) => any> = {
+      const reducerMap: Record<string, (state: any, payload: any, storyId?: string) => any | Promise<any>> = {
         'relationship.delta': applyRelationshipDelta,
         'relationship.set': applyRelationshipSet,
       };
@@ -167,6 +173,7 @@ async function registerModuleActions() {
 
 /**
  * Health check: warn about duplicate state slices
+ * LEGACY: Modules table may not exist after Phase 1 cleanup
  */
 async function healthCheckModules() {
   try {
@@ -174,7 +181,15 @@ async function healthCheckModules() {
       .from('modules')
       .select('id, state_slice');
 
-    if (error || !modules) {
+    if (error) {
+      // Table doesn't exist - skip health check
+      if (error.code === 'PGRST205' || error.message?.includes('Could not find the table')) {
+        return;
+      }
+      return;
+    }
+
+    if (!modules) {
       return;
     }
 

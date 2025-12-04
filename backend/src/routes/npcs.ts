@@ -8,7 +8,7 @@ import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { getSupabaseClient } from '../lib/supabaseClient.js';
-import { optionalAuth, requireAuth } from '../middleware/auth.js';
+import { optionalAuth, requireAuth } from '../middleware/auth.unified.js';
 import { z } from 'zod';
 
 const router = Router();

@@ -1,8 +1,17 @@
 import { WalletService } from './wallet.service.js';
 import { promptsService } from './prompts.service.js';
 import { gamesService } from './games.service.js';
-import { StoneLedgerService } from './stoneLedger.service.js';
+// LEGACY - stoneLedger.service.ts removed in Phase 1 cleanup
+// import { StoneLedgerService } from './stoneLedger.service.js';
 import { IdempotencyService } from './idempotency.service.js';
+
+// Stub for StoneLedgerService (ledger functionality disabled)
+const StoneLedgerService = {
+  appendEntry: async (_entry: any) => {
+    // Ledger functionality disabled - entries are not recorded
+    console.warn('[TurnsService] StoneLedgerService.appendEntry called but ledger service was removed');
+  }
+};
 import { gameStateService } from './game-state.service.js';
 import { debugService } from './debug.service.js';
 import { aiService } from './ai.js';

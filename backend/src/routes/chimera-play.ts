@@ -11,7 +11,7 @@ import { GameLoopService } from '../services/runtime/game-loop.service.js';
 import { StoriesRepository } from '../db/repos/stories.repo.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared/types/api';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 
 const router = Router();
 
@@ -30,7 +30,7 @@ const StartSessionRequestSchema = z.object({
  */
 router.get(
   '/:gameStateId',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     try {
       const { gameStateId } = req.params;
@@ -77,7 +77,7 @@ router.get(
  */
 router.post(
   '/:gameStateId/cast',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     try {
       const { gameStateId } = req.params;
@@ -129,7 +129,7 @@ router.post(
  */
 router.post(
   '/start',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     try {
       const validated = StartSessionRequestSchema.parse(req.body);

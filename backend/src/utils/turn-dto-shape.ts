@@ -5,7 +5,7 @@
 
 import type { Request } from 'express';
 import type { TurnDTO, TurnDTOWithDebug } from '@shared';
-import { allowDebug } from '../middleware/auth-admin.js';
+import { allowDebug } from '../middleware/auth.unified.js';
 
 /**
  * Shape TurnDTO for response - conditionally adds debug fields

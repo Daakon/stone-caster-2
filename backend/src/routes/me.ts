@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { toUserDTO } from '../utils/dto-mappers.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/auth.unified.js';
 import { ApiErrorCode } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
 import type { AppRole } from '@shared/types/auth.js';

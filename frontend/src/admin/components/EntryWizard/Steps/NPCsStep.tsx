@@ -11,7 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Users, AlertCircle } from 'lucide-react';
 import { type EntryPoint } from '@/services/admin.entryPoints';
 import { type WizardData } from '../EntryWizard';
-import { npcsService } from '@/services/admin.npcs';
+// PHASE 1.7: Legacy service removed - will be replaced with Chimera V3 in Phase 2
+// import { npcsService } from '@/services/admin.npcs';
 import { useQuery } from '@tanstack/react-query';
 import { useNPCPacks } from '@/hooks/useNPCPacks';
 import { CreateNPCDialog } from '@/admin/components/CreateNPCDialog';
@@ -46,7 +47,9 @@ export function NPCsStep({ entry, data, onUpdate, onComplete }: NPCsStepProps) {
   const { data: npcsData, isLoading: npcsLoading } = useQuery({
     queryKey: ['admin-npcs', 'all'],
     queryFn: async () => {
-      const result = await npcsService.listNPCs({}, 1, 1000); // Get all NPCs
+      // PHASE 1.7: Legacy service removed
+      // const result = await npcsService.listNPCs({}, 1, 1000); // Get all NPCs
+      const result = { data: [], count: 0, hasMore: false }; // Temporary - will be replaced in Phase 2
       return result.data || [];
     },
   });

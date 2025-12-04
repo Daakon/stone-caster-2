@@ -1,7 +1,16 @@
 import { supabaseAdmin } from './supabase.js';
 import { configService } from './config.service.js';
-import { StoneLedgerService } from './stoneLedger.service.js';
+// LEGACY - stoneLedger.service.ts removed in Phase 1 cleanup
+// import { StoneLedgerService } from './stoneLedger.service.js';
 import type { StoneWallet } from '@shared';
+
+// Stub for StoneLedgerService (ledger functionality disabled)
+const StoneLedgerService = {
+  appendEntry: async (_entry: any) => {
+    // Ledger functionality disabled - entries are not recorded
+    console.warn('[WalletService] StoneLedgerService.appendEntry called but ledger service was removed');
+  }
+};
 
 export interface ConversionResult {
   fromType: 'shard' | 'crystal' | 'relic';

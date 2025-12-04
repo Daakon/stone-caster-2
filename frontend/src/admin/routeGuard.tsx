@@ -3,10 +3,10 @@
  * Phase 2: Role-gated admin navigation
  */
 
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiGet } from '@/lib/api';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth';
+import { useAuth } from '@/hooks/useAuth';
 import { queryKeys } from '@/lib/queryKeys';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,108 +49,52 @@ export function AppRolesProvider({
   const queryClient = useQueryClient();
   const queryKey = queryKeys.adminUserRoles(user?.id || null);
   
-  // CRITICAL: Set query data synchronously BEFORE the query is created
-  // This ensures the cache is populated immediately and prevents any network calls
+  // Use the singleton useAuth hook - derives roles from session cache (no duplicate network calls)
+  const { data: session, isLoading, error: sessionError } = useAuth();
+  
+  // CRITICAL: Set query data synchronously if initialRoles provided
+  // This ensures the cache is populated immediately
   const hasInitialRoles = initialRoles !== undefined;
   if (hasInitialRoles) {
-    // Set data in cache synchronously - this happens before useQuery runs
     queryClient.setQueryData(queryKey, initialRoles, {
-      updatedAt: Date.now(), // Mark as fresh
+      updatedAt: Date.now(),
     });
   }
   
   // Check if data already exists in cache (either from initialRoles or previous fetch)
   const cachedData = queryClient.getQueryData<AppRole[]>(queryKey);
-  const hasCachedData = cachedData !== undefined;
   
-  // Use React Query for roles with caching to prevent duplicate calls
-  // When initialRoles are provided OR cache has data, the query is disabled
-  const { data: roles = cachedData ?? initialRoles ?? [], isLoading: loading, error: queryError } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      // Check if we have a session token, even if auth store says not authenticated
-      const { supabase } = await import('@/lib/supabase');
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // If no session token and not authenticated, return empty array
-      if (!session?.access_token && (!isAuthenticated || !user)) {
-        return [];
-      }
-
-      // If we have a session token OR auth store says authenticated, try to fetch roles
-      const hasToken = !!session?.access_token;
-      const shouldFetch = hasToken || (isAuthenticated && user);
-      
-      if (!shouldFetch) {
-        return [];
-      }
-
-      let result = await apiGet<string[]>('/api/admin/user/roles');
-      
-      // If we get UNAUTHORIZED, try refreshing the session and retry once
-      if (!result.ok && result.error.code === 'UNAUTHORIZED') {
-        try {
-          const currentSession = session || (await supabase.auth.getSession()).data.session;
-          
-          if (currentSession?.refresh_token) {
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession({
-              refresh_token: currentSession.refresh_token,
-            });
-            
-            if (!refreshError && refreshData.session) {
-              result = await apiGet<string[]>('/api/admin/user/roles');
-              
-              // If successful, trigger auth store re-initialization
-              if (result.ok && refreshData.session?.user) {
-                try {
-                  const { useAuthStore } = await import('@/store/auth');
-                  const store = useAuthStore.getState();
-                  await store.initialize();
-                } catch (initErr) {
-                  // Silently fail auth store re-initialization
-                }
-              }
-            }
-          }
-        } catch (refreshErr) {
-          // Continue with original error
-        }
-      }
-      
-      if (!result.ok) {
-        throw new Error(`Failed to fetch roles: ${result.error.message}`);
-      }
-
-      const userRoles = (result.data || []).map(role => role as AppRole);
-      
-      // If we successfully fetched roles but auth store says not authenticated,
-      // re-initialize the auth store to sync it with the session
-      if (!isAuthenticated && session?.user) {
-        try {
-          const { useAuthStore } = await import('@/store/auth');
-          const store = useAuthStore.getState();
-          await store.initialize();
-        } catch (syncErr) {
-          // Silently fail auth store re-initialization
-        }
-      }
-      
-      return userRoles;
-    },
-    // CRITICAL: Disable query completely when:
-    // 1. We have initialRoles (passed from AdminRouteGuard)
-    // 2. OR data already exists in cache
-    // This prevents ANY network calls when we already have the data
-    enabled: (!!user || !!isAuthenticated) && !hasInitialRoles && !hasCachedData,
-    staleTime: 5 * 60 * 1000, // 5 minutes - roles don't change often
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    // Use cached data or initialRoles as initial data
-    initialData: cachedData ?? initialRoles,
-    // Prevent all refetching when we have data
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
+  // Derive roles from session data (no network call - uses useAuth cache)
+  const roles = useMemo<AppRole[]>(() => {
+    // If we have cached roles, use them
+    if (cachedData) return cachedData;
+    if (initialRoles) return initialRoles;
+    
+    // Extract role from session data
+    if (!session?.user?.role) return [];
+    
+    const role = session.user.role;
+    const userRoles: AppRole[] = [];
+    if (role === 'admin') {
+      userRoles.push('admin');
+    } else if (role === 'moderator') {
+      userRoles.push('moderator');
+    } else if (role === 'creator' || role === 'early_access' || role === 'member') {
+      userRoles.push('creator');
+    }
+    
+    return userRoles;
+  }, [session?.user?.role, cachedData, initialRoles]);
+  
+  // Cache the derived roles in React Query for other components
+  if (user?.id && roles.length > 0 && !cachedData && !hasInitialRoles) {
+    queryClient.setQueryData(queryKey, roles, {
+      updatedAt: Date.now(),
+    });
+  }
+  
+  const loading = isLoading;
+  const queryError = sessionError;
 
   const error = queryError instanceof Error ? queryError.message : null;
   const errorCode = queryError && typeof queryError === 'object' && 'code' in queryError ? queryError.code as string : undefined;

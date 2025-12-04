@@ -15,7 +15,7 @@ import { isWizardAllowed } from '../config/publishingWizard.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { PublishableTypeSchema } from '@shared/types/publishing.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { supabaseAdmin } from '../services/supabase.js';
 import { getLatestFindings } from '../dal/publishingQuality.js';
 import { emitPublishingEvent } from '../telemetry/publishingTelemetry.js';
@@ -28,7 +28,7 @@ const router = Router();
  */
 router.get(
   '/status/:type/:id',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     if (!isPublishingWizardEnabled()) {
       return sendErrorWithStatus(
@@ -258,7 +258,7 @@ const SessionSaveSchema = z.object({
 
 router.post(
   '/session/:type/:id',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     if (!isPublishingWizardEnabled()) {
       return sendErrorWithStatus(
@@ -410,7 +410,7 @@ router.post(
  */
 router.delete(
   '/session/:type/:id',
-  authenticateToken,
+  requireAuth,
   async (req: Request, res: Response) => {
     if (!isPublishingWizardEnabled()) {
       return sendErrorWithStatus(

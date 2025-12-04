@@ -22,8 +22,7 @@ import {
   AdminReviewRejectRequestSchema,
   PublishingFlagsResponseSchema,
 } from '@shared/types/publishing.js';
-import { authenticateToken } from '../middleware/auth.js';
-import { requireRole } from '../middleware/rbac.js';
+import { requireAuth, requireRole } from '../middleware/auth.unified.js';
 import {
   listPendingSubmissions,
   approveSubmission,
@@ -66,7 +65,6 @@ function emitTelemetry(event: string, props: Record<string, unknown>): void {
  */
 router.get(
   '/flags',
-  authenticateToken,
   requireRole(['admin', 'moderator']),
   async (req: Request, res: Response) => {
     try {
@@ -96,7 +94,6 @@ router.get(
  */
 router.get(
   '/review/queue',
-  authenticateToken,
   requireRole(['admin', 'moderator']),
   async (req: Request, res: Response) => {
     if (!isAdminReviewQueueEnabled()) {
@@ -130,7 +127,6 @@ router.get(
  */
 router.post(
   '/review/:type/:id/approve',
-  authenticateToken,
   requireRole(['admin', 'moderator']),
   async (req: Request, res: Response) => {
     if (!isAdminReviewQueueEnabled()) {
@@ -255,7 +251,6 @@ router.post(
  */
 router.post(
   '/review/:type/:id/reject',
-  authenticateToken,
   requireRole(['admin', 'moderator']),
   async (req: Request, res: Response) => {
     if (!isAdminReviewQueueEnabled()) {
@@ -378,7 +373,6 @@ router.post(
  */
 router.post(
   '/deps/recompute/world/:worldId',
-  authenticateToken,
   requireRole(['admin', 'moderator']),
   async (req: Request, res: Response) => {
     if (!isDependencyMonitorEnabled()) {
@@ -443,7 +437,6 @@ router.post(
  */
 router.post(
   '/deps/recompute/all',
-  authenticateToken,
   requireRole(['admin', 'moderator']),
   async (req: Request, res: Response) => {
     if (!isDependencyMonitorEnabled()) {
@@ -500,7 +493,6 @@ router.post(
  */
 router.post(
   '/review/:type/:id/checklist',
-  authenticateToken,
   requireRole(['admin', 'moderator']),
   async (req: Request, res: Response) => {
     if (!isPublishingChecklistsEnabled()) {
@@ -632,7 +624,6 @@ router.post(
  */
 router.get(
   '/review/:type/:id/findings',
-  authenticateToken,
   requireRole(['admin', 'moderator']),
   async (req: Request, res: Response) => {
     try {

@@ -50,7 +50,7 @@ export default function Health() {
       if (rulesetId) params.set('rulesetId', rulesetId);
       if (storyId) params.set('storyId', storyId);
 
-      const res = await api.get(`/api/admin/templates/health?${params.toString()}`);
+      const res = await api.get(`/api/system/templates/health?${params.toString()}`);
       if (!res.ok) throw new Error(res.error?.message || 'Failed to fetch health data');
       return res.data;
     },

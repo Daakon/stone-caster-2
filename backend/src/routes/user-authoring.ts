@@ -4,7 +4,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { z } from 'zod';
@@ -19,7 +19,7 @@ const router = Router();
  * GET /api/worlds
  * List user's worlds with quota info
  */
-router.get('/worlds', authenticateToken, async (req: Request, res: Response) => {
+router.get('/worlds', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -95,7 +95,7 @@ router.get('/worlds', authenticateToken, async (req: Request, res: Response) => 
  * GET /api/stories
  * List user's stories with quota info
  */
-router.get('/stories', authenticateToken, async (req: Request, res: Response) => {
+router.get('/stories', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -201,7 +201,7 @@ router.get('/stories', authenticateToken, async (req: Request, res: Response) =>
  * GET /api/npcs
  * List user's NPCs with quota info
  */
-router.get('/npcs', authenticateToken, async (req: Request, res: Response) => {
+router.get('/npcs', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -301,7 +301,7 @@ const CreateNPCSchema = z.object({
  * POST /api/worlds
  * Create a new world (user-facing)
  */
-router.post('/worlds', authenticateToken, async (req: Request, res: Response) => {
+router.post('/worlds', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -387,7 +387,7 @@ router.post('/worlds', authenticateToken, async (req: Request, res: Response) =>
  * POST /api/stories
  * Create a new story (user-facing)
  */
-router.post('/stories', authenticateToken, async (req: Request, res: Response) => {
+router.post('/stories', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -498,7 +498,7 @@ router.post('/stories', authenticateToken, async (req: Request, res: Response) =
  * POST /api/npcs
  * Create a new NPC (user-facing)
  */
-router.post('/npcs', authenticateToken, async (req: Request, res: Response) => {
+router.post('/npcs', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -573,7 +573,7 @@ router.post('/npcs', authenticateToken, async (req: Request, res: Response) => {
  * POST /api/worlds/:id/submit-for-publish
  * Submit a world for publish review
  */
-router.post('/worlds/:id/submit-for-publish', authenticateToken, async (req: Request, res: Response) => {
+router.post('/worlds/:id/submit-for-publish', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -691,7 +691,7 @@ router.post('/worlds/:id/submit-for-publish', authenticateToken, async (req: Req
  * POST /api/stories/:id/submit-for-publish
  * Submit a story for publish review
  */
-router.post('/stories/:id/submit-for-publish', authenticateToken, async (req: Request, res: Response) => {
+router.post('/stories/:id/submit-for-publish', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -833,7 +833,7 @@ router.post('/stories/:id/submit-for-publish', authenticateToken, async (req: Re
  * POST /api/npcs/:id/submit-for-publish
  * Submit an NPC for publish review
  */
-router.post('/npcs/:id/submit-for-publish', authenticateToken, async (req: Request, res: Response) => {
+router.post('/npcs/:id/submit-for-publish', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;

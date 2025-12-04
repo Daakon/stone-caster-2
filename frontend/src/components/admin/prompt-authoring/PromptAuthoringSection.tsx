@@ -13,8 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { worldsService } from '@/services/admin.worlds';
-import { rulesetsService } from '@/services/admin.rulesets';
+// PHASE 1.7: Legacy services removed - will be replaced with Chimera V3 in Phase 2
+// import { worldsService } from '@/services/admin.worlds';
+// import { rulesetsService } from '@/services/admin.rulesets';
 import { ExtrasForm } from '@/components/admin/ExtrasForm';
 import { ParamsEditor } from '@/components/admin/ParamsEditor';
 import { ActionsBar } from './ActionsBar';
@@ -295,7 +296,7 @@ export const PromptAuthoringSection = forwardRef<PromptAuthoringSectionRef, Prom
         payload.moduleParamsOverrides = paramsToUse;
       }
 
-      const res = await api.post('/api/admin/prompt-budget-report', payload);
+      const res = await api.post('/api/system/budget/prompt-budget-report', payload);
       if (!res.ok) {
         // Handle 429 rate limit
         const errorStr = typeof res.error === 'string' ? res.error : JSON.stringify(res.error);
@@ -335,10 +336,14 @@ export const PromptAuthoringSection = forwardRef<PromptAuthoringSectionRef, Prom
       let extras: Record<string, unknown> | undefined;
       
       if (packType === 'world') {
-        const world = await worldsService.getWorld(packId);
+        // PHASE 1.7: Legacy service removed
+        // const world = await worldsService.getWorld(packId);
+        const world = null; // Temporary - will be replaced in Phase 2
         extras = (world as any).extras;
       } else if (packType === 'ruleset') {
-        const ruleset = await rulesetsService.getRuleset(packId);
+        // PHASE 1.7: Legacy service removed
+        // const ruleset = await rulesetsService.getRuleset(packId);
+        const ruleset = null; // Temporary - will be replaced in Phase 2
         extras = (ruleset as any).extras;
       } else if (packType === 'scenario') {
         // Scenarios endpoint - use direct API call for now
@@ -347,9 +352,11 @@ export const PromptAuthoringSection = forwardRef<PromptAuthoringSectionRef, Prom
           extras = (res.data as any).extras;
         }
       } else if (packType === 'npc') {
-        const { npcsService } = await import('@/services/admin.npcs');
-        const npc = await npcsService.getNPC(packId);
-        extras = (npc as any).extras;
+        // PHASE 1.7: Legacy service removed
+        // const { npcsService } = await import('@/services/admin.npcs');
+        // const npc = await npcsService.getNPC(packId);
+        // extras = (npc as any).extras;
+        extras = undefined; // Temporary - will be replaced in Phase 2
       }
 
       if (extras) {

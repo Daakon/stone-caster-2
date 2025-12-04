@@ -8,7 +8,7 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -18,7 +18,7 @@ import { rebuildStory } from '../services/chimera/rebuild-service.js';
 const router = Router();
 
 // All routes require authentication
-router.use(authenticateToken);
+router.use(requireAuth);
 
 // Custom schema for text-based IDs (not UUIDs)
 const TextIdParamSchema = z.object({

@@ -15,6 +15,7 @@ import { GuestCookieService } from './services/guestCookie';
 import { handleEarlyAccessRequired } from './lib/earlyAccessHandler';
 import { AccessStatusProvider } from './providers/AccessStatusProvider';
 import { WalletProvider } from './providers/WalletProvider';
+import { AuthProvider } from './providers/AuthProvider';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
@@ -69,7 +70,7 @@ import { AdventureToStoryRedirect } from './components/redirects/AdventureToStor
 
 
 function App() {
-  const { loading, initialize } = useAuthStore();
+  const { initialize } = useAuthStore();
 
   useEffect(() => {
     const buildId =
@@ -83,7 +84,7 @@ function App() {
     // Initialize guest cookie for anonymous users
     GuestCookieService.getOrCreateGuestCookie();
     
-    // Initialize auth store
+    // Initialize auth store listener (doesn't fetch - AuthProvider handles that via React Query)
     initialize();
 
     // Handle EARLY_ACCESS_REQUIRED errors globally
@@ -112,26 +113,13 @@ function App() {
     }
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen w-full">
-        <div 
-          className="w-12 h-12 border-4 border-muted border-t-primary rounded-full animate-spin" 
-          role="status" 
-          aria-label="Loading"
-        >
-          <span className="sr-only">Loading...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
         <QueryClientProvider client={queryClient}>
-          <AccessStatusProvider>
-            <WalletProvider>
+          <AuthProvider>
+            <AccessStatusProvider>
+              <WalletProvider>
               <BrowserRouter
                 future={{
                   v7_startTransition: true,
@@ -476,6 +464,7 @@ function App() {
               </BrowserRouter>
             </WalletProvider>
           </AccessStatusProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>

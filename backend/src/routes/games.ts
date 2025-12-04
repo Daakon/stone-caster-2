@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 // Protected health endpoint for Early Access testing
 // Phase B4: Non-destructive endpoint to test EA guard
 import { sendSuccess, sendErrorWithStatus, getTraceId } from '../utils/response.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth } from '../middleware/auth.unified.js';
 import { requireIdempotencyKey } from '../middleware/validation.js';
 import { ApiErrorCode, CreateGameRequestSchema, IdParamSchema, GameTurnRequestSchema, SessionTurnsResponseSchema, GetTurnsQuerySchema, type TurnDTO, TurnPostBodySchema, type TurnPostBody } from '@shared';
 import { GamesService } from '../services/games.service.js';

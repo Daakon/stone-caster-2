@@ -4,8 +4,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
-import { requireAdmin } from '../middleware/adminAuth.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.unified.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { z } from 'zod';
@@ -23,7 +22,6 @@ const PublishableTypeSchema = z.enum(['world', 'story', 'npc']);
  */
 router.get(
   '/:entityType/:entityId/preflight',
-  authenticateToken,
   requireAdmin,
   async (req: Request, res: Response) => {
     // Check feature flag
@@ -87,7 +85,6 @@ router.get(
  */
 router.post(
   '/:entityType/:entityId/submit',
-  authenticateToken,
   requireAdmin,
   async (req: Request, res: Response) => {
     // Check feature flag

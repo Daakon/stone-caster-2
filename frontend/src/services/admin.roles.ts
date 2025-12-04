@@ -1,6 +1,10 @@
 /**
  * Roles Admin Service
  * Phase 5: Role management and user permissions
+ * 
+ * NOTE: This service uses the Supabase client library (not direct REST calls).
+ * The Supabase client handles authentication and goes through the proper channels.
+ * This is acceptable as it's using the authenticated client, not making direct URL calls.
  */
 
 import { supabase } from '@/lib/supabase';
@@ -426,23 +430,3 @@ export class RolesService {
 }
 
 export const rolesService = new RolesService();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

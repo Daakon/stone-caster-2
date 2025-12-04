@@ -1,0 +1,53 @@
+---
+description: Enforces the 3-Layer Data Stack (Service -> Hook -> View) and React Query best practices.
+globs: frontend/**/*.tsx, frontend/**/*.ts
+---
+
+# Frontend Architecture & Data Layer Rules
+
+## 1. The 3-Layer Data Stack (Strict Separation)
+
+- **Layer 1: API Services (`src/services/`)**
+  - Pure, stateless TypeScript functions.
+  - The ONLY place where `api.get`, `api.post`, or `axios` is allowed.
+  - Returns typed Promises.
+
+- **Layer 2: Data Hooks (`src/hooks/`)**
+  - Custom Hooks wrapping `useQuery` or `useMutation`.
+  - Acts as the **Singleton State Manager** (deduplication handled here).
+  - NEVER uses `useEffect` for data fetching.
+
+- **Layer 3: View Components (`src/components/`, `src/pages/`)**
+  - Visuals only.
+  - NEVER imports `api` services directly.
+  - ALWAYS calls Custom Hooks (e.g., `useAuth()`, `useWorlds()`).
+
+## 2. Anti-Patterns (Forbidden)
+
+- ❌ `useEffect` calling `api.get` (Causes race conditions).
+- ❌ Storing server state in local `useState` (Use React Query cache).
+- ❌ Importing `api.ts` in `.tsx` files.
+- ❌ Direct API calls in component body or event handlers (Use hooks).
+- ❌ Creating multiple hooks that fetch the same data (Use shared hook with stable queryKey).
+
+## 3. State Management Rules
+
+- **Deduplication:** Rely on React Query's `staleTime` and `refetchOnMount: false` to prevent duplicate requests.
+- **No `useEffect` Fetching:** FORBIDDEN. If you need data on load, use `useQuery` hook.
+- **Smart/Dumb:** "Smart" components (pages/containers) call Hooks. "Dumb" components take Props.
+- **Single Source of Truth:** React Query cache is the source of truth. Multiple components calling the same hook = ONE network request.
+
+## 4. Zustand Store Pattern (Passive Mode)
+
+- **Zustand stores should NOT fetch data.** They are passive storage.
+- **React Query fetches**, Zustand only stores (synced via effect).
+- Remove `isLoading` and `error` from Zustand stores (React Query handles this).
+- Keep `setUser` and `setIsAuthenticated` actions for external sync.
+
+## 5. React Query Configuration
+
+- **Default Options:** Configured in `frontend/src/lib/queryClient.ts`
+  - `staleTime: 5 minutes` - Data is "fresh" immediately
+  - `refetchOnMount: false` - CRITICAL: Use cache, don't refetch
+  - `refetchOnWindowFocus: false` - Prevent erratic refetches
+- **Per-Query Overrides:** Use `staleTime: Infinity` for rarely-changing data (session, config, roles)

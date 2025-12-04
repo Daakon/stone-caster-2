@@ -4,7 +4,13 @@
 
 import type { GameState } from '../../services/game-state.service.js';
 import type { RelationshipDelta, RelationshipSet } from '../schemas/relationships.js';
-import { getModuleParams } from '../../services/module-params.service.js';
+// LEGACY - module-params.service.ts removed in Phase 1 cleanup
+// import { getModuleParams } from '../../services/module-params.service.js';
+
+// Fallback function for module params (returns null to use defaults)
+async function getModuleParams(_storyId: string, _moduleId: string): Promise<Record<string, any> | null> {
+  return null; // Use defaults
+}
 
 /**
  * Apply relationship.delta action

@@ -4,7 +4,7 @@
  */
 
 import { supabaseAdmin } from '../services/supabase.js';
-import { isAdmin } from '../middleware/auth-admin.js';
+import { isAdmin } from '../middleware/auth.unified.js';
 import type { Request } from 'express';
 
 /**
