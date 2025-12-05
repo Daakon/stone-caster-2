@@ -4,15 +4,54 @@ import { sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 
 // Validation middleware factory
+// Supports both patterns:
+// 1. validateRequest(schema, 'query' | 'body' | 'params')
+// 2. validateRequest({ query: schema, body: schema, params: schema })
 export function validateRequest<T>(
-  schema: ZodSchema<T>,
-  source: 'body' | 'params' | 'query' = 'body'
+  schemaOrConfig: ZodSchema<T> | { query?: ZodSchema<any>; body?: ZodSchema<any>; params?: ZodSchema<any> },
+  source?: 'body' | 'params' | 'query'
 ) {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
+      // Pattern 2: Object config with query/body/params
+      if (schemaOrConfig && typeof schemaOrConfig === 'object' && !('parse' in schemaOrConfig)) {
+        const config = schemaOrConfig as { query?: ZodSchema<any>; body?: ZodSchema<any>; params?: ZodSchema<any> };
+        
+        // Validate query if schema provided
+        if (config.query) {
+          const validatedQuery = config.query.parse(req.query);
+          req.query = validatedQuery as any;
+        }
+        
+        // Validate body if schema provided
+        if (config.body) {
+          // Debug logging for lore entry creation
+          if (req.path.includes('/lore') && req.method === 'POST') {
+            console.log('[Validation] Request body:', JSON.stringify(req.body, null, 2));
+            console.log('[Validation] Request body type:', typeof req.body);
+            console.log('[Validation] Request body keys:', req.body ? Object.keys(req.body) : 'null/undefined');
+            console.log('[Validation] Content-Type:', req.headers['content-type']);
+          }
+          const validatedBody = config.body.parse(req.body);
+          req.body = validatedBody;
+        }
+        
+        // Validate params if schema provided
+        if (config.params) {
+          const validatedParams = config.params.parse(req.params);
+          req.params = validatedParams as any;
+        }
+        
+        return next();
+      }
+      
+      // Pattern 1: Direct schema with source
+      const schema = schemaOrConfig as ZodSchema<T>;
+      const validationSource = source || 'body';
+      
       let data: unknown;
       
-      switch (source) {
+      switch (validationSource) {
         case 'body':
           data = req.body;
           // Debug logging for lore entry creation
@@ -36,7 +75,7 @@ export function validateRequest<T>(
       const validatedData = schema.parse(data);
       
       // Attach validated data to request
-      switch (source) {
+      switch (validationSource) {
         case 'body':
           req.body = validatedData;
           break;

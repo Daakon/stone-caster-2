@@ -97,132 +97,72 @@ const isWorldPublicAndApproved = (world: any) => {
   return world.visibility === 'public' && world.review_state === 'approved';
 };
 
-// Schema for query parameters
-const WorldsQuerySchema = z.object({
-  activeOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val => val === '1' || val === 'true'),
-});
-
-const StoriesQuerySchema = z.object({
-  activeOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val => val === '1' || val === 'true'),
-});
-
 // GET /api/catalog/worlds
+// Phase 4.10: Standardized - search support via query parameter
 router.get('/worlds', async (req: Request, res: Response) => {
   try {
-    // Validate query parameters
-    const queryValidation = WorldsQuerySchema.safeParse(req.query);
-    if (!queryValidation.success) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Invalid query parameters',
-        req
-      );
+    const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
+    console.log('[CATALOG] GET /worlds - Starting query', searchQuery ? `(search: ${searchQuery})` : '');
+    
+    // Phase 4.9: Select ONLY existing columns to prevent "column not found" errors
+    // chimera_worlds has: id, key, name, slug, tags, visibility, is_official, definition (JSONB), created_at, updated_at
+    let query = supabaseAdmin
+      .from('chimera_worlds')
+      .select('id, key, name, slug, tags, visibility, is_official, definition, created_at, updated_at')
+      .or('visibility.eq.public,is_official.eq.true');
+    
+    // Phase 4.10: Add search filter if provided (searches name and tags)
+    if (searchQuery) {
+      // Search in name (text) and tags (array) - use ilike for name, contains for tags
+      query = query.or(`name.ilike.%${searchQuery}%,tags.cs.{${searchQuery}}`);
     }
-
-    const { activeOnly } = queryValidation.data;
-
-    const { data: worldsData, error } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
-      const selectColumns = [
-        'id',
-        'version',
-        'name',
-        'description',
-        'status',
-        'review_state',
-        'doc',
-        'created_at',
-        'updated_at',
-      ];
-
-      if (includeVisibility) {
-        selectColumns.push('visibility');
-      }
-
-      // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
-      selectColumns.push('cover_media_id');
-
-      let query = supabase
-        .from('worlds')
-        .select(selectColumns.join(', '))
-        .order('created_at', { ascending: false });
-
-      if (activeOnly) {
-        query = query.eq('status', 'active');
-      }
-
-      if (includeVisibility) {
-        query = query.eq('visibility', 'public');
-      }
-
-      query = query.eq('review_state', 'approved');
-
-      return query;
-    });
+    
+    const { data: worldsData, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Supabase query error:', error);
+      console.error('[CATALOG] GET /worlds - Supabase query error:', error);
+      console.error('[CATALOG] Error code:', error.code);
+      console.error('[CATALOG] Error message:', error.message);
+      console.error('[CATALOG] Error details:', error.details);
       throw error;
     }
 
-    // Fetch cover media separately for worlds that have cover_media_id
-    // Use supabaseAdmin to bypass RLS for public media assets
-    const coverMediaIds = (worldsData || [])
-      .filter((w: any) => w.cover_media_id)
-      .map((w: any) => w.cover_media_id);
-    
-    let coverMediaMap: Record<string, any> = {};
-    if (coverMediaIds.length > 0) {
-      const { data: coverMediaData, error: coverError } = await supabaseAdmin
-        .from('media_assets')
-        .select('id, provider_key, status, image_review_status, visibility')
-        .in('id', coverMediaIds);
-      
-      if (!coverError && coverMediaData) {
-        coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
-          acc[media.id] = media;
-          return acc;
-        }, {});
-      }
-    }
+    console.log('[CATALOG] GET /worlds - Query successful, found', worldsData?.length || 0, 'worlds');
 
+    // Phase 4.9: Extract data from definition JSONB (Chimera V3 schema)
     // Transform to public catalog DTO
     const data = (worldsData || []).map((w: any) => {
-      // Get cover media from the map we fetched separately
-      const coverMedia = w.cover_media_id ? coverMediaMap[w.cover_media_id] : null;
-      
-      // For published worlds (visibility === 'public' or review_state === 'approved'), show cover if ready and approved
-      const isPublishedWorld = w.visibility === 'public' || w.review_state === 'approved';
-      const coverMediaData = coverMedia && 
-        typeof coverMedia === 'object' &&
-        coverMedia.status === 'ready' && 
-        coverMedia.image_review_status === 'approved' &&
-        (isPublishedWorld || coverMedia.visibility === 'public')
-        ? {
-            id: coverMedia.id,
-            provider_key: coverMedia.provider_key,
-          }
-        : null;
+      const definition = w.definition || {};
+      const images = definition.images || [];
+      const coverImage = images.length > 0 ? images[0] : null;
 
       return {
         id: w.id,
-        name: w.name,
-        slug: w.doc?.slug || w.id, // Use slug from doc or fallback to id
-        tagline: w.doc?.tagline || '',
-        short_desc: w.description || w.doc?.short_desc || '',
-        hero_quote: w.doc?.hero_quote || '',
-        status: w.status,
-        // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
-        cover_media: coverMediaData,
+        name: w.name || definition.name || 'Unnamed World',
+        slug: w.slug || w.key || w.id,
+        tagline: definition.tagline || '',
+        short_desc: definition.summary || definition.short_desc || definition.description || '',
+        hero_quote: definition.hero_quote || '',
+        status: 'active', // Chimera worlds are always active
+        // Phase 4.9: Extract cover_media from definition.images
+        cover_media: coverImage ? {
+          id: coverImage.id || null,
+          provider_key: coverImage.url || coverImage.provider_key || null,
+        } : null,
         created_at: w.created_at,
         updated_at: w.updated_at,
       };
     });
 
+    console.log('[CATALOG] GET /worlds - Returning', data.length, 'worlds');
     sendSuccess(res, data, req);
-  } catch (error) {
-    console.error('catalog.worlds error', error);
-    sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch worlds', req);
+  } catch (error: any) {
+    console.error('[CATALOG] GET /worlds - CATALOG WORLD ERROR:', error);
+    console.error('[CATALOG] Error stack:', error.stack);
+    sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch worlds', req, {
+      error: error.message,
+      code: error.code,
+    });
   }
 });
 
@@ -230,247 +170,135 @@ router.get('/worlds', async (req: Request, res: Response) => {
 router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
+    console.log('[CATALOG] GET /worlds/:idOrSlug - Looking up:', idOrSlug);
 
-    const { data: worldsData, error } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
-      const selectColumns = [
-        'id',
-        'version',
-        'name',
-        'description',
-        'status',
-        'review_state',
-        'doc',
-        'created_at',
-        'updated_at',
-      ];
-
-      if (includeVisibility) {
-        selectColumns.push('visibility');
-      }
-
-      // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
-      selectColumns.push('cover_media_id');
-
-      let query = supabase
-        .from('worlds')
-        .select(selectColumns.join(', '))
-        .or(`id.eq.${idOrSlug},doc->>slug.eq.${idOrSlug}`)
-        .eq('review_state', 'approved')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (includeVisibility) {
-        query = query.eq('visibility', 'public');
-      }
-
-      return query;
-    });
+    // Phase 4.9: Select ONLY existing columns
+    const { data: world, error } = await supabaseAdmin
+      .from('chimera_worlds')
+      .select('id, key, name, slug, tags, visibility, is_official, definition, created_at, updated_at')
+      .or(`id.eq.${idOrSlug},key.eq.${idOrSlug},slug.eq.${idOrSlug}`)
+      .or('visibility.eq.public,is_official.eq.true')
+      .limit(1)
+      .single();
 
     if (error) {
-      console.error('Supabase query error:', error);
+      if (error.code === 'PGRST116') {
+        console.log('[CATALOG] GET /worlds/:idOrSlug - World not found:', idOrSlug);
+        return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'World not found', req);
+      }
+      console.error('[CATALOG] GET /worlds/:idOrSlug - Supabase query error:', error);
       throw error;
     }
 
-    if (!worldsData || worldsData.length === 0) {
+    if (!world) {
+      console.log('[CATALOG] GET /worlds/:idOrSlug - World not found (null result):', idOrSlug);
       return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'World not found', req);
     }
 
-    const world = worldsData[0];
-    
-    // Fetch cover media separately if it exists
-    let coverMediaData = null;
-    if (world.cover_media_id) {
-      const { data: coverMedia, error: coverError } = await supabaseAdmin
-        .from('media_assets')
-        .select('id, provider_key, status, image_review_status, visibility')
-        .eq('id', world.cover_media_id)
-        .single();
-      
-      if (!coverError && coverMedia) {
-        // For published worlds, show cover if ready and approved (even if cover visibility isn't public)
-        const isPublishedWorld = world.visibility === 'public' || world.review_state === 'approved';
-        if (coverMedia.status === 'ready' && 
-            coverMedia.image_review_status === 'approved' &&
-            (isPublishedWorld || coverMedia.visibility === 'public')) {
-          coverMediaData = {
-            id: coverMedia.id,
-            provider_key: coverMedia.provider_key,
-          };
-        }
-      }
-    }
+    // Phase 4.9: Extract data from definition JSONB (Chimera V3 schema)
+    const definition = world.definition || {};
+    const images = definition.images || [];
+    const coverImage = images.length > 0 ? images[0] : null;
 
     const data = {
       id: world.id,
-      name: world.name,
-      slug: world.doc?.slug || world.id,
-      tagline: world.doc?.tagline || '',
-      short_desc: world.description || world.doc?.short_desc || '',
-      hero_quote: world.doc?.hero_quote || '',
-      status: world.status,
-      // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
-      cover_media: coverMediaData,
+      name: world.name || definition.name || 'Unnamed World',
+      slug: world.slug || world.key || world.id,
+      tagline: definition.tagline || '',
+      short_desc: definition.summary || definition.short_desc || definition.description || '',
+      hero_quote: definition.hero_quote || '',
+      status: 'active', // Chimera worlds are always active
+      // Phase 4.9: Extract cover_media from definition.images
+      cover_media: coverImage ? {
+        id: coverImage.id || null,
+        provider_key: coverImage.url || coverImage.provider_key || null,
+      } : null,
       created_at: world.created_at,
       updated_at: world.updated_at,
     };
 
+    console.log('[CATALOG] GET /worlds/:idOrSlug - Returning world:', data.id);
     sendSuccess(res, data, req);
-  } catch (error) {
-    console.error('catalog.world detail error', error);
-    sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch world', req);
+  } catch (error: any) {
+    console.error('[CATALOG] GET /worlds/:idOrSlug - CATALOG WORLD ERROR:', error);
+    console.error('[CATALOG] Error stack:', error.stack);
+    sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch world', req, {
+      error: error.message,
+      code: error.code,
+    });
   }
 });
 
 // GET /api/catalog/stories (unified - mirrors entry-points)
+// Phase 4.10: Standardized - search support via query parameter
 router.get('/stories', async (req: Request, res: Response) => {
-  // Feature toggle: If Chimera V2 is enabled, return empty list to force frontend migration
-  if (isChimeraV2Enabled()) {
-    return res.json({
-      ok: true,
-      data: [],
-      meta: {
-        total: 0,
-        limit: 20,
-        offset: 0,
-        filters: {},
-        sort: '-updated'
-      }
-    });
-  }
-
   try {
-    // Use the same validation schema as entry-points
-    const queryValidation = ListQuerySchema.safeParse(req.query);
-    if (!queryValidation.success) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Invalid query parameters',
-        details: queryValidation.error.errors
-      });
-    }
+    const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
+    console.log('[CATALOG] GET /stories - Starting query', searchQuery ? `(search: ${searchQuery})` : '');
     
-    const filters = queryValidation.data;
-    
-    // Query entry_points table (admin source of truth)
-    // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
-    let query = supabase
-      .from('entry_points')
-      .select(`
-        id,
-        slug,
-        type,
-        name,
-        description,
-        synopsis,
-        tags,
-        world_id,
-        worlds:world_id (name),
-        content_rating,
-        lifecycle,
-        visibility,
-        prompt,
-        cover_media_id,
-        created_at,
-        updated_at
-      `, { count: 'exact' });
-    
-    // Apply filters (same as entry-points)
-    if (filters.activeOnly) {
-      query = query.eq('lifecycle', 'active');
-    }
-    
-    if (filters.visibility) {
-      query = query.in('visibility', filters.visibility);
-    } else {
-      query = query.eq('visibility', 'public');
-    }
-    
-    if (filters.world) {
-      query = query.eq('world_id', filters.world);
-    }
-    
-    if (filters.tags && filters.tags.length > 0) {
-      query = query.contains('tags', filters.tags);
-    }
-    
-    if (filters.rating && filters.rating.length > 0) {
-      query = query.in('content_rating', filters.rating);
-    }
-    
-    if (filters.q) {
-      query = query.or(
-        `name.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
-      );
-    }
-    
-    const sortConfig = buildSortClause(filters.sort);
-    query = query.order(sortConfig.column, { ascending: sortConfig.ascending });
-    
-    const from = filters.offset;
-    const to = from + filters.limit - 1;
-    query = query.range(from, to);
-    
-    const { data, error, count } = await query;
+    // Phase 4.3: Use compiled_stories instead of entry_points
+    // compiled_stories schema: id, story_key, compiled (JSONB), created_at, updated_at
+    const { data: storiesData, error, count } = await supabaseAdmin
+      .from('compiled_stories')
+      .select('id, story_key, compiled, created_at, updated_at', { count: 'exact' })
+      .order('created_at', { ascending: false });
     
     if (error) {
       console.error('Supabase query error:', error);
       throw error;
     }
     
-    // Fetch cover media separately for stories that have cover_media_id
-    // Use supabaseAdmin to bypass RLS for public media assets
-    const coverMediaIds = (data || [])
-      .filter((row: any) => row.cover_media_id)
-      .map((row: any) => row.cover_media_id);
-    
-    let coverMediaMap: Record<string, any> = {};
-    if (coverMediaIds.length > 0) {
-      const { data: coverMediaData, error: coverError } = await supabaseAdmin
-        .from('media_assets')
-        .select('id, provider_key, status, image_review_status, visibility')
-        .in('id', coverMediaIds);
+    // Phase 4.3: Transform compiled_stories to catalog DTO format
+    // Extract data from compiled JSONB (CompiledStory structure)
+    let items = (storiesData || []).map((story: any) => {
+      const compiled = story.compiled || {};
+      const meta = compiled.meta || {};
+      const worldKey = meta.world || null; // World is stored as key/ID in meta.world
       
-      if (!coverError && coverMediaData) {
-        coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
-          acc[media.id] = media;
-          return acc;
-        }, {});
-      }
-    }
-    
-    // Transform using unified DTO mapper
-    let items = (data || []).map((row: any) => {
-      const { worlds, cover_media_id, ...restRow } = row;
-      const isPublishedStory = restRow.visibility === 'public';
+      // Extract story metadata (may be in different locations in compiled JSONB)
+      const title = meta.title || meta.name || story.story_key || 'Untitled Story';
+      const description = meta.description || meta.synopsis || 'No description available';
+      const synopsis = meta.synopsis || null;
+      const tags = meta.tags || [];
+      const contentRating = meta.content_rating || null;
       
-      // Get cover media from the map we fetched separately
-      const coverMedia = cover_media_id ? coverMediaMap[cover_media_id] : null;
+      // Extract images if available (may be in meta or top-level)
+      const images = meta.images || compiled.images || [];
+      const coverImage = images.length > 0 ? images[0] : null;
       
-      // For published stories, show cover if ready and approved (even if cover visibility isn't public)
-      const coverMediaData = coverMedia && 
-        typeof coverMedia === 'object' &&
-        coverMedia.status === 'ready' && 
-        coverMedia.image_review_status === 'approved' &&
-        (isPublishedStory || coverMedia.visibility === 'public')
-          ? {
-              id: coverMedia.id,
-              provider_key: coverMedia.provider_key,
-            }
-          : null;
-
-      const flatRow = {
-        ...restRow,
-        world_name: (worlds as any)?.[0]?.name || null,
-        // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
-        cover_media: coverMediaData,
+      return {
+        id: story.id,
+        slug: story.id, // Use ID as slug for compiled stories
+        type: 'story',
+        title: title,
+        subtitle: null,
+        description: description,
+        synopsis: synopsis,
+        tags: tags,
+        world_id: worldKey, // World key/ID from meta.world
+        world_name: null, // Would need lookup to get world name
+        world_slug: null,
+        content_rating: contentRating,
+        is_playable: true, // Compiled stories are playable
+        has_prompt: !!(compiled.prompt || meta.prompt),
+        cover_media: coverImage ? {
+          id: coverImage.id || null,
+          provider_key: coverImage.url || coverImage.provider_key || null,
+        } : null,
+        created_at: story.created_at,
+        updated_at: story.updated_at,
       };
-      
-      return transformToCatalogDTO(flatRow, false);
     });
     
-    // Post-filter by playableOnly
-    if (filters.playableOnly) {
-      items = items.filter(item => item.is_playable);
+    // Phase 4.10: Apply search filter if provided (client-side since data is in JSONB)
+    if (searchQuery) {
+      const queryLower = searchQuery.toLowerCase();
+      items = items.filter((item: any) => {
+        const title = (item.title || '').toLowerCase();
+        const description = (item.description || item.synopsis || '').toLowerCase();
+        const tags = (item.tags || []).join(' ').toLowerCase();
+        return title.includes(queryLower) || description.includes(queryLower) || tags.includes(queryLower);
+      });
     }
     
     // Return unified response format
@@ -478,19 +306,11 @@ router.get('/stories', async (req: Request, res: Response) => {
       ok: true,
       data: items,
       meta: {
-        total: count || 0,
-        limit: filters.limit,
-        offset: filters.offset,
-        filters: {
-          world: filters.world,
-          q: filters.q,
-          tags: filters.tags,
-          rating: filters.rating,
-          visibility: filters.visibility,
-          activeOnly: filters.activeOnly,
-          playableOnly: filters.playableOnly
-        },
-        sort: filters.sort
+        total: items.length, // Use filtered count
+        limit: 20,
+        offset: 0,
+        filters: searchQuery ? { search: searchQuery } : {},
+        sort: '-updated'
       }
     });
   } catch (error) {
@@ -505,110 +325,91 @@ router.get('/stories', async (req: Request, res: Response) => {
 
 // GET /api/catalog/stories/:idOrSlug (unified - mirrors entry-points)
 router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
-  // Feature toggle: If Chimera V2 is enabled, return 404 to force frontend migration
-  if (isChimeraV2Enabled()) {
-    return res.status(404).json({
-      ok: false,
-      error: 'Story not found. Please use the Chimera V2 API: /api/v2/chimera/stories/:id'
-    });
-  }
-
   try {
     const { idOrSlug } = req.params;
     
-    // Query entry_points table (admin source of truth)
-    // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
-    const { data, error } = await supabase
-      .from('entry_points')
-      .select(`
-        id,
-        slug,
-        type,
-        name,
-        description,
-        synopsis,
-        tags,
-        world_id,
-        worlds:world_id (name, doc),
-        content_rating,
-        lifecycle,
-        visibility,
-        prompt,
-        cover_media_id,
-        created_at,
-        updated_at
-      `)
-      .or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`)
+    // Phase 4.3: Use compiled_stories instead of entry_points
+    // compiled_stories schema: id, story_key, compiled (JSONB), created_at, updated_at
+    const { data: story, error } = await supabaseAdmin
+      .from('compiled_stories')
+      .select('id, story_key, compiled, created_at, updated_at')
+      .or(`id.eq.${idOrSlug},story_key.eq.${idOrSlug}`) // Support both UUID id and story_key
       .limit(1)
       .single();
     
-    if (error && error.code === 'PGRST116') {
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          ok: false,
+          error: 'Story not found'
+        });
+      }
+      console.error('Supabase query error:', error);
+      throw error;
+    }
+    
+    if (!story) {
       return res.status(404).json({
         ok: false,
         error: 'Story not found'
       });
     }
     
-    if (error) {
-      console.error('Supabase query error:', error);
-      throw error;
-    }
+    // Phase 4.3: Extract data from compiled JSONB (CompiledStory structure)
+    const compiled = story.compiled || {};
+    const meta = compiled.meta || {};
+    const worldKey = meta.world || null; // World is stored as key/ID in meta.world
     
-    // Fetch rulesets for this entry point
-    const { data: rulesetsData, error: rulesetsError } = await supabase
-      .from('entry_point_rulesets')
-      .select(`
-        rulesets:ruleset_id (id, name),
-        sort_order
-      `)
-      .eq('entry_point_id', data.id)
-      .order('sort_order');
+    // Extract story metadata
+    const title = meta.title || meta.name || story.story_key || 'Untitled Story';
+    const description = meta.description || meta.synopsis || 'No description available';
+    const synopsis = meta.synopsis || null;
+    const tags = meta.tags || [];
+    const contentRating = meta.content_rating || null;
     
-    if (rulesetsError) {
-      console.error('Rulesets query error:', rulesetsError);
-    }
+    // Extract images if available
+    const images = meta.images || compiled.images || [];
+    const coverImage = images.length > 0 ? images[0] : null;
     
-    // Fetch cover media separately if it exists
-    let coverMediaData = null;
-    if (data.cover_media_id) {
-      const { data: coverMedia, error: coverError } = await supabaseAdmin
-        .from('media_assets')
-        .select('id, provider_key, status, image_review_status, visibility')
-        .eq('id', data.cover_media_id)
+    // Get world name if worldKey exists (lookup by key or id)
+    let worldName = null;
+    let worldSlug = null;
+    if (worldKey) {
+      const { data: worldData } = await supabaseAdmin
+        .from('chimera_worlds')
+        .select('name, slug')
+        .or(`id.eq.${worldKey},key.eq.${worldKey},slug.eq.${worldKey}`)
+        .limit(1)
         .single();
-      
-      if (!coverError && coverMedia) {
-        // For published stories, show cover if ready and approved (even if cover visibility isn't public)
-        const isPublishedStory = data.visibility === 'public';
-        if (coverMedia.status === 'ready' && 
-            coverMedia.image_review_status === 'approved' &&
-            (isPublishedStory || coverMedia.visibility === 'public')) {
-          coverMediaData = {
-            id: coverMedia.id,
-            provider_key: coverMedia.provider_key,
-          };
-        }
+      if (worldData) {
+        worldName = worldData.name;
+        worldSlug = worldData.slug;
       }
     }
     
-    // Transform using unified DTO mapper
-    const { worlds, ...restData } = data;
-    const worldData = (worlds as any)?.[0];
-
-    const flatRow = {
-      ...restData,
-      world_name: worldData?.name || null,
-      world_slug: worldData?.doc?.slug || null, // Optional: for backward compatibility
-      // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
-      cover_media: coverMediaData,
-      rulesets: (rulesetsData || []).map((r: any) => ({
-        id: r.rulesets?.id,
-        name: r.rulesets?.name,
-        sort_order: r.sort_order
-      }))
+    const dto = {
+      id: story.id,
+      slug: story.id, // Use ID as slug for compiled stories
+      type: 'story',
+      title: title,
+      subtitle: null,
+      description: description,
+      synopsis: synopsis,
+      tags: tags,
+      world_id: worldKey,
+      world_name: worldName,
+      world_slug: worldSlug,
+      content_rating: contentRating,
+      is_playable: true, // Compiled stories are playable
+      has_prompt: !!(compiled.prompt || meta.prompt),
+      cover_media: coverImage ? {
+        id: coverImage.id || null,
+        provider_key: coverImage.url || coverImage.provider_key || null,
+      } : null,
+      rulesets: meta.active_rulesets || [], // Rulesets are in meta.active_rulesets
+      created_at: story.created_at,
+      updated_at: story.updated_at,
     };
-    
-    const dto = transformToCatalogDTO(flatRow, true);
     
     res.json({
       ok: true,
@@ -625,8 +426,10 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
 });
 
 // Schema for NPCs query parameters
+// Phase 4.10: Support both 'q' and 'search' for consistency
 const NPCsQuerySchema = z.object({
   q: z.string().optional(),
+  search: z.string().optional(), // Alias for 'q' for consistency
   world: z.string().uuid().optional(),
   activeOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val => val === '1' || val === 'true'),
   limit: z.string().optional().transform(val => val ? parseInt(val, 10) : 20),
@@ -652,55 +455,27 @@ router.get('/npcs', async (req: Request, res: Response) => {
     const limit = Math.min(filters.limit || 20, 100);
     const offset = filters.offset || 0;
 
-    const { data, error, count } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
-      const worldRelationship = buildWorldRelationshipSelect(includeVisibility, ['id']);
+    // Phase 4.3: Use chimera_entities instead of deleted npcs table
+    let query = supabaseAdmin
+      .from('chimera_entities')
+      .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at', { count: 'exact' })
+      .eq('kind', 'npc') // Only NPCs
+      .eq('visibility', 'public'); // Only public entities
 
-      let query = supabase
-        .from('npcs')
-        .select(
-          `
-        id,
-        name,
-        slug,
-        description,
-        world_id,
-        status,
-        visibility,
-        review_state,
-        dependency_invalid,
-        ${worldRelationship},
-        archetype,
-        role_tags,
-        portrait_url,
-        cover_media_id,
-        doc,
-        created_at,
-        updated_at
-      `,
-          { count: 'exact' }
-        );
+    // Filter by world_id if provided (world_id is in raw_data JSONB)
+    if (filters.world) {
+      // Note: JSONB filtering - world_id is stored in raw_data
+      // We'll filter client-side for now, or use a more complex query
+      // For now, fetch all and filter client-side
+    }
 
-      if (filters.activeOnly !== false) {
-        query = query.eq('status', 'active');
-      }
+    // Apply search query (will filter client-side from raw_data)
+    // Note: For production, consider adding a GIN index on raw_data and using JSONB operators
 
-      query = query.eq('visibility', 'public');
-      query = query.eq('review_state', 'approved');
-      query = query.eq('dependency_invalid', false);
+    query = query.order('created_at', { ascending: false });
+    query = query.range(offset, offset + limit - 1);
 
-      if (filters.world) {
-        query = query.eq('world_id', filters.world);
-      }
-
-      if (filters.q) {
-        query = query.or(`name.ilike.%${filters.q}%,description.ilike.%${filters.q}%`);
-      }
-
-      query = query.order('created_at', { ascending: false });
-      query = query.range(offset, offset + limit - 1);
-
-      return query;
-    });
+    const { data, error, count } = await query;
 
     if (error) {
       console.error('[catalog/npcs] Supabase query error:', error);
@@ -712,70 +487,54 @@ router.get('/npcs', async (req: Request, res: Response) => {
       );
     }
 
-    // Fetch cover media separately for NPCs that have cover_media_id
-    // Use supabaseAdmin to bypass RLS for public media assets
-    const coverMediaIds = (data || [])
-      .filter((npc: any) => npc.cover_media_id)
-      .map((npc: any) => npc.cover_media_id);
-    
-    let coverMediaMap: Record<string, any> = {};
-    if (coverMediaIds.length > 0) {
-      const { data: coverMediaData, error: coverError } = await supabaseAdmin
-        .from('media_assets')
-        .select('id, provider_key, status, image_review_status, visibility')
-        .in('id', coverMediaIds);
+    // Phase 4.3: Extract data from raw_data JSONB and transform to catalog DTO
+    let npcs = (data || []).map((entity: any) => {
+      const rawData = entity.raw_data || {};
+      const displayName = rawData.display_name || rawData.name || entity.key;
+      const description = rawData.description_short || rawData.description || '';
+      const worldId = rawData.world_id || null;
       
-      if (!coverError && coverMediaData) {
-        coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
-          acc[media.id] = media;
-          return acc;
-        }, {});
-      }
+      // Extract images from raw_data if available
+      const images = rawData.images || [];
+      const coverImage = images.length > 0 ? images[0] : null;
+
+      return {
+        id: entity.id,
+        name: displayName,
+        slug: entity.key, // Use key as slug
+        description: description,
+        worldId: worldId,
+        status: 'active', // Chimera entities are always active
+        visibility: entity.visibility,
+        archetype: rawData.archetype || null,
+        roleTags: rawData.role_tags || rawData.tags || [],
+        portraitUrl: rawData.portrait_url || null,
+        cover_media: coverImage ? {
+          id: coverImage.id || null,
+          provider_key: coverImage.url || coverImage.provider_key || null,
+        } : null,
+        doc: rawData || {},
+        createdAt: entity.created_at,
+        updatedAt: entity.updated_at,
+      };
+    });
+
+    // Apply world filter if provided (client-side filter)
+    if (filters.world) {
+      npcs = npcs.filter((npc: any) => npc.worldId === filters.world);
     }
 
-    // Phase 2: Post-filter to ensure parent world is public+approved for NPCs
-    const npcs = (data || [])
-      .filter((npc: any) => {
-        const worldRecord = extractWorldRecord(npc.worlds);
-        if (!npc.world_id || !worldRecord) {
-          return false;
-        }
-        return isWorldPublicAndApproved(worldRecord);
-      })
-      .map((npc: any) => {
-        // Get cover media from the map we fetched separately
-        const coverMedia = npc.cover_media_id ? coverMediaMap[npc.cover_media_id] : null;
-        
-        // For published NPCs (visibility === 'public'), show cover if ready and approved
-        const isPublishedNPC = npc.visibility === 'public';
-        const coverMediaData = coverMedia && 
-          typeof coverMedia === 'object' &&
-          coverMedia.status === 'ready' && 
-          coverMedia.image_review_status === 'approved' &&
-          (isPublishedNPC || coverMedia.visibility === 'public')
-          ? {
-              id: coverMedia.id,
-              provider_key: coverMedia.provider_key,
-            }
-          : null;
-        
-        return {
-          id: npc.id,
-          name: npc.name,
-          slug: npc.slug,
-          description: npc.description,
-          worldId: npc.world_id,
-          status: npc.status,
-          visibility: npc.visibility,
-          archetype: npc.archetype,
-          roleTags: npc.role_tags || [],
-          portraitUrl: npc.portrait_url,
-          cover_media: coverMediaData,
-          doc: npc.doc || {},
-          createdAt: npc.created_at,
-          updatedAt: npc.updated_at,
-        };
-      });
+    // Phase 4.10: Apply search query if provided (client-side filter)
+    // Support both 'q' and 'search' parameters
+    const searchTerm = filters.q || filters.search;
+    if (searchTerm) {
+      const queryLower = searchTerm.toLowerCase();
+      npcs = npcs.filter((npc: any) => 
+        npc.name.toLowerCase().includes(queryLower) ||
+        npc.description.toLowerCase().includes(queryLower) ||
+        (npc.roleTags || []).some((tag: string) => tag.toLowerCase().includes(queryLower))
+      );
+    }
 
     sendSuccess(
       res,
@@ -803,25 +562,13 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    const { data: npc, error } = await supabase
-      .from('npcs')
-      .select(`
-        id,
-        name,
-        slug,
-        description,
-        world_id,
-        status,
-        visibility,
-        archetype,
-        role_tags,
-        portrait_url,
-        cover_media_id,
-        doc,
-        created_at,
-        updated_at
-      `)
+    // Phase 4.3: Use chimera_entities instead of deleted npcs table
+    const { data: entity, error } = await supabaseAdmin
+      .from('chimera_entities')
+      .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at')
       .eq('id', id)
+      .eq('kind', 'npc')
+      .eq('visibility', 'public')
       .single();
 
     if (error) {
@@ -837,44 +584,38 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
       );
     }
 
-    // Fetch cover media separately if it exists
-    let coverMediaData = null;
-    if (npc.cover_media_id) {
-      const { data: coverMedia, error: coverError } = await supabaseAdmin
-        .from('media_assets')
-        .select('id, provider_key, status, image_review_status, visibility')
-        .eq('id', npc.cover_media_id)
-        .single();
-      
-      if (!coverError && coverMedia) {
-        // For published NPCs, show cover if ready and approved (even if cover visibility isn't public)
-        const isPublishedNPC = npc.visibility === 'public';
-        if (coverMedia.status === 'ready' && 
-            coverMedia.image_review_status === 'approved' &&
-            (isPublishedNPC || coverMedia.visibility === 'public')) {
-          coverMediaData = {
-            id: coverMedia.id,
-            provider_key: coverMedia.provider_key,
-          };
-        }
-      }
+    if (!entity) {
+      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'NPC not found', req);
     }
 
+    // Phase 4.3: Extract data from raw_data JSONB
+    const rawData = entity.raw_data || {};
+    const displayName = rawData.display_name || rawData.name || entity.key;
+    const description = rawData.description_short || rawData.description || '';
+    const worldId = rawData.world_id || null;
+    
+    // Extract images from raw_data if available
+    const images = rawData.images || [];
+    const coverImage = images.length > 0 ? images[0] : null;
+
     const npcDto = {
-      id: npc.id,
-      name: npc.name,
-      slug: npc.slug,
-      description: npc.description,
-      worldId: npc.world_id,
-      status: npc.status,
-      visibility: npc.visibility,
-      archetype: npc.archetype,
-      roleTags: npc.role_tags || [],
-      portraitUrl: npc.portrait_url,
-      cover_media: coverMediaData,
-      doc: npc.doc || {},
-      createdAt: npc.created_at,
-      updatedAt: npc.updated_at,
+      id: entity.id,
+      name: displayName,
+      slug: entity.key, // Use key as slug
+      description: description,
+      worldId: worldId,
+      status: 'active', // Chimera entities are always active
+      visibility: entity.visibility,
+      archetype: rawData.archetype || null,
+      roleTags: rawData.role_tags || rawData.tags || [],
+      portraitUrl: rawData.portrait_url || null,
+      cover_media: coverImage ? {
+        id: coverImage.id || null,
+        provider_key: coverImage.url || coverImage.provider_key || null,
+      } : null,
+      doc: rawData || {},
+      createdAt: entity.created_at,
+      updatedAt: entity.updated_at,
     };
 
     sendSuccess(res, npcDto, req);

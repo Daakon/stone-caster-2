@@ -9,7 +9,7 @@ import type { ChimeraAssetRef } from '@shared/types/chimera-assets';
 export interface ChimeraWorld {
   id: string;
   owner_user_id: string;
-  visibility: 'private' | 'pending_approval' | 'public';
+  visibility: 'private' | 'pending' | 'public';
   display_name: string;
   description_short: string | null;
   description_long: string | null;

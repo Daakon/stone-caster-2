@@ -16,6 +16,43 @@ const router = Router();
  * GET /api/admin/templates/health
  * Get template and prompt health metrics
  */
+/**
+ * GET /api/system/health
+ * Check database connectivity using Chimera tables
+ */
+router.get('/health', requireRole(['admin', 'moderator', 'viewer']), async (req, res) => {
+  try {
+    // Check connectivity using chimera_worlds table
+    const { data, error } = await supabaseAdmin
+      .from('chimera_worlds')
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      return res.status(500).json({
+        ok: false,
+        error: 'Database connectivity check failed',
+        details: error.message,
+      });
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        connected: true,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Error checking health:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to check health',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 router.get('/templates/health', requireRole(['admin', 'moderator', 'viewer']), async (req, res) => {
   try {
     const { fromDate, toDate, worldId, rulesetId, storyId } = req.query;
@@ -25,7 +62,21 @@ router.get('/templates/health', requireRole(['admin', 'moderator', 'viewer']), a
 
     // 1. Missing/Unpublished Slots
     const allSlots = await listSlots();
-    const activeTemplates = await getActiveTemplates();
+    
+    // Get active templates - handle case where templates table doesn't exist
+    let activeTemplates: Awaited<ReturnType<typeof getActiveTemplates>> = [];
+    try {
+      activeTemplates = await getActiveTemplates();
+    } catch (error: any) {
+      // Templates table may not exist - this is OK, templates are legacy
+      if (error?.code === 'PGRST205' || error?.message?.includes('Could not find the table')) {
+        console.log('[admin-health] Templates table not found - skipping template analysis (legacy table)');
+        activeTemplates = [];
+      } else {
+        // Other error - rethrow
+        throw error;
+      }
+    }
     
     const slotsByType = new Map<SlotType, Set<string>>();
     const templatesBySlot = new Map<string, boolean>();
@@ -51,7 +102,9 @@ router.get('/templates/health', requireRole(['admin', 'moderator', 'viewer']), a
     }
 
     // 2. Template Churn (rapid publish cycles)
-    const { data: templateHistory } = await supabaseAdmin
+    // Note: templates table may not exist in all environments (legacy table)
+    let templateChurn: Array<{ type: SlotType; slot: string; publishCount: number }> = [];
+    const { data: templateHistory, error: templatesError } = await supabaseAdmin
       .from('templates')
       .select('type, slot, version, created_at, status')
       .eq('status', 'published')
@@ -59,20 +112,32 @@ router.get('/templates/health', requireRole(['admin', 'moderator', 'viewer']), a
       .lte('created_at', to.toISOString())
       .order('created_at', { ascending: false });
 
-    const churnBySlot = new Map<string, number>();
-    if (templateHistory) {
-      for (const template of templateHistory) {
-        const key = `${template.type}:${template.slot}`;
-        churnBySlot.set(key, (churnBySlot.get(key) || 0) + 1);
+    if (templatesError) {
+      // Templates table doesn't exist - this is OK, templates are legacy
+      if (templatesError.code === 'PGRST205' || templatesError.message?.includes('Could not find the table')) {
+        // Table doesn't exist - skip template churn analysis
+        templateChurn = [];
+      } else {
+        // Other error - log but continue
+        console.warn('[admin-health] Error fetching template history:', templatesError);
+        templateChurn = [];
       }
+    } else {
+      const churnBySlot = new Map<string, number>();
+      if (templateHistory) {
+        for (const template of templateHistory) {
+          const key = `${template.type}:${template.slot}`;
+          churnBySlot.set(key, (churnBySlot.get(key) || 0) + 1);
+        }
+      }
+      
+      templateChurn = Array.from(churnBySlot.entries())
+        .filter(([_, count]) => count >= 3) // 3+ publishes in time range
+        .map(([key, count]) => {
+          const [type, slot] = key.split(':');
+          return { type: type as SlotType, slot, publishCount: count };
+        });
     }
-    
-    const templateChurn = Array.from(churnBySlot.entries())
-      .filter(([_, count]) => count >= 3) // 3+ publishes in time range
-      .map(([key, count]) => {
-        const [type, slot] = key.split(':');
-        return { type: type as SlotType, slot, publishCount: count };
-      });
 
     // 3. Orphaned Templates (published but slot no longer exists)
     const orphanedTemplates: Array<{ type: SlotType; slot: string; version: number }> = [];

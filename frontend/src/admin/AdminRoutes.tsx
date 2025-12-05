@@ -27,6 +27,11 @@ import ChimeraDashboard from '@/pages/admin/chimera/Dashboard';
 import RulesetTemplatesDashboard from '@/pages/admin/chimera/rulesets/index';
 import RulesetTemplateEditor from '@/pages/admin/chimera/rulesets/Editor';
 import ChimeraWorldsAdmin from '@/pages/admin/chimera/worlds/index';
+import WorldListPage from '@/pages/admin/chimera/worlds/WorldListPage';
+import WorldEditorPage from '@/pages/admin/chimera/worlds/WorldEditorPage';
+import ChimeraEntitiesAdmin from '@/pages/admin/chimera/entities/index';
+import EntityListPage from '@/pages/admin/chimera/entities/EntityListPage';
+import EntityEditorPage from '@/pages/admin/chimera/entities/EntityEditorPage';
 import TagManagement from '@/pages/admin/chimera/tags/index';
 
 export function AdminRoutes() {
@@ -154,6 +159,62 @@ export function AdminRoutes() {
         element={
           <Guarded allow={['moderator', 'admin']}>
             <ChimeraWorldsAdmin />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/worlds/list" 
+        element={
+          <Guarded allow="admin">
+            <WorldListPage />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/worlds/new" 
+        element={
+          <Guarded allow="admin">
+            <WorldEditorPage />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/worlds/edit/:id" 
+        element={
+          <Guarded allow="admin">
+            <WorldEditorPage />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/entities" 
+        element={
+          <Guarded allow={['moderator', 'admin']}>
+            <ChimeraEntitiesAdmin />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/entities/list" 
+        element={
+          <Guarded allow="admin">
+            <EntityListPage />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/entities/new" 
+        element={
+          <Guarded allow="admin">
+            <EntityEditorPage />
+          </Guarded>
+        }
+      />
+      <Route 
+        path="/chimera/entities/edit/:id" 
+        element={
+          <Guarded allow="admin">
+            <EntityEditorPage />
           </Guarded>
         }
       />

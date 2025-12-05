@@ -32,6 +32,7 @@ export function AdminRouteGuard() {
   const { data: sessionData, isLoading, error: sessionError } = useAuth();
 
   // Extract roles from session data
+  // CRITICAL: All hooks must be called before any conditional returns (Rules of Hooks)
   const roles = useMemo<AppRole[]>(() => {
     if (!sessionData?.user?.role) return [];
     
@@ -42,6 +43,21 @@ export function AdminRouteGuard() {
     return [];
   }, [sessionData?.user?.role]);
 
+  // PRIORITY 1: BLOCK rendering until loading is complete
+  // Show nothing or a spinner while we ask the server "Who is this?"
+  // CRITICAL: This check MUST come after all hooks to prevent FOUC (Flash of Unauthenticated Content)
+  // DO NOT redirect or show login screen while loading - this causes the flash
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary"></div>
+          <div className="animate-pulse text-muted-foreground">Loading Admin...</div>
+        </div>
+      </div>
+    );
+  }
+
   // Cache roles in React Query for other components
   const userId = sessionData?.user?.id || null;
   if (userId && roles.length > 0) {
@@ -50,29 +66,15 @@ export function AdminRouteGuard() {
     });
   }
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary"></div>
-            <CardTitle>Verifying Admin Access</CardTitle>
-            <CardDescription>
-              Checking permissions and roles...
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
-  // Error state - no access
-  const hasAccess = roles.length > 0;
-  const error = sessionError?.message || (!hasAccess ? 'Admin access required. You do not have permission to access this area.' : null);
-  const errorCode = sessionError ? 'UNAUTHORIZED' : (!hasAccess ? 'FORBIDDEN' : undefined);
+  // PRIORITY 2: Check permissions (Definitive State)
+  // Only run this AFTER loading is false and we have definitive session data
+  const user = sessionData?.user;
+  const isAdmin = user?.role === 'admin';
   
-  if (!hasAccess || error) {
+  // If we have session data but user is not admin, deny access
+  if (sessionData !== undefined && (!user || !isAdmin)) {
+    const error = sessionError?.message || 'Admin access required. You do not have permission to access this area.';
+    const errorCode = sessionError ? 'UNAUTHORIZED' : 'FORBIDDEN';
     const isAuthError = errorCode === 'UNAUTHORIZED' || 
                        error?.toLowerCase().includes('token') || 
                        error?.toLowerCase().includes('unauthorized') ||
@@ -121,7 +123,8 @@ export function AdminRouteGuard() {
     );
   }
 
-  // Access granted - render admin shell with roles provider
+  // PRIORITY 3: Render content
+  // User is loaded AND is admin - render admin shell with roles provider
   // Roles are already cached in React Query, so no duplicate API call
   return (
     <AppRolesProvider initialRoles={roles}>

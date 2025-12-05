@@ -102,25 +102,35 @@ router.post(
       const tagNames = entityData.tag_names || [];
       const normalizedTags = tagNames.map(normalizeTagName).filter((t) => t.length > 0);
 
-      // Create the system entity with is_system_asset = true
+      // Create the system entity (Hybrid Schema: key/kind SQL columns + raw_data JSONB + owner_user_id)
+      // Generate key from display_name (normalized)
+      const key = entityData.display_name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+      const kind = entityData.entity_type.toLowerCase() as 'npc' | 'item' | 'location' | 'faction' | 'creature';
+      
+      // Store full entity definition in raw_data JSONB
+      const rawData = {
+        display_name: entityData.display_name,
+        description_short: entityData.description_short,
+        entity_type: entityData.entity_type,
+        base_state_json: entityData.base_state_json || {},
+        world_id: entityData.world_id || null,
+        is_system_asset: true, // Mark as system asset
+        is_quick_start_template: entityData.is_quick_start_template ?? false,
+        visibility: 'public', // System assets are always public
+        version: 1,
+        owner_user_id: userId,
+      };
+      
       const { data: entity, error: entityError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .insert({
           id,
-          owner_user_id: userId, // Admin user who created it
-          display_name: entityData.display_name,
-          description_short: entityData.description_short,
-          entity_type: entityData.entity_type,
-          base_state_json: entityData.base_state_json || {},
-          world_id: entityData.world_id || null,
-          is_system_asset: true, // Mark as system asset
-          is_quick_start_template: entityData.is_quick_start_template ?? false, // Flag for quick start templates
-          visibility: 'public', // System assets are always public
-          version: 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          key,
+          kind,
+          owner_user_id: userId, // Admin user who created it (SQL column)
+          raw_data: rawData, // JSONB containing full entity definition
         })
-        .select()
+        .select('id, key, kind, owner_user_id, raw_data, created_at, updated_at')
         .single();
 
       if (entityError) {
@@ -164,7 +174,7 @@ router.post(
 
       // Fetch the complete entity with relations
       const { data: completeEntity, error: fetchError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .select('*')
         .eq('id', id)
         .single();
@@ -218,7 +228,7 @@ router.put(
 
       // Verify entity exists and is a system asset
       const { data: existingEntity, error: checkError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .select('id, is_system_asset')
         .eq('id', id)
         .single();
@@ -277,7 +287,7 @@ router.put(
         }
 
         const { error: updateError } = await supabaseAdmin
-          .from('chimera_entity_templates')
+          .from('chimera_entities')
           .update(updatePayload)
           .eq('id', id);
 
@@ -325,7 +335,7 @@ router.put(
 
       // Fetch updated entity
       const { data: updatedEntity, error: fetchError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .select('*')
         .eq('id', id)
         .single();
@@ -366,7 +376,7 @@ router.delete(
 
       // Verify entity exists and is a system asset
       const { data: existingEntity, error: checkError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .select('id, is_system_asset')
         .eq('id', id)
         .single();
@@ -398,7 +408,7 @@ router.delete(
 
       // Delete entity
       const { error: deleteError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .delete()
         .eq('id', id);
 

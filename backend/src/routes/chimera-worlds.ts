@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../middleware/auth.unified.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -395,7 +395,11 @@ router.post(
 
 /**
  * GET /api/v2/chimera/worlds/selectable
- * Get all selectable worlds (public or owned by user)
+ * listLibrary: Get all worlds available to the user (for Casting Circle)
+ * 
+ * Pattern: Shows user's items + system items + other users' public items
+ * Unified query: owner_user_id = userId OR visibility = 'public'
+ * 
  * Query params:
  *   - tag: Filter worlds by tag (e.g., ?tag=fantasy)
  */
@@ -415,6 +419,7 @@ router.get(
 
       const tag = req.query.tag as string | undefined;
 
+      // listLibrary pattern: User's content OR public content (includes system)
       let query = supabaseAdmin
         .from('chimera_worlds')
         .select('*')
@@ -454,7 +459,10 @@ router.get(
 
 /**
  * GET /api/v2/chimera/worlds/my-creations
- * Get all worlds owned by the current user
+ * listMyCreations: Get all worlds owned by the current user
+ * 
+ * Pattern: Shows ONLY items the user created (owner_user_id = userId)
+ * Does NOT include system content or other users' public content
  */
 router.get(
   '/my-creations',
@@ -470,10 +478,11 @@ router.get(
         );
       }
 
+      // listMyCreations pattern: Strict ownership filter
       const { data, error } = await supabaseAdmin
         .from('chimera_worlds')
         .select('*')
-        .eq('owner_user_id', userId)
+        .eq('owner_user_id', userId) // Only user's own content
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -482,6 +491,76 @@ router.get(
           res,
           ApiErrorCode.INTERNAL_ERROR,
           'Failed to fetch worlds',
+          req
+        );
+      }
+
+      // Transform worlds to API format (map name -> display_name)
+      const transformedWorlds = (data || []).map(transformWorldForResponse);
+      return sendSuccess(res, transformedWorlds, req);
+    } catch (error) {
+      console.error('[Chimera Worlds] Unexpected error:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Internal server error',
+        req
+      );
+    }
+  }
+);
+
+/**
+ * GET /api/v2/chimera/worlds/pending
+ * Get all worlds pending approval (Admin only)
+ * listPending: Shows content waiting for admin review
+ */
+router.get(
+  '/pending',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.ctx?.userId;
+      if (!userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.UNAUTHORIZED,
+          'Authentication required',
+          req
+        );
+      }
+
+      // Check if user is admin
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
+      
+      if (!isAdmin) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'Admin access required',
+          req
+        );
+      }
+
+      // Query pending submissions
+      const { data, error } = await supabaseAdmin
+        .from('chimera_worlds')
+        .select('*')
+        .eq('visibility', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[Chimera Worlds] Error fetching pending worlds:', error);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to fetch pending worlds',
           req
         );
       }
@@ -696,10 +775,10 @@ router.put(
         );
       }
 
-      // Check ownership
+      // Check ownership and lifecycle state
       const { data: existingWorld, error: fetchError } = await supabaseAdmin
         .from('chimera_worlds')
-        .select('owner_user_id')
+        .select('owner_user_id, visibility')
         .eq('id', id)
         .single();
 
@@ -731,6 +810,17 @@ router.put(
       }
 
       const updateData = req.body;
+
+      // Lifecycle enforcement: Cannot edit published content
+      // Allow visibility changes only if explicitly provided (for admin unpublishing)
+      if (existingWorld.visibility === 'public' && !updateData.visibility) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'Cannot edit published content. Please clone to create a new version.',
+          req
+        );
+      }
 
       // Debug logging to see what we received
       console.log('[Chimera Worlds] Update request received:', {
@@ -785,6 +875,28 @@ router.put(
         worldUpdateData.tags = tags;
       }
       
+      // Track publishing: Detect if visibility is changing to 'public'
+      const isPublishing = visibility === 'public' && existingWorld.visibility !== 'public';
+      
+      // Check if user is authorized to publish directly (admin or verified creator)
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('role, is_verified_creator')
+        .eq('id', userId)
+        .single();
+      const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
+      const isVerifiedCreator = profile?.is_verified_creator === true;
+      const canPublishDirectly = isAdmin || isVerifiedCreator;
+      
+      // Gatekeeper Logic: Force 'pending' if user tries to publish but isn't authorized
+      let finalVisibility = visibility;
+      let wasCoercedToPending = false;
+      if (visibility === 'public' && !canPublishDirectly) {
+        finalVisibility = 'pending';
+        wasCoercedToPending = true;
+        console.log(`[Chimera Worlds] User ${userId} attempted to publish but is not authorized. Setting visibility to 'pending'.`);
+      }
+      
       // Map display_name to name for database
       const dbUpdateData: any = { ...worldUpdateData };
       if (dbUpdateData.display_name !== undefined) {
@@ -792,6 +904,23 @@ router.put(
         // Update slug when display_name changes
         dbUpdateData.slug = generateSlug(dbUpdateData.display_name);
         delete dbUpdateData.display_name; // Remove display_name, we use 'name' in DB
+      }
+      
+      // Handle visibility change and publishing tracking
+      if (visibility !== undefined) {
+        dbUpdateData.visibility = finalVisibility; // Use coerced visibility if needed
+        
+        // Track publishing: Set published_by and published_at when visibility changes to 'public'
+        // Only set if actually publishing (not coerced to pending)
+        if (isPublishing && canPublishDirectly) {
+          dbUpdateData.published_by = userId;
+          dbUpdateData.published_at = new Date().toISOString();
+          
+          // Allow admins to set is_official flag when publishing
+          if (updateData.is_official !== undefined && isAdmin) {
+            dbUpdateData.is_official = updateData.is_official;
+          }
+        }
       }
       
       if (Object.keys(dbUpdateData).length > 0) {
@@ -1020,6 +1149,18 @@ router.put(
         imagesIsArray: Array.isArray(transformedWorld.images),
         imagesLength: Array.isArray(transformedWorld.images) ? transformedWorld.images.length : 'N/A',
       });
+      
+      // If visibility was coerced to pending, include a message
+      if (wasCoercedToPending) {
+        return sendSuccess(
+          res, 
+          { 
+            ...transformedWorld, 
+            _message: 'Content submitted for approval. Visibility set to "pending" as you are not a verified creator.' 
+          }, 
+          req
+        );
+      }
       
       return sendSuccess(res, transformedWorld, req);
     } catch (error) {

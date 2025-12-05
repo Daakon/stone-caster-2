@@ -116,13 +116,13 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <a href="/admin">Home</a>
             </Button>
             <Button variant="ghost" size="sm" asChild>
-              <a href="/admin/npcs">NPCs</a>
+              <a href="/admin/chimera/worlds/list">Official Worlds</a>
             </Button>
             <Button variant="ghost" size="sm" asChild>
-              <a href="/admin/worlds">Worlds</a>
+              <a href="/admin/chimera/rulesets">Rulesets</a>
             </Button>
             <Button variant="ghost" size="sm" asChild>
-              <a href="/admin/rulesets">Rulesets</a>
+              <a href="/admin/chimera/tags">Tags</a>
             </Button>
           </nav>
 

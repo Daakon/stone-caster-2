@@ -229,10 +229,17 @@ export function requireRole(roles: string | string[]): (req: Request, res: Respo
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      // Debug logging
+      const path = `${req.baseUrl || ''}${req.path || ''}`;
+      console.log(`🛡️ [AuthCheck] Path: ${path}`);
+      console.log(`   Method: ${req.method}`);
+      console.log(`   Auth Header: ${req.headers.authorization ? 'Present' : 'MISSING'}`);
+      
       // First require authentication
       const authHeader = req.headers.authorization;
 
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn('⛔ Access Denied: No Authorization header');
         return sendErrorWithStatus(
           res,
           ApiErrorCode.UNAUTHORIZED,
@@ -245,6 +252,7 @@ export function requireRole(roles: string | string[]): (req: Request, res: Respo
       const result = await authService.validateToken(token);
 
       if (!result.valid || !result.user) {
+        console.warn(`⛔ Access Denied: Invalid token - ${result.error || 'Unknown error'}`);
         return sendErrorWithStatus(
           res,
           ApiErrorCode.UNAUTHORIZED,
@@ -253,11 +261,18 @@ export function requireRole(roles: string | string[]): (req: Request, res: Respo
         );
       }
 
+      // Debug user info
+      console.log(`   User ID: ${result.user.id || 'null'}`);
+      console.log(`   User Email: ${result.user.email || 'null'}`);
+      console.log(`   User Roles: ${result.user.roles?.join(', ') || 'null'}`);
+      console.log(`   Required Roles: ${requiredRoles.join(', ')}`);
+
       // Check if user has at least one of the required roles
       const userRoles = result.user.roles;
       const hasRequiredRole = requiredRoles.some(role => userRoles.includes(role));
 
       if (!hasRequiredRole) {
+        console.warn(`⛔ Access Denied: Role mismatch. User has [${userRoles.join(', ')}], required [${requiredRoles.join(', ')}]`);
         return sendErrorWithStatus(
           res,
           ApiErrorCode.FORBIDDEN,
@@ -265,6 +280,8 @@ export function requireRole(roles: string | string[]): (req: Request, res: Respo
           req
         );
       }
+
+      console.log(`✅ Access Granted: User has required role`);
 
       // Set standardized user context
       req.user = result.user;

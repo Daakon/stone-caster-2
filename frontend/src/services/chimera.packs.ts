@@ -8,7 +8,7 @@ import { apiFetch, apiPost, apiPut, apiDelete } from '@/lib/api';
 export interface ChimeraContentPack {
   id: string;
   owner_user_id: string;
-  visibility: 'private' | 'pending_approval' | 'public';
+  visibility: 'private' | 'pending' | 'public';
   is_system_asset: boolean;
   version: number;
   display_name: string;
@@ -28,7 +28,7 @@ export interface SelectablePack {
   display_name: string;
   version: number;
   pack_type: 'NPC' | 'ITEM' | 'LORE' | 'MIXED';
-  visibility: 'private' | 'pending_approval' | 'public';
+  visibility: 'private' | 'pending' | 'public';
 }
 
 export interface CreatePackData {
@@ -43,7 +43,7 @@ export interface CreatePackData {
 }
 
 export interface UpdatePackData extends Partial<CreatePackData> {
-  visibility?: 'private' | 'pending_approval' | 'public';
+  visibility?: 'private' | 'pending' | 'public';
 }
 
 export const chimeraPacksService = {

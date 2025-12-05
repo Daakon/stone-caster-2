@@ -1020,7 +1020,7 @@ router.post(
 
       // Verify entity template exists and user has access
       const { data: entity, error: entityError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .select('id, owner_user_id, visibility')
         .eq('id', entity_template_id)
         .single();

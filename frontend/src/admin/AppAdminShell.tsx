@@ -3,6 +3,7 @@
  * Phase 2: Top-level admin layout with navigation and role management
  */
 
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminRoutes } from './AdminRoutes';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { useAppRoles } from './routeGuard';
 import { AdminNav } from './components/AdminNav';
 import { RoleBadge } from './components/RoleBadge';
 import { useAppConfig } from '@/hooks/useAppConfig';
+import { makeTitle } from '@/lib/meta';
 
 // AppAdminShell is now wrapped by AdminRouteGuard which verifies roles first
 // This component assumes roles are already verified
@@ -27,6 +29,11 @@ export function AppAdminShell() {
     await signOut();
     navigate('/');
   };
+
+  // Set page title
+  useEffect(() => {
+    document.title = makeTitle(['Admin', 'Stone Caster']);
+  }, []);
   
   // Show loading if roles are still loading (should be rare since AdminRouteGuard verifies first)
   if (loading) {

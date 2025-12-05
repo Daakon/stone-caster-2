@@ -45,7 +45,26 @@ export async function seedSlotsAndTemplatesToDB(createdBy?: string): Promise<voi
     }
   }
 
-  // Publish all templates
+  // Publish all templates (only if templates table exists)
+  // Check if templates table exists first
+  const { supabaseAdmin } = await import('../services/supabase.js');
+  const { error: tableCheckError } = await supabaseAdmin
+    .from('templates')
+    .select('id')
+    .limit(1);
+
+  if (tableCheckError) {
+    // Templates table doesn't exist - skip template seeding
+    if (tableCheckError.code === 'PGRST205' || tableCheckError.message?.includes('Could not find the table')) {
+      console.log('[seedSlotsAndTemplatesToDB] Templates table not found - skipping template seeding (legacy table)');
+      return;
+    }
+    // Other error - log and continue with slots only
+    console.warn('[seedSlotsAndTemplatesToDB] Error checking templates table:', tableCheckError);
+    return;
+  }
+
+  // Templates table exists - proceed with seeding
   for (const template of templatesBySlot.values()) {
     try {
       // Parse version string to number (e.g., "1.0.0" -> 1)
@@ -81,22 +100,38 @@ export async function seedIfEmpty(): Promise<void> {
     return;
   }
 
-  // Check if templates table is empty
+  // Check if templates table exists and is empty
+  // Note: templates table may not exist in all environments (legacy table)
+  let templatesEmpty = true;
   const { data: templates, error: templatesError } = await supabaseAdmin
     .from('templates')
     .select('id')
     .limit(1);
 
   if (templatesError) {
-    console.error('[seedIfEmpty] Error checking templates:', templatesError);
-    return;
+    // Table doesn't exist - this is OK, templates are legacy
+    if (templatesError.code === 'PGRST205' || templatesError.message?.includes('Could not find the table')) {
+      console.log('[seedIfEmpty] Templates table not found - skipping template seeding (legacy table)');
+      templatesEmpty = false; // Don't seed if table doesn't exist
+    } else {
+      console.error('[seedIfEmpty] Error checking templates:', templatesError);
+      return;
+    }
+  } else {
+    templatesEmpty = !templates || templates.length === 0;
   }
 
-  // Seed if either table is empty
-  if ((!slots || slots.length === 0) || (!templates || templates.length === 0)) {
-    console.log('[seedIfEmpty] Database is empty, seeding slots and templates...');
+  // Seed if slots table is empty
+  // Only seed templates if the table exists and is empty
+  if (!slots || slots.length === 0) {
+    console.log('[seedIfEmpty] Database is empty, seeding slots...');
     await seedSlotsAndTemplatesToDB();
     console.log('[seedIfEmpty] Seeding complete');
+  } else if (templatesEmpty) {
+    // Slots exist but templates don't - seed templates only
+    console.log('[seedIfEmpty] Templates table is empty, seeding templates...');
+    await seedSlotsAndTemplatesToDB();
+    console.log('[seedIfEmpty] Template seeding complete');
   }
 }
 

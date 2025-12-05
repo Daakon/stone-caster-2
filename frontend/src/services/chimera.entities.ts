@@ -7,14 +7,18 @@ import { apiFetch, apiPost, apiPut, apiDelete } from '@/lib/api';
 
 export interface ChimeraEntity {
   id: string;
-  owner_user_id: string;
-  visibility: 'private' | 'pending_approval' | 'public';
-  display_name: string;
-  description_short: string | null;
-  entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
-  base_state_json: Record<string, unknown>;
+  key: string;
+  kind: 'npc' | 'item' | 'location' | 'faction' | 'creature';
+  owner_user_id: string | null; // SQL column for ownership tracking
+  raw_data: Record<string, unknown>; // JSONB containing full entity definition
   created_at: string;
   updated_at: string;
+  // Legacy fields (extracted from raw_data for backward compatibility)
+  display_name?: string;
+  description_short?: string | null;
+  entity_type?: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
+  base_state_json?: Record<string, unknown>;
+  visibility?: 'private' | 'pending' | 'public';
   is_system_asset?: boolean;
   world_id?: string | null;
   is_quick_start_template?: boolean;
@@ -27,10 +31,11 @@ export interface CreateEntityData {
   entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
   base_state_json: Record<string, unknown>;
   tag_names?: string[];
+  images?: Array<{ id?: string; url: string; role?: string; label?: string }>;
 }
 
 export interface UpdateEntityData extends Partial<CreateEntityData> {
-  visibility?: 'private' | 'pending_approval' | 'public';
+  visibility?: 'private' | 'pending' | 'public';
 }
 
 export interface SelectableEntity {
@@ -38,7 +43,7 @@ export interface SelectableEntity {
   display_name: string;
   entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
   version: number;
-  visibility: 'private' | 'pending_approval' | 'public';
+  visibility: 'private' | 'pending' | 'public';
 }
 
 export const chimeraEntitiesService = {

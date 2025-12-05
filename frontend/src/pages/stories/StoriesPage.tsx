@@ -1,85 +1,43 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useStories } from '@/lib/queries/index';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
 import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
 import { EmptyState } from '@/components/catalog/EmptyState';
-import { StoriesFilterBar } from '@/components/filters/StoriesFilterBar';
+import { WorldsFilterBar } from '@/components/filters/WorldsFilterBar';
 import { trackCatalogView, trackCatalogCardClick } from '@/lib/analytics';
 import { useURLFilters } from '@/lib/useURLFilters';
 import type { FilterValue } from '@/lib/useURLFilters';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
-import { isChimeraEnabled } from '@/config/features';
-import { chimeraStoriesService } from '@/services/chimera.stories';
 
 interface StoryFilters {
   q: string;
-  world: string | undefined;
-  kind: string | undefined;
-  ruleset: string | undefined;
-  tags: string[];
   [key: string]: FilterValue;
 }
 
 export default function StoriesPage() {
   const { filters, updateFilters, reset } = useURLFilters<StoryFilters>({
-    q: '',
-    world: undefined,
-    kind: undefined,
-    ruleset: undefined,
-    tags: []
+    q: ''
   });
 
-  // Conditionally use Chimera API or legacy API
-  const legacyStoriesQuery = useStories({
-    worldId: filters.world,
-    filter: filters.q || undefined,
-    kind: filters.kind as 'scenario' | 'adventure' | undefined,
-    ruleset: filters.ruleset,
-    tags: filters.tags.length > 0 ? filters.tags : undefined,
-  });
-
-  const chimeraStoriesQuery = useQuery({
-    queryKey: ['chimera-stories', filters],
+  // Phase 4.10: Use catalog API only - public stories only
+  const storiesQuery = useQuery({
+    queryKey: ['catalog-stories', filters.q],
     queryFn: async () => {
-      const stories = await chimeraStoriesService.getMyStories();
-      // Apply client-side filtering for search query
-      let filtered = stories;
-      if (filters.q) {
-        const query = filters.q.toLowerCase();
-        filtered = filtered.filter(
-          (s) =>
-            s.display_name.toLowerCase().includes(query) ||
-            s.description_short?.toLowerCase().includes(query)
-        );
+      const searchParam = filters.q ? `?search=${encodeURIComponent(filters.q)}` : '';
+      const response = await fetch(`/api/catalog/stories${searchParam}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch stories');
       }
-      // Transform to match legacy format for compatibility
-      return filtered.map((s) => ({
-        id: s.id,
-        slug: s.id, // Use ID as slug for Chimera stories
-        title: s.display_name,
-        short_desc: s.description_short || '',
-        hero_url: null,
-        cover_media: null,
-        world: s.world
-          ? {
-              id: s.world.id,
-              name: s.world.display_name,
-              slug: s.world.id,
-            }
-          : undefined,
-        rulesets: [],
-      }));
+      const result = await response.json();
+      return result.ok ? (result.data || []) : [];
     },
-    enabled: isChimeraEnabled,
     staleTime: 5 * 60 * 1000,
   });
 
-  const storiesQuery = isChimeraEnabled ? chimeraStoriesQuery : legacyStoriesQuery;
-  const stories = storiesQuery.data || [];
   const isLoading = storiesQuery.isLoading;
   const error = storiesQuery.error;
+  const stories = storiesQuery.data || [];
 
   // Track catalog view on mount
   useEffect(() => {
@@ -109,13 +67,13 @@ export default function StoriesPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">Stories</h1>
+            <h1 className="text-3xl font-bold">Browse Stories</h1>
             <p className="text-muted-foreground mt-2">
               Discover adventures and scenarios to play
             </p>
           </div>
           
-          <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
+          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
           
           <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
             {Array.from({ length: 6 }).map((_, index) => (
@@ -132,13 +90,13 @@ export default function StoriesPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">Stories</h1>
+            <h1 className="text-3xl font-bold">Browse Stories</h1>
             <p className="text-muted-foreground mt-2">
               Discover adventures and scenarios to play
             </p>
           </div>
           
-          <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
+          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
           
           <EmptyState
             title="Error loading stories"
@@ -156,21 +114,19 @@ export default function StoriesPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">Stories</h1>
+            <h1 className="text-3xl font-bold">Browse Stories</h1>
             <p className="text-muted-foreground mt-2">
               Discover adventures and scenarios to play
             </p>
           </div>
           
-          <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
+          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
           
           <EmptyState
             title="No stories found"
             description={
-              Object.values(filters).some(v => 
-                Array.isArray(v) ? v.length > 0 : v && v !== ''
-              )
-                ? "No stories match your current filters. Try adjusting your search criteria."
+              filters.q
+                ? "No stories match your search. Try adjusting your search terms."
                 : "No stories are available at the moment. Check back later for new adventures."
             }
             actionLabel="Clear filters"
@@ -185,13 +141,13 @@ export default function StoriesPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Stories</h1>
+          <h1 className="text-3xl font-bold">Browse Stories</h1>
           <p className="text-muted-foreground mt-2">
             Discover adventures and scenarios to play
           </p>
         </div>
         
-        <StoriesFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
+        <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
         
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
@@ -200,20 +156,22 @@ export default function StoriesPage() {
         </div>
         
         <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
-          {stories.map((story) => (
+          {stories.map((story: any) => (
             <CatalogCard
               key={story.id}
               entity="story"
               idOrSlug={story.slug || story.id}
               title={story.title}
-              description={story.short_desc}
-              imageUrl={story.hero_url}
+              description={story.description || story.synopsis}
+              imageUrl={null}
               coverMedia={story.cover_media || null}
               href={`/stories/${story.slug || story.id}`}
-              chips={story.world?.name || story.rulesets?.length ? [
-                story.world?.name,
-                ...(story.rulesets?.map(r => ({ label: r.name, variant: 'outline' as const })) || [])
-              ].filter(Boolean) : undefined}
+              chips={story.tags && story.tags.length > 0 ? [
+                ...story.tags.slice(0, 3).map((tag: string) => ({ 
+                  label: tag, 
+                  variant: 'outline' as const 
+                }))
+              ] : undefined}
               onCardClick={() => handleCardClick(story.slug || story.id)}
             />
           ))}

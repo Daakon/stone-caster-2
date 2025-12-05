@@ -18,6 +18,18 @@ const NAV_ITEMS = [
     icon: '🏠'
   },
   {
+    label: 'Official Worlds',
+    href: '/admin/chimera/worlds/list',
+    roles: ['admin'] as const,
+    icon: '🌍'
+  },
+  {
+    label: 'Official Entities',
+    href: '/admin/chimera/entities/list',
+    roles: ['admin'] as const,
+    icon: '👥'
+  },
+  {
     label: 'Ruleset Templates',
     href: '/admin/chimera/rulesets',
     roles: ['moderator', 'admin'] as const,

@@ -8,7 +8,7 @@ import { apiFetch, apiPost, apiPut, apiDelete } from '@/lib/api';
 export interface ChimeraStory {
   id: string;
   owner_user_id: string;
-  visibility: 'private' | 'pending_approval' | 'public';
+  visibility: 'private' | 'pending' | 'public';
   display_name: string;
   description_short: string | null;
   content_rating: 'safe' | 'mature' | 'explicit';
@@ -43,7 +43,7 @@ export interface CreateStoryData {
 }
 
 export interface UpdateStoryData extends Partial<CreateStoryData> {
-  visibility?: 'private' | 'pending_approval' | 'public';
+  visibility?: 'private' | 'pending' | 'public';
   story_definition?: Record<string, unknown> | null;
 }
 

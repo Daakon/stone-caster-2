@@ -107,17 +107,21 @@ router.post(
         );
       }
 
-      // Create the lore entry
+      // Create the lore entry (Hybrid Schema: world_id SQL column + fragment JSONB + owner_user_id)
       const { data: loreEntry, error: loreError } = await supabaseAdmin
-        .from('chimera_lore_entries')
+        .from('chimera_lore')
         .insert({
-          world_id,
-          display_name,
-          entry_text,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          world_id, // SQL column for world scoping
+          owner_user_id: userId, // SQL column for direct ownership
+          visibility: 'private', // Default visibility
+          fragment: {
+            display_name,
+            entry_text,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
         })
-        .select()
+        .select('id, world_id, owner_user_id, fragment, created_at, updated_at')
         .single();
 
       if (loreError) {
@@ -245,7 +249,7 @@ router.get('/my-creations', async (req: Request, res: Response) => {
       );
     }
 
-    // Fetch all lore entries for worlds owned by the user
+    // Fetch all lore entries owned by the user (direct ownership OR world-based ownership)
     // First, get all worlds owned by the user
     const { data: userWorlds, error: worldsError } = await supabaseAdmin
       .from('chimera_worlds')
@@ -264,18 +268,23 @@ router.get('/my-creations', async (req: Request, res: Response) => {
 
     const worldIds = (userWorlds || []).map((w) => w.id);
 
-    if (worldIds.length === 0) {
-      return sendSuccess(res, [], req);
-    }
-
-    // Fetch lore entries with world visibility
-    const { data: loreEntries, error: loreError } = await supabaseAdmin
-      .from('chimera_lore_entries')
+    // Build query: direct ownership OR world-based ownership
+    let loreQuery = supabaseAdmin
+      .from('chimera_lore')
       .select(`
         *,
         world:chimera_worlds!world_id(visibility, owner_user_id)
-      `)
-      .in('world_id', worldIds)
+      `);
+
+    // Filter: owner_user_id = userId OR world_id IN (user's world IDs)
+    if (worldIds.length > 0) {
+      loreQuery = loreQuery.or(`owner_user_id.eq.${userId},world_id.in.(${worldIds.join(',')})`);
+    } else {
+      // No worlds owned, only check direct ownership
+      loreQuery = loreQuery.eq('owner_user_id', userId);
+    }
+
+    const { data: loreEntries, error: loreError } = await loreQuery
       .order('created_at', { ascending: false });
 
     if (loreError) {
@@ -412,7 +421,7 @@ router.get(
 
       // Fetch the lore entry
       const { data: loreEntry, error: fetchError } = await supabaseAdmin
-        .from('chimera_lore_entries')
+        .from('chimera_lore')
         .select('*')
         .eq('id', id)
         .single();
@@ -606,12 +615,22 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
 
-    // Fetch lore entries for the world
+    // Fetch lore entries for the world (Hybrid Schema: use world_id SQL column)
     const { data: loreEntries, error: loreError } = await supabaseAdmin
-      .from('chimera_lore_entries')
-      .select('*')
+      .from('chimera_lore')
+      .select('id, world_id, fragment, created_at, updated_at')
       .eq('world_id', worldId)
       .order('created_at', { ascending: false });
+    
+    // Map to expected format (extract from fragment for backward compatibility)
+    const mappedLore = (loreEntries || []).map((entry: any) => {
+      const fragment = entry.fragment || {};
+      return {
+        ...entry,
+        display_name: fragment.display_name,
+        entry_text: fragment.entry_text,
+      };
+    });
 
     if (loreError) {
       console.error('[Chimera Lore] Error fetching lore entries:', loreError);
@@ -624,8 +643,8 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     // Fetch tags for all lore entries
-    if (loreEntries && loreEntries.length > 0) {
-      const entryIds = loreEntries.map((entry: any) => String(entry.id));
+    if (mappedLore && mappedLore.length > 0) {
+      const entryIds = mappedLore.map((entry: any) => String(entry.id));
       const { data: allAssetTags } = await supabaseAdmin
         .from('chimera_asset_tags')
         .select(`
@@ -650,12 +669,12 @@ router.get('/', async (req: Request, res: Response) => {
       }
 
       // Attach tags to each entry
-      for (const entry of loreEntries) {
+      for (const entry of mappedLore) {
         (entry as any).tags = tagsByEntryId.get(String(entry.id)) || [];
       }
     }
 
-    return sendSuccess(res, (loreEntries || []) as ChimeraLoreEntry[], req);
+    return sendSuccess(res, (mappedLore || []) as ChimeraLoreEntry[], req);
   } catch (error) {
     console.error('[Chimera Lore] Unexpected error:', error);
     return sendErrorWithStatus(
@@ -703,7 +722,7 @@ router.put(
 
       // Fetch the lore entry to verify ownership
       const { data: loreEntry, error: fetchError } = await supabaseAdmin
-        .from('chimera_lore_entries')
+        .from('chimera_lore')
         .select('world_id')
         .eq('id', id)
         .single();
@@ -717,10 +736,10 @@ router.put(
         );
       }
 
-      // Check world ownership
+      // Check world ownership and lifecycle state
       const { data: world, error: worldError } = await supabaseAdmin
         .from('chimera_worlds')
-        .select('owner_user_id')
+        .select('owner_user_id, visibility')
         .eq('id', loreEntry.world_id)
         .single();
 
@@ -729,6 +748,16 @@ router.put(
           res,
           ApiErrorCode.FORBIDDEN,
           'You do not have permission to update this lore entry',
+          req
+        );
+      }
+
+      // Lifecycle enforcement: Cannot edit lore for published worlds
+      if (world.visibility === 'public' && !updateData.visibility) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'Cannot edit lore for published worlds. Please clone to create a new version.',
           req
         );
       }
@@ -746,7 +775,7 @@ router.put(
       }
 
       const { data: updatedEntry, error: updateError } = await supabaseAdmin
-        .from('chimera_lore_entries')
+        .from('chimera_lore')
         .update(updatePayload)
         .eq('id', id)
         .select()
@@ -902,7 +931,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     // Fetch the lore entry to verify ownership
     const { data: loreEntry, error: fetchError } = await supabaseAdmin
-      .from('chimera_lore_entries')
+      .from('chimera_lore')
       .select('world_id')
       .eq('id', id)
       .single();
@@ -934,7 +963,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     // Delete the lore entry
     const { error: deleteError } = await supabaseAdmin
-      .from('chimera_lore_entries')
+      .from('chimera_lore')
       .delete()
       .eq('id', id);
 

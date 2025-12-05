@@ -1,9 +1,10 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MarketingShell } from './MarketingShell';
 import { ExploreShell } from './ExploreShell';
 import { PlayShell } from './PlayShell';
 import { AccountLegalShell } from './AccountLegalShell';
+import { makeTitle } from '@/lib/meta';
 
 export type LayoutVariant = 'marketing' | 'explore' | 'play' | 'account-legal' | 'admin';
 
@@ -64,6 +65,19 @@ const getLayoutVariant = (pathname: string): LayoutVariant => {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const variant = getLayoutVariant(location.pathname);
+
+  // Set page title based on route
+  useEffect(() => {
+    const pathname = location.pathname;
+    
+    // Dashboard routes
+    if (pathname.startsWith('/dashboard/creations')) {
+      document.title = makeTitle(['My Creations', 'Dashboard', 'Stone Caster']);
+    } else if (pathname.startsWith('/dashboard')) {
+      document.title = makeTitle(['Dashboard', 'Stone Caster']);
+    }
+    // Other routes set their own titles via useEffect in their components
+  }, [location.pathname]);
 
   switch (variant) {
     case 'marketing':
