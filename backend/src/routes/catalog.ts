@@ -172,11 +172,26 @@ router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
     const { idOrSlug } = req.params;
     console.log('[CATALOG] GET /worlds/:idOrSlug - Looking up:', idOrSlug);
 
+    // Phase 1.5: Fix UUID/slug handling - check if parameter is UUID format
+    // If UUID, query by id only. If slug, query by key and slug only (skip id to avoid UUID cast error)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    
     // Phase 4.9: Select ONLY existing columns
-    const { data: world, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('chimera_worlds')
-      .select('id, key, name, slug, tags, visibility, is_official, definition, created_at, updated_at')
-      .or(`id.eq.${idOrSlug},key.eq.${idOrSlug},slug.eq.${idOrSlug}`)
+      .select('id, key, name, slug, tags, visibility, is_official, definition, created_at, updated_at');
+    
+    // Build query conditionally based on UUID vs slug
+    if (isUUID) {
+      // UUID: query by id only
+      query = query.eq('id', idOrSlug);
+    } else {
+      // Slug: query by key and slug only (skip id to avoid UUID cast error)
+      query = query.or(`key.eq.${idOrSlug},slug.eq.${idOrSlug}`);
+    }
+    
+    // Apply common visibility filters
+    const { data: world, error } = await query
       .or('visibility.eq.public,is_official.eq.true')
       .limit(1)
       .single();
