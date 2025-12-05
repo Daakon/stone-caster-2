@@ -199,19 +199,7 @@ describe('API Integration Tests', () => {
       });
     });
 
-    it('should allow access to public adventures endpoint', async () => {
-      const response = await request(app)
-        .get('/api/adventures')
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        ok: true,
-        data: expect.any(Array),
-        meta: {
-          traceId: expect.any(String),
-        },
-      });
-    });
+    // PHASE 2: Removed test for /api/adventures - endpoint does not exist
 
     it('should allow access to search endpoint with valid query', async () => {
       const response = await request(app)
@@ -232,38 +220,7 @@ describe('API Integration Tests', () => {
       });
     });
 
-    it('should allow access to stones wallet endpoint', async () => {
-      const response = await request(app)
-        .get('/api/stones/wallet')
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        ok: true,
-        data: {
-          shard: expect.any(Number),
-          crystal: expect.any(Number),
-          relic: expect.any(Number),
-          dailyRegen: expect.any(Number),
-        },
-        meta: {
-          traceId: expect.any(String),
-        },
-      });
-    });
-
-    it('should allow access to stones packs endpoint', async () => {
-      const response = await request(app)
-        .get('/api/stones/packs')
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        ok: true,
-        data: expect.any(Array),
-        meta: {
-          traceId: expect.any(String),
-        },
-      });
-    });
+    // PHASE 2: Removed tests for /api/stones/wallet and /api/stones/packs - endpoints do not exist
   });
 
   describe('DTO Redaction', () => {
@@ -298,23 +255,7 @@ describe('API Integration Tests', () => {
       });
     });
 
-    it('should return FORBIDDEN for auth-only endpoints without proper auth', async () => {
-      const response = await request(app)
-        .post('/api/stones/convert')
-        .send({ amount: 10, fromType: 'shard', toType: 'crystal' })
-        .expect(401);
-
-      expect(response.body).toMatchObject({
-        ok: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-        },
-        meta: {
-          traceId: expect.any(String),
-        },
-      });
-    });
+    // PHASE 2: Removed test for /api/stones/convert - endpoint does not exist
   });
 
   describe('Trace ID', () => {

@@ -458,9 +458,7 @@ export async function getWallet(): Promise<{ ok: true; data: any } | { ok: false
   };
 }
 
-export async function getStonesHistory(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
-  return apiGet('/api/stones/history');
-}
+// PHASE 2: Removed getStonesHistory() - endpoint /api/stones/history does not exist
 
 // Phase 6.1: Defensive adapter for turns API normalization
 // Handles both response shapes:
