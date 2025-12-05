@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GamesService } from './games.service.js';
 import { CharactersService } from './characters.service.js';
-import { WalletService } from './wallet.service.js';
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// import { WalletService } from './wallet.service.js';
 import { configService } from './config.service.js';
 import { supabaseAdmin } from './supabase.js';
 import { resolveAdventureByIdentifier, computeAdventureId } from '../utils/adventure-identity.js';
@@ -19,12 +20,14 @@ vi.mock('./characters.service.js', () => ({
   },
 }));
 
-vi.mock('./wallet.service.js', () => ({
-  WalletService: {
-    getWallet: vi.fn(),
-    addCastingStones: vi.fn(),
-  },
-}));
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// vi.mock('./wallet.service.js', () => ({
+//   WalletService: {
+//     getWallet: vi.fn(),
+//     addCastingStones: vi.fn(),
+//   },
+// }));
 
 vi.mock('./config.service.js', () => ({
   configService: {

@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
 import { PaymentService } from '../wrappers/payments.js';
-import { WalletService } from '../services/wallet.service.js';
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// import { WalletService } from '../services/wallet.service.js';
 
 // Mock dependencies
 vi.mock('../wrappers/payments.js', () => ({
@@ -12,11 +13,12 @@ vi.mock('../wrappers/payments.js', () => ({
   },
 }));
 
-vi.mock('../services/wallet.service.js', () => ({
-  WalletService: {
-    applyPurchase: vi.fn(),
-  },
-}));
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// vi.mock('../services/wallet.service.js', () => ({
+//   WalletService: {
+//     applyPurchase: vi.fn(),
+//   },
+// }));
 
 const mockSupabaseAdmin = {
   from: vi.fn(),

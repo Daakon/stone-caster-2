@@ -1,4 +1,5 @@
-import { WalletService } from './wallet.service.js';
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// import { WalletService } from './wallet.service.js';
 import { promptsService } from './prompts.service.js';
 import { gamesService } from './games.service.js';
 // LEGACY - stoneLedger.service.ts removed in Phase 1 cleanup
@@ -146,15 +147,16 @@ export class TurnsService {
       const pricingConfig = configService.getPricing();
       const turnCost = this.getTurnCost(pricingConfig, game.world_slug || '');
 
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
       // Check if user has sufficient stones
-      const wallet = await WalletService.getWallet(owner, isGuest);
-      if (wallet.castingStones < turnCost) {
-        return {
-          success: false,
-          error: ApiErrorCode.INSUFFICIENT_STONES,
-          message: `Insufficient casting stones. Have ${wallet.castingStones}, need ${turnCost}`,
-        };
-      }
+      // const wallet = await WalletService.getWallet(owner, isGuest);
+      // if (wallet.castingStones < turnCost) {
+      //   return {
+      //     success: false,
+      //     error: ApiErrorCode.INSUFFICIENT_STONES,
+      //     message: `Insufficient casting stones. Have ${wallet.castingStones}, need ${turnCost}`,
+      //   };
+      // }
 
       // Ensure initial game state exists
       await this.ensureInitialGameState(game);
@@ -640,7 +642,9 @@ export class TurnsService {
       let turnResponseForApply: TurnResponse;
       // Calculate turn number before creating turn record (needed after try block)
       const nextTurnCount = game.turn_count + 1;
-      const newBalance = wallet.castingStones - turnCost;
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+      // const newBalance = wallet.castingStones - turnCost;
+      const newBalance = 0; // Placeholder - wallet system removed
       
       try {
         if (!aiResponseText) {
@@ -844,16 +848,17 @@ export class TurnsService {
       }
 
 
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
       // Spend casting stones (only after successful turn)
-      const spendResult = await WalletService.spendCastingStones(
-        owner,
-        turnCost,
-        idempotencyKey,
-        gameId,
-        `TURN_SPEND`,
-        isGuest
-      );
-
+      // const spendResult = await WalletService.spendCastingStones(
+      //   owner,
+      //   turnCost,
+      //   idempotencyKey,
+      //   gameId,
+      //   `TURN_SPEND`,
+      //   isGuest
+      // );
+      const spendResult = { success: true }; // Placeholder - wallet system removed
 
       if (!spendResult.success) {
         // This should not happen since we checked balance earlier

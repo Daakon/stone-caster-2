@@ -4,7 +4,8 @@ import app from '../index.js';
 import { ApiErrorCode } from '@shared';
 
 // Mock all the services to return predictable results
-vi.mock('../services/wallet.service.js', () => ({
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// vi.mock('../services/wallet.service.js', () => ({
   walletService: {
     spendCasting: vi.fn(),
     getBalance: vi.fn(),

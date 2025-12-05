@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
-import { StoneCost } from './StoneCost';
+// TODO: Refactor for Chimera V3 - StoneCost removed (legacy stone system)
+// import { StoneCost } from './StoneCost';
 import { Gem, Send, Loader2 } from 'lucide-react';
 
 interface TurnInputProps {
@@ -59,7 +60,8 @@ export const TurnInput: React.FC<TurnInputProps> = ({
         <div className="flex items-center gap-2">
           <Gem className="h-4 w-4 text-primary" />
           <span className="text-sm text-muted-foreground">
-            Cost: <StoneCost cost={stoneCost} size="sm" showIcon={false} />
+            {/* TODO: Refactor for Chimera V3 - StoneCost removed (legacy stone system) */}
+            Cost: {stoneCost} stones
           </span>
         </div>
         
