@@ -8,7 +8,6 @@ import {
   Home, 
   Gamepad2, 
   User, 
-  Wallet, 
   Settings,
   Gem,
   X,
@@ -60,12 +59,6 @@ export function MobileDrawerNav({ children }: MobileDrawerNavProps) {
       name: 'NPCs', 
       href: '/npcs', 
       icon: User,
-      show: true
-    },
-    { 
-      name: 'Wallet', 
-      href: '/wallet', 
-      icon: Wallet,
       show: true
     },
     { 

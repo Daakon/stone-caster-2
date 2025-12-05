@@ -1,7 +1,5 @@
 import worldsData from '../mock/worlds.json';
-import adventuresData from '../mock/adventures.json';
 import charactersData from '../mock/characters.json';
-import walletData from '../mock/wallet.json';
 import limitsData from '../mock/limits.json';
 import inviteData from '../mock/invite.json';
 
@@ -113,9 +111,7 @@ export interface InviteStatus {
 // Mock data service
 class MockDataService {
   private worlds: World[] = worldsData as World[];
-  private adventures: Adventure[] = adventuresData as Adventure[];
   private characters: Character[] = charactersData as Character[];
-  private wallet: Wallet = walletData as Wallet;
   private limits: Limits = limitsData as Limits;
   private invite: InviteStatus = inviteData as InviteStatus;
 
@@ -133,47 +129,43 @@ class MockDataService {
   }
 
   // Adventures (deprecated - use getStories instead)
+  // PHASE 1.6: Removed - adventures.json import removed
   getAdventures(): Adventure[] {
-    return this.adventures;
+    return [];
   }
 
   getAdventureById(id: string): Adventure | undefined {
-    return this.adventures.find(adventure => adventure.id === id);
+    return undefined;
   }
 
   getAdventuresByWorld(worldId: string): Adventure[] {
-    return this.adventures.filter(adventure => adventure.worldId === worldId);
+    return [];
   }
 
   getAdventuresByTag(tag: string): Adventure[] {
-    return this.adventures.filter(adventure => adventure.tags.includes(tag));
+    return [];
   }
 
   // Stories (new)
+  // PHASE 1.6: Removed - adventures.json import removed
   getStories(): Adventure[] {
-    return this.adventures; // For now, stories are the same as adventures
+    return [];
   }
 
   getStoryById(id: string): Adventure | undefined {
-    return this.adventures.find(adventure => adventure.id === id);
+    return undefined;
   }
 
   getStoriesByWorld(worldId: string): Adventure[] {
-    return this.adventures.filter(adventure => adventure.worldId === worldId);
+    return [];
   }
 
   getStoriesByTag(tag: string): Adventure[] {
-    return this.adventures.filter(adventure => adventure.tags.includes(tag));
+    return [];
   }
 
   searchAdventures(query: string): Adventure[] {
-    const lowercaseQuery = query.toLowerCase();
-    return this.adventures.filter(adventure => 
-      adventure.title.toLowerCase().includes(lowercaseQuery) ||
-      adventure.excerpt.toLowerCase().includes(lowercaseQuery) ||
-      adventure.description.toLowerCase().includes(lowercaseQuery) ||
-      adventure.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery))
-    );
+    return [];
   }
 
   // Characters
@@ -186,7 +178,7 @@ class MockDataService {
   }
 
   getAllAdventures(): Adventure[] {
-    return this.adventures;
+    return [];
   }
 
   getCharactersByWorld(worldId: string): Character[] {
@@ -217,46 +209,22 @@ class MockDataService {
   }
 
   // Wallet
+  // PHASE 1.6: Removed - wallet.json import removed, returning stub data
   getWallet(): Wallet {
-    return this.wallet;
+    return {
+      balance: 0,
+      regenRate: 0,
+      history: []
+    };
   }
 
   spendStones(amount: number, reason: string): boolean {
-    if (this.wallet.balance >= amount) {
-      this.wallet.balance -= amount;
-      this.wallet.lastTransaction = {
-        type: 'spend',
-        amount,
-        reason,
-        timestamp: new Date().toISOString()
-      };
-      this.wallet.history.unshift({
-        id: `tx-${Date.now()}`,
-        type: 'spend',
-        amount,
-        reason,
-        timestamp: new Date().toISOString()
-      });
-      return true;
-    }
+    // PHASE 1.6: Legacy wallet system removed
     return false;
   }
 
   earnStones(amount: number, reason: string): void {
-    this.wallet.balance += amount;
-    this.wallet.lastTransaction = {
-      type: 'earn',
-      amount,
-      reason,
-      timestamp: new Date().toISOString()
-    };
-    this.wallet.history.unshift({
-      id: `tx-${Date.now()}`,
-      type: 'earn',
-      amount,
-      reason,
-      timestamp: new Date().toISOString()
-    });
+    // PHASE 1.6: Legacy wallet system removed
   }
 
   // Limits

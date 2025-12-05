@@ -38,9 +38,8 @@ const getLayoutVariant = (pathname: string): LayoutVariant => {
     return 'admin';
   }
 
-  // Account/Legal Shell - Wallet, Payments, Profile, ToS, Privacy, AI Disclaimer
+  // Account/Legal Shell - Payments, Profile, ToS, Privacy, AI Disclaimer
   if (
-    pathname.startsWith('/wallet') ||
     pathname.startsWith('/payments') ||
     pathname.startsWith('/profile') ||
     pathname.startsWith('/tos') ||
