@@ -3,19 +3,24 @@ import request from 'supertest';
 import app from '../index.js';
 import { GamesService } from '../services/games.service.js';
 import { TurnsService } from '../services/turns.service.js';
-import { WalletService } from '../services/wallet.service.js';
-import { StoneLedgerService } from '../services/stoneLedger.service.js';
+// TODO: Refactor for Chimera V3 - WalletService and StoneLedgerService removed (legacy stone system)
+// import { WalletService } from '../services/wallet.service.js';
+// import { StoneLedgerService } from '../services/stoneLedger.service.js';
 
 // Mock services
 vi.mock('../services/games.service.js');
 vi.mock('../services/turns.service.js');
-vi.mock('../services/wallet.service.js');
-vi.mock('../services/stone-ledger.service.js');
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// vi.mock('../services/wallet.service.js');
+// TODO: Refactor for Chimera V3 - StoneLedgerService removed (legacy stone system)
+// vi.mock('../services/stone-ledger.service.js');
 
 const mockGamesService = vi.mocked(GamesService);
 const mockTurnsService = vi.mocked(TurnsService);
-const mockWalletService = vi.mocked(WalletService);
-const mockStoneLedgerService = vi.mocked(StoneLedgerService);
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// const mockWalletService = vi.mocked(WalletService);
+// TODO: Refactor for Chimera V3 - StoneLedgerService removed (legacy stone system)
+// const mockStoneLedgerService = vi.mocked(StoneLedgerService);
 
 describe('Layer P0 Regression Tests', () => {
   beforeEach(() => {
@@ -119,10 +124,12 @@ describe('Layer P0 Regression Tests', () => {
       };
 
       const mockGetWallet = vi.fn().mockResolvedValue(mockWallet);
-      mockWalletService.getWallet = mockGetWallet;
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+      // mockWalletService.getWallet = mockGetWallet;
 
       const mockAppendEntry = vi.fn().mockResolvedValue({ success: true });
-      mockStoneLedgerService.appendEntry = mockAppendEntry;
+      // TODO: Refactor for Chimera V3 - StoneLedgerService removed (legacy stone system)
+      // mockStoneLedgerService.appendEntry = mockAppendEntry;
 
       // Mock Supabase update
       const mockUpdate = vi.fn().mockResolvedValue({
@@ -180,7 +187,8 @@ describe('Layer P0 Regression Tests', () => {
       };
 
       const mockGetWallet = vi.fn().mockResolvedValue(mockWallet);
-      mockWalletService.getWallet = mockGetWallet;
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+      // mockWalletService.getWallet = mockGetWallet;
 
       const result = await WalletService.spendCastingStones(
         'guest-cookie-123',
@@ -254,11 +262,13 @@ describe('Layer P0 Regression Tests', () => {
       };
 
       const mockGetWallet = vi.fn().mockResolvedValue(mockWallet);
-      mockWalletService.getWallet = mockGetWallet;
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+      // mockWalletService.getWallet = mockGetWallet;
 
       const mockSpendResult = { success: true, newBalance: 8 };
       const mockSpendCastingStones = vi.fn().mockResolvedValue(mockSpendResult);
-      mockWalletService.spendCastingStones = mockSpendCastingStones;
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+      // mockWalletService.spendCastingStones = mockSpendCastingStones;
 
       // Test spawn
       const spawnResponse = await request(app)
@@ -325,7 +335,8 @@ describe('Layer P0 Regression Tests', () => {
       };
 
       const mockGetWallet = vi.fn().mockResolvedValue(mockWallet);
-      mockWalletService.getWallet = mockGetWallet;
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+      // mockWalletService.getWallet = mockGetWallet;
 
       const mockTurnResult = {
         success: false,

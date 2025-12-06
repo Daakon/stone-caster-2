@@ -1,249 +1,726 @@
 {
-  "__comment": "CHIMERA V3.4 COMPLETE LIBRARY - Architecture + Full Standard Ruleset Catalog",
+  "__comment": "CHIMERA V3.0 COMPLETE DATA CONTRACT - Hybrid Schema Compliant",
+  "__version": "3.0.0",
+  "__last_updated": "2025-12-03",
+  "__purpose": "Canonical JSONB structure definitions for all Chimera data types. These schemas define what is stored in the JSONB 'definition' columns of the Hybrid Schema tables.",
+  "__note": "SQL columns (name, slug, visibility, tags, owner_user_id) exist for indexing but the canonical data is in JSONB. This file defines the JSONB structure.",
 
-  "0_SYSTEM_SCHEMAS": {
-    "chimera_ruleset_schema": {
-      "description": "The strict definition for any module in the system.",
-      "fields": {
-        "id": "Unique String (e.g., rs_d100_core)",
-        "name": "Display Name",
-        "ui_category": "Enum: [foundation, expansion, flavor]",
-        "exclusion_group": "String (Optional) - Only one allowed per group per story",
-        "dependencies": "Array[String] - IDs of rulesets that MUST be present",
-        "provides_tags": "Array[String] - Metadata tags for the Compiler",
-        "state_contributions": "Object - Defines Tier 1 (Mechanical) keys",
-        "actions": "Object - Defines executable logic",
-        "ai_instructions": "Object - Prompts for MAS 1 and MAS 2"
+  "ChimeraAssetRef": {
+    "__description": "Reference to an asset (image, audio, etc.) with metadata. Used in WorldDefinition.images, RulesetDefinition.icon_url, etc.",
+    "__stored_in": "JSONB (within WorldDefinition.images, RulesetDefinition, etc.)",
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "required": true,
+      "description": "Unique identifier for the asset"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "required": true,
+      "description": "URL or path to the asset resource (Cloudflare R2 signed URL or Supabase Storage URL)"
+    },
+    "role": {
+      "type": "string",
+      "enum": ["icon", "banner", "portrait", "gallery", "map", "audio"],
+      "required": true,
+      "description": "Role of the asset in the system"
+    },
+    "label": {
+      "type": "string",
+      "required": false,
+      "description": "Optional human-readable label for the asset"
+    },
+    "meta": {
+      "type": "object",
+      "required": false,
+      "properties": {
+        "copyright": {
+          "type": "string",
+          "description": "Copyright information"
+        },
+        "artist": {
+          "type": "string",
+          "description": "Artist/creator name"
+        },
+        "license": {
+          "type": "string",
+          "description": "License information"
+        }
+      },
+      "description": "Optional metadata object for additional asset information"
+    }
+  },
+
+  "BaseCharacter": {
+    "__description": "The root template for character creation (Layer 1). Stored as system asset, not in database.",
+    "__stored_in": "File system: content/system/base_character.json",
+    "version": {
+      "type": "integer",
+      "required": true,
+      "description": "Schema version"
+    },
+    "identity": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "name": {"type": "string"},
+        "pronouns": {"type": "string"},
+        "age": {"type": "integer", "nullable": true},
+        "role": {"type": "string", "default": "adventurer"}
+      }
+    },
+    "appearance": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "summary": {"type": "string"},
+        "traits": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "persona": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "backstory": {"type": "string"},
+        "drive": {"type": "string"},
+        "flaw": {"type": "string"},
+        "traits": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "stats": {
+      "type": "object",
+      "required": true,
+      "description": "Base stats (will be extended by World and Rulesets)",
+      "properties": {
+        "hp": {"type": "number", "default": 10},
+        "mp": {"type": "number", "default": 0},
+        "speed": {"type": "number", "default": 5}
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": ["player", "sentient"],
+      "description": "Base tags"
+    },
+    "inventory": {
+      "type": "array",
+      "items": {"type": "object"},
+      "default": [],
+      "description": "Starting inventory items"
+    },
+    "abilities": {
+      "type": "array",
+      "items": {"type": "object"},
+      "default": [],
+      "description": "Starting abilities"
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "created_by": {"type": "string", "default": "system"}
       }
     }
   },
 
-  "1_STANDARD_LIBRARY_CATALOG": {
-    
-    "__comment_foundations": "=== STEP 1: FOUNDATIONS (THE HUBS) ===",
-
-    "rs_d100_core": {
-      "id": "rs_d100_core",
-      "name": "D100 Skill Engine",
-      "ui_category": "foundation",
-      "exclusion_group": "skill_engine",
-      "provides_tags": ["mechanics_d100", "skills"],
-      "description": "Percentile-based physics. Roll under Skill Level.",
-      "state_contributions": {
-        "tier1_entity": ["skills"]
-      }
+  "WorldDefinition": {
+    "__description": "Complete definition of a game world. Stored in chimera_worlds.definition (JSONB). SQL columns (name, slug, visibility, tags, owner_user_id) exist for indexing but this is the canonical structure.",
+    "__stored_in": "chimera_worlds.definition (JSONB)",
+    "__note": "Fields like 'name', 'slug', 'visibility', 'tags' are duplicated in SQL columns for fast filtering. The JSONB definition is the source of truth.",
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "required": true,
+      "description": "Unique identifier (matches chimera_worlds.id)"
     },
-
-    "rs_d20_core": {
-      "id": "rs_d20_core",
-      "name": "D20 Attribute Engine",
-      "ui_category": "foundation",
-      "exclusion_group": "skill_engine",
-      "provides_tags": ["mechanics_d20", "attributes"],
-      "description": "Classic D20 physics. Roll + Modifier vs DC.",
-      "state_contributions": {
-        "tier1_entity": ["attributes"]
-      }
+    "key": {
+      "type": "string",
+      "required": true,
+      "description": "Text-based lookup key (matches chimera_worlds.key, unique)"
     },
-
-    "rs_time_simple": {
-      "id": "rs_time_simple",
-      "name": "Day/Night Cycle",
-      "ui_category": "foundation",
-      "exclusion_group": "time_engine",
-      "provides_tags": ["mechanics_time"],
-      "state_contributions": {
-        "tier1_global": ["time"] 
-      }
+    "version": {
+      "type": "integer",
+      "required": true,
+      "default": 1,
+      "description": "Schema version"
     },
-
-    "__comment_vitals": "=== STEP 2: VITALS & ATTRIBUTES (EXPANSIONS) ===",
-
-    "rs_attributes_classic": {
-      "id": "rs_attributes_classic",
-      "name": "Classic 6 Attributes",
-      "ui_category": "expansion",
-      "dependencies": [], 
-      "exclusion_group": "attribute_system",
-      "state_contributions": {
-        "tier1_entity": {
-          "attributes": { "str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10 }
-        }
-      }
+    "name": {
+      "type": "string",
+      "required": true,
+      "minLength": 1,
+      "description": "World name (also stored in SQL column for indexing)"
     },
-
-    "rs_health_simple": {
-      "id": "rs_health_simple",
-      "name": "Standard HP",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "exclusion_group": "health_system",
-      "state_contributions": {
-        "tier1_entity": { "health": { "current": 100, "max": 100 } }
-      },
-      "actions": {
-        "take_damage": { "logic": "health.current -= amount" },
-        "heal": { "logic": "health.current += amount" }
-      }
+    "slug": {
+      "type": "string",
+      "required": true,
+      "description": "URL-friendly identifier (also stored in SQL column)"
     },
-
-    "rs_health_locational": {
-      "id": "rs_health_locational",
-      "name": "Complex Limb Health",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "exclusion_group": "health_system",
-      "state_contributions": {
-        "tier1_entity": {
-          "limbs": { "head": 20, "torso": 50, "arms": 30, "legs": 30 }
-        }
-      }
+    "summary": {
+      "type": "string",
+      "required": false,
+      "description": "Short summary/description"
     },
-
-    "rs_stamina_simple": {
-      "id": "rs_stamina_simple",
-      "name": "Action Stamina",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "exclusion_group": "stamina_system",
-      "state_contributions": {
-        "tier1_entity": { "stamina": { "current": 50, "max": 50 } }
-      }
+    "description": {
+      "type": "string",
+      "required": false,
+      "description": "Full description (maps to description_long in some contexts)"
     },
-
-    "rs_mana_points": {
-      "id": "rs_mana_points",
-      "name": "Mana Pool",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "exclusion_group": "mana_system",
-      "state_contributions": {
-        "tier1_entity": { "mana": { "current": 20, "max": 20 } }
-      },
-      "ai_instructions": {
-        "mas2": "Describe magical exhaustion when mana is low."
-      }
+    "images": {
+      "type": "array",
+      "items": {"$ref": "#/ChimeraAssetRef"},
+      "default": [],
+      "description": "Array of image references for the world"
     },
-
-    "__comment_survival": "=== STEP 3: SURVIVAL & ENVIRONMENT (EXPANSIONS) ===",
-
-    "rs_survival_basic": {
-      "id": "rs_survival_basic",
-      "name": "Hunger & Thirst",
-      "ui_category": "expansion",
-      "dependencies": ["rs_time_simple"],
-      "description": "Requires Time Engine.",
-      "state_contributions": {
-        "tier1_entity": { "hunger": 0, "thirst": 0 }
-      },
-      "logic": {
-        "on_time_pass": { "action": "increase_needs", "params": { "rate": 5 } }
-      }
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "Categorization tags (also stored in SQL column for GIN indexing)"
     },
-
-    "rs_weather_basic": {
-      "id": "rs_weather_basic",
-      "name": "Dynamic Weather",
-      "ui_category": "expansion",
-      "dependencies": ["rs_time_simple"],
-      "state_contributions": {
-        "tier1_global": { "weather": "clear" }
-      }
+    "visibility": {
+      "type": "string",
+      "enum": ["private", "pending_approval", "public"],
+      "required": true,
+      "default": "private",
+      "description": "Visibility level (also stored in SQL column)"
     },
-
-    "__comment_items": "=== STEP 4: INVENTORY & GEAR (EXPANSIONS) ===",
-
-    "rs_inventory_slots": {
-      "id": "rs_inventory_slots",
-      "name": "Slot-Based Inventory",
-      "ui_category": "expansion",
-      "exclusion_group": "inventory_system",
-      "state_contributions": {
-        "tier1_entity": { "inventory": { "capacity": 20, "items": [] } }
-      }
+    "character_schema_extensions": {
+      "type": "object",
+      "required": true,
+      "default": {},
+      "description": "Character schema extensions specific to this world. Defines world-specific fields (e.g., 'essence' stats, 'faction' field). Stored separately in chimera_worlds.character_schema_contributions (JSONB) for performance."
     },
-
-    "rs_equipment_paperdoll": {
-      "id": "rs_equipment_paperdoll",
-      "name": "Standard Equipment",
-      "ui_category": "expansion",
-      "dependencies": ["rs_inventory_slots"],
-      "state_contributions": {
-        "tier1_entity": {
-          "equipment": { "head": null, "chest": null, "hands": null, "weapon": null }
-        }
-      }
+    "lore_hooks": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "Keywords/phrases that trigger lore fragments (for RAG context)"
     },
-
-    "__comment_meta": "=== STEP 5: META & WORLD (EXPANSIONS) ===",
-
-    "rs_progression_xp": {
-      "id": "rs_progression_xp",
-      "name": "XP & Leveling",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "state_contributions": {
-        "tier1_entity": { "xp": 0, "level": 1 }
-      }
+    "lore_fragments": {
+      "type": "array",
+      "items": {"type": "string", "format": "uuid"},
+      "default": [],
+      "description": "Array of lore fragment IDs associated with this world"
     },
-
-    "rs_factions_dynamic": {
-      "id": "rs_factions_dynamic",
-      "name": "Faction Reputation",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "state_contributions": {
-        "tier1_global": { "factions": {} }
-      }
-    },
-
-    "rs_quests_linear": {
-      "id": "rs_quests_linear",
-      "name": "Quest Tracker",
-      "ui_category": "expansion",
-      "dependencies": [],
-      "state_contributions": {
-        "tier1_global": { "quest_log": { "active": [], "completed": [] } }
-      }
-    },
-
-    "__comment_flavor": "=== STEP 6: FLAVOR (THEMES) ===",
-
-    "rs_theme_gothic": {
-      "id": "rs_theme_gothic",
-      "name": "Gothic Horror Theme",
-      "ui_category": "flavor",
-      "dependencies": [],
-      "ai_instructions": {
-        "mas2": "Use a lexicon of decay, shadows, and psychological tension."
-      }
-    },
-
-    "rs_theme_steampunk": {
-      "id": "rs_theme_steampunk",
-      "name": "Steampunk Aesthetics",
-      "ui_category": "flavor",
-      "dependencies": [],
-      "ai_instructions": {
-        "mas2": "Describe technology with brass, steam, and gears."
+    "meta": {
+      "type": "object",
+      "required": false,
+      "properties": {
+        "author": {"type": "string"},
+        "rating": {"type": "string"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"}
       }
     }
   },
 
-  "2_COMPILER_ARTIFACTS": {
-    "compiled_story_example": {
-      "description": "Example of a fully compiled story using the above rulesets.",
-      "meta": {
-        "active_rulesets": ["rs_d100_core", "rs_time_simple", "rs_health_simple", "rs_survival_basic", "rs_theme_gothic"],
-        "tags": ["mechanics_d100", "mechanics_time", "theme_horror"]
+  "RulesetDefinition": {
+    "__description": "Canonical schema for ruleset definitions. Stored in chimera_ruleset_templates.definition (JSONB).",
+    "__stored_in": "chimera_ruleset_templates.definition (JSONB)",
+    "id": {
+      "type": "string",
+      "required": true,
+      "description": "Unique identifier (e.g., 'rs_d20_core')"
+    },
+    "key": {
+      "type": "string",
+      "required": true,
+      "description": "Text-based lookup key (matches chimera_ruleset_templates.key, unique)"
+    },
+    "name": {
+      "type": "string",
+      "required": true,
+      "minLength": 1,
+      "description": "Human-readable name"
+    },
+    "description_short": {
+      "type": "string",
+      "maxLength": 255,
+      "required": false,
+      "nullable": true,
+      "description": "Short description (shown in lists)"
+    },
+    "description_long": {
+      "type": "string",
+      "maxLength": 2000,
+      "required": false,
+      "nullable": true,
+      "description": "Long description (shown in detail views)"
+    },
+    "ui_category": {
+      "type": "string",
+      "enum": ["foundation", "expansion", "flavor"],
+      "required": true,
+      "description": "UI category classification (also stored in SQL column)"
+    },
+    "exclusion_group": {
+      "type": "string",
+      "required": false,
+      "nullable": true,
+      "description": "Exclusion group identifier - rulesets in same group are mutually exclusive (also stored in SQL column)"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "Array of ruleset IDs that this ruleset depends on (also stored in SQL column as JSONB array)"
+    },
+    "provides_tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "Array of tags that this ruleset provides"
+    },
+    "icon_url": {
+      "type": "string",
+      "format": "uri",
+      "required": false,
+      "description": "Icon image URL (ChimeraAssetRef)"
+    },
+    "banner_url": {
+      "type": "string",
+      "format": "uri",
+      "required": false,
+      "description": "Banner image URL (ChimeraAssetRef)"
+    },
+      "state_contributions": {
+      "type": "object",
+      "required": true,
+      "default": {},
+      "description": "Defines what state fields this ruleset contributes. Critical for Compiler to merge state schemas.",
+      "properties": {
+        "tier1_entity": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Tier1 (mechanical) entity-level keys (e.g., ['stats.hp', 'stats.ac'])"
+        },
+        "tier1_global": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Tier1 (mechanical) global-level keys (e.g., ['time.ticks'])"
+        },
+        "tier0_narrative": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Tier0 (narrative) keys (e.g., ['memory.events', 'relationships'])"
+        }
+      }
+    },
+    "actions": {
+      "type": "object",
+      "required": true,
+      "default": {},
+      "description": "Map of action slugs to action definitions",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["mechanical", "narrative"],
+            "description": "Action type"
+          },
+          "inputs": {
+            "type": "object",
+            "description": "Required input parameters"
+          },
+          "logic": {
+            "type": "object",
+            "description": "Action logic (dice expressions, thresholds, etc.)"
+          },
+          "effects": {
+            "type": "object",
+            "description": "Effects on success/failure"
+          }
+        }
+      }
+    },
+    "ai_instructions": {
+      "type": "object",
+      "required": true,
+      "default": {},
+      "properties": {
+        "mas1_hints": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Hints for MAS1 (action interpreter)"
+        },
+        "mas2_style": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Style guidelines for MAS2 (narrator)"
+        }
+      }
+    },
+    "character_schema_extensions": {
+      "type": "object",
+      "required": false,
+      "description": "Character schema extensions specific to this ruleset (e.g., default mana pool, health system)"
+    }
+  },
+
+  "EntityTemplate": {
+    "__description": "Template for creating game entities (NPCs, items, locations, factions). Stored in chimera_entities.raw_data (JSONB).",
+    "__stored_in": "chimera_entities.raw_data (JSONB)",
+    "__note": "The 'kind' and 'key' fields are stored in SQL columns for indexing. The full entity data is in raw_data JSONB.",
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "required": true,
+      "description": "Unique identifier (matches chimera_entities.id)"
+    },
+    "key": {
+      "type": "string",
+      "required": true,
+      "description": "Text-based lookup key (matches chimera_entities.key, unique)"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["npc", "item", "location", "faction", "creature"],
+      "required": true,
+      "description": "Kind of entity (also stored in SQL column)"
+    },
+    "raw_data": {
+      "type": "object",
+      "required": true,
+      "description": "Full entity data. Will be filtered by Compiler based on allowlists.",
+      "properties": {
+        "identity": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "species": {"type": "string"}
+          }
+        },
+        "stats": {
+          "type": "object",
+          "description": "Mechanical stats (will be routed to Tier1 if in allowlist)"
+        },
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Entity tags"
+        },
+        "abilities": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "Entity abilities"
+        },
+        "appearance": {
+          "type": "object",
+          "description": "Visual description (will be routed to Tier0 if in allowlist)"
+        },
+        "relationships": {
+          "type": "object",
+          "description": "Relationship data (will be routed to Tier0 if in allowlist)"
+        }
+      }
+    }
+  },
+
+  "LoreFragment": {
+    "__description": "A piece of narrative knowledge or story content. Stored in chimera_lore.fragment (JSONB). The embedding vector is stored separately in chimera_lore.embedding (vector(1536)).",
+    "__stored_in": "chimera_lore.fragment (JSONB)",
+    "__note": "The embedding vector is stored in chimera_lore.embedding column (vector(1536)) for pgvector similarity search. It is NOT stored in the JSONB fragment.",
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "required": true,
+      "description": "Unique identifier (matches chimera_lore.id)"
+    },
+    "title": {
+      "type": "string",
+      "required": true,
+      "description": "Display title for the lore fragment"
+    },
+    "content": {
+      "type": "string",
+      "required": true,
+      "minLength": 1,
+      "description": "The actual lore content text that will be vectorized for RAG search"
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "Tags for categorizing and searching the lore fragment"
+    },
+    "triggers": {
+      "type": "object",
+      "required": false,
+      "properties": {
+        "when_action": {"type": "string"},
+        "where": {"type": "string"},
+        "entity_id": {"type": "string", "format": "uuid"}
       },
-      "master_schema": {
-        "tier1_allowlist": ["skills", "time", "health", "hunger", "thirst"],
+      "description": "Optional triggers for when this lore should be considered"
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "description": "Relevance weight for RAG retrieval (0.0 to 1.0)"
+    },
+    "__embedding_note": "The embedding vector (1536 dimensions) is generated from 'content' text and stored in chimera_lore.embedding column (vector type) for pgvector similarity search. It is NOT part of this JSONB structure."
+  },
+
+  "CompiledStory": {
+    "__description": "The output of the compiler - a fully resolved and executable Story Dimension. Stored in compiled_stories.compiled (JSONB).",
+    "__stored_in": "compiled_stories.compiled (JSONB)",
+    "meta": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "story_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier for this compiled story"
+        },
+        "story_key": {
+          "type": "string",
+          "description": "Text-based lookup key (matches compiled_stories.story_key)"
+        },
+        "world": {
+          "type": "string",
+          "description": "World key or ID"
+        },
+        "version": {
+          "type": "integer",
+          "default": 1
+        },
+        "active_rulesets": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Array of ruleset IDs used in compilation"
+        },
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Aggregated tags from rulesets"
+        }
+      }
+    },
+    "master_schema": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "tier1_allowlist": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Tier1 (mechanical) field allowlist - strict state fields"
+        },
+        "tier0_allowlist": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Tier0 (narrative) field allowlist - flexible state fields"
+        },
         "actions_map": {
-          "take_damage": "rs_health_simple",
-          "eat": "rs_survival_basic"
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "kind": {"type": "string", "enum": ["mechanical", "narrative"]},
+              "inputs": {"type": "object"},
+              "logic": {"type": "object"},
+              "effects": {"type": "object"}
+            }
+          },
+          "description": "Map of action slugs to their definitions (merged from all rulesets)"
+        },
+        "prompt_instructions": {
+          "type": "object",
+          "properties": {
+            "mas1_hints": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Hints for MAS1 (aggregated from rulesets)"
+            },
+            "mas2_style": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Style guidelines for MAS2 (aggregated from rulesets)"
+            }
+          }
         }
       }
+    },
+    "narrative_context_index": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fragment_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Reference to chimera_lore.id"
+          },
+          "tags": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "relevance": {
+            "type": "number",
+            "description": "Optional relevance score"
+          }
+        }
+      },
+      "default": [],
+      "description": "References to lore fragments for RAG retrieval. The actual embeddings are queried from chimera_lore.embedding at runtime."
+    },
+    "initial_state": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "tier1_mechanical": {
+          "type": "object",
+          "properties": {
+            "global": {"type": "object"},
+            "entities": {"type": "object"}
+          },
+          "description": "Initial Tier1 (mechanical) state"
+        },
+        "tier0_narrative": {
+          "type": "object",
+          "properties": {
+            "memory_stream": {
+              "type": "array",
+              "items": {"type": "object"}
+            },
+            "entities": {"type": "object"}
+          },
+          "description": "Initial Tier0 (narrative) state"
+        }
+      }
+    }
+  },
+
+  "GameState": {
+    "__description": "The complete state of a game session. Stored in chimera_game_states.state (JSONB).",
+    "__stored_in": "chimera_game_states.state (JSONB)",
+    "tier1_mechanical": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "global": {
+          "type": "object",
+          "description": "Global mechanical state (time, weather, etc.)"
+        },
+        "entities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "stats": {"type": "object"},
+              "inventory": {"type": "array"},
+              "effects": {"type": "array"}
+            }
+          },
+          "description": "Entity-level mechanical state"
+        }
+      }
+    },
+    "tier0_narrative": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "memory_stream": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ts": {"type": "number"},
+              "event": {"type": "string"},
+              "where": {"type": "string"},
+              "detail": {"type": "object"}
+            }
+          },
+          "description": "Narrative memory stream"
+        },
+        "entities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "relationships": {"type": "object"},
+              "descriptors": {"type": "object"}
+            }
+          },
+          "description": "Entity-level narrative state"
+        }
+      }
+    }
+  },
+
+  "Mas1ResponseDto": {
+    "__description": "Response from MAS1 (Interpreter) after parsing player input",
+    "__stored_in": "Runtime DTO (not persisted)",
+    "resolved_query": {
+      "type": "string",
+      "description": "Normalized/interpreted version of user input"
+    },
+    "sentiment": {
+      "type": "object",
+      "properties": {
+        "tone": {"type": "string"},
+        "intensity": {"type": "number", "minimum": 0, "maximum": 10}
+      }
+    },
+    "action_dto": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string"},
+        "target": {"type": "string", "nullable": true},
+        "args": {"type": "object"}
+      }
+    }
+  },
+
+  "EngineResultDto": {
+    "__description": "Result from the Engine (Deterministic Resolver) after processing an action",
+    "__stored_in": "Runtime DTO (not persisted)",
+    "success": {
+      "type": "boolean",
+      "required": true
+    },
+    "numeric_deltas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "op": {"type": "string", "enum": ["+", "-", "="]},
+          "value": {"type": ["number", "string"]}
+        }
+      },
+      "default": []
+    },
+    "outcome_summary": {
+      "type": "string",
+      "required": true
+    }
+  },
+
+  "Mas2ResponseDto": {
+    "__description": "Response from MAS2 (Narrator) after generating narrative",
+    "__stored_in": "Runtime DTO (not persisted)",
+    "ripple_narrative": {
+      "type": "string",
+      "required": true,
+      "description": "The narrative text describing what happened"
+    },
+    "mutations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "op": {"type": "string", "enum": ["set", "push", "merge"]},
+          "value": {"type": ["object", "array", "string", "number"]}
+        }
+      },
+      "default": [],
+      "description": "Tier0 mutations to apply to game state"
     }
   }
 }

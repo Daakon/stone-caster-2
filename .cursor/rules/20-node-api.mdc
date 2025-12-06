@@ -9,9 +9,10 @@ alwaysApply: false
 
 - Validate all request bodies/params with Zod; return `{ ok, data?, error? }`.
 - Enforce auth on protected routes; scope queries by `userId`.
-- World identity: resolve code↔uuid; reject mismatches (character.world_id !== world_id).
-- Never nest character data inside API resources (saves may snapshot for gameplay continuity).
+- **World identity** uses **Hybrid Schema** (SQL columns `slug`/`key` for lookup + JSONB `definition` for content). Use SQL columns for filtering, JSONB for full data.
+- Never nest character data inside API resources (game states may snapshot `GameState` for gameplay continuity).
+- **Architecture:** Must follow **Route -> Service -> Repo** pattern. Routes validate with Zod and call Services. Services contain business logic. Repos (`db/repos/`) handle DB interactions. Do not put logic in Routes.
 
-Reference contracts & migration:
-@docs/API_CONTRACT.md
-@docs/MIGRATION_PLAN.md
+Reference architecture:
+@docs/CHIMERA_ARCHITECTURE_SPEC.md
+@docs/PROJECT_CONTEXT_MAP.md

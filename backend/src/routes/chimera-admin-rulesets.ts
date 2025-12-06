@@ -7,8 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { authenticateToken } from '../middleware/auth.js';
-import { requireRole } from '../middleware/rbac.js';
+import { requireAuth, requireRole } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -16,8 +15,9 @@ import { supabaseAdmin } from '../services/supabase.js';
 
 const router = Router();
 
-// Admin-only routes - require publisher role (admin)
-const requireAdmin = requireRole('publisher');
+// Admin-only routes - require admin role
+// Note: requireRole now checks for exact role match, not mapped roles
+const requireAdmin = requireRole(['admin', 'publisher']);
 
 // Schema for UUID ruleset ID
 const RulesetIdParamSchema = z.object({
@@ -66,7 +66,6 @@ function generateId(): string {
  */
 router.get(
   '/',
-  authenticateToken,
   requireAdmin,
   async (req: Request, res: Response) => {
     try {
@@ -132,7 +131,6 @@ router.get(
  */
 router.get(
   '/exclusion-groups',
-  authenticateToken,
   requireAdmin,
   async (req: Request, res: Response) => {
     try {
@@ -157,7 +155,6 @@ router.get(
  */
 router.get(
   '/:id',
-  authenticateToken,
   requireAdmin,
   async (req: Request, res: Response) => {
     try {
@@ -248,7 +245,6 @@ router.get(
  */
 router.post(
   '/',
-  authenticateToken,
   requireAdmin,
   validateRequest(CreateRulesetTemplateSchema),
   async (req: Request, res: Response) => {
@@ -396,7 +392,6 @@ router.post(
  */
 router.put(
   '/:id',
-  authenticateToken,
   requireAdmin,
   validateRequest(RulesetIdParamSchema, 'params'),
   validateRequest(UpdateRulesetTemplateSchema),
@@ -592,7 +587,6 @@ router.put(
  */
 router.delete(
   '/:id',
-  authenticateToken,
   requireAdmin,
   validateRequest(RulesetIdParamSchema, 'params'),
   async (req: Request, res: Response) => {

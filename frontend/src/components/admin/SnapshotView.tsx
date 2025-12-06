@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Copy, Check, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { CollapsibleSection } from '@/components/admin/CollapsibleSection';
+import { CollapsibleSection } from '@/components/common/CollapsibleSection';
 
 interface SnapshotViewProps {
   snapshotId: string;

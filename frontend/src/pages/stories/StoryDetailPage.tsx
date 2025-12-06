@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { WorldRuleMeters } from '@/components/gameplay/WorldRuleMeters';
-import { StoneCost } from '@/components/gameplay/StoneCost';
+// TODO: Refactor for Chimera V3 - StoneCost removed (legacy stone system)
+// import { StoneCost } from '@/components/gameplay/StoneCost';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
@@ -236,7 +237,8 @@ export default function StoryDetailPage() {
                 <div className="flex items-center gap-2">
                   <Gem className="h-5 w-5 text-primary" />
                   <span className="font-medium">
-                    <StoneCost cost={5} />
+                    {/* TODO: Refactor for Chimera V3 - StoneCost removed (legacy stone system) */}
+                    5 stones
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

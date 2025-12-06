@@ -6,7 +6,7 @@
 
 import { supabaseAdmin } from './supabase.js';
 import { requestDirectUpload, getImageInfo, CloudflareImagesError } from '../lib/cloudflareImages.js';
-import { isAdmin } from '../middleware/auth-admin.js';
+import { isAdmin } from '../middleware/auth.unified.js';
 import type { Request } from 'express';
 import type { MediaKind, MediaAssetDTO } from '@shared/types/media.js';
 

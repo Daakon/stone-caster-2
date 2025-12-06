@@ -75,16 +75,16 @@ export async function buildTurnPacketV3FromV3(
   // Load extras from database
   const { supabaseAdmin } = await import('../services/supabase.js');
   
-  // Load ruleset extras
+  // Load ruleset extras (using Chimera tables)
   let rulesetExtras: Record<string, unknown> | null = null;
   try {
     const { data: rulesetData } = await supabaseAdmin
-      .from('rulesets')
-      .select('extras')
+      .from('chimera_ruleset_templates')
+      .select('definition')
       .eq('id', v3Output.meta.rulesetSlug)
       .single();
-    if (rulesetData?.extras) {
-      rulesetExtras = rulesetData.extras as Record<string, unknown>;
+    if (rulesetData?.definition && typeof rulesetData.definition === 'object' && 'extras' in rulesetData.definition) {
+      rulesetExtras = (rulesetData.definition as any).extras as Record<string, unknown>;
     }
   } catch (err) {
     // Silently fail - extras are optional
@@ -98,28 +98,18 @@ export async function buildTurnPacketV3FromV3(
     };
   }
 
-  // Load world extras (handle UUID mapping)
+  // Load world extras (using Chimera tables)
   let worldExtras: Record<string, unknown> | null = null;
   try {
-    let worldId = v3Output.meta.worldId;
-    // Check if worldId is UUID and needs mapping
-    if (worldId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-      const { data: mapping } = await supabaseAdmin
-        .from('world_id_mapping')
-        .select('text_id')
-        .eq('uuid_id', worldId)
-        .single();
-      if (mapping) {
-        worldId = mapping.text_id;
-      }
-    }
+    const worldId = v3Output.meta.worldId;
+    // Query chimera_worlds directly (no UUID mapping needed in Chimera)
     const { data: worldData } = await supabaseAdmin
-      .from('worlds')
-      .select('extras')
+      .from('chimera_worlds')
+      .select('definition')
       .eq('id', worldId)
       .single();
-    if (worldData?.extras) {
-      worldExtras = worldData.extras as Record<string, unknown>;
+    if (worldData?.definition && typeof worldData.definition === 'object' && 'extras' in worldData.definition) {
+      worldExtras = (worldData.definition as any).extras as Record<string, unknown>;
     }
   } catch (err) {
     // Silently fail - extras are optional
@@ -218,8 +208,10 @@ export async function buildTurnPacketV3FromV3(
     try {
       const Mustache = (await import('mustache')).default;
       
-      // Load attached modules with params
-      const { data: storyModules, error: modulesError } = await supabaseAdmin
+      // LEGACY: story_modules table removed - modules functionality disabled
+      // Load attached modules with params (legacy - table may not exist)
+      let storyModules: any[] = [];
+      const { data: modulesData, error: modulesError } = await supabaseAdmin
         .from('story_modules')
         .select(`
           module_id,
@@ -227,10 +219,23 @@ export async function buildTurnPacketV3FromV3(
           modules (*)
         `)
         .eq('story_id', v3Output.meta.entryPointId);
+      
+      // Handle missing table gracefully
+      if (modulesError) {
+        if (modulesError.code === 'PGRST205' || modulesError.message?.includes('Could not find the table')) {
+          console.log('[turn-packet-v3] story_modules table not found (legacy table removed) - skipping modules');
+          storyModules = [];
+        } else {
+          throw modulesError;
+        }
+      } else {
+        storyModules = modulesData || [];
+      }
 
-      if (!modulesError && storyModules && storyModules.length > 0) {
-        // Load module params service for getting merged params
-        const { getModuleParams, getModuleParamsDef } = await import('../services/module-params.service.js');
+      if (storyModules.length > 0) {
+        // LEGACY - module-params.service.ts removed in Phase 1 cleanup
+        // Module params functionality disabled
+        // const { getModuleParams, getModuleParamsDef } = await import('../services/module-params.service.js');
         
         for (const row of storyModules) {
           const module = (row as any).modules;
@@ -245,8 +250,9 @@ export async function buildTurnPacketV3FromV3(
             storyParams = overrides.moduleParamsOverrides[module.id];
           }
 
-          // Get params definition for merging
-          const paramsDef = await getModuleParamsDef(module.id);
+          // LEGACY - Module params definition merging disabled
+          // const paramsDef = await getModuleParamsDef(module.id);
+          const paramsDef = null;
           
           // Merge params (defaults + story/override)
           let mergedParams: Record<string, unknown> | null = null;
@@ -265,12 +271,14 @@ export async function buildTurnPacketV3FromV3(
               ...storyParams,
             };
           } else {
+            // LEGACY - Module params loading disabled
             // No story params: use defaults only (or load from DB for normal flow)
-            if (v3Output.meta.entryPointId && v3Output.meta.entryPointId !== 'preview-entry') {
-              mergedParams = await getModuleParams(v3Output.meta.entryPointId, module.id);
-            } else {
-              mergedParams = paramsDef?.defaults || null;
-            }
+            // if (v3Output.meta.entryPointId && v3Output.meta.entryPointId !== 'preview-entry') {
+            //   mergedParams = await getModuleParams(v3Output.meta.entryPointId, module.id);
+            // } else {
+            //   mergedParams = paramsDef?.defaults || null;
+            // }
+            mergedParams = paramsDef?.defaults || null;
           }
 
           // Render module slots using Mustache

@@ -7,12 +7,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listWorlds, listNPCs, listMyNPCs, listRulesets, listStories, getStory, getWorld, getNPC, getRuleset, listCharacters, createCharacter, createSession, createGuestToken, getSession, getSessionMessages, findExistingSession } from '@/lib/api';
 import type { ID, StoryKind } from '@/types/domain';
 
-export const useWorldsQuery = (q?: string) =>
+export const useWorldsQuery = (q?: string, options?: { enabled?: boolean }) =>
   useQuery({ 
     queryKey: ['worlds', { q }], 
     queryFn: () => listWorlds({ q }),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,   // 10 minutes (formerly cacheTime)
+    enabled: options?.enabled !== false, // Default to true, allow disabling
   });
 
 export const useNPCsQuery = (p: { q?: string; world?: ID }) =>

@@ -6,8 +6,18 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { stableStringify } from '../utils/awf-bundle-helpers.js';
-import { runAwfTurn } from '../orchestrators/awf-turn-orchestrator.js';
-import { createModelProvider } from '../model/awf-model-provider.js';
+// LEGACY - awf-turn-orchestrator.js and awf-model-provider.js removed in Phase 1 cleanup
+// import { runAwfTurn } from '../orchestrators/awf-turn-orchestrator.js';
+// import { createModelProvider } from '../model/awf-model-provider.js';
+
+// Stubs for legacy functions
+async function runAwfTurn(_params: any): Promise<any> {
+  throw new Error('AWF orchestrator removed - goldens runner needs migration to Chimera V3');
+}
+
+function createModelProvider(_config: any): any {
+  throw new Error('AWF model provider removed - goldens runner needs migration to Chimera V3');
+}
 
 interface GoldenScenario {
   name: string;

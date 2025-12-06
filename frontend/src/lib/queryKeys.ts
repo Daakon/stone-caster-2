@@ -5,6 +5,8 @@
  */
 
 export const queryKeys = {
+  session: () => ['session'] as const,
+  
   profile: () => ['profile'] as const,
   
   adminUserRoles: (userId: string | null) => ['admin-user-roles', userId] as const,

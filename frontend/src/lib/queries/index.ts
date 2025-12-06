@@ -6,6 +6,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
+import { useMemo } from 'react';
 import { z } from 'zod';
 import { ProfileService } from '@/services/profile';
 import { publicAccessRequestsService } from '@/services/accessRequests';
@@ -13,6 +14,7 @@ import { getWallet, getMyAdventures, getGame, getLatestTurn } from '@/lib/api';
 import { listWorlds, getWorld, listStories } from '@/lib/api';
 import { apiClient } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/auth';
+import { useAuth } from '@/hooks/useAuth';
 import type { ProfileDTO } from '@shared/types/dto';
 import { GameListDTOSchema } from '@shared/types/dto';
 import type { AccessRequest } from '@shared/types/accessRequests';
@@ -112,31 +114,39 @@ export function useAdminRoles(userId: string | null) {
   const queryClient = useQueryClient();
   const queryKey = queryKeys.adminUserRoles(userId);
   
-  // Check if data already exists in cache - if so, don't fetch
+  // Check if data already exists in cache - if so, use it
   const cachedData = queryClient.getQueryData<string[]>(queryKey);
-  const hasCachedData = cachedData !== undefined;
   
-  return useQuery({
-    queryKey,
-    queryFn: async () => {
-      if (!userId) return [];
-      const result = await apiClient.get<string[]>('/api/admin/user/roles');
-      if (!result.ok) {
-        throw new Error(result.error.message || 'Failed to fetch roles');
-      }
-      return result.data;
-    },
-    // Only fetch if userId exists AND we don't have cached data
-    // This prevents duplicate fetches when data is already in cache
-    enabled: !!userId && !hasCachedData,
-    staleTime: 15 * 60 * 1000, // 15 minutes
-    gcTime: 15 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    // Use cached data if available
-    initialData: cachedData,
-  });
+  // Use the singleton useAuth hook - derives roles from session cache
+  const { data: session, isLoading, error } = useAuth();
+  
+  // Derive roles from session data
+  const roles = useMemo<string[]>(() => {
+    // If we have cached roles, use them
+    if (cachedData) return cachedData;
+    
+    if (!session?.user?.role) return [];
+    
+    const role = session.user.role;
+    // Map role to array format expected by admin components
+    if (role === 'admin') return ['admin'];
+    if (role === 'moderator') return ['moderator'];
+    if (role === 'creator' || role === 'early_access' || role === 'member') return ['creator'];
+    return [];
+  }, [session?.user?.role, cachedData]);
+  
+  // Cache the derived roles in React Query for other components
+  if (userId && roles.length > 0 && !cachedData) {
+    queryClient.setQueryData(queryKey, roles, {
+      updatedAt: Date.now(),
+    });
+  }
+  
+  return {
+    data: roles,
+    isLoading,
+    error,
+  };
 }
 
 // ============================================================================

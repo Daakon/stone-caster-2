@@ -442,13 +442,23 @@ export async function getWorldById(id: string): Promise<{ ok: true; data: any } 
 }
 
 // Wallet/Stones API
+// LEGACY: Wallet endpoint removed - return mock empty wallet
 export async function getWallet(): Promise<{ ok: true; data: any } | { ok: false; error: AppError }> {
-  return apiGet('/api/stones/wallet');
+  // Return mock empty wallet to prevent 404 errors
+  return {
+    ok: true,
+    data: {
+      id: 'wallet-mock',
+      balance: 0,
+      regenRate: 0,
+      nextRegen: null,
+      history: [],
+      lastTransaction: null,
+    },
+  };
 }
 
-export async function getStonesHistory(): Promise<{ ok: true; data: any[] } | { ok: false; error: AppError }> {
-  return apiGet('/api/stones/history');
-}
+// PHASE 2: Removed getStonesHistory() - endpoint /api/stones/history does not exist
 
 // Phase 6.1: Defensive adapter for turns API normalization
 // Handles both response shapes:

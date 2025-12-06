@@ -15,7 +15,7 @@ import {
   type ApproveRequestInput,
 } from '../validation/accessRequests.schema.js';
 import { supabaseAdmin } from '../services/supabase.js';
-import { adminGuard } from '../middleware/auth-admin-guard.js';
+import { requireAdmin } from '../middleware/auth.unified.js';
 import { emailService } from '../services/email.js';
 import { getTraceId } from '../utils/response.js';
 
@@ -25,7 +25,7 @@ const router = Router();
  * GET /api/admin/access-requests
  * List access requests with filtering and pagination
  */
-router.get('/', adminGuard, async (req: Request, res: Response) => {
+router.get('/', requireAdmin, async (req: Request, res: Response) => {
   try {
     const validation = adminListSchema.safeParse(req.query);
     if (!validation.success) {
@@ -98,7 +98,7 @@ router.get('/', adminGuard, async (req: Request, res: Response) => {
  * POST /api/admin/access-requests/:id/approve
  * Approve an access request
  */
-router.post('/:id/approve', adminGuard, async (req: Request, res: Response) => {
+router.post('/:id/approve', requireAdmin, async (req: Request, res: Response) => {
   try {
     const requestId = req.params.id;
     const adminUserId = req.ctx?.userId;
@@ -232,7 +232,7 @@ router.post('/:id/approve', adminGuard, async (req: Request, res: Response) => {
  * POST /api/admin/access-requests/:id/deny
  * Deny an access request
  */
-router.post('/:id/deny', adminGuard, async (req: Request, res: Response) => {
+router.post('/:id/deny', requireAdmin, async (req: Request, res: Response) => {
   try {
     const requestId = req.params.id;
     const adminUserId = req.ctx?.userId;

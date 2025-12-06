@@ -13,24 +13,27 @@ export interface ChimeraTag {
 
 export interface ChimeraLore {
   id: string;
-  owner_user_id: string;
-  visibility: 'private' | 'pending_approval' | 'public';
-  is_system_asset: boolean;
-  version: number;
-  display_name: string;
-  content_chunk: string;
-  world_id?: string; // Optional for backward compatibility
-  tags?: Array<{ id: string; tag_name: string }>;
+  world_id: string | null; // SQL column for world scoping
+  fragment: Record<string, unknown>; // JSONB containing full lore data
   embedding: number[] | null;
   created_at: string;
   updated_at: string;
+  // Legacy fields (extracted from fragment for backward compatibility)
+  owner_user_id?: string;
+  visibility?: 'private' | 'pending' | 'public';
+  is_system_asset?: boolean;
+  version?: number;
+  display_name?: string;
+  content_chunk?: string;
+  entry_text?: string;
+  tags?: Array<{ id: string; tag_name: string }>;
 }
 
 export interface SelectableLore {
   id: string;
   display_name: string;
   version: number;
-  visibility: 'private' | 'pending_approval' | 'public';
+  visibility: 'private' | 'pending' | 'public';
   tags?: Array<{ id: string; tag_name: string }>;
 }
 
@@ -42,7 +45,7 @@ export interface CreateLoreData {
 }
 
 export interface UpdateLoreData extends Partial<CreateLoreData> {
-  visibility?: 'private' | 'pending_approval' | 'public';
+  visibility?: 'private' | 'pending' | 'public';
 }
 
 export const chimeraLoreService = {

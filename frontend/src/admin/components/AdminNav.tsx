@@ -18,53 +18,32 @@ const NAV_ITEMS = [
     icon: '🏠'
   },
   {
-    label: 'Stories',
-    href: '/admin/entry-points',
-    roles: 'any' as const,
-    icon: '📖'
+    label: 'Official Worlds',
+    href: '/admin/chimera/worlds/list',
+    roles: ['admin'] as const,
+    icon: '🌍'
   },
   {
-    label: 'NPCs',
-    href: '/admin/npcs',
-    roles: 'any' as const,
+    label: 'Official Entities',
+    href: '/admin/chimera/entities/list',
+    roles: ['admin'] as const,
     icon: '👥'
   },
   {
-    label: 'Worlds',
-    href: '/admin/worlds',
-    roles: ['creator', 'moderator', 'admin'] as const,
-    icon: '🌍'
-  },
-    {
-      label: 'Rulesets',
-      href: '/admin/rulesets',
-      roles: ['creator', 'moderator', 'admin'] as const,
-      icon: '📋'
-    },
-    {
-      label: 'Import/Export',
-      href: '/admin/tools/import-export',
-      roles: ['admin'] as const,
-      icon: '📦'
-    },
-  {
-    label: 'Reviews',
-    href: '/admin/reviews',
+    label: 'Ruleset Templates',
+    href: '/admin/chimera/rulesets',
     roles: ['moderator', 'admin'] as const,
-    icon: '✅'
+    icon: '📋'
   },
   {
-    label: 'Reports',
-    href: '/admin/reports',
+    label: 'Tag Management',
+    href: '/admin/chimera/tags',
     roles: ['moderator', 'admin'] as const,
-    icon: '📊'
+    icon: '🏷️'
   },
-  {
-    label: 'Analytics',
-    href: '/admin/analytics',
-    roles: ['moderator', 'admin'] as const,
-    icon: '📈'
-  },
+  // PHASE 1.7: Legacy nav items removed - Stories, NPCs, Worlds, and Rulesets
+  // These routes used legacy tables and have been deleted.
+  // Will be replaced with Chimera V3 routes in Phase 2.
   {
     label: 'Roles',
     href: '/admin/roles',
@@ -159,46 +138,6 @@ export function AdminNav() {
           {item.label}
         </NavLink>
       ))}
-      
-      {/* Chimera Engine (V2) Section */}
-      {enableChimeraUi && (
-        <>
-          <div className="my-4 border-t border-border" />
-          <div className="px-3 py-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Chimera Engine (V2)
-            </h3>
-          </div>
-          <NavLink
-            to="/admin/chimera/rulesets"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )
-            }
-          >
-            <span className="text-lg">📋</span>
-            Ruleset Templates
-          </NavLink>
-          <NavLink
-            to="/admin/chimera/tags"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )
-            }
-          >
-            <span className="text-lg">🏷️</span>
-            Tag Management
-          </NavLink>
-        </>
-      )}
     </nav>
   );
 }

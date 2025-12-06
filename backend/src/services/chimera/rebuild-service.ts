@@ -330,7 +330,7 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
 
   if (entityIds.length > 0) {
     const { data: entityTemplates, error: entitiesError } = await supabaseAdmin
-      .from('chimera_entity_templates')
+      .from('chimera_entities')
       .select('id, base_state_json, display_name, entity_type')
       .in('id', entityIds);
 
@@ -341,17 +341,29 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
     entities = (entityTemplates || []) as EntityTemplate[];
   }
 
-  // Step 11: Fetch linked lore entries
+  // Step 11: Fetch linked lore entries (Hybrid Schema: filter by fragment JSONB)
   const { data: loreEntries, error: loreError } = await supabaseAdmin
-    .from('chimera_lore_entries')
-    .select('id, entry_text, display_name')
-    .eq('story_id', storyId);
-
+    .from('chimera_lore')
+    .select('id, fragment');
+  
   if (loreError) {
     throw new Error(`Failed to fetch lore entries: ${loreError.message}`);
   }
+  
+  // Filter by story_id in application layer
+  const filteredLore = (loreEntries || []).filter((entry: any) => {
+    const fragment = entry.fragment || {};
+    return fragment.story_id === storyId;
+  }).map((entry: any) => {
+    const fragment = entry.fragment || {};
+    return {
+      id: entry.id,
+      entry_text: fragment.entry_text || fragment.entryText || '',
+      display_name: fragment.display_name || fragment.displayName || '',
+    };
+  });
 
-  const lore = (loreEntries || []) as LoreEntry[];
+  const lore = filteredLore as LoreEntry[];
 
   // Step 12: Compile Entities ("Smart Sort")
   const compiledEntities = compileEntities(entities, finalSchema);

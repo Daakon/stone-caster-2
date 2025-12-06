@@ -3,7 +3,8 @@ import { ApiErrorCode, GameDTO, GameListDTO } from '@shared';
 import type { TurnResponse } from '@shared';
 import { ContentService } from './content.service.js';
 import { CharactersService } from './characters.service.js';
-import { WalletService } from './wallet.service.js';
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// import { WalletService } from './wallet.service.js';
 import { LedgerService } from './ledger.service.js';
 import { configService } from './config.service.js';
 import {
@@ -1664,19 +1665,20 @@ export class GamesService {
         return; // Not the first spawn
       }
 
+      // TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
       // Check current wallet balance
-      const wallet = await WalletService.getWallet(ownerId, isGuest);
-      if (wallet.castingStones >= pricingConfig.guestStarterCastingStones) {
-        return; // Already has sufficient stones
-      }
+      // const wallet = await WalletService.getWallet(ownerId, isGuest);
+      // if (wallet.castingStones >= pricingConfig.guestStarterCastingStones) {
+      //   return; // Already has sufficient stones
+      // }
 
       // Grant starter stones
-      const grantAmount = pricingConfig.guestStarterCastingStones - wallet.castingStones;
-      await WalletService.addCastingStones(ownerId, isGuest, grantAmount, 'STARTER', {
-        reason: 'First spawn starter grant',
-        grantAmount,
-        isFirstSpawn: true
-      });
+      // const grantAmount = pricingConfig.guestStarterCastingStones - wallet.castingStones;
+      // await WalletService.addCastingStones(ownerId, isGuest, grantAmount, 'STARTER', {
+      //   reason: 'First spawn starter grant',
+      //   grantAmount,
+      //   isFirstSpawn: true
+      // });
 
       console.log(`Granted ${grantAmount} starter stones to ${isGuest ? 'guest' : 'user'} ${ownerId}`);
     } catch (error) {

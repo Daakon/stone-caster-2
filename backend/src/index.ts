@@ -5,31 +5,13 @@ import swaggerUi from 'swagger-ui-express';
 import { config } from './config/index.js';
 import { swaggerSpec } from './config/swagger.js';
 import type { RequestHandler } from 'express';
-import charactersRouter from './routes/characters.js';
-import gamesRouter from './routes/games.js';
-import worldsRouter from './routes/worlds.js';
-import storyRouter from './routes/story.js';
-import diceRouter from './routes/dice.js';
-import configRouter from './routes/config.js';
 import meRouter from './routes/me.js';
 import profileRouter from './routes/profile.js';
-import adventuresRouter from './routes/adventures.js';
 import catalogRouter from './routes/catalog.js';
 import catalogNpcsRouter from './routes/catalogNpcs.js';
-import npcsRouter from './routes/npcs.js';
-import searchRouter from './routes/search.js';
-import stonesRouter from './routes/stones.js';
-import subscriptionRouter from './routes/subscription.js';
-import telemetryRouter from './routes/telemetry.js';
-import webhooksRouter from './routes/webhooks.js';
-import contentRouter from './routes/content.js';
 import authRouter from './routes/auth.js';
-import premadeCharactersRouter from './routes/premade-characters.js';
-import playersV3Router from './routes/players-v3.js';
-import cookieLinkingRouter from './routes/cookie-linking.js';
 import debugRouter from './routes/debug.js';
-import adminRouter from './routes/admin.js';
-import playerRouter from './routes/player.js';
+import systemRouter from './routes/system.js';
 import { observabilityMiddleware } from './middleware/observability.js';
 import { testTxMiddleware } from './middleware/testTx.js';
 import devDebugRouter from './routes/dev.debug.js';
@@ -40,9 +22,6 @@ import internalFlagsRouter from './routes/internalFlags.js';
 import { openapiRouter } from './routes/openapi.js';
 import { earlyAccessGuard } from './middleware/earlyAccessGuard.js';
 import { initializeActionRegistry } from './actions/boot.js';
-import mediaRouter from './routes/media.js';
-import mediaApprovalsRouter from './routes/media.approvals.js';
-import coverMediaRouter from './routes/coverMedia.js';
 import chimeraRouter from './routes/chimera.js';
 
 const app = express();
@@ -121,36 +100,14 @@ app.get('/health', (req, res) => {
 app.use(earlyAccessGuard);
 
 // API Routes
-app.use('/api/config', configRouter);
 app.use('/api/me', meRouter);
 app.use('/api/profile', profileRouter);
-app.use('/api/characters', charactersRouter);
-app.use('/api/players-v3', playersV3Router);
-app.use('/api/premades', premadeCharactersRouter);
-app.use('/api/games', gamesRouter);
-app.use('/api/worlds', worldsRouter);
 // Catalog routes (includes both legacy and new unified entry-points)
 app.use('/api/catalog', catalogRouter);
 app.use('/api/catalog', catalogNpcsRouter);
-// User NPCs routes (private NPCs, requires auth)
-app.use('/api/npcs', npcsRouter);
-app.use('/api/content', contentRouter);
-app.use('/api/adventures', adventuresRouter);
-app.use('/api/search', searchRouter);
-app.use('/api/media', mediaRouter);
-app.use('/api/media', mediaApprovalsRouter);
-app.use('/api', coverMediaRouter);
-app.use('/api/stones', stonesRouter);
-app.use('/api/subscription', subscriptionRouter);
-app.use('/api/telemetry', telemetryRouter);
-app.use('/api/story', storyRouter);
-app.use('/api/dice', diceRouter);
-app.use('/api/webhooks', webhooksRouter);
-app.use('/api/cookie-linking', cookieLinkingRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/debug', debugRouter);
-app.use('/api/admin', adminRouter);
-app.use('/api/player', playerRouter);
+app.use('/api/system', systemRouter);
 app.use('/api/health', healthRouter);
 app.use('/api/internal', internalFlagsRouter);
 
@@ -160,18 +117,10 @@ import accessRequestsAdminRouter from './routes/accessRequests.admin.js';
 app.use('/api/request-access', accessRequestsPublicRouter);
 app.use('/api/admin/access-requests', accessRequestsAdminRouter);
 
-// Publishing Routes (Phase 0/1)
-import publishingPublicRouter from './routes/publishing.public.js';
-import publishingAdminRouter from './routes/publishing.admin.js';
-import publishingWizardRouter from './routes/publishing.wizard.js';
-import publishingWizardP7Router from './routes/publishingWizard.js';
-app.use('/api/publish', publishingPublicRouter);
-app.use('/api/admin/publishing', publishingAdminRouter);
-app.use('/api/publishing/wizard', publishingWizardRouter);
-app.use('/api/publishing-wizard', publishingWizardP7Router);
-// Phase 8: User authoring routes
-import userAuthoringRouter from './routes/user-authoring.js';
-app.use('/api', userAuthoringRouter);
+// Phase 5.3: Admin routes moved to V2 namespace (mounted in chimera.ts)
+
+// Publishing Routes removed - not in approved functionality
+// Phase 8: User authoring routes removed - replaced by Chimera routes
 
 // V2 API: Project Chimera engine routes
 app.use('/api/v2/chimera', chimeraRouter);

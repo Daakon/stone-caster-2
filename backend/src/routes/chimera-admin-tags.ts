@@ -7,8 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { authenticateToken } from '../middleware/auth.js';
-import { requireRole } from '../middleware/rbac.js';
+import { requireAuth, requireRole } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -17,7 +16,7 @@ import { supabaseAdmin } from '../services/supabase.js';
 const router = Router();
 
 // Admin-only routes - require publisher role (admin)
-const requireAdmin = requireRole('publisher');
+const requireAdmin = requireRole(['admin', 'publisher']);
 
 // Zod schemas for validation
 const UuidParamSchema = z.object({
@@ -40,7 +39,6 @@ const UpdateTagSchema = z.object({
  */
 router.get(
   '/',
-  authenticateToken,
   requireAdmin,
   async (req: Request, res: Response) => {
     try {
@@ -78,7 +76,6 @@ router.get(
  */
 router.post(
   '/',
-  authenticateToken,
   requireAdmin,
   validateRequest(CreateTagSchema),
   async (req: Request, res: Response) => {
@@ -150,7 +147,6 @@ router.post(
  */
 router.put(
   '/:id',
-  authenticateToken,
   requireAdmin,
   validateRequest(UuidParamSchema, 'params'),
   validateRequest(UpdateTagSchema),
@@ -242,7 +238,6 @@ router.put(
  */
 router.delete(
   '/:id',
-  authenticateToken,
   requireAdmin,
   validateRequest(UuidParamSchema, 'params'),
   async (req: Request, res: Response) => {

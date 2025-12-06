@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -16,7 +16,7 @@ import { supabaseAdmin } from '../services/supabase.js';
 const router = Router();
 
 // All routes require authentication
-router.use(authenticateToken);
+router.use(requireAuth);
 
 // Schema for UUID pack ID
 const PackIdParamSchema = z.object({

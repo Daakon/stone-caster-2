@@ -15,7 +15,9 @@ import { apiPost, apiPut, apiGet } from '@/lib/api';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { worldsService, type World } from '@/services/admin.worlds';
+// PHASE 1.7: Legacy service removed - will be replaced with Chimera V3 in Phase 2
+// import { worldsService, type World } from '@/services/admin.worlds';
+type World = any; // Temporary type until Phase 2
 
 // Comprehensive schema for world creation
 const createWorldSchema = z.object({
@@ -140,8 +142,14 @@ export function CreateWorldDialog({ open, onOpenChange, onCreated, worldId }: Cr
   useEffect(() => {
     if (open && worldId && isEditMode) {
       setIsLoading(true);
-      worldsService.getWorld(worldId)
-        .then((world: World) => {
+      // PHASE 1.7: Legacy service removed - this component is disabled
+      // Will be replaced with Chimera V3 implementation in Phase 2
+      Promise.resolve()
+        .then(() => {
+          // Temporary stub - will be replaced in Phase 2
+          const world: World = {} as World;
+          const doc = world.doc || {};
+          
           // Extract basic fields
           form.setValue('name', world.name || '');
           form.setValue('description', world.description || '');
@@ -150,7 +158,6 @@ export function CreateWorldDialog({ open, onOpenChange, onCreated, worldId }: Cr
           form.setValue('slug', world.slug || world.doc?.slug || '');
 
           // Extract doc fields
-          const doc = world.doc || {};
           form.setValue('tagline', doc.tagline || '');
           form.setValue('short_desc', doc.short_desc || '');
           form.setValue('hero_quote', doc.hero_quote || '');

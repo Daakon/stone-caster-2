@@ -7,7 +7,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { authenticateToken } from '../middleware/auth.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.unified.js';
 import { validateRequest } from '../middleware/validation.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
@@ -21,7 +21,7 @@ const EntityIdParamSchema = z.object({
 });
 
 // All routes require authentication
-router.use(authenticateToken);
+router.use(requireAuth);
 
 // Zod schemas for validation
 const EntityTypeSchema = z.enum(['NPC', 'ITEM', 'FACTION', 'LOCATION']);
@@ -34,6 +34,12 @@ const CreateEntitySchema = z.object({
   entity_type: EntityTypeSchema,
   base_state_json: z.record(z.unknown()).default({}),
   tag_names: z.array(z.string()).default([]),
+  images: z.array(z.object({
+    id: z.string().optional(),
+    url: z.string(),
+    role: z.string().optional(),
+    label: z.string().optional(),
+  })).optional().default([]),
 });
 
 const UpdateEntitySchema = z.object({
@@ -44,6 +50,12 @@ const UpdateEntitySchema = z.object({
   base_state_json: z.record(z.unknown()).optional(),
   tag_names: z.array(z.string()).optional(),
   visibility: VisibilitySchema.optional(),
+  images: z.array(z.object({
+    id: z.string().optional(),
+    url: z.string(),
+    role: z.string().optional(),
+    label: z.string().optional(),
+  })).optional(),
 }).transform((data) => {
   // Remove empty string values - convert to undefined so they're omitted
   const cleaned: any = { ...data };
@@ -70,7 +82,10 @@ function normalizeTagName(tagName: string): string {
 
 /**
  * GET /api/v2/chimera/entities/selectable
- * Returns all public/private entities (for pack selection)
+ * listLibrary: Get all entities available to the user (for Casting Circle)
+ * 
+ * Pattern: Shows user's items + system items + other users' public items
+ * Unified query: owner_user_id = userId OR visibility = 'public'
  */
 router.get('/selectable', async (req: Request, res: Response) => {
   try {
@@ -84,12 +99,30 @@ router.get('/selectable', async (req: Request, res: Response) => {
       );
     }
 
-    // Get entities that are either public or owned by the user
+    // listLibrary pattern: User's content OR public content (includes system)
     const { data: entities, error } = await supabaseAdmin
-      .from('chimera_entity_templates')
-      .select('id, display_name, entity_type, version, visibility')
-      .or(`visibility.eq.public,owner_user_id.eq.${userId}`)
-      .order('display_name', { ascending: true });
+      .from('chimera_entities')
+      .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at')
+      .or(`owner_user_id.eq.${userId},visibility.eq.public`)
+      .order('created_at', { ascending: false });
+    
+    // Map to expected format (use SQL visibility column, fallback to raw_data for backward compatibility)
+    const mappedEntities = (entities || []).map((entity: any) => {
+      const rawData = entity.raw_data || {};
+      return {
+        id: entity.id,
+        key: entity.key,
+        kind: entity.kind,
+        owner_user_id: entity.owner_user_id,
+        raw_data: entity.raw_data,
+        display_name: rawData.display_name || rawData.identity?.name || entity.key,
+        entity_type: entity.kind,
+        version: rawData.version || 1,
+        visibility: entity.visibility || rawData.visibility || 'private', // Use SQL column first
+        created_at: entity.created_at,
+        updated_at: entity.updated_at,
+      };
+    }).sort((a: any, b: any) => (a.display_name || '').localeCompare(b.display_name || ''));
 
     if (error) {
       console.error('[Chimera Entities] Error fetching selectable entities:', error);
@@ -129,9 +162,10 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
 
+    // Get entities owned by user (Hybrid Schema: use owner_user_id SQL column)
     const { data: entities, error } = await supabaseAdmin
-      .from('chimera_entity_templates')
-      .select('*')
+      .from('chimera_entities')
+      .select('id, key, kind, owner_user_id, raw_data, created_at, updated_at')
       .eq('owner_user_id', userId)
       .order('created_at', { ascending: false });
 
@@ -141,6 +175,70 @@ router.get('/', async (req: Request, res: Response) => {
         res,
         ApiErrorCode.INTERNAL_ERROR,
         'Failed to fetch entities',
+        req
+      );
+    }
+
+    return sendSuccess(res, entities || [], req);
+  } catch (error) {
+    console.error('[Chimera Entities] Unexpected error:', error);
+    return sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      'Internal server error',
+      req
+    );
+  }
+});
+
+/**
+ * GET /api/v2/chimera/entities/pending
+ * Get all entities pending approval (Admin only)
+ * listPending: Shows content waiting for admin review
+ */
+router.get('/pending', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.ctx?.userId;
+    if (!userId) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        'Authentication required',
+        req
+      );
+    }
+
+    // Check if user is admin (use middleware pattern for consistency)
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
+    
+    if (!isAdmin) {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.FORBIDDEN,
+        'Admin access required',
+        req
+      );
+    }
+
+    // Query pending submissions
+    const { data: entities, error } = await supabaseAdmin
+      .from('chimera_entities')
+      .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at')
+      .eq('visibility', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[Chimera Entities] Error fetching pending entities:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to fetch pending entities',
         req
       );
     }
@@ -174,7 +272,7 @@ router.get('/my-creations', async (req: Request, res: Response) => {
     }
 
     const { data: entities, error } = await supabaseAdmin
-      .from('chimera_entity_templates')
+      .from('chimera_entities')
       .select('*')
       .eq('owner_user_id', userId)
       .order('created_at', { ascending: false });
@@ -239,22 +337,33 @@ router.post(
         );
       }
 
-      // Create the entity - always set visibility to 'private' for new entities
-      // Let the database generate the UUID via gen_random_uuid() default
+      // Create the entity (Hybrid Schema: key/kind SQL columns + raw_data JSONB + owner_user_id)
+      // Generate key from display_name (normalized)
+      const key = entityData.display_name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+      const kind = entityData.entity_type.toLowerCase() as 'npc' | 'item' | 'location' | 'faction' | 'creature';
+      
+      // Store full entity definition in raw_data JSONB
+      const rawData = {
+        display_name: entityData.display_name,
+        description_short: entityData.description_short,
+        description_long: entityData.description_long,
+        entity_type: entityData.entity_type,
+        base_state_json: baseStateJson,
+        images: entityData.images || [],
+        visibility: 'private', // Always private for new entities
+        owner_user_id: userId,
+        version: 1,
+      };
+      
       const { data: entity, error: entityError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .insert({
-          owner_user_id: userId,
-          display_name: entityData.display_name,
-          description_short: entityData.description_short,
-          description_long: entityData.description_long,
-          entity_type: entityData.entity_type,
-          base_state_json: baseStateJson,
-          visibility: 'private', // Always private for new entities
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          key,
+          kind,
+          owner_user_id: userId, // SQL column for ownership tracking
+          raw_data: rawData, // JSONB containing full entity definition
         })
-        .select()
+        .select('id, key, kind, owner_user_id, raw_data, created_at, updated_at')
         .single();
 
       if (entityError) {
@@ -385,7 +494,7 @@ router.get(
       const { id } = req.params;
 
       const { data: entity, error } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .select('*')
         .eq('id', id)
         .single();
@@ -433,7 +542,53 @@ router.get(
           .filter((tag: any) => tag !== null);
       }
 
-      return sendSuccess(res, entity, req);
+      // Extract base_state_json from raw_data (handle both new and legacy formats)
+      const rawData = entity.raw_data || {};
+      let baseStateJson: Record<string, unknown> = {};
+      
+      if (rawData.base_state_json) {
+        // New format: base_state_json is nested
+        baseStateJson = rawData.base_state_json;
+      } else {
+        // Legacy format: extract state by excluding known metadata fields
+        const metadataFields = [
+          'display_name',
+          'name', // Legacy name field
+          'description_short',
+          'description', // Legacy description field
+          'description_long',
+          'entity_type',
+          'type', // Legacy type field
+          'images',
+          'visibility',
+          'version',
+          'owner_user_id',
+          'identity', // Legacy identity object
+        ];
+        
+        baseStateJson = { ...rawData };
+        // Remove metadata fields to get just the state
+        for (const field of metadataFields) {
+          delete baseStateJson[field];
+        }
+        
+        // If identity exists, merge its contents into base_state_json
+        if (rawData.identity && typeof rawData.identity === 'object') {
+          baseStateJson = { ...baseStateJson, ...(rawData.identity as Record<string, unknown>) };
+        }
+      }
+
+      // Transform response to include extracted fields
+      const transformedEntity = {
+        ...entity,
+        display_name: rawData.display_name || rawData.name || (rawData.identity && typeof rawData.identity === 'object' ? (rawData.identity as any).name : null) || entity.key,
+        description_short: rawData.description_short || rawData.description || null,
+        entity_type: rawData.entity_type || rawData.type || entity.kind?.toUpperCase(),
+        base_state_json: baseStateJson,
+        images: rawData.images || [],
+      };
+
+      return sendSuccess(res, transformedEntity, req);
     } catch (error) {
       console.error('[Chimera Entities] Unexpected error:', error);
       return sendErrorWithStatus(
@@ -470,10 +625,10 @@ router.put(
       const updateData = req.body;
       const { tag_names, ...otherUpdateData } = updateData;
 
-      // Check ownership
+      // Check ownership and lifecycle state
       const { data: existing, error: checkError } = await supabaseAdmin
-        .from('chimera_entity_templates')
-        .select('owner_user_id')
+        .from('chimera_entities')
+        .select('owner_user_id, raw_data, visibility')
         .eq('id', id)
         .single();
 
@@ -504,25 +659,79 @@ router.put(
         );
       }
 
+      // Lifecycle enforcement: Cannot edit published content
+      // Use SQL visibility column (primary source of truth)
+      const currentVisibility = existing.visibility || (existing.raw_data as any)?.visibility || 'private';
+      if (currentVisibility === 'public' && !updateData.visibility) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'Cannot edit published content. Please clone to create a new version.',
+          req
+        );
+      }
+
+      // Track publishing: Detect if visibility is changing to 'public'
+      const isPublishing = updateData.visibility === 'public' && currentVisibility !== 'public';
+      
+      // Check if user is authorized to publish directly (admin or verified creator)
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('role, is_verified_creator')
+        .eq('id', userId)
+        .single();
+      const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
+      const isVerifiedCreator = profile?.is_verified_creator === true;
+      const canPublishDirectly = isAdmin || isVerifiedCreator;
+      
+      // Gatekeeper Logic: Force 'pending' if user tries to publish but isn't authorized
+      let finalVisibility = updateData.visibility;
+      let wasCoercedToPending = false;
+      if (updateData.visibility === 'public' && !canPublishDirectly) {
+        finalVisibility = 'pending';
+        wasCoercedToPending = true;
+        console.log(`[Chimera Entities] User ${userId} attempted to publish but is not authorized. Setting visibility to 'pending'.`);
+      }
+
       // Build update payload
       const updatePayload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
 
+      // Initialize updatedRawData from existing raw_data
+      const existingRawData = existing.raw_data || {};
+      const updatedRawData = { ...existingRawData };
+
       if (otherUpdateData.display_name !== undefined) {
         updatePayload.display_name = otherUpdateData.display_name;
+        updatedRawData.display_name = otherUpdateData.display_name;
       }
       if (otherUpdateData.description_short !== undefined) {
         updatePayload.description_short = otherUpdateData.description_short;
+        updatedRawData.description_short = otherUpdateData.description_short;
       }
       if (otherUpdateData.description_long !== undefined) {
-        updatePayload.description_long = otherUpdateData.description_long;
+        updatedRawData.description_long = otherUpdateData.description_long;
       }
       if (otherUpdateData.entity_type !== undefined) {
         updatePayload.entity_type = otherUpdateData.entity_type;
+        updatedRawData.entity_type = otherUpdateData.entity_type;
       }
       if (otherUpdateData.visibility !== undefined) {
-        updatePayload.visibility = otherUpdateData.visibility;
+        updatePayload.visibility = finalVisibility; // Use coerced visibility if needed
+        updatedRawData.visibility = finalVisibility;
+        
+        // Track publishing: Set published_by and published_at when visibility changes to 'public'
+        // Only set if actually publishing (not coerced to pending)
+        if (isPublishing && canPublishDirectly) {
+          updatePayload.published_by = userId;
+          updatePayload.published_at = new Date().toISOString();
+          
+          // Allow admins to set is_official flag when publishing
+          if (updateData.is_official !== undefined && isAdmin) {
+            updatePayload.is_official = updateData.is_official;
+          }
+        }
       }
       if (otherUpdateData.base_state_json !== undefined) {
         // Validate JSON if it's a string
@@ -541,12 +750,19 @@ router.put(
             req
           );
         }
-        updatePayload.base_state_json = baseStateJson;
+        updatedRawData.base_state_json = baseStateJson;
       }
+
+      if (otherUpdateData.images !== undefined) {
+        updatedRawData.images = otherUpdateData.images;
+      }
+
+      // Update raw_data with all changes
+      updatePayload.raw_data = updatedRawData;
 
       // Update the entity
       const { data: entity, error: updateError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .update(updatePayload)
         .eq('id', id)
         .select()
@@ -666,6 +882,18 @@ router.put(
           .filter((tag: any) => tag !== null);
       }
 
+      // If visibility was coerced to pending, include a message
+      if (wasCoercedToPending) {
+        return sendSuccess(
+          res, 
+          { 
+            ...entity, 
+            _message: 'Content submitted for approval. Visibility set to "pending" as you are not a verified creator.' 
+          }, 
+          req
+        );
+      }
+
       return sendSuccess(res, entity, req);
     } catch (error) {
       console.error('[Chimera Entities] Unexpected error:', error);
@@ -702,7 +930,7 @@ router.delete(
 
       // Check ownership
       const { data: existing, error: checkError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .select('owner_user_id')
         .eq('id', id)
         .single();
@@ -736,7 +964,7 @@ router.delete(
 
       // Delete the entity
       const { error: deleteError } = await supabaseAdmin
-        .from('chimera_entity_templates')
+        .from('chimera_entities')
         .delete()
         .eq('id', id);
 

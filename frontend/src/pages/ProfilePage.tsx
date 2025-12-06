@@ -19,7 +19,7 @@ import { usePlayerAccount } from '../hooks/usePlayerAccount';
 import { makeTitle } from '../lib/meta';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { MediaUploader } from '../components/admin/MediaUploader';
+import { MediaUploader } from '@/components/common/MediaUploader';
 import { buildImageUrl } from '@shared/media/url';
 import type { MediaAssetDTO } from '@shared/types/media';
 import { 

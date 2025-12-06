@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TurnsService } from './turns.service.js';
 import { IdempotencyService } from './idempotency.service.js';
-import { WalletService } from './wallet.service.js';
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// import { WalletService } from './wallet.service.js';
 import { gamesService } from './games.service.js';
 import { aiWrapper } from '../wrappers/ai.js';
 import { configService } from '../config/index.js';
@@ -9,7 +10,8 @@ import { ApiErrorCode } from '@shared';
 
 // Mock dependencies
 vi.mock('./idempotency.service.js');
-vi.mock('./wallet.service.js');
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// vi.mock('./wallet.service.js');
 vi.mock('./games.service.js');
 vi.mock('../wrappers/ai.js');
 vi.mock('../config/index.js');

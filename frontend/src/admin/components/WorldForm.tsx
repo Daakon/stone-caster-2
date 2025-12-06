@@ -14,7 +14,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { type World, type CreateWorldData, type UpdateWorldData } from '@/services/admin.worlds';
+// PHASE 1.7: Legacy service removed - will be replaced with Chimera V3 in Phase 2
+// import { type World, type CreateWorldData, type UpdateWorldData } from '@/services/admin.worlds';
+type World = any;
+type CreateWorldData = any;
+type UpdateWorldData = any;
 
 const worldSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),

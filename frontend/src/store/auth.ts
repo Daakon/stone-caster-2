@@ -6,7 +6,6 @@ import type { ProfileDTO } from '@shared/types/dto';
 interface AuthStoreState {
   user: AuthUser | null;
   profile: ProfileDTO | null;
-  loading: boolean;
 
   isAuthenticated: boolean;
   isGuest: boolean;
@@ -15,10 +14,17 @@ interface AuthStoreState {
   userId: string | null;
   displayName: string;
 
+  // Actions for setting state (called by AuthProvider sync)
+  setUser: (user: AuthUser | null) => void;
+  setProfile: (profile: ProfileDTO | null) => void;
+
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signInWithOAuth: (provider: 'google' | 'github' | 'discord') => Promise<void>;
   signOut: () => Promise<void>;
+  
+  // Legacy: Keep for backward compatibility but it should not fetch
+  // AuthProvider handles fetching via React Query
   initialize: () => Promise<void>;
 }
 
@@ -34,86 +40,98 @@ const computeDerivedState = (user: AuthUser | null, profile: ProfileDTO | null) 
 export const useAuthStore = create<AuthStoreState>((set) => {
   let unsubscribe: (() => void) | null = null;
 
-  const applyState = (user: AuthUser | null, profile: ProfileDTO | null, loading: boolean) => {
+  const applyState = (user: AuthUser | null, profile: ProfileDTO | null) => {
     set(() => ({
       user,
       profile,
-      loading,
       ...computeDerivedState(user, profile),
-    }));
-  };
-
-  const setLoading = (value: boolean) => {
-    set((current) => ({
-      ...current,
-      loading: value,
     }));
   };
 
   return {
     user: null,
     profile: null,
-    loading: true,
     ...computeDerivedState(null, null),
 
+    // Passive setters - called by AuthProvider to sync React Query data
+    setUser: (user: AuthUser | null) => {
+      set((current) => ({
+        ...current,
+        user,
+        ...computeDerivedState(user, current.profile),
+      }));
+    },
+
+    setProfile: (profile: ProfileDTO | null) => {
+      set((current) => ({
+        ...current,
+        profile,
+        ...computeDerivedState(current.user, profile),
+      }));
+    },
+
+    // Legacy initialize - kept for backward compatibility
+    // NOTE: This should NOT be called for session fetching - use AuthProvider instead
+    // This only sets up Supabase auth listener for sign-in/sign-out events
     initialize: async () => {
       try {
-
         if (!unsubscribe) {
           unsubscribe = authService.subscribe((newUser) => {
-            applyState(newUser, newUser?.profile ?? null, false);
+            applyState(newUser, newUser?.profile ?? null);
           });
         }
-
-        const user = await authService.initialize();
-        const currentUser = authService.getCurrentUser() ?? user ?? null;
-        applyState(currentUser, currentUser?.profile ?? null, false);
+        // Don't fetch session here - AuthProvider handles that via React Query
+        // Just set up the listener for auth state changes
       } catch (error) {
         console.error('[AuthStore] Initialization error:', error);
-        applyState(null, null, false);
       }
     },
 
     signIn: async (email: string, password: string) => {
       try {
-        setLoading(true);
         await authService.signIn(email, password);
+        // Auth state change will be handled by Supabase listener
+        // AuthProvider will sync React Query cache
       } catch (error) {
         console.error('[AuthStore] Sign in error:', error);
-        setLoading(false);
         throw error;
       }
     },
 
     signUp: async (email: string, password: string) => {
       try {
-        setLoading(true);
         await authService.signUp(email, password);
+        // Auth state change will be handled by Supabase listener
+        // AuthProvider will sync React Query cache
       } catch (error) {
         console.error('[AuthStore] Sign up error:', error);
-        setLoading(false);
         throw error;
       }
     },
 
     signInWithOAuth: async (provider: 'google' | 'github' | 'discord') => {
       try {
-        setLoading(true);
         await authService.signInWithOAuth(provider);
+        // Auth state change will be handled by Supabase listener
+        // AuthProvider will sync React Query cache
       } catch (error) {
         console.error('[AuthStore] OAuth sign in error:', error);
-        setLoading(false);
         throw error;
       }
     },
 
     signOut: async () => {
       try {
-        setLoading(true);
         await authService.signOut();
+        // Clear user from store
+        set(() => ({
+          user: null,
+          profile: null,
+          ...computeDerivedState(null, null),
+        }));
+        // AuthProvider will sync React Query cache
       } catch (error) {
         console.error('[AuthStore] Sign out error:', error);
-        setLoading(false);
         throw error;
       }
     },

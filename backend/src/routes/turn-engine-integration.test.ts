@@ -10,7 +10,8 @@ import app from '../index.js';
 import { ApiErrorCode } from '@shared';
 
 // Mock all services
-vi.mock('../services/wallet.service.js');
+// TODO: Refactor for Chimera V3 - WalletService removed (legacy stone system)
+// vi.mock('../services/wallet.service.js');
 vi.mock('../services/turns.service.js');
 vi.mock('../services/games.service.js');
 vi.mock('../services/prompts.service.js');

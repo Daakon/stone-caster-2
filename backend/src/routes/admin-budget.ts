@@ -1,20 +1,69 @@
 /**
  * Budget Report Admin Routes
- * POST /api/admin/prompt-budget-report
+ * GET /api/system/budget - Get Chimera table statistics
+ * POST /api/admin/prompt-budget-report - Generate budget report
  */
 
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth.js';
-import { requireRole } from '../middleware/rbac.js';
-import { supabase } from '../services/supabase.js';
+import { requireAuth, requireRole } from '../middleware/auth.unified.js';
+import { supabase, supabaseAdmin } from '../services/supabase.js';
 
 const router = Router();
+
+/**
+ * GET /api/system/budget
+ * Get Chimera table statistics (modernized from legacy tables)
+ */
+router.get('/', requireRole(['admin', 'moderator', 'viewer']), async (req, res) => {
+  try {
+    // Get counts from Chimera tables
+    const [worldsResult, entitiesResult, rulesetsResult, storiesResult] = await Promise.all([
+      supabaseAdmin
+        .from('chimera_worlds')
+        .select('id', { count: 'exact', head: true }),
+      supabaseAdmin
+        .from('chimera_entities')
+        .select('id', { count: 'exact', head: true })
+        .eq('definition->>kind', 'npc'), // Filter for NPCs
+      supabaseAdmin
+        .from('chimera_ruleset_templates')
+        .select('id', { count: 'exact', head: true }),
+      supabaseAdmin
+        .from('chimera_stories')
+        .select('id', { count: 'exact', head: true }),
+    ]);
+
+    res.json({
+      ok: true,
+      data: {
+        worlds: worldsResult.count || 0,
+        npcs: entitiesResult.count || 0,
+        rulesets: rulesetsResult.count || 0,
+        stories: storiesResult.count || 0,
+        // Legacy table names for backward compatibility (will be 0 after migration)
+        legacy: {
+          worlds: 0,
+          npcs: 0,
+          rulesets: 0,
+          scenarios: 0,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error getting budget stats:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Failed to get budget stats',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
 
 /**
  * POST /api/admin/prompt-budget-report
  * Generate budget report without persisting
  */
-router.post('/prompt-budget-report', authenticateToken, requireRole('publisher'), async (req, res) => {
+router.post('/prompt-budget-report', requireRole(['admin', 'publisher']), async (req, res) => {
   try {
     const { 
       worldId, 
@@ -44,51 +93,54 @@ router.post('/prompt-budget-report', authenticateToken, requireRole('publisher')
       });
     }
 
-    // Load extras from database if IDs provided
+    // Load extras from database if IDs provided (using Chimera tables)
     const extrasMap: Record<string, Record<string, unknown>> = {};
     
     if (worldId) {
-      const { data: world } = await supabase
-        .from('worlds')
-        .select('extras')
+      const { data: world } = await supabaseAdmin
+        .from('chimera_worlds')
+        .select('definition')
         .eq('id', worldId)
         .single();
-      if (world?.extras) {
-        extrasMap.world = world.extras as Record<string, unknown>;
+      if (world?.definition && typeof world.definition === 'object' && 'extras' in world.definition) {
+        extrasMap.world = (world.definition as any).extras as Record<string, unknown>;
       }
     }
     
     if (rulesetId) {
-      const { data: ruleset } = await supabase
-        .from('rulesets')
-        .select('extras')
+      const { data: ruleset } = await supabaseAdmin
+        .from('chimera_ruleset_templates')
+        .select('definition')
         .eq('id', rulesetId)
         .single();
-      if (ruleset?.extras) {
-        extrasMap.ruleset = ruleset.extras as Record<string, unknown>;
+      if (ruleset?.definition && typeof ruleset.definition === 'object' && 'extras' in ruleset.definition) {
+        extrasMap.ruleset = (ruleset.definition as any).extras as Record<string, unknown>;
       }
     }
     
     if (scenarioId) {
-      const { data: scenario } = await supabase
-        .from('scenarios')
-        .select('extras')
+      // scenarioId maps to chimera_stories
+      const { data: story } = await supabaseAdmin
+        .from('chimera_stories')
+        .select('definition')
         .eq('id', scenarioId)
         .single();
-      if (scenario?.extras) {
-        extrasMap.scenario = scenario.extras as Record<string, unknown>;
+      if (story?.definition && typeof story.definition === 'object' && 'extras' in story.definition) {
+        extrasMap.scenario = (story.definition as any).extras as Record<string, unknown>;
       }
     }
     
     if (npcIds && Array.isArray(npcIds)) {
-      const { data: npcs } = await supabase
-        .from('npcs')
-        .select('id, extras')
+      // NPCs are entities with kind='npc'
+      const { data: entities } = await supabaseAdmin
+        .from('chimera_entities')
+        .select('id, definition')
+        .eq('definition->>kind', 'npc')
         .in('id', npcIds);
-      if (npcs) {
-        for (const npc of npcs) {
-          if (npc.extras) {
-            extrasMap[`npc_${npc.id}`] = npc.extras as Record<string, unknown>;
+      if (entities) {
+        for (const entity of entities) {
+          if (entity.definition && typeof entity.definition === 'object' && 'extras' in entity.definition) {
+            extrasMap[`npc_${entity.id}`] = (entity.definition as any).extras as Record<string, unknown>;
           }
         }
       }

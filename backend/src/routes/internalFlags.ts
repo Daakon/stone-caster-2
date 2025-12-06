@@ -7,7 +7,7 @@
 import { Router, type Request, type Response } from 'express';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
-import { adminGuard } from '../middleware/auth-admin-guard.js';
+import { requireAdmin } from '../middleware/auth.unified.js';
 import { isEarlyAccessOn } from '../config/featureFlags.js';
 
 const router = Router();
@@ -18,7 +18,7 @@ const router = Router();
  * Requires: Admin role
  * Returns: { ok: true, data: { EARLY_ACCESS_MODE: 'on' | 'off' } }
  */
-router.get('/flags', adminGuard, async (req: Request, res: Response) => {
+router.get('/flags', requireAdmin, async (req: Request, res: Response) => {
   try {
 
     // Return feature flags

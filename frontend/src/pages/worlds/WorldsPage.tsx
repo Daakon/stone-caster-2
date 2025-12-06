@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useWorldsQuery } from '@/lib/queries';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
 import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
@@ -10,8 +9,6 @@ import { trackCatalogView, trackCatalogCardClick } from '@/lib/analytics';
 import { useURLFilters } from '@/lib/useURLFilters';
 import type { FilterValue } from '@/lib/useURLFilters';
 import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty } from '@/lib/meta';
-import { isChimeraEnabled } from '@/config/features';
-import { chimeraWorldsService } from '@/services/chimera.worlds';
 
 interface WorldFilters {
   q: string;
@@ -23,47 +20,24 @@ export default function WorldsPage() {
     q: ''
   });
 
-  // Conditionally use Chimera API or legacy API
-  const legacyWorldsQuery: any = useWorldsQuery(filters.q || undefined);
-  
-  const chimeraWorldsQuery = useQuery({
-    queryKey: ['chimera-worlds', filters.q],
+  // Phase 4.10: Use catalog API only - public worlds only
+  const worldsQuery = useQuery({
+    queryKey: ['catalog-worlds', filters.q],
     queryFn: async () => {
-      const worlds = await chimeraWorldsService.getSelectableWorlds();
-      // Apply client-side filtering for search query
-      let filtered = worlds;
-      if (filters.q) {
-        const query = filters.q.toLowerCase();
-        filtered = filtered.filter(
-          (w) =>
-            w.display_name.toLowerCase().includes(query) ||
-            w.description_short?.toLowerCase().includes(query) ||
-            w.description_long?.toLowerCase().includes(query)
-        );
+      const searchParam = filters.q ? `?search=${encodeURIComponent(filters.q)}` : '';
+      const response = await fetch(`/api/catalog/worlds${searchParam}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch worlds');
       }
-      // Transform to match legacy format for compatibility
-      return filtered.map((w) => ({
-        id: w.id,
-        slug: w.id, // Use ID as slug for Chimera worlds
-        name: w.display_name,
-        short_desc: w.description_short || '',
-        description: w.description_long || w.description_short || '',
-        hero_url: null,
-        cover_media: null,
-      }));
+      const result = await response.json();
+      return result.ok ? (result.data || []) : [];
     },
-    enabled: isChimeraEnabled,
     staleTime: 5 * 60 * 1000,
   });
 
-  const worldsQuery = isChimeraEnabled ? chimeraWorldsQuery : legacyWorldsQuery;
   const isLoading = worldsQuery.isLoading;
   const error = worldsQuery.error;
-  const worlds = isChimeraEnabled
-    ? (worldsQuery.data || [])
-    : Array.isArray(worldsQuery?.data)
-    ? worldsQuery.data
-    : (worldsQuery?.data?.data ?? []);
+  const worlds = worldsQuery.data || [];
 
   // Track catalog view on mount
   useEffect(() => {
@@ -93,13 +67,13 @@ export default function WorldsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">Worlds</h1>
+            <h1 className="text-3xl font-bold">Browse Worlds</h1>
             <p className="text-muted-foreground mt-2">
               Explore the rich settings where your adventures take place
             </p>
           </div>
           
-          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
+          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search worlds..." />
           
           <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
             {Array.from({ length: 6 }).map((_, index) => (
@@ -116,13 +90,13 @@ export default function WorldsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">Worlds</h1>
+            <h1 className="text-3xl font-bold">Browse Worlds</h1>
             <p className="text-muted-foreground mt-2">
               Explore the rich settings where your adventures take place
             </p>
           </div>
           
-          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
+          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search worlds..." />
           
           <EmptyState
             title="Error loading worlds"
@@ -140,13 +114,13 @@ export default function WorldsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">Worlds</h1>
+            <h1 className="text-3xl font-bold">Browse Worlds</h1>
             <p className="text-muted-foreground mt-2">
               Explore the rich settings where your adventures take place
             </p>
           </div>
           
-          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
+          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search worlds..." />
           
           <EmptyState
             title="No worlds found"
@@ -167,13 +141,13 @@ export default function WorldsPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Worlds</h1>
+          <h1 className="text-3xl font-bold">Browse Worlds</h1>
           <p className="text-muted-foreground mt-2">
             Explore the rich settings where your adventures take place
           </p>
         </div>
         
-        <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} />
+        <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search worlds..." />
         
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
@@ -182,20 +156,16 @@ export default function WorldsPage() {
         </div>
         
         <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
-          {worlds.map((world) => (
+          {worlds.map((world: any) => (
             <CatalogCard
               key={world.id}
               entity="world"
               idOrSlug={world.slug || world.id}
               title={world.name}
-              description={world.description}
-              imageUrl={world.cover_url}
+              description={world.short_desc || world.tagline}
+              imageUrl={null}
               coverMedia={world.cover_media || null}
-              href={
-                isChimeraEnabled
-                  ? `/dashboard/worlds/${world.id}`
-                  : `/worlds/${world.slug || world.id}`
-              }
+              href={`/worlds/${world.slug || world.id}`}
               onCardClick={() => handleCardClick(world.slug || world.id)}
             />
           ))}

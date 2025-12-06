@@ -15,9 +15,10 @@ interface WorldsFilterBarProps {
   filters: WorldFilters;
   updateFilters: (patch: Partial<WorldFilters>) => void;
   reset: () => void;
+  placeholder?: string;
 }
 
-export function WorldsFilterBar({ filters, updateFilters, reset }: WorldsFilterBarProps) {
+export function WorldsFilterBar({ filters, updateFilters, reset, placeholder = 'Search...' }: WorldsFilterBarProps) {
   // Track filter changes for analytics
   React.useEffect(() => {
     trackFilterChange('worlds', filters);
@@ -37,11 +38,11 @@ export function WorldsFilterBar({ filters, updateFilters, reset }: WorldsFilterB
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Search worlds..."
+              placeholder={placeholder}
               value={filters.q}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10"
-              aria-label="Search worlds"
+              aria-label={placeholder}
             />
           </div>
 

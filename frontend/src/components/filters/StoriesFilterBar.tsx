@@ -12,15 +12,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useWorldsQuery } from '@/lib/queries';
-import { useRulesetsQuery } from '@/lib/queries';
 import { trackFilterChange } from '@/lib/analytics';
 import type { FilterValue } from '@/lib/useURLFilters';
 
 interface StoryFilters {
   q: string;
   world: string | undefined;
-  kind: string | undefined;
-  ruleset: string | undefined;
   tags: string[];
   [key: string]: FilterValue;
 }
@@ -31,25 +28,15 @@ interface StoriesFilterBarProps {
   reset: () => void;
 }
 
-const STORY_KINDS = [
-  { value: 'adventure', label: 'Adventure' },
-  { value: 'tutorial', label: 'Tutorial' },
-  { value: 'scenario', label: 'Scenario' },
-];
-
 export function StoriesFilterBar({ filters, updateFilters, reset }: StoriesFilterBarProps) {
   const [tagInput, setTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
 
   // Load options for dropdowns
   const worldsQ: any = useWorldsQuery();
-  const rulesetsQ: any = useRulesetsQuery();
   const worlds = Array.isArray(worldsQ?.data)
     ? worldsQ.data
     : (worldsQ?.data?.data ?? []);
-  const rulesets = Array.isArray(rulesetsQ?.data)
-    ? rulesetsQ.data
-    : (rulesetsQ?.data?.data ?? []);
 
   // Track filter changes for analytics
   useEffect(() => {
@@ -62,14 +49,6 @@ export function StoriesFilterBar({ filters, updateFilters, reset }: StoriesFilte
 
   const handleWorldChange = (value: string) => {
     updateFilters({ world: value === 'all' ? undefined : value });
-  };
-
-  const handleKindChange = (value: string) => {
-    updateFilters({ kind: value === 'all' ? undefined : value });
-  };
-
-  const handleRulesetChange = (value: string) => {
-    updateFilters({ ruleset: value === 'all' ? undefined : value });
   };
 
   const handleTagAdd = (tag: string) => {
@@ -109,8 +88,6 @@ export function StoriesFilterBar({ filters, updateFilters, reset }: StoriesFilte
   const hasActiveFilters = 
     filters.q || 
     filters.world || 
-    filters.kind || 
-    filters.ruleset || 
     filters.tags.length > 0;
 
   return (
@@ -129,7 +106,7 @@ export function StoriesFilterBar({ filters, updateFilters, reset }: StoriesFilte
         </div>
 
         {/* Filter Controls */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* World Filter */}
           <div className="space-y-2">
             <label className="text-sm font-medium">World</label>
@@ -139,45 +116,9 @@ export function StoriesFilterBar({ filters, updateFilters, reset }: StoriesFilte
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All worlds</SelectItem>
-                {worlds.map((world) => (
+                {worlds.map((world: any) => (
                   <SelectItem key={world.id} value={world.id}>
                     {world.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Kind Filter */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Kind</label>
-            <Select value={filters.kind || 'all'} onValueChange={handleKindChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="All kinds" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All kinds</SelectItem>
-                {STORY_KINDS.map((kind) => (
-                  <SelectItem key={kind.value} value={kind.value}>
-                    {kind.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Ruleset Filter */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Ruleset</label>
-            <Select value={filters.ruleset || 'all'} onValueChange={handleRulesetChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="All rulesets" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All rulesets</SelectItem>
-                {rulesets.map((ruleset) => (
-                  <SelectItem key={ruleset.id} value={ruleset.id}>
-                    {ruleset.name}
                   </SelectItem>
                 ))}
               </SelectContent>

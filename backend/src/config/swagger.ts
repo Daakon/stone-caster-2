@@ -608,7 +608,11 @@ const options: swaggerJsdoc.Options = {
       },
     ],
   },
-  apis: ['./src/routes/*.ts'], // Path to the API files
+  apis: [
+    './src/routes/*.ts',
+  ], // Path to the API files
+  // Note: admin.ts is included but has commented-out JSDoc that may cause YAML parsing warnings
+  // These warnings are non-fatal and can be ignored
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

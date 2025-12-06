@@ -1,4 +1,5 @@
-import { isAwfEnabled } from '../config/awf-mode.js';
+// LEGACY - awf-mode.js removed in Phase 1 cleanup
+// import { isAwfEnabled } from '../config/awf-mode.js';
 
 // Session-level overrides for AWF bundle feature flag
 const sessionOverrides = new Map<string, boolean>();
@@ -6,11 +7,11 @@ const sessionOverrides = new Map<string, boolean>();
 /**
  * Check if AWF bundle is enabled for a given session
  * @param ctx - Context containing sessionId and optionally userId
- * @returns true if AWF bundle is enabled, false otherwise
+ * @returns false - AWF is deprecated and disabled
  */
-export function isAwfBundleEnabled(ctx: { sessionId?: string; userId?: string }): boolean {
-  // Use unified AWF mode manager for Phase 8
-  return isAwfEnabled(ctx);
+export function isAwfBundleEnabled(_ctx: { sessionId?: string; userId?: string }): boolean {
+  // AWF is deprecated - always return false
+  return false;
 }
 
 /**

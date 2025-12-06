@@ -12,28 +12,23 @@ import { EarlyAccessRoute } from './components/auth/EarlyAccessRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthRouter } from './components/AuthRouter';
 import { GuestCookieService } from './services/guestCookie';
-import { handleEarlyAccessRequired } from './lib/earlyAccessHandler';
 import { AccessStatusProvider } from './providers/AccessStatusProvider';
 import { WalletProvider } from './providers/WalletProvider';
+import { AuthProvider } from './providers/AuthProvider';
+import { useAuth } from './hooks/useAuth';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
 import StartStoryPage from './pages/play/StartStoryPage';
-import PlayPage from './pages/play/GameStatePage';
 import CharacterCreationPage from './pages/play/CharacterCreationPage';
 import CharacterCreatorPageV2 from './pages/play/create/CharacterCreatorPage';
 import PlayerGatewayPage from './pages/play/PlayerGatewayPage';
 import WorldsPage from './pages/worlds/WorldsPage';
 import NPCsPage from './pages/npcs/NPCsPage';
 import RulesetsPage from './pages/rulesets/RulesetsPage';
-import CharacterSelectionPage from './pages/CharacterSelectionPage';
-import CharacterCreatorPage from './pages/CharacterCreatorPage';
-import PlayerV3CreationPage from './pages/PlayerV3CreationPage';
 import WorldDetailPage from './pages/worlds/WorldDetailPage';
 import NPCDetailPage from './pages/npcs/NPCDetailPage';
 import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
-import WalletPage from './pages/WalletPage';
-import PaymentsPage from './pages/PaymentsPage';
 import ProfilePage from './pages/ProfilePage';
 import MyCreationsDashboard from './pages/dashboard/creations/index';
 import WorldEditor from './pages/dashboard/worlds/Editor';
@@ -47,111 +42,53 @@ import PackManage from './pages/dashboard/packs/Manage';
 import LoreEditor from './pages/dashboard/lore/Editor';
 import LoreManage from './pages/dashboard/lore/Manage';
 import CreatorProfileSettings from './pages/settings/CreatorProfile';
-import ChimeraRulesetsPage from './pages/dashboard/RulesetsPage';
-import ChimeraWorldsPage from './pages/dashboard/WorldsPage';
-import ChimeraEntitiesPage from './pages/dashboard/EntitiesPage';
-import CastingCircleWizard from './pages/casting-circle/CastingCircleWizard';
-import GameView from './pages/play/GameView';
 import GamePage from './pages/play/GamePage';
-import MyWorldsPage from './pages/my/worlds';
-import MyStoriesPage from './pages/my/stories';
-import MyNPCsPage from './pages/my/npcs';
 import SupportPage from './pages/SupportPage';
-import UnifiedGamePage from './pages/UnifiedGamePage';
 import AuthPage from './pages/AuthPage';
 import AuthSuccessPage from './pages/AuthSuccessPage';
-import ScenarioPicker from './pages/player/ScenarioPicker';
 import RequestAccessPage from './pages/RequestAccessPage';
-import MyAdventuresPage from './pages/MyAdventuresPage';
 import { AdminRouteGuard } from './admin/AdminRouteGuard';
 import NotFoundPage from './pages/NotFoundPage';
 import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
 
 
-function App() {
-  const { loading, initialize } = useAuthStore();
+/**
+ * Inner App Content - Only renders after auth loading is complete
+ * This prevents FOUC (Flash of Unauthenticated Content) by blocking
+ * all route rendering until the session check is definitive
+ */
+function AppContent() {
+  // Use the singleton useAuth hook to check loading state
+  // This is the nuclear option - blocks the entire app until session is resolved
+  const { isLoading } = useAuth();
 
-  useEffect(() => {
-    const buildId =
-      import.meta.env.VITE_BUILD_ID ??
-      import.meta.env.VITE_COMMIT_SHA ??
-      import.meta.env.VITE_APP_VERSION ??
-      'local-dev';
-  }, []);
-
-  useEffect(() => {
-    // Initialize guest cookie for anonymous users
-    GuestCookieService.getOrCreateGuestCookie();
-    
-    // Initialize auth store
-    initialize();
-
-    // Handle EARLY_ACCESS_REQUIRED errors globally
-    const handleEarlyAccess = async (event: CustomEvent<{ path?: string }>) => {
-      const { useNavigate } = await import('react-router-dom');
-      // Use window.location for navigation since we're outside React Router context here
-      const currentPath = event.detail?.path || window.location.pathname;
-      if (currentPath !== '/') {
-        window.location.href = '/';
-      }
-      // The actual toast/message will be shown by EarlyAccessBanner component
-    };
-
-    window.addEventListener('earlyAccessRequired', handleEarlyAccess as EventListener);
-    
-    return () => {
-      window.removeEventListener('earlyAccessRequired', handleEarlyAccess as EventListener);
-    };
-  }, [initialize]);
-
-  // Ensure default title is always "Stone Caster" if no page sets it
-  useEffect(() => {
-    // Set a default title if it's still "frontend" or empty
-    if (!document.title || document.title === 'frontend' || document.title.trim() === '') {
-      document.title = 'Stone Caster';
-    }
-  }, []);
-
-  if (loading) {
+  // CRITICAL: Block ALL rendering until auth loading is complete
+  // This prevents the login screen flash by ensuring we never render
+  // routes before we know the user's authentication state
+  if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen w-full">
-        <div 
-          className="w-12 h-12 border-4 border-muted border-t-primary rounded-full animate-spin" 
-          role="status" 
-          aria-label="Loading"
-        >
-          <span className="sr-only">Loading...</span>
+      <div className="h-screen w-full flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary"></div>
+          <div className="text-muted-foreground">Loading...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <ErrorBoundary>
-      <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
-        <QueryClientProvider client={queryClient}>
-          <AccessStatusProvider>
-            <WalletProvider>
-              <BrowserRouter
-                future={{
-                  v7_startTransition: true,
-                  v7_relativeSplatPath: true
-                }}
-              >
-            {(() => {
-              return null;
-            })()}
-            <AuthRouter />
-            <SkipNavigation 
-              links={[
-                { href: '#main-content', label: 'Skip to main content' },
-                { href: '#navigation', label: 'Skip to navigation' },
-                { href: '#footer', label: 'Skip to footer' },
-              ]}
-            />
-            <AppLayout>
-              <AdventureToStoryRedirect />
-              <Routes>
+    <>
+      <AuthRouter />
+      <SkipNavigation 
+        links={[
+          { href: '#main-content', label: 'Skip to main content' },
+          { href: '#navigation', label: 'Skip to navigation' },
+          { href: '#footer', label: 'Skip to footer' },
+        ]}
+      />
+      <AppLayout>
+        <AdventureToStoryRedirect />
+        <Routes>
                 {/* Public routes - no early access required */}
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/auth" element={<AuthPage />} />
@@ -197,16 +134,6 @@ function App() {
                     <PlayerGatewayPage />
                   </EarlyAccessRoute>
                 } />
-                <Route path="/stories/:storyId/characters" element={
-                  <EarlyAccessRoute>
-                    <CharacterSelectionPage />
-                  </EarlyAccessRoute>
-                } />
-                <Route path="/stories/:storyId/create-character" element={
-                  <EarlyAccessRoute>
-                    <PlayerV3CreationPage />
-                  </EarlyAccessRoute>
-                } />
                 <Route path="/worlds" element={
                   <EarlyAccessRoute>
                     <WorldsPage />
@@ -237,47 +164,8 @@ function App() {
                     <RulesetDetailPage />
                   </EarlyAccessRoute>
                 } />
-                <Route path="/character-creation" element={
-                  <EarlyAccessRoute>
-                    <CharacterCreationPage />
-                  </EarlyAccessRoute>
-                } />
-                <Route path="/character-creator" element={
-                  <EarlyAccessRoute>
-                    <CharacterCreatorPage />
-                  </EarlyAccessRoute>
-                } />
-                <Route path="/game/:id" element={
-                  <EarlyAccessRoute>
-                    <GamePage />
-                  </EarlyAccessRoute>
-                } />
-                <Route path="/play/:gameId" element={
-                  <EarlyAccessRoute>
-                    <UnifiedGamePage />
-                  </EarlyAccessRoute>
-                } />
-                <Route path="/unified-game/:id" element={
-                  <EarlyAccessRoute>
-                    <UnifiedGamePage />
-                  </EarlyAccessRoute>
-                } />
                 
                 {/* Protected routes - require authentication + early access */}
-                <Route path="/wallet" element={
-                  <ProtectedRoute>
-                    <EarlyAccessRoute>
-                      <WalletPage />
-                    </EarlyAccessRoute>
-                  </ProtectedRoute>
-                } />
-                <Route path="/payments" element={
-                  <ProtectedRoute>
-                    <EarlyAccessRoute>
-                      <PaymentsPage />
-                    </EarlyAccessRoute>
-                  </ProtectedRoute>
-                } />
                 <Route path="/profile" element={
                   <ProtectedRoute>
                     <EarlyAccessRoute>
@@ -419,63 +307,75 @@ function App() {
                     </EarlyAccessRoute>
                   </ProtectedRoute>
                 } />
-                {/* Chimera V3 Dashboard Pages */}
-                <Route path="/dashboard/chimera/rulesets" element={
-                  <ProtectedRoute>
-                    <EarlyAccessRoute>
-                      <ChimeraRulesetsPage />
-                    </EarlyAccessRoute>
-                  </ProtectedRoute>
-                } />
-                <Route path="/dashboard/chimera/worlds" element={
-                  <ProtectedRoute>
-                    <EarlyAccessRoute>
-                      <ChimeraWorldsPage />
-                    </EarlyAccessRoute>
-                  </ProtectedRoute>
-                } />
-                <Route path="/dashboard/chimera/entities" element={
-                  <ProtectedRoute>
-                    <EarlyAccessRoute>
-                      <ChimeraEntitiesPage />
-                    </EarlyAccessRoute>
-                  </ProtectedRoute>
-                } />
-                {/* Casting Circle Wizard */}
-                <Route path="/casting-circle" element={
-                  <ProtectedRoute>
-                    <EarlyAccessRoute>
-                      <CastingCircleWizard />
-                    </EarlyAccessRoute>
-                  </ProtectedRoute>
-                } />
-                {/* Redirect old route to new route for backward compatibility */}
-                <Route path="/my-adventures" element={<Navigate to="/my-stories" replace />} />
-                <Route path="/my-stories" element={
-                  <ProtectedRoute>
-                    <EarlyAccessRoute>
-                      <MyAdventuresPage />
-                    </EarlyAccessRoute>
-                  </ProtectedRoute>
-                } />
-                <Route path="/scenarios" element={
-                  <ProtectedRoute>
-                    <EarlyAccessRoute>
-                      <ScenarioPicker />
-                    </EarlyAccessRoute>
-                  </ProtectedRoute>
-                } />
                 
                 {/* Admin routes - protected by AdminRouteGuard */}
                 <Route path="/admin/*" element={<AdminRouteGuard />} />
                 
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </AppLayout>
-            <ToastProvider />
-              </BrowserRouter>
-            </WalletProvider>
-          </AccessStatusProvider>
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </AppLayout>
+      <ToastProvider />
+    </>
+  );
+}
+
+function App() {
+  const { initialize } = useAuthStore();
+
+  // Build ID tracking removed - not used
+
+  useEffect(() => {
+    // Initialize guest cookie for anonymous users
+    GuestCookieService.getOrCreateGuestCookie();
+    
+    // Initialize auth store listener (doesn't fetch - AuthProvider handles that via React Query)
+    initialize();
+
+    // Handle EARLY_ACCESS_REQUIRED errors globally
+    const handleEarlyAccess = (event: Event) => {
+      const customEvent = event as CustomEvent<{ path?: string }>;
+      // Use window.location for navigation since we're outside React Router context here
+      const currentPath = customEvent.detail?.path || window.location.pathname;
+      if (currentPath !== '/') {
+        window.location.href = '/';
+      }
+      // The actual toast/message will be shown by EarlyAccessBanner component
+    };
+
+    window.addEventListener('earlyAccessRequired', handleEarlyAccess);
+    
+    return () => {
+      window.removeEventListener('earlyAccessRequired', handleEarlyAccess);
+    };
+  }, [initialize]);
+
+  // Ensure default title is always "Stone Caster" if no page sets it
+  useEffect(() => {
+    // Set a default title if it's still "frontend" or empty
+    // Note: Individual pages will set their own titles via useEffect
+    if (!document.title || document.title === 'frontend' || document.title.trim() === '') {
+      document.title = 'Stone Caster';
+    }
+  }, []);
+
+  return (
+    <ErrorBoundary>
+      <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <AccessStatusProvider>
+              <WalletProvider>
+                <BrowserRouter
+                  future={{
+                    v7_startTransition: true,
+                    v7_relativeSplatPath: true
+                  }}
+                >
+                  <AppContent />
+                </BrowserRouter>
+              </WalletProvider>
+            </AccessStatusProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>
