@@ -37,19 +37,14 @@ Success = **Author → Compile → Play → Deterministic Updates → Constraine
 
 ## 4. MVP Deliverables
 
-### Authoring (Casting Circle Wizard)
-The author should be able to complete a structured 3–5 minute setup to create a runnable story:
+### Authoring (Casting Circle Editor)
+The author uses a **Non-Linear Tabbed Interface** (`World` | `Forces` | `Elements` | `Lore` | `Bind`) to assemble a story:
 
-1. Define metadata (title, summary, tone).  
-2. Choose a **World Foundation**:  
-   - Time Bands  
-   - D100 Skill System (or other root engines)  
-   - Vitality/Stamina, Needs, Wealth/Capability, Combat (Lite)  
-   - NPC Foundations: Personality, Relationships, Values, Behaviors  
-   - **All rulesets in DB are selectable** and must resolve dependencies/exclusion groups.  
-3. Add Entities/NPCs.  
-4. Add Lore that will feed contextual retrieval.  
-5. Compile.
+1. **World (Tab 1)**: Select a **World Preset** (e.g., High Fantasy, Cyber Sprawl) which sets default Forces and Safety. (Gating: Tabs 2-5 disabled until World selected).
+2. **Forces (Tab 2)**: Configure rulesets (visually grouped exclusions, tag filters).
+3. **Elements (Tab 3)**: Add Entities/NPCs via **Library** (clone) or **Forge** (create new).
+4. **Lore (Tab 4)**: Add Contextual Lore via Library/Forge.
+5. **Bind (Tab 5)**: Compile the story.
 
 Output: a fully validated **Chimera Story Bundle**.
 
@@ -223,7 +218,7 @@ The result is a platform where:
 ## 2. Key Value Props by Persona
 
 ### A. **For Authors (Primary Creator Persona)**
-1. **Fast World Creation** Authors can produce a fully playable interactive story in minutes using the Casting Circle Wizard rather than constructing state machines, quest flows, or dialogue trees manually.
+1. **Fast World Creation** Authors can produce a fully playable interactive story in minutes using the Casting Circle Editor's **World Presets** rather than constructing state machines, quest flows, or dialogue trees manually.
 
 2. **Modular Ruleset Ecosystem** The system lets authors shape the physics, emotions, combat, survival, and social logic of their world simply by selecting rulesets.  
    This leverages the rich foundations already present in your database (e.g., D100 Pillars, Vitality/Stamina, NPC Values, Personality, Quirks, Combat Lite, etc.).
@@ -355,13 +350,14 @@ These layers are connected by strict JSON schemas and a hybrid data model ensuri
 
 ## 2. Core System Components
 
-### 2.1 Authoring Interface (Casting Circle Wizard)
-A guided UI enabling authors to:
+### 2.1 Authoring Interface (Casting Circle Editor)
+A **Non-Linear Tabbed Interface** enabling authors to:
 
-- Select rulesets (e.g., D100 Pillars, Personality, Relationships, Values, Stamina, Hunger, Combat Lite, Time Bands, etc.).  
-- Create Entities and NPCs with personality, values, quirks, agendas, phobias, roles, stats, and world-specific metadata.  
-- Add Lore entries for world context (later embedded for MAS-2 retrieval).  
-- Configure world metadata (tone, genre, tags, safety filters).
+- **World**: Start from a **World Preset** (Genre Card) to auto-populate defaults.
+- **Forces**: Configure rulesets with visual grouping and exclusion checks.
+- **Elements**: Manage Entities/NPCs using **Library** (clone) and **Forge** (create) modes.
+- **Lore**: Manage Contextual Lore.
+- **Bind**: Compile the story when ready.
 
 The authoring interface produces a **complete Author Input Bundle**—the minimum information required for compilation.
 
@@ -539,11 +535,11 @@ This provides:
 ## 5. Frontend Overview
 
 ### 5.1 Authoring UI
-- Casting Circle Wizard (multi-step setup)  
-- Entity editor with rule-driven fields  
-- Lore editor  
-- Rule selection UI showing dependencies & exclusions  
-- Compile button → Calls compiler API  
+- Casting Circle Editor (Tabbed: World, Forces, Elements, Lore, Bind)
+- World Presets (Genre Cards)
+- Forces Editor (Ruleset configuration)
+- Elements & Lore Manager (Library/Forge)
+- Compile button (Bind Tab)
 - Validator output panel
 
 ### 5.2 Player UI

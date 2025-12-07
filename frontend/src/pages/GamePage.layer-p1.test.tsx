@@ -81,7 +81,14 @@ describe('GamePage - Layer P1 (Live Data)', () => {
     name: 'Test Character',
     class: 'Warrior',
     level: 1,
-    stats: { strength: 10, dexterity: 10, constitution: 10 },
+    // Updated to use new Chimera domain model stats
+    stats: { 
+      root_force: 40, 
+      root_finesse: 50, 
+      root_awareness: 45, 
+      root_insight: 50, 
+      root_influence: 45 
+    },
     avatar: 'warrior',
     backstory: 'A brave warrior',
     createdAt: '2023-01-01T00:00:00Z',

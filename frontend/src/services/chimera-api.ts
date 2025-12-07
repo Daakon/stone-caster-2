@@ -11,6 +11,8 @@ import type {
   EntityTemplate,
   LoreFragment,
 } from '@shared/types/chimera-authoring';
+import type { StoryDraft } from '@/types/chimera-domain';
+import type { CompiledStory } from '@shared/types/chimera-compiled';
 
 // API Response types
 export interface CreateWorldResponse {
@@ -317,5 +319,122 @@ export async function initializeGame(
     throw new Error(result.error.message || 'Failed to initialize game');
   }
   return { gameStateId: result.data!.id };
+}
+
+// ============================================================================
+// DRAFT WORKSPACE API
+// ============================================================================
+
+/**
+ * Fetch a draft by ID
+ * Mock implementation: Returns predefined draft data or empty draft
+ */
+export async function fetchDraft(draftId: string): Promise<StoryDraft> {
+  // TODO: Replace with actual API call
+  // const result = await apiFetch<StoryDraft>(`/api/chimera/drafts/${draftId}`);
+  // if (!result.ok) {
+  //   throw new Error(result.error.message || 'Failed to fetch draft');
+  // }
+  // return result.data!;
+
+  // Mock implementation: Check mock data for matching draft
+  const { MOCK_USER_STORIES } = await import('@/features/create-story/data/mock-library');
+  const mockStory = MOCK_USER_STORIES.find((s) => s.id === draftId && s.status === 'draft');
+
+  if (mockStory) {
+    // Return a mock draft based on the story data
+    return {
+      draft_id: mockStory.id,
+      current_step: mockStory.step ?? 0,
+      last_modified: mockStory.lastEdited ? new Date(mockStory.lastEdited).getTime() : Date.now(),
+      metadata: {
+        title: mockStory.title,
+        summary: `A story about ${mockStory.title}`,
+        genre_tags: ['fantasy'],
+        safety_filters: ['pg13'],
+        ruleset_keys: ['foundation-d100-5-pillars'],
+      },
+      staged_entity_ids: [],
+      staged_lore_ids: [],
+      is_saving: false,
+      is_dirty: false,
+    };
+  }
+
+  // Return empty draft if not found
+  return {
+    draft_id: draftId,
+    current_step: 0,
+    last_modified: Date.now(),
+    metadata: {
+      title: '',
+      summary: '',
+      genre_tags: [],
+      safety_filters: ['pg'],
+      ruleset_keys: [],
+    },
+    staged_entity_ids: [],
+    staged_lore_ids: [],
+    is_saving: false,
+    is_dirty: false,
+  };
+}
+
+/**
+ * Save a draft to the backend
+ * Mock implementation: Logs and simulates success
+ */
+export async function saveDraft(draft: StoryDraft): Promise<void> {
+  // TODO: Replace with actual API call
+  // const result = await apiPut<StoryDraft>(`/api/chimera/drafts/${draft.draft_id}`, draft);
+  // if (!result.ok) {
+  //   throw new Error(result.error.message || 'Failed to save draft');
+  // }
+
+  // Mock implementation: Simulate API delay
+  console.log('[chimera-api] Saving draft to DB:', draft.draft_id);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+}
+
+/**
+ * Compile a story from a draft
+ * Mock implementation: Returns mock CompiledStory after delay, with 10% error rate
+ */
+export async function compileStoryFromDraft(draftId: string): Promise<CompiledStory> {
+  // TODO: Replace with actual API call
+  // const result = await apiPost<CompiledStory>(`/api/chimera/drafts/${draftId}/compile`, {});
+  // if (!result.ok) {
+  //   throw new Error(result.error.message || 'Failed to compile story');
+  // }
+  // return result.data!;
+
+  // Mock implementation: Simulate compilation delay
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  // 10% chance of error for testing
+  if (Math.random() < 0.1) {
+    throw new Error('Compilation failed: Ruleset dependency conflict detected');
+  }
+
+  // Return mock CompiledStory
+  return {
+    meta: {
+      source_ids: [draftId],
+    },
+    master_schema: {
+      tier1_allowlist: ['root_force', 'root_finesse', 'root_awareness', 'root_insight', 'root_influence'],
+      tier0_allowlist: ['narrative_state', 'world_state'],
+      actions_map: {
+        'move': 'Move to a new location',
+        'interact': 'Interact with an object or entity',
+        'attack': 'Attack a target',
+      },
+    },
+    narrative_index: [],
+    initial_state: {
+      turn: 0,
+      location: 'starting_area',
+    },
+  };
 }
 

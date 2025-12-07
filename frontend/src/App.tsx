@@ -31,6 +31,8 @@ import NPCDetailPage from './pages/npcs/NPCDetailPage';
 import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import MyCreationsDashboard from './pages/dashboard/creations/index';
+import { MyCreationsPage } from './features/dashboard/MyCreationsPage';
+import { CreateStoryPage } from './features/create-story';
 import WorldEditor from './pages/dashboard/worlds/Editor';
 import WorldManage from './pages/dashboard/worlds/Manage';
 import EntityEditor from './pages/dashboard/entities/Editor';
@@ -184,6 +186,21 @@ function AppContent() {
                   <ProtectedRoute>
                     <EarlyAccessRoute>
                       <MyCreationsDashboard />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                {/* Story Creation Wizard Routes */}
+                <Route path="/my-creations" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <MyCreationsPage />
+                    </EarlyAccessRoute>
+                  </ProtectedRoute>
+                } />
+                <Route path="/create-story" element={
+                  <ProtectedRoute>
+                    <EarlyAccessRoute>
+                      <CreateStoryPage />
                     </EarlyAccessRoute>
                   </ProtectedRoute>
                 } />

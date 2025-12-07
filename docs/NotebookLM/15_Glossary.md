@@ -51,6 +51,26 @@ A runtime instance of a compiled story with:
 
 A full snapshot of Tier0, Tier1, and Tier2 data at a specific turn.
 
+### **Forces (UI Term)**
+
+The collection of **Rulesets** (physics/mechanics) governing the story.
+Formerly "Laws".
+
+### **Elements (UI Term)**
+
+The collection of **Entities** (Characters, Items, Locations) in the story.
+Formerly "Cast".
+
+### **World Preset**
+
+A pre-configured "Genre Card" (e.g., High Fantasy) selected in Step 1.
+It applies a set of default Forces and Safety Filters to jumpstart creation.
+
+### **Library vs. Forge**
+
+*   **Library**: The mode for picking existing assets to "clone" into the story.
+*   **Forge**: The mode for creating new assets from scratch.
+
 ---
 
 # 2. Tiers of the Domain Model

@@ -33,11 +33,20 @@ A concrete composition that will be compiled into a playable artifact, assembled
 
 ### 1.2 Casting Circle (Authoring UX)
 
-The 4-stone wizard to assemble a Story Dimension:
-1. **World Stone** - Select/create world
-2. **Forces Stone** - Select rulesets (with dependency/exclusion validation)
-3. **Elements Stone** - Select/create entities
-4. **Lore Stone** - Select/create lore fragments
+The **Non-Linear Editor** for assembling a Story Dimension.
+replaced the previous linear wizard with a **Tabbed Interface**:
+**tabs:** `World` | `Forces` | `Elements` | `Lore` | `Bind`
+
+**Flow:**
+1. **World (Step 1):** Select a "World Preset" card (e.g., High Fantasy, Cyber Sprawl).
+   - This unlocks Tabs 2–5 (Gating).
+   - Presets auto-populate incompatible rulesets.
+2. **Forces (Step 2):** Configure rulesets (visually grouped by exclusion group, filtered by tags).
+3. **Elements (Step 3):** Add characters/items via **Library** (clone existing) or **Forge** (create new).
+4. **Lore (Step 4):** Add contextual lore (Library/Forge).
+5. **Bind (Step 5):** Compiler triggered manually when story is ready.
+
+*Note: Changing the World Preset in Step 1 triggers a reset warning for incompatible Forces/Elements.*
 
 ### 1.3 Compiler (4 Steps)
 

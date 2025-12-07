@@ -30,6 +30,18 @@ A runtime instance of a compiled story with a session_id, active turn index, evo
 **Game State**
 A full snapshot of Tier0, Tier1, and Tier2 data at a specific turn.
 
+**Forces (UI Term)**
+The collection of **Rulesets** (physics/mechanics) governing the story. Formerly "Laws".
+
+**Elements (UI Term)**
+The collection of **Entities** (Characters, Items, Locations) in the story. Formerly "Cast".
+
+**World Preset**
+A pre-configured "Genre Card" (e.g., High Fantasy) selected in Step 1. Applies default Forces and Safety Filters.
+
+**Library vs. Forge**
+*Library*: Clone existing assets. *Forge*: Create new assets.
+
 ## 2. Tiers of the Domain Model
 
 **Tier 0 (T0) — World**

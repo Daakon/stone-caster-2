@@ -86,7 +86,7 @@ Multi-turn scripted flows to validate state persistence:
 # PART 3: UX FLOWS AND WIREFRAMES
 
 ## 1. High-Level Flow
-**Author**: Create World → Add Entities/Lore → Choose Rulesets → Compile → **Story Ready**
+**Author**: [World Preset] → [Forces/Elements/Lore Tabs] → [Bind Tab: Compile] → **Story Ready**
 **Player**: Start Session → View Opening → Enter Action → Receive MAS Output → **State Updates**
 
 ## 2. Core Player Screen (Story View)

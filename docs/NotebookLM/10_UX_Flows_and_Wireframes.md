@@ -58,10 +58,12 @@ Goals:
 # 3. High-Level UX Flow Map
 
 ```md
-Authoring Flow:
-  Create World → Add Entities → Add Lore → Choose Rulesets → Compile Story
-      ↓                                                     ↓
-   Preview Schema -------------------------------→ Story Ready
+Authoring Flow (Non-Linear):
+  [World] -> [Forces] -> [Elements] -> [Lore] -> [Bind]
+     |          |           |            |
+     +----------+-----------+------------+--> (Free Navigation after World Selection)
+                    |
+              (Draft Auto-Saved)
 
 Player Flow:
   Choose Story → Start Session → View Opening → Enter Action → Receive MAS Output
@@ -102,123 +104,128 @@ Key Components:
 
 # 5. Authoring Flow
 
-## 5.1 Create / Edit World
+## 5.1 Step 1: World (Tab 1)
+
+**Goal**: Select a starting point (Vibe/Genre). Triggers "World Preset".
 
 ```md
 +------------------------------------------------------+
-|  Edit World                                          |
+|  Casting Circle: [World] Forces  Elements  Lore  Bind|
 +------------------------------------------------------+
-|  Title: [ Whispercross Alley        ]                |
-|  Summary: [ A web of secrets...     ]                |
-|  Genre Tags: [ fantasy noir ]                        |
-|  Safety Filters: [ PG13 ▼ ]                           |
+|  Select a World Preset:                              |
 |                                                      |
-|  Rulesets (select)                                   |
-|  [x] d100-5-pillars                                  |
-|  [x] vitality-stamina-system                         |
-|  [ ] npc-quirks-habits                               |
+|  [ High Fantasy ]    [ Cyber Sprawl ]   [ Noir ]     |
+|   - Magic: High       - Tech: High       - Gritty    |
+|   - Tech: Low         - Magic: Low       - Mystery   |
+|   [ (i) Info ]        [ (i) Info ]       [ (i) Info ]|
 |                                                      |
-|  [ Save World ]   [ Delete ]                         |
+|  Selection: Cyber Sprawl                             |
+|  > Applied Rules: Gravity, Digital Economy           |
+|  > Applied Safety: PG-13 (Default)                   |
+|                                                      |
+|  [ Next: Forces > ]                                  |
 +------------------------------------------------------+
 ```
 
-### Rulesets Panel Behavior
-
-* Standard Rulesets: Presented as a list of toggle/checkboxes.
-* Exclusion Groups (Variants): Rulesets sharing an exclusion_group (e.g., Combat Core) are grouped together visually. Users select exactly one option via a radio-button style interface or a dropdown "Slot" selector.
-* Dependencies: Selecting a ruleset automatically selects its required dependencies and notifies the user.
+### Interaction Notes
+*   **Cards**: Visual representation of genres.
+*   **Info Button (i)**: Opens modal with full ruleset/safety description.
+*   **Gating**: Tabs 2-5 are disabled until a selection is made here.
+*   **Reset Warning**: Changing preset later warns about resetting incompatible Forces/Elements.
 
 ---
 
-## 5.2 Entities Editor
+## 5.2 Step 2: Forces (Tab 2)
+
+**Goal**: Tweak the physics/rulesets.
 
 ```md
 +------------------------------------------------------+
-|  Entities in Whispercross Alley                      |
+|  Casting Circle:  World [Forces] Elements  Lore  Bind|
 +------------------------------------------------------+
-|  Kiera (player)   [edit]                             |
-|  Arven (npc)      [edit]                             |
+|  Filters: [All] [Narrative] [Crunchy] [Combat]       |
 |                                                      |
-|  [ Add Entity ]                                      |
+|  v Foundation: Action Resolution                     |
+|    (o) d100 Outcomes (Selected)                      |
+|    ( ) PbtA Moves                                    |
+|      > [ Drawer: Advanced Criticals (Checkout) ]     |
+|                                                      |
+|  > Foundation: Time System                           |
+|    (o) Cinematic Time                                |
+|    ( ) Tick-Based                                    |
+|                                                      |
+|  [ Next: Elements > ]                                |
 +------------------------------------------------------+
 ```
 
-### Entity Editing
-
-```md
-+------------------------------------------------------+
-|  Edit Entity: Kiera                                  |
-+------------------------------------------------------+
-|  Name: [ Kiera                 ]                     |
-|  Tags: [ player ]                                     |
-|                                                      |
-|  Personality:                                        |
-|    Traits: [ Brave, Stoic ]                          |
-|    Values: [ Honor ]                                 |
-|    Quirks: [ Finger-Tapping ]                        |
-|                                                      |
-|  Defaults:                                           |
-|    Stamina: 90                                       |
-|    Satiety: 70                                       |
-|                                                      |
-|  [ Save Entity ]                                     |
-+------------------------------------------------------+
-```
-
-Note: All entity fields map directly into the Domain Model.
+### Forces UI
+*   **Visual Grouping**: Rulesets grouped by Exclusion Group (e.g., "Action Resolution").
+*   **Nested Drawers**: Child rulesets (expansions) live inside their parent card.
+*   **Tags**: Filter by "Narrative" vs "Crunchy" styles.
 
 ---
 
-## 5.3 Lore Editor
+## 5.3 Step 3: Elements (Tab 3)
+
+**Goal**: Add Characters, Items, Locations.
 
 ```md
 +------------------------------------------------------+
-|  Lore List                                           |
+|  Casting Circle:  World  Forces [Elements] Lore  Bind|
 +------------------------------------------------------+
-|  Guild Keys            public   [edit]               |
-|  Whispered Alleyways   private  [edit]               |
+|  Active Elements (3/20)                              |
+|  - Kiera (Player) [Edit]                             |
+|  - Rusty Key (Item) [Edit]                           |
 |                                                      |
-|  [ Add Lore Fragment ]                               |
+|  [ + Add Element ] -> Opens Library/Forge Modal      |
 +------------------------------------------------------+
 ```
 
-### Edit Lore
+### Add Element Modal (Library vs. Forge)
+*   **Library Tab**: "Pick from existing" (Clones asset into draft).
+*   **Forge Tab**: Create new asset from scratch (Name, Tags, Stats).
+
+---
+
+## 5.4 Step 4: Lore (Tab 4)
+
+**Goal**: Add narrative context (formerly "Whispers").
 
 ```md
 +------------------------------------------------------+
-|  Edit Lore: Guild Keys                               |
+|  Casting Circle:  World  Forces  Elements [Lore] Bind|
 +------------------------------------------------------+
-|  Title: [ Guild Keys           ]                     |
-|  Visibility: [ public ▼ ]                            |
+|  Context / Memory                                    |
+|  - "The Guild War" (Global)                          |
+|  - "Kiera's Secret" (Attached to Kiera)              |
 |                                                      |
-|  Body:                                               |
-|  --------------------------------------------------  |
-|  Ancient locksmiths forged keys that judge intent... |
-|  --------------------------------------------------  |
-|                                                      |
-|  [ Save Lore ]                                       |
+|  [ + Add Context ] -> Opens Library/Forge Modal      |
 +------------------------------------------------------+
 ```
 
 ---
 
-## 5.4 Compile Story
+## 5.5 Step 5: Bind (Tab 5)
+
+**Goal**: Compile the story.
 
 ```md
 +------------------------------------------------------+
-|  Compile Story: Whispercross                         |
+|  Casting Circle:  World  Forces  Elements  Lore [Bind|
 +------------------------------------------------------+
-|  Selected Rulesets:                                  |
-|    d100-5-pillars                                    |
-|    vitality-stamina-system                           |
-|    world-cycle-time-bands                            |
+|  Ready to Bind Story?                                |
+|  - World: Cyber Sprawl                               |
+|  - Forces: 4 Active                                  |
+|  - Elements: 12                                      |
 |                                                      |
-|  Entities Included: 2                                |
-|  Lore Included: 12                                   |
-|                                                      |
-|  [ Compile Story ]                                   |
+|  [ BIND STORY (COMPILE) ]                            |
 +------------------------------------------------------+
 ```
+
+### Draft Persistence
+*   **Auto-Save**: Changes saved to `localStorage` immediately.
+*   **Sync**: Periodic sync to backend.
+*   **Resume**: Available from Dashboard "My Creations".
 
 ### After Compilation
 
