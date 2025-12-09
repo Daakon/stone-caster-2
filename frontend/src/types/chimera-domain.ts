@@ -93,6 +93,16 @@ export interface EntityTemplate {
   name: string;
 
   /**
+   * Entity Kind/Type
+   */
+  kind: 'npc' | 'item' | 'location' | 'faction';
+
+  /**
+   * Descriptive tags for filtering
+   */
+  tags: string[];
+
+  /**
    * Whether this entity is a player character
    */
   is_player: boolean;

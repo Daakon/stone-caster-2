@@ -1,28 +1,29 @@
 /**
  * Step 2: Forces
- * Deck building UI for selecting rulesets (physics/laws of the world)
- * 
- * Features:
- * - Foundations organized by exclusion_group
- * - Tag filtering
- * - Nested expansions within selected foundations
- * - Exclusion group enforcement
- * - Dependency validation
+ * Define the physical and metaphysical laws (Rulesets) of the world.
+ *
+ * New Flow:
+ * 1. "Choose Your Experience" -> Select a Playstyle (Theme)
+ *    - This applies a DEFAULT set of rulesets.
+ * 2. "Customize Forces" (Optional) -> Detailed deck building
+ *    - Allows tweaking the defaults.
  */
 
 import React, { useMemo, useState } from 'react';
-import { Check, X, Radio, Lock, ChevronDown } from 'lucide-react';
+import { Check, Radio, Lock, ChevronDown, ChevronRight, Settings2 } from 'lucide-react';
 import { useStoryDraftStore } from '../store/useStoryDraftStore';
 import { AVAILABLE_RULESETS } from '../data/mock-rulesets';
+import { PLAYSTYLES, type PlaystyleDefinition } from '../data/mock-playstyles';
 import { RulesetFilterBar } from './RulesetFilterBar';
-import { 
-  groupRulesetsByExclusion, 
+import {
+  groupRulesetsByExclusion,
   getGroupLabel,
   getMissingDependencies,
   getChildRulesets,
 } from '../utils/ruleset-interpreter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { RulesetDefinition } from '@shared/types/chimera-authoring';
 
@@ -32,6 +33,32 @@ export function Step2_Forces() {
 
   const selectedRulesetKeys = draft?.metadata.ruleset_keys || [];
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [isCustomizing, setIsCustomizing] = useState(false);
+
+  // Determine active playstyle (naive check: if current rules match a playstyle exactly)
+  const activePlaystyleId = useMemo(() => {
+    // If no rules selected, no playstyle
+    if (selectedRulesetKeys.length === 0) return null;
+
+    // Check if matches a playstyle exactly
+    // Note: This is weak if user customizes even slightly, but serves as a UI hint
+    const match = PLAYSTYLES.find(p => {
+      const sortedP = [...p.default_ruleset_keys].sort();
+      const sortedS = [...selectedRulesetKeys].sort();
+      return JSON.stringify(sortedP) === JSON.stringify(sortedS);
+    });
+    return match ? match.id : 'custom';
+  }, [selectedRulesetKeys]);
+
+  const handleSelectPlaystyle = (playstyle: PlaystyleDefinition) => {
+    updateMetadata({
+      ruleset_keys: playstyle.default_ruleset_keys
+    });
+  };
+
+  // =========================================================================
+  // Existing Logic for Customization
+  // =========================================================================
 
   // Get all foundation rulesets
   const foundationRulesets = useMemo(() => {
@@ -69,29 +96,27 @@ export function Step2_Forces() {
     );
   };
 
-  // Handle ruleset toggle with exclusion logic and auto-deselect
+  // Handle ruleset toggle with exclusion logic
   const toggleRuleset = (ruleset: RulesetDefinition) => {
     const isSelected = selectedRulesetKeys.includes(ruleset.id);
     let newKeys: string[];
 
     if (isSelected) {
-      // Remove this ruleset
+      // Remove
       newKeys = selectedRulesetKeys.filter((key) => key !== ruleset.id);
 
-      // Auto-deselect: Find all rulesets that depend on this one
+      // Auto-deselect dependents
       const dependentRulesets = getChildRulesets(ruleset.id, AVAILABLE_RULESETS);
       dependentRulesets.forEach((dependent) => {
-        // Only remove if it's currently selected
         if (newKeys.includes(dependent.id)) {
           newKeys = newKeys.filter((key) => key !== dependent.id);
         }
       });
     } else {
-      // Add this ruleset
+      // Add
       newKeys = [...selectedRulesetKeys, ruleset.id];
 
-      // Handle exclusion groups: if this ruleset has an exclusion group,
-      // remove ONLY other rulesets that share the SAME exclusion_group
+      // Handle exclusion groups
       if (ruleset.exclusion_group) {
         const exclusionGroupRulesets = AVAILABLE_RULESETS.filter(
           (r) => r.exclusion_group === ruleset.exclusion_group && r.id !== ruleset.id
@@ -105,7 +130,6 @@ export function Step2_Forces() {
     updateMetadata({ ruleset_keys: newKeys });
   };
 
-  // Render a foundation card with nested expansions
   const renderFoundationCard = (foundation: RulesetDefinition, groupSize: number) => {
     const isSelected = selectedRulesetKeys.includes(foundation.id);
     const isExclusiveGroup = groupSize > 1;
@@ -119,23 +143,12 @@ export function Step2_Forces() {
           isSelected && 'ring-2 ring-primary ring-offset-2'
         )}
       >
-        {/* Foundation Header */}
         <CardHeader
           className={cn(
             'pb-3 cursor-pointer hover:bg-muted/50 transition-colors',
             isSelected && 'bg-primary/5'
           )}
           onClick={() => toggleRuleset(foundation)}
-          role={isExclusiveGroup ? 'radio' : 'button'}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              toggleRuleset(foundation);
-            }
-          }}
-          aria-pressed={isSelected}
-          aria-checked={isExclusiveGroup ? isSelected : undefined}
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -147,12 +160,6 @@ export function Step2_Forces() {
                   )} />
                 )}
                 {foundation.name}
-                {isSelected && (
-                  <Badge variant="default" className="ml-2">
-                    <Check className="h-3 w-3 mr-1" />
-                    Selected
-                  </Badge>
-                )}
               </CardTitle>
               {foundation.description_short && (
                 <CardDescription className="mt-1">{foundation.description_short}</CardDescription>
@@ -161,9 +168,7 @@ export function Step2_Forces() {
           </div>
         </CardHeader>
 
-        {/* Foundation Content */}
         <CardContent className="pt-0 space-y-3">
-          {/* Tags */}
           {foundation.provides_tags && foundation.provides_tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {foundation.provides_tags.map((tag) => (
@@ -174,7 +179,6 @@ export function Step2_Forces() {
             </div>
           )}
 
-          {/* Nested Expansions Drawer */}
           {isSelected && childRulesets.length > 0 && (
             <div className="mt-4 pt-4 border-t bg-muted/30 rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2 mb-2">
@@ -187,11 +191,6 @@ export function Step2_Forces() {
                   const missingDeps = getMissingDependencies(child, selectedRulesetKeys);
                   const isChildLocked = missingDeps.length > 0;
                   const canSelectChild = !isChildLocked;
-
-                  const missingDepNames = missingDeps.map((depId) => {
-                    const depRuleset = AVAILABLE_RULESETS.find((r) => r.id === depId);
-                    return depRuleset?.name || depId;
-                  });
 
                   return (
                     <div
@@ -208,16 +207,6 @@ export function Step2_Forces() {
                           toggleRuleset(child);
                         }
                       }}
-                      role="checkbox"
-                      tabIndex={canSelectChild ? 0 : -1}
-                      onKeyDown={(e) => {
-                        if (canSelectChild && (e.key === 'Enter' || e.key === ' ')) {
-                          e.preventDefault();
-                          toggleRuleset(child);
-                        }
-                      }}
-                      aria-checked={isChildSelected}
-                      aria-disabled={!canSelectChild}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
@@ -240,19 +229,6 @@ export function Step2_Forces() {
                               {child.description_short}
                             </p>
                           )}
-                          {isChildLocked && (
-                            <div className="flex items-start gap-1.5 p-2 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
-                              <Lock className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                              <div className="text-xs text-amber-800 dark:text-amber-200">
-                                <p className="font-medium">Requires:</p>
-                                <ul className="list-disc list-inside mt-0.5">
-                                  {missingDepNames.map((name, idx) => (
-                                    <li key={idx}>{name}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -267,79 +243,136 @@ export function Step2_Forces() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold mb-2">Forces</h2>
         <p className="text-muted-foreground">
-          Select the foundations that define the core systems of your world. Expansions will appear nested within their parent foundations.
+          Define the physics and laws of your world. Start by choosing a playstyle, then customize if needed.
         </p>
       </div>
 
-      {/* Tag Filter Bar */}
-      <RulesetFilterBar
-        availableTags={availableTags}
-        selectedTags={activeFilters}
-        onToggleTag={handleToggleTag}
-      />
+      {/* 1. Playstyle Selection */}
+      <div>
+        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Choose Your Experience
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {PLAYSTYLES.map(playstyle => {
+            const Icon = playstyle.icon;
+            const isActive = activePlaystyleId === playstyle.id;
 
-      {/* Foundation Groups */}
-      <div className="space-y-6">
-        {Array.from(groupedFoundations.entries()).map(([groupKey, groupRulesets], groupIndex) => {
-          const groupLabel = getGroupLabel(groupKey);
-          const groupSize = groupRulesets.length;
-          const isExclusiveGroup = groupSize > 1;
-
-          return (
-            <div key={groupKey ?? 'misc'} className={cn('space-y-4', groupIndex > 0 && 'pt-6 border-t')}>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold">{groupLabel}</h3>
-                {isExclusiveGroup && (
-                  <Badge variant="outline" className="text-xs">
-                    <Radio className="h-3 w-3 mr-1" />
-                    Select One
-                  </Badge>
+            return (
+              <Card
+                key={playstyle.id}
+                className={cn(
+                  "cursor-pointer hover:border-primary/50 transition-all",
+                  isActive && "ring-2 ring-primary ring-offset-2 bg-primary/5"
                 )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {groupRulesets.map((foundation) => renderFoundationCard(foundation, groupSize))}
-              </div>
-            </div>
-          );
-        })}
+                onClick={() => handleSelectPlaystyle(playstyle)}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "p-2 rounded-lg",
+                      isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                    )}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <h4 className="font-semibold">{playstyle.name}</h4>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{playstyle.description}</p>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
       </div>
 
-      {/* Selection Summary */}
-      {selectedRulesetKeys.length > 0 && (
-        <Card className="bg-muted/50">
-          <CardHeader>
-            <CardTitle className="text-lg">Selected Rulesets</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {selectedRulesetKeys.map((key) => {
-                const ruleset = AVAILABLE_RULESETS.find((r) => r.id === key);
-                if (!ruleset) return null;
+      {/* 2. Customization Accordion/Section */}
+      <div className="pt-6 border-t">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+            Customize Forces {activePlaystyleId === 'custom' && '(Custom)'}
+          </h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsCustomizing(!isCustomizing)}
+          >
+            {isCustomizing ? 'Hide Details' : 'Show Details'}
+            <ChevronDown className={cn("ml-2 h-4 w-4 transition-transform", isCustomizing && "rotate-180")} />
+          </Button>
+        </div>
+
+        {isCustomizing && (
+          <div className="animate-in fade-in slide-in-from-top-4 duration-300 space-y-6">
+            <RulesetFilterBar
+              availableTags={availableTags}
+              selectedTags={activeFilters}
+              onToggleTag={handleToggleTag}
+            />
+
+            <div className="space-y-6">
+              {Array.from(groupedFoundations.entries()).map(([groupKey, groupRulesets], groupIndex) => {
+                const groupLabel = getGroupLabel(groupKey);
+                const groupSize = groupRulesets.length;
+                const isExclusiveGroup = groupSize > 1;
+
                 return (
-                  <Badge key={key} variant="default" className="text-sm min-h-[32px] flex items-center gap-1">
-                    {ruleset.name}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleRuleset(ruleset);
-                      }}
-                      className="ml-1 rounded-full hover:bg-primary-foreground/20 p-0.5"
-                      aria-label={`Remove ${ruleset.name}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
+                  <div key={groupKey ?? 'misc'} className={cn('space-y-4', groupIndex > 0 && 'pt-6 border-t')}>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold">{groupLabel}</h3>
+                      {isExclusiveGroup && (
+                        <Badge variant="outline" className="text-xs">
+                          <Radio className="h-3 w-3 mr-1" />
+                          Select One
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {groupRulesets.map((foundation) => renderFoundationCard(foundation, groupSize))}
+                    </div>
+                  </div>
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
+
+        {/* Selected Rulesets Review (Compact) */}
+        {!isCustomizing && selectedRulesetKeys.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {selectedRulesetKeys.map(key => {
+              const r = AVAILABLE_RULESETS.find(x => x.id === key);
+              if (!r) return null;
+              return (
+                <Badge key={key} variant="secondary">
+                  {r.name}
+                </Badge>
+              )
+            })}
+          </div>
+        )}
+      </div>
+      {/* Floating Continue Button */}
+      {selectedRulesetKeys.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <Button
+            size="lg"
+            className="shadow-lg hover:shadow-xl transition-all gap-2 px-8 rounded-full"
+            onClick={() => useStoryDraftStore.setState(state => {
+              if (state.draft) state.draft.current_step += 1;
+              return { draft: { ...state.draft!, current_step: 2 } };
+            })}
+          >
+            Continue to Elements
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       )}
     </div>
   );
 }
+
