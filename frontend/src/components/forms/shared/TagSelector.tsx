@@ -10,6 +10,7 @@ interface TagSelectorProps {
     value?: string[];
     onChange: (tags: string[]) => void;
     mode?: 'user' | 'admin';
+    scope?: string;
     placeholder?: string;
     maxTags?: number;
     className?: string;
@@ -19,6 +20,7 @@ export function TagSelector({
     value = [],
     onChange,
     mode = 'user',
+    scope = 'global',
     placeholder = "Filter tags...",
     maxTags = 10,
     className

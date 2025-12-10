@@ -13,7 +13,7 @@ import type {
 } from '@shared/types/chimera-authoring';
 import type { StoryDraft } from '@/types/chimera-domain';
 import type { CompiledStory } from '@shared/types/chimera-compiled';
-import type { ChimeraWorldV2, ChimeraEntityV2, ChimeraStoryV2, ChimeraAssetRef } from '@/types/chimera-v2';
+import type { ChimeraWorldV2, ChimeraEntityV2, ChimeraStoryV2, ChimeraAssetRef, ChimeraLoreFragment } from '@/types/chimera-v2';
 import { useQuery } from '@tanstack/react-query';
 
 // API Response types
@@ -647,8 +647,9 @@ export function useCreateWorld() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createWorldV2,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['my-worlds'] });
+      queryClient.invalidateQueries({ queryKey: ['world-detail', data.id] });
     },
   });
 }
@@ -657,8 +658,9 @@ export function useUpdateWorld() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<ChimeraWorldV2> }) => updateWorldV2(id, data),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['my-worlds'] });
+      queryClient.invalidateQueries({ queryKey: ['world-detail', data.id] });
     },
   });
 }
@@ -763,5 +765,124 @@ export function useTags() {
     queryKey: ['tags'],
     queryFn: getTags,
     staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+// ============================================================================
+// LORE API (V2)
+// ============================================================================
+
+// Helper to map backend response to frontend fragment
+function mapToFragment(item: any): ChimeraLoreFragment {
+  return {
+    id: item.id,
+    world_id: item.world_id,
+    title: item.display_name || 'Untitled',
+    type: item.type || (item.fragment?.type) || 'general',
+    content: item.entry_text || '',
+    keywords: item.keywords || item.tags?.map((t: any) => t.tag_name) || [],
+    updated_at: item.updated_at
+  };
+}
+
+/**
+ * Get lore fragments for a specific world
+ * Route: GET /api/v2/chimera/lore?world_id={id}
+ */
+export async function getLoreByWorld(worldId: string): Promise<ChimeraLoreFragment[]> {
+  const result = await apiFetch<any[]>(`/api/v2/chimera/lore?world_id=${worldId}`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to fetch lore');
+  }
+  return (result.data || []).map(mapToFragment);
+}
+
+/**
+ * Create a new lore fragment (V2)
+ */
+export async function createLoreV2(data: Partial<ChimeraLoreFragment>): Promise<ChimeraLoreFragment> {
+  const payload = {
+    world_id: data.world_id,
+    display_name: data.title,
+    entry_text: data.content,
+    keywords: data.keywords,
+    type: data.type
+  };
+
+  const result = await apiPost<any>('/api/v2/chimera/lore', payload);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to create lore fragment');
+  }
+  return mapToFragment(result.data);
+}
+
+/**
+ * Update an existing lore fragment (V2)
+ */
+export async function updateLoreV2(id: string, data: Partial<ChimeraLoreFragment>): Promise<ChimeraLoreFragment> {
+  const payload: any = {};
+  if (data.title !== undefined) payload.display_name = data.title;
+  if (data.content !== undefined) payload.entry_text = data.content;
+  if (data.keywords !== undefined) payload.keywords = data.keywords;
+  if (data.type !== undefined) payload.type = data.type;
+
+  const result = await apiPut<any>(`/api/v2/chimera/lore/${id}`, payload);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to update lore fragment');
+  }
+  return mapToFragment(result.data);
+}
+
+/**
+ * Delete a lore fragment (V2)
+ */
+export async function deleteLoreV2(id: string): Promise<void> {
+  const result = await apiDelete(`/api/v2/chimera/lore/${id}`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to delete lore fragment');
+  }
+}
+
+// --- Lore Hooks ---
+
+export function useLoreByWorld(worldId?: string | null) {
+  return useQuery({
+    queryKey: ['lore', worldId],
+    queryFn: () => {
+      if (!worldId) return Promise.resolve([]);
+      return getLoreByWorld(worldId);
+    },
+    enabled: !!worldId,
+  });
+}
+
+export function useCreateLore() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createLoreV2,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['lore', data.world_id] });
+    },
+  });
+}
+
+export function useUpdateLore() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ChimeraLoreFragment> }) => updateLoreV2(id, data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['lore', data.world_id] });
+    },
+  });
+}
+
+export function useDeleteLore() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteLoreV2,
+    onSuccess: () => {
+      // Invalidate all 'lore' queries as we don't have specific world_id context easily available
+      queryClient.invalidateQueries({ queryKey: ['lore'] });
+    },
   });
 }

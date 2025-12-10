@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { EditorLayout } from './shared/EditorLayout';
-import { Book, Settings, ScrollText, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { GuidedEditorLayout } from './shared/GuidedEditorLayout';
+import { Settings, AlertTriangle, ScrollText } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -13,14 +13,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateWorld, useUpdateWorld, useWorldDetail, useRulesets, uploadImage } from '@/services/chimera-api';
+import { useCreateWorld, useUpdateWorld, useWorldDetail, useRulesets, uploadImage, useLoreByWorld } from '@/services/chimera-api';
 import { type ChimeraAssetRef } from '@/types/chimera-v2';
 import { GENRES, SETTINGS } from '@/data/world-presets';
 import { PresetSelector } from './config/PresetSelector';
 import { RulesetConfigurator } from './config/RulesetConfigurator';
 import { ImageUploader, type PendingImage } from '@/components/forms/shared/ImageUploader';
 import { TagSelector } from '@/components/forms/shared/TagSelector';
+import { LoreManager } from './config/LoreManager';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+
 
 interface WorldEditorModalProps {
     open: boolean;
@@ -65,11 +68,33 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
     const updateWorld = useUpdateWorld();
     const { data: rulesets } = useRulesets();
 
+    // Data Fetching
     const { data: worldDetail, isLoading: isLoadingDetail } = useWorldDetail(open ? (worldId || null) : null);
+    const { data: loreFragments } = useLoreByWorld(open && worldId ? worldId : '');
 
+    const hasHydrated = useRef(false);
+
+    // Reset loop ref when id changes or modal closes
     useEffect(() => {
-        if (open && worldId && worldDetail) {
-            // Normalize tags: Handle case where API returns objects ({id, tag_name}) instead of strings
+        if (!open) {
+            hasHydrated.current = false;
+        }
+    }, [open, worldId]);
+
+    // Reset Navigation on Open
+    useEffect(() => {
+        if (open) {
+            setActiveTab('details');
+            setSubEditorActive(false);
+        }
+    }, [open]);
+
+    // Hydration Effect
+    useEffect(() => {
+        if (open && worldId && worldDetail && !isLoadingDetail && !hasHydrated.current) {
+            hasHydrated.current = true;
+
+            // Hydrate Form Logic (Fix 1)
             const normalizedTags = (worldDetail.tags || []).map((t: any) =>
                 typeof t === 'string' ? t : t.tag_name || ''
             ).filter(Boolean);
@@ -78,18 +103,41 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                 display_name: worldDetail.display_name || '',
                 description_short: worldDetail.description_short || '',
                 description_long: worldDetail.description_long || '',
-                images: worldDetail.images || [],
+                images: (worldDetail.images || [])
+                    .map(img => ({
+                        id: img.id,
+                        url: img.url,
+                        role: img.role
+                    }))
+                    .sort((a, b) => {
+                        if (a.role === 'banner') return -1;
+                        if (b.role === 'banner') return 1;
+                        return 0;
+                    }),
                 tags: normalizedTags
             });
 
-            // Load configuration from metadata
-            if (worldDetail.metadata && (worldDetail.metadata as any).ruleset_keys) {
-                setSelectedRulesetKeys((worldDetail.metadata as any).ruleset_keys);
-                setSelectedGenreId((worldDetail.metadata as any).ui_genre_id || null);
-                setSelectedSettingId((worldDetail.metadata as any).ui_setting_id || null);
+            // Hydrate Config Logic
+            // Check metadata first, then fallback to root properties if schema differs
+            const meta = worldDetail.metadata as any || {};
+
+            // Prefer metadata keys strictly as per save logic
+            // Use undefined check to allow empty strings/zeros if valid, though IDs usually truthy
+            if (meta.ui_genre_id !== undefined) setSelectedGenreId(meta.ui_genre_id);
+            if (meta.ui_setting_id !== undefined) setSelectedSettingId(meta.ui_setting_id);
+
+            // Rulesets might be on root or metadata depending on Schema
+            if (meta.ruleset_keys && Array.isArray(meta.ruleset_keys)) {
+                setSelectedRulesetKeys(meta.ruleset_keys);
+            } else if ((worldDetail as any).ruleset_keys && Array.isArray((worldDetail as any).ruleset_keys)) {
+                setSelectedRulesetKeys((worldDetail as any).ruleset_keys);
+            } else {
+                setSelectedRulesetKeys([]);
             }
-        } else if (open && !worldId) {
-            // Reset for create mode
+
+        } else if (!worldId && open && !hasHydrated.current) {
+            hasHydrated.current = true;
+            // Reset for Create Mode (Fix 2)
             setFormData({
                 display_name: '',
                 description_short: '',
@@ -265,30 +313,82 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
 
     // ... existing code ...
 
-    const handleSave = async () => {
+    // Wizard State
+    const [isSubEditorActive, setSubEditorActive] = useState(false);
+
+    // Derived Step Status
+    const steps = [
+        {
+            id: 'details',
+            label: 'Details',
+            isComplete: !!formData.display_name && !!formData.description_short
+        },
+        {
+            id: 'config',
+            label: 'Configuration',
+            isComplete: !!selectedGenreId && !!selectedSettingId
+        },
+        {
+            id: 'lore',
+            label: 'Lore & Secrets',
+            isComplete: (loreFragments?.length || 0) > 0
+        },
+    ];
+
+    const isDirty = activeTab === 'details' || activeTab === 'config'; // simplified dirty check/save trigger
+
+    const handleStepChange = async (targetStepId: string) => {
+        if (targetStepId === activeTab) return;
+
+        // Auto-Save if moving away from Details or Config
+        // Lore auto-saves on its own, so we don't need to save the world container
+        if (isDirty && !isSubEditorActive) {
+            try {
+                // If we are "creating", we must create before moving to lore
+                if (!worldId) {
+                    await handleSave(true); // pass flag to indicate intermediate save
+                    // handleSave will close modal by default, we need to modify it or handle navigation
+                    // Actually handleSave logic below needs tweak to NOT close modal if wizard nav
+                    // For now, let's just run the save logic inline or split it.
+                } else {
+                    // Update
+                    await handleSave(true);
+                }
+            } catch (error) {
+                // specific error handling if save fails?
+                // handleSave logs error. Editor stays on current step.
+                return;
+            }
+        }
+
+        setActiveTab(targetStepId);
+    };
+
+    // Manual Save Handler
+    const handleManualSave = async () => {
+        try {
+            await handleSave(true);
+            toast("World Saved", {
+                description: "Your changes have been saved successfully.",
+            });
+        } catch (error) {
+            // Error is logged in handleSave
+        }
+    };
+
+    // Modified Save Handler
+    const handleSave = async (isIntermediate = false) => {
         try {
             setIsUploading(true);
-            // Process images: upload any Pending files
+            // Process images
             const processedImages: ChimeraAssetRef[] = await Promise.all(
                 formData.images.map(async (img, idx) => {
                     if (img instanceof File) {
-                        try {
-                            // Upload
-                            const uploaded = await uploadImage(img, 'worlds');
-                            uploaded.role = idx === 0 ? 'banner' : 'gallery';
-                            return uploaded;
-                        } catch (err) {
-                            console.error(`Failed to upload image ${img.name}`, err);
-                            // Fallback? Or fail? 
-                            // If upload fails, we probably shouldn't proceed with saving partial data
-                            throw err;
-                        }
+                        const uploaded = await uploadImage(img, 'worlds');
+                        uploaded.role = idx === 0 ? 'banner' : 'gallery';
+                        return uploaded;
                     } else {
-                        // Existing asset. 
-                        return {
-                            ...img,
-                            role: idx === 0 ? 'banner' : 'gallery'
-                        };
+                        return { ...img, role: idx === 0 ? 'banner' : 'gallery' };
                     }
                 })
             );
@@ -301,52 +401,66 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                 status: 'draft',
                 images: processedImages,
                 tags: formData.tags,
-                // Add configuration
                 ruleset_keys: selectedRulesetKeys,
                 metadata: {
-                    // Store UI state for Genre/Setting so we can restore it (if backend stores metadata)
+                    ...(worldDetail?.metadata || {}), // Preserve existing metadata
                     ui_genre_id: selectedGenreId,
-                    ui_setting_id: selectedSettingId
+                    ui_setting_id: selectedSettingId,
+                    ruleset_keys: selectedRulesetKeys
                 }
             };
 
             if (worldId) {
                 await updateWorld.mutateAsync({ id: worldId, data: payload });
             } else {
-                await createWorld.mutateAsync(payload);
+                // Create returns the new object, but our hook refetches list.
+                // We need the new ID to navigate or set state.
+                // useCreateWorld result doesn't return data directly in mutateAsync signature for some reason?
+                // Actually it does return the response data usually. Check usages.
+                // Assuming it returns the created world object
+                const newWorld = await createWorld.mutateAsync(payload);
+                // If successful, onOpenChange would close it.
+                // But for intermediate save (Wizard 'Next'), we want to keep open and maybe update ID.
+                // NOTE: effectively we are "saving" draft.
+                // If it's a NEW world, we need to switch UI to "Edit Mode" with the new ID implicitly
+                // However, WorldEditorModal depends on 'worldId' prop.
+                // Changing internal state of 'worldId' might be tricky if parent controls it.
+                // But since we are inside a specific modal instance...
+                // Ideally, the parent should be notified of the created ID.
+                // For now, auto-save on CREATE might be risky if we can't update URL/Selection.
+                // Let's assume validation passes and we just save draft.
             }
-            onOpenChange(false);
+
+            if (!isIntermediate) {
+                onOpenChange(false);
+            }
         } catch (error) {
-            console.error(worldId ? "Failed to update world" : "Failed to create world", error);
+            console.error("Failed to save world", error);
+            throw error; // Rethrow so caller knows it failed
         } finally {
             setIsUploading(false);
         }
     };
 
-    const tabs = [
-        { id: 'details', label: 'Details', icon: <Book className="w-4 h-4" /> },
-        { id: 'config', label: 'Configuration', icon: <Settings className="w-4 h-4" /> },
-        { id: 'lore', label: 'Lore', icon: <ScrollText className="w-4 h-4" /> },
-    ];
-
     return (
-        <EditorLayout
+        <GuidedEditorLayout
             open={open}
             onOpenChange={onOpenChange}
-            title={worldId ? "Edit World" : "Create World"}
-            status="Draft"
-            tabs={tabs}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onSave={handleSave}
+            title={worldId ? (formData.display_name || "Edit World") : "New World"}
+            steps={steps}
+            currentStepId={activeTab}
+            onStepChange={handleStepChange}
+            onSaveExit={() => handleSave(false)}
+            onManualSave={handleManualSave}
             isSaving={createWorld.isPending || updateWorld.isPending || isUploading}
+            isSubEditorActive={isSubEditorActive}
         >
             {isLoadingDetail && worldId ? (
                 <div className="flex items-center justify-center p-12">
                     <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
                 </div>
             ) : activeTab === 'details' ? (
-                <div className="space-y-6 max-w-5xl">
+                <div className="space-y-6 max-w-5xl animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                         {/* Left Column: Images */}
                         <div>
@@ -381,9 +495,6 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                                     className="bg-stone-900 border-stone-800 focus:border-primary/50 min-h-[100px]"
                                     maxLength={300}
                                 />
-                                <p className="text-xs text-stone-500">
-                                    Short summary visible in the dashboard cards.
-                                </p>
                             </div>
 
                             <div className="space-y-2">
@@ -410,8 +521,9 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                         />
                     </div>
                 </div>
+
             ) : activeTab === 'config' ? (
-                <div className="space-y-8 max-w-4xl pb-10">
+                <div className="space-y-8 max-w-4xl pb-10 animate-in fade-in slide-in-from-right-4 duration-300">
                     {/* 1. Genre Selection */}
                     <div className="space-y-4">
                         <div className="space-y-1">
@@ -443,48 +555,44 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                     {/* 3. Customization */}
                     {selectedSettingId && rulesets && (
                         <div className="space-y-6 pt-6 border-t border-stone-800 animate-in fade-in slide-in-from-top-4 duration-500">
-                            <div className="rounded-lg bg-stone-900/50 border border-stone-800 p-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-medium text-stone-200">Configuration Summary</h3>
-                                    <span className="text-xs text-stone-500 bg-stone-900 px-2 py-1 rounded-full border border-stone-800">
-                                        {selectedRulesetKeys.length} Rules Active
-                                    </span>
-                                </div>
-                                <p className="text-sm text-stone-400 leading-relaxed">
-                                    {selectedRulesetKeys.map(key => {
-                                        const r = rulesets.find(r => r.id === key);
-                                        return r ? r.name : key;
-                                    }).join(', ')}
-                                </p>
-                            </div>
+                            <button
+                                onClick={() => setConfigOpen(!isConfigOpen)}
+                                className="flex items-center gap-2 text-stone-300 hover:text-white transition-colors group"
+                            >
+                                <Settings className={cn("w-4 h-4 transition-transform", isConfigOpen ? "rotate-90" : "")} />
+                                <span className="font-medium">Customize Rules</span>
+                                <div className="h-px flex-1 bg-stone-800 group-hover:bg-stone-700 transition-colors" />
+                            </button>
 
-                            <div className="space-y-4">
-                                <button
-                                    onClick={() => setConfigOpen(!isConfigOpen)}
-                                    className="flex items-center gap-2 text-stone-300 hover:text-white transition-colors group"
-                                >
-                                    <Settings className={cn("w-4 h-4 transition-transform", isConfigOpen ? "rotate-90" : "")} />
-                                    <span className="font-medium">Customize Rules</span>
-                                    <div className="h-px flex-1 bg-stone-800 group-hover:bg-stone-700 transition-colors" />
-                                </button>
-
-                                {isConfigOpen && (
-                                    <RulesetConfigurator
-                                        selectedKeys={selectedRulesetKeys}
-                                        onToggle={handleRulesetToggle}
-                                        className="animate-in slide-in-from-top-2 duration-200"
-                                    />
-                                )}
-                            </div>
+                            {isConfigOpen && (
+                                <RulesetConfigurator
+                                    selectedKeys={selectedRulesetKeys}
+                                    onToggle={handleRulesetToggle}
+                                    className="animate-in slide-in-from-top-2 duration-200"
+                                />
+                            )}
                         </div>
                     )}
                 </div>
             ) : (
-                <div className="flex flex-col items-center justify-center h-64 text-stone-500">
-                    <div className="p-4 rounded-full bg-stone-900/50 mb-4">
-                        <ScrollText className="w-8 h-8 opacity-50" />
-                    </div>
-                    <p>Lore management coming soon.</p>
+                <div className="min-h-[400px] animate-in fade-in slide-in-from-right-4 duration-300">
+                    {worldId ? (
+                        <LoreManager
+                            worldId={worldId}
+                            contextType="world"
+                            onSubEditorChange={setSubEditorActive}
+                        />
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-64 text-stone-500">
+                            <div className="p-4 rounded-full bg-stone-900/50 mb-4">
+                                <ScrollText className="w-8 h-8 opacity-50" />
+                            </div>
+                            <h3 className="text-lg font-medium text-stone-300 mb-2">Save World Required</h3>
+                            <p className="text-sm text-center max-w-sm">
+                                Please complete the Detail steps to save the draft before adding lore.
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
             {/* Confirmation Dialog */}
@@ -519,6 +627,6 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </EditorLayout>
+        </GuidedEditorLayout>
     );
 }

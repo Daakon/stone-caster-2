@@ -40,6 +40,22 @@ export interface ChimeraStoryV2 {
     updated_at: string;
 }
 
+export type ChimeraLoreType =
+    | 'general' | 'history' | 'geography' | 'culture' | 'religion' | 'faction' | 'magic' | 'rumor'
+    | 'backstory' | 'memory' | 'secret' | 'relationship' | 'habit'
+    | 'origin' | 'creator' | 'curse' | 'legend' | 'mechanic'
+    | 'hazard' | 'treasure' | 'inhabitants';
+
+export interface ChimeraLoreFragment {
+    id: string;
+    world_id: string;
+    title: string;
+    type: ChimeraLoreType;
+    content: string;
+    keywords: string[];
+    updated_at: string;
+}
+
 /**
  * Helper to get the primary image URL from a list of assets.
  * Maps 'cover'/'primary' intent to shared 'banner'/'portrait' roles.
