@@ -1,9 +1,9 @@
-import React, { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X, Save, Loader2 } from 'lucide-react';
+import { Save, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 interface EditorLayoutProps {
     open: boolean;
@@ -37,6 +37,9 @@ export function EditorLayout({
                 <div className="flex items-center justify-between px-6 py-4 border-b border-stone-800 bg-stone-900/50">
                     <div className="flex items-center gap-3">
                         <DialogTitle className="text-xl font-bold text-white">{title}</DialogTitle>
+                        <DialogDescription className="hidden">
+                            {title} - {status}
+                        </DialogDescription>
                         <Badge variant="outline" className="uppercase text-[10px] tracking-wider border-stone-700 text-stone-400">
                             {status}
                         </Badge>

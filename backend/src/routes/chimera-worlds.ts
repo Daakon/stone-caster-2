@@ -72,7 +72,7 @@ function generateSlug(displayName: string): string {
 // Extracts 'images' from definition JSONB if present
 function transformWorldForResponse(world: any): any {
   if (!world) return world;
-  
+
   // Extract images from definition JSONB if present
   let images: any[] = [];
   if (world.definition && typeof world.definition === 'object') {
@@ -88,7 +88,7 @@ function transformWorldForResponse(world: any): any {
       images = [];
     }
   }
-  
+
   // Debug logging
   if (process.env.NODE_ENV === 'development' || process.env.DEBUG) {
     console.log('[transformWorldForResponse] Transforming world:', {
@@ -100,7 +100,7 @@ function transformWorldForResponse(world: any): any {
       extractedImagesLength: images.length,
     });
   }
-  
+
   return {
     ...world,
     display_name: world.name || world.display_name || '',  // Map name -> display_name
@@ -178,11 +178,11 @@ router.post(
       // Let the database generate the UUID via gen_random_uuid() default
       // Generate slug from display_name (required field)
       const slug = generateSlug(worldData.display_name);
-      
+
       // Generate key - in Supabase schema, key is required and unique
       // Use slug as the key (they serve similar purposes)
       const key = slug || `world-${Date.now()}`;
-      
+
       // Build definition JSONB - Supabase schema requires this field
       // Store world metadata in definition for compatibility with V3 schema
       // Include ruleset_template_ids and images in definition (junction table is deprecated)
@@ -194,7 +194,7 @@ router.post(
         ruleset_template_ids: worldData.ruleset_template_ids || [],
         images: worldData.images || [],
       };
-      
+
       const worldInsertData: any = {
         owner_user_id: userId,
         key: key, // Required by Supabase schema (NOT NULL, UNIQUE)
@@ -212,9 +212,9 @@ router.post(
       // Add character_schema_contributions if provided
       // Note: This may fail if Supabase schema cache is stale (PGRST204 error)
       // If it fails, we'll retry without this field since it has a default value
-      const hasSchemaContributions = worldData.character_schema_contributions && 
-                                     Object.keys(worldData.character_schema_contributions).length > 0;
-      
+      const hasSchemaContributions = worldData.character_schema_contributions &&
+        Object.keys(worldData.character_schema_contributions).length > 0;
+
       if (hasSchemaContributions) {
         worldInsertData.character_schema_contributions = worldData.character_schema_contributions;
       }
@@ -227,35 +227,35 @@ router.post(
 
       // If we get a PGRST204 error for character_schema_contributions, retry without it
       // The database default will handle it (defaults to '{}'::jsonb)
-      if (worldError && 
-          worldError.code === 'PGRST204' && 
-          worldError.message?.includes('character_schema_contributions') &&
-          hasSchemaContributions) {
+      if (worldError &&
+        worldError.code === 'PGRST204' &&
+        worldError.message?.includes('character_schema_contributions') &&
+        hasSchemaContributions) {
         console.warn('[Chimera Worlds] Schema cache issue with character_schema_contributions, retrying without it');
-        
+
         // Remove character_schema_contributions and retry
         const retryInsertData = { ...worldInsertData };
         delete retryInsertData.character_schema_contributions;
-        
+
         const retryResult = await supabaseAdmin
           .from('chimera_worlds')
           .insert(retryInsertData)
           .select()
           .single();
-        
+
         world = retryResult.data;
         worldError = retryResult.error;
-        
+
         // If retry succeeds, try to update character_schema_contributions
         // Sometimes UPDATE works even when INSERT doesn't due to schema cache timing
         if (!worldError && world && hasSchemaContributions) {
           const { error: updateError } = await supabaseAdmin
             .from('chimera_worlds')
-            .update({ 
+            .update({
               character_schema_contributions: worldData.character_schema_contributions as any
             })
             .eq('id', world.id);
-          
+
           if (updateError) {
             console.warn('[Chimera Worlds] Failed to update character_schema_contributions after retry. World created but schema contributions not set.');
             console.warn('[Chimera Worlds] Error:', updateError.message);
@@ -268,7 +268,7 @@ router.post(
               .select('*')
               .eq('id', world.id)
               .single();
-            
+
             if (updatedWorld) {
               world = updatedWorld;
             }
@@ -278,7 +278,7 @@ router.post(
 
       if (worldError) {
         console.error('[Chimera Worlds] Error creating world:', worldError);
-        
+
         // Provide helpful error message for schema cache issues
         if (worldError.code === 'PGRST204') {
           return sendErrorWithStatus(
@@ -288,7 +288,7 @@ router.post(
             req
           );
         }
-        
+
         return sendErrorWithStatus(
           res,
           ApiErrorCode.INTERNAL_ERROR,
@@ -536,9 +536,9 @@ router.get(
         .select('role')
         .eq('id', userId)
         .single();
-      
+
       const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
-      
+
       if (!isAdmin) {
         return sendErrorWithStatus(
           res,
@@ -696,20 +696,11 @@ router.get(
         .eq('id', id)
         .single();
 
-      // Fetch tags
-      const { data: assetTags } = await supabaseAdmin
-        .from('chimera_asset_tags')
-        .select(`
-          tag:chimera_tags!tag_id(id, tag_name)
-        `)
-        .eq('asset_id', id)
-        .eq('asset_type', 'world');
-
-      if (assetTags) {
-        (world as any).tags = assetTags
-          .map((link: any) => link.tag)
-          .filter((tag: any) => tag !== null);
-      }
+      // Note: We used to fetch tags from chimera_asset_tags relation here,
+      // but we now rely on the 'tags' column on the world table itself 
+      // to ensure consistency with the list endpoint and avoid desync.
+      // The relation is maintained for search/filtering, but the document
+      // is the source of truth for display.
 
       if (worldError) {
         if (worldError.code === 'PGRST116') {
@@ -869,15 +860,15 @@ router.put(
       // Visibility can only be changed via a separate publish endpoint, not through this update endpoint
       // Images are stored in definition JSONB, handled separately below
       const { ruleset_template_ids, tag_names, visibility, tags, images, ...worldUpdateData } = updateData;
-      
+
       // Handle tags if provided
       if (tags !== undefined) {
         worldUpdateData.tags = tags;
       }
-      
+
       // Track publishing: Detect if visibility is changing to 'public'
       const isPublishing = visibility === 'public' && existingWorld.visibility !== 'public';
-      
+
       // Check if user is authorized to publish directly (admin or verified creator)
       const { data: profile } = await supabaseAdmin
         .from('profiles')
@@ -887,7 +878,7 @@ router.put(
       const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
       const isVerifiedCreator = profile?.is_verified_creator === true;
       const canPublishDirectly = isAdmin || isVerifiedCreator;
-      
+
       // Gatekeeper Logic: Force 'pending' if user tries to publish but isn't authorized
       let finalVisibility = visibility;
       let wasCoercedToPending = false;
@@ -896,7 +887,7 @@ router.put(
         wasCoercedToPending = true;
         console.log(`[Chimera Worlds] User ${userId} attempted to publish but is not authorized. Setting visibility to 'pending'.`);
       }
-      
+
       // Map display_name to name for database
       const dbUpdateData: any = { ...worldUpdateData };
       if (dbUpdateData.display_name !== undefined) {
@@ -905,24 +896,24 @@ router.put(
         dbUpdateData.slug = generateSlug(dbUpdateData.display_name);
         delete dbUpdateData.display_name; // Remove display_name, we use 'name' in DB
       }
-      
+
       // Handle visibility change and publishing tracking
       if (visibility !== undefined) {
         dbUpdateData.visibility = finalVisibility; // Use coerced visibility if needed
-        
+
         // Track publishing: Set published_by and published_at when visibility changes to 'public'
         // Only set if actually publishing (not coerced to pending)
         if (isPublishing && canPublishDirectly) {
           dbUpdateData.published_by = userId;
           dbUpdateData.published_at = new Date().toISOString();
-          
+
           // Allow admins to set is_official flag when publishing
           if (updateData.is_official !== undefined && isAdmin) {
             dbUpdateData.is_official = updateData.is_official;
           }
         }
       }
-      
+
       if (Object.keys(dbUpdateData).length > 0) {
         const { error: updateError } = await supabaseAdmin
           .from('chimera_worlds')
@@ -978,11 +969,11 @@ router.put(
         const updatedDefinition: any = {
           ...currentDefinition,
         };
-        
+
         if (ruleset_template_ids !== undefined) {
           updatedDefinition.ruleset_template_ids = ruleset_template_ids || [];
         }
-        
+
         // Explicitly save images to definition JSONB (even if empty array)
         if (updateData.images !== undefined) {
           updatedDefinition.images = Array.isArray(updateData.images) ? updateData.images : [];
@@ -1123,24 +1114,12 @@ router.put(
         });
       }
 
-      // Fetch tags
-      const { data: assetTags } = await supabaseAdmin
-        .from('chimera_asset_tags')
-        .select(`
-          tag:chimera_tags!tag_id(id, tag_name)
-        `)
-        .eq('asset_id', id)
-        .eq('asset_type', 'world');
-
-      if (assetTags && updatedWorld) {
-        (updatedWorld as any).tags = assetTags
-          .map((link: any) => link.tag)
-          .filter((tag: any) => tag !== null);
-      }
+      // Note: We used to fetch tags from chimera_asset_tags here,
+      // but updatedWorld already contains the updated 'tags' column.
 
       // Transform to API format (map name -> display_name)
       const transformedWorld = transformWorldForResponse(updatedWorld);
-      
+
       // Debug: Log what we're returning
       console.log('[Chimera Worlds] Returning transformed world:', {
         hasImages: 'images' in transformedWorld,
@@ -1149,19 +1128,19 @@ router.put(
         imagesIsArray: Array.isArray(transformedWorld.images),
         imagesLength: Array.isArray(transformedWorld.images) ? transformedWorld.images.length : 'N/A',
       });
-      
+
       // If visibility was coerced to pending, include a message
       if (wasCoercedToPending) {
         return sendSuccess(
-          res, 
-          { 
-            ...transformedWorld, 
-            _message: 'Content submitted for approval. Visibility set to "pending" as you are not a verified creator.' 
-          }, 
+          res,
+          {
+            ...transformedWorld,
+            _message: 'Content submitted for approval. Visibility set to "pending" as you are not a verified creator.'
+          },
           req
         );
       }
-      
+
       return sendSuccess(res, transformedWorld, req);
     } catch (error) {
       console.error('[Chimera Worlds] Unexpected error:', error);

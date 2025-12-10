@@ -13,7 +13,7 @@ import type {
 } from '@shared/types/chimera-authoring';
 import type { StoryDraft } from '@/types/chimera-domain';
 import type { CompiledStory } from '@shared/types/chimera-compiled';
-import type { ChimeraWorldV2, ChimeraEntityV2, ChimeraStoryV2 } from '@/types/chimera-v2';
+import type { ChimeraWorldV2, ChimeraEntityV2, ChimeraStoryV2, ChimeraAssetRef } from '@/types/chimera-v2';
 import { useQuery } from '@tanstack/react-query';
 
 // API Response types
@@ -240,6 +240,7 @@ export async function deleteLore(id: string): Promise<void> {
 /**
  * Generate an upload URL for assets
  */
+// ... existing generateUploadUrl ...
 export async function generateUploadUrl(
   contentType: string,
   folder: string
@@ -252,6 +253,67 @@ export async function generateUploadUrl(
     throw new Error(result.error.message || 'Failed to generate upload URL');
   }
   return result.data!;
+}
+
+export interface SignUploadResponse {
+  uploadUrl: string;
+  accessUrl: string;
+  path: string;
+}
+
+/**
+ * Sign an asset upload (flexible inputs)
+ */
+export async function signAssetUpload(
+  data: { filename?: string; fileType?: string; contentType?: string; folder?: string }
+): Promise<SignUploadResponse> {
+  const result = await apiPost<SignUploadResponse>('/api/chimera/assets/sign-upload', data);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to sign upload');
+  }
+  return result.data!;
+}
+
+/**
+ * Upload a single image asset
+ * 1. Signs the upload
+ * 2. Uploads to Cloudflare
+ * 3. Returns the AssetRef
+ */
+export async function uploadImage(file: File, folder: string = 'worlds'): Promise<ChimeraAssetRef> {
+  // 1. Sign
+  const signRes = await signAssetUpload({
+    filename: file.name,
+    fileType: file.type,
+    folder
+  });
+
+  // 2. Upload
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const uploadUrl = signRes.uploadUrl;
+  const upRes = await fetch(uploadUrl, { method: 'POST', body: formData });
+  const upData = await upRes.json();
+
+  if (!upRes.ok || !upData.success) {
+    throw new Error("Upload failed: " + (upData.errors?.[0]?.message || "Unknown error"));
+  }
+
+  // 3. Resolve URL
+  let url = signRes.accessUrl;
+  if (upData.result?.variants?.[0]) {
+    url = upData.result.variants[0];
+  } else if (upData.result?.id) {
+    const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL || 'https://imagedelivery.net/H1wcHgsbpczAJHyB61JpRw';
+    url = `${deliveryUrl.replace(/\/$/, '')}/${upData.result.id}/public`;
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    url,
+    role: 'gallery'
+  };
 }
 
 /**
@@ -675,6 +737,31 @@ export function useRulesetDetail(id: string | null) {
   return useQuery({
     queryKey: ['ruleset-detail', id],
     queryFn: () => getRuleset(id!),
-    enabled: !!id,
+  });
+}
+
+// ============================================================================
+// TAGS API
+// ============================================================================
+
+export interface Tag {
+  id: string;
+  tag_name: string;
+  is_approved: boolean;
+}
+
+export async function getTags(): Promise<Tag[]> {
+  const result = await apiFetch<Tag[]>('/api/v2/chimera/lore/tags');
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to fetch tags');
+  }
+  return result.data || [];
+}
+
+export function useTags() {
+  return useQuery({
+    queryKey: ['tags'],
+    queryFn: getTags,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }

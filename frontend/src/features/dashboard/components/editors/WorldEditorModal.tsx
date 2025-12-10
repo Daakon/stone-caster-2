@@ -13,11 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateWorld, useUpdateWorld, useWorldDetail, useRulesets } from '@/services/chimera-api';
-import { getPrimaryImageUrl } from '@/types/chimera-v2';
+import { useCreateWorld, useUpdateWorld, useWorldDetail, useRulesets, uploadImage } from '@/services/chimera-api';
+import { type ChimeraAssetRef } from '@/types/chimera-v2';
 import { GENRES, SETTINGS } from '@/data/world-presets';
 import { PresetSelector } from './config/PresetSelector';
 import { RulesetConfigurator } from './config/RulesetConfigurator';
+import { ImageUploader, type PendingImage } from '@/components/forms/shared/ImageUploader';
+import { TagSelector } from '@/components/forms/shared/TagSelector';
 import { cn } from '@/lib/utils';
 
 interface WorldEditorModalProps {
@@ -28,12 +30,14 @@ interface WorldEditorModalProps {
 
 export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorModalProps) {
     const [activeTab, setActiveTab] = useState('details');
-    // Simple local state form. In production, use react-hook-form.
+
+    // Form State
     const [formData, setFormData] = useState({
         display_name: '',
         description_short: '',
         description_long: '',
-        primary_image_url: ''
+        images: [] as PendingImage[],
+        tags: [] as string[]
     });
 
     // Configuration State
@@ -65,14 +69,20 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
 
     useEffect(() => {
         if (open && worldId && worldDetail) {
+            // Normalize tags: Handle case where API returns objects ({id, tag_name}) instead of strings
+            const normalizedTags = (worldDetail.tags || []).map((t: any) =>
+                typeof t === 'string' ? t : t.tag_name || ''
+            ).filter(Boolean);
+
             setFormData({
                 display_name: worldDetail.display_name || '',
                 description_short: worldDetail.description_short || '',
                 description_long: worldDetail.description_long || '',
-                primary_image_url: getPrimaryImageUrl(worldDetail.images) || ''
+                images: worldDetail.images || [],
+                tags: normalizedTags
             });
 
-            // TODO: Load existing configuration from metadata
+            // Load configuration from metadata
             if (worldDetail.metadata && (worldDetail.metadata as any).ruleset_keys) {
                 setSelectedRulesetKeys((worldDetail.metadata as any).ruleset_keys);
                 setSelectedGenreId((worldDetail.metadata as any).ui_genre_id || null);
@@ -80,7 +90,13 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
             }
         } else if (open && !worldId) {
             // Reset for create mode
-            setFormData({ display_name: '', description_short: '', description_long: '', primary_image_url: '' });
+            setFormData({
+                display_name: '',
+                description_short: '',
+                description_long: '',
+                images: [],
+                tags: []
+            });
             setSelectedGenreId(null);
             setSelectedSettingId(null);
             setSelectedRulesetKeys([]);
@@ -144,10 +160,6 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
             const toAdd = [key, ...dependencies];
 
             // 2. Check for conflicts
-            // A conflict is when a rule `toAdd` belongs to an exclusion group that already has a *different* member selected.
-            // AND that existing member is NOT also being replaced by this action (which is simpler for radio, complex here).
-            // Actually, if we add `toAdd`, we MUST remove any existing member of the same group.
-
             const toRemove = new Set<string>();
             const conflicts: { added: string, removed: string, group: string }[] = [];
 
@@ -182,17 +194,11 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
             };
 
             if (conflicts.length > 0) {
-                // Determine if this is a "simple switch" (user clicked a radio sibling) vs "dependency conflict"
-                // If the user clicked `key`, and `key` is the one conflicting with `existing`, that's a direct switch.
-                // If `key`'s dependency is the one conflicting, that's a subtle side-effect.
-
                 const isDirectSwitch = conflicts.length === 1 && conflicts[0].added === target.name;
 
                 if (isDirectSwitch) {
-                    // Just do it, standard radio behavior
                     applyAdd();
                 } else {
-                    // Complex conflict (dependencies caused it)
                     setConfirmationDialog({
                         isOpen: true,
                         title: "Resolve Conflicts",
@@ -219,8 +225,6 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
 
         } else {
             // Logic for REMOVING
-            // 1. Find dependents (what relies on this key)
-            // We need to check every *other* selected key to see if it depends on `key`.
             const dependents = selectedRulesetKeys.filter(otherKey => {
                 if (otherKey === key) return false;
                 const deps = getAllDependencies(otherKey);
@@ -256,41 +260,56 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
         }
     };
 
-    // Refined Toggle with Data Access
-    // We can't use the hook inside a callback, and we don't want to fetch rulesets just for this logic if we can avoid it.
-    // However, RulesetConfigurator *already* has the logic. 
-    // Let's update `handleRulesetToggle` to accept `keysToRemove` if needed, or just standard toggle.
-    // Actually, `RulesetConfigurator` can handle the logic of "which keys to unselect" and pass a cleanup function?
-    // No, standard pattern is `onToggle(key)`.
-    // Let's change `RulesetConfigurator` prop to `selectedKeys` and `onChange(newKeys)`.
-    // That way the complex logic stays in the component that has the data.
+    // Upload State
+    const [isUploading, setIsUploading] = useState(false);
 
-
+    // ... existing code ...
 
     const handleSave = async () => {
-        // Construct payload
-        const payload: any = {
-            display_name: formData.display_name,
-            description_short: formData.description_short,
-            description_long: formData.description_long,
-            status: 'draft',
-            // Map the simple URL input back to the images array structure
-            images: formData.primary_image_url ? [{
-                url: formData.primary_image_url,
-                role: 'banner',
-                type: 'image'
-            }] : [],
-            // Add configuration
-            // Note: API might expect 'rulesets' or 'config'
-            ruleset_keys: selectedRulesetKeys,
-            metadata: {
-                // Store UI state for Genre/Setting so we can restore it (if backend stores metadata)
-                ui_genre_id: selectedGenreId,
-                ui_setting_id: selectedSettingId
-            }
-        };
-
         try {
+            setIsUploading(true);
+            // Process images: upload any Pending files
+            const processedImages: ChimeraAssetRef[] = await Promise.all(
+                formData.images.map(async (img, idx) => {
+                    if (img instanceof File) {
+                        try {
+                            // Upload
+                            const uploaded = await uploadImage(img, 'worlds');
+                            uploaded.role = idx === 0 ? 'banner' : 'gallery';
+                            return uploaded;
+                        } catch (err) {
+                            console.error(`Failed to upload image ${img.name}`, err);
+                            // Fallback? Or fail? 
+                            // If upload fails, we probably shouldn't proceed with saving partial data
+                            throw err;
+                        }
+                    } else {
+                        // Existing asset. 
+                        return {
+                            ...img,
+                            role: idx === 0 ? 'banner' : 'gallery'
+                        };
+                    }
+                })
+            );
+
+            // Construct payload
+            const payload: any = {
+                display_name: formData.display_name,
+                description_short: formData.description_short,
+                description_long: formData.description_long,
+                status: 'draft',
+                images: processedImages,
+                tags: formData.tags,
+                // Add configuration
+                ruleset_keys: selectedRulesetKeys,
+                metadata: {
+                    // Store UI state for Genre/Setting so we can restore it (if backend stores metadata)
+                    ui_genre_id: selectedGenreId,
+                    ui_setting_id: selectedSettingId
+                }
+            };
+
             if (worldId) {
                 await updateWorld.mutateAsync({ id: worldId, data: payload });
             } else {
@@ -299,6 +318,8 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
             onOpenChange(false);
         } catch (error) {
             console.error(worldId ? "Failed to update world" : "Failed to create world", error);
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -318,40 +339,66 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onSave={handleSave}
-            isSaving={createWorld.isPending || updateWorld.isPending}
+            isSaving={createWorld.isPending || updateWorld.isPending || isUploading}
         >
             {isLoadingDetail && worldId ? (
                 <div className="flex items-center justify-center p-12">
                     <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
                 </div>
             ) : activeTab === 'details' ? (
-                <div className="space-y-6 max-w-2xl">
-                    <div className="space-y-2">
-                        <Label htmlFor="display_name" className="text-stone-300">World Name</Label>
-                        <Input
-                            id="display_name"
-                            value={formData.display_name}
-                            onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
-                            placeholder="e.g. Kingdom of Aethelgard"
-                            className="bg-stone-900 border-stone-800 focus:border-primary/50"
-                        />
+                <div className="space-y-6 max-w-5xl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                        {/* Left Column: Images */}
+                        <div>
+                            <ImageUploader
+                                label="World Images"
+                                value={formData.images}
+                                onChange={(images) => setFormData({ ...formData, images })}
+                                folder="worlds"
+                            />
+                        </div>
+
+                        {/* Right Column: Basic Info & Tags */}
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="display_name" className="text-stone-300">World Name</Label>
+                                <Input
+                                    id="display_name"
+                                    value={formData.display_name}
+                                    onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+                                    placeholder="e.g. Kingdom of Aethelgard"
+                                    className="bg-stone-900 border-stone-800 focus:border-primary/50"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="description_short" className="text-stone-300">Summary</Label>
+                                <Textarea
+                                    id="description_short"
+                                    value={formData.description_short}
+                                    onChange={(e) => setFormData({ ...formData, description_short: e.target.value })}
+                                    placeholder="Brief description for cards and lists..."
+                                    className="bg-stone-900 border-stone-800 focus:border-primary/50 min-h-[100px]"
+                                    maxLength={300}
+                                />
+                                <p className="text-xs text-stone-500">
+                                    Short summary visible in the dashboard cards.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-stone-300">Tags</Label>
+                                <TagSelector
+                                    value={formData.tags}
+                                    onChange={(tags) => setFormData({ ...formData, tags })}
+                                    mode="user"
+                                    placeholder="Add descriptive tags..."
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="description_short" className="text-stone-300">Summary</Label>
-                        <Textarea
-                            id="description_short"
-                            value={formData.description_short}
-                            onChange={(e) => setFormData({ ...formData, description_short: e.target.value })}
-                            placeholder="Brief description for cards and lists..."
-                            className="bg-stone-900 border-stone-800 focus:border-primary/50 min-h-[80px]"
-                            maxLength={300}
-                        />
-                        <p className="text-xs text-stone-500">
-                            Short summary visible in the dashboard cards.
-                        </p>
-                    </div>
-
+                    {/* Bottom: Full Description */}
                     <div className="space-y-2">
                         <Label htmlFor="description_long" className="text-stone-300">Full Description</Label>
                         <Textarea
@@ -361,20 +408,6 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                             placeholder="Detailed description of the world..."
                             className="bg-stone-900 border-stone-800 focus:border-primary/50 min-h-[200px]"
                         />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="primary_image_url" className="text-stone-300">Cover Image URL</Label>
-                        <Input
-                            id="primary_image_url"
-                            value={formData.primary_image_url}
-                            onChange={(e) => setFormData({ ...formData, primary_image_url: e.target.value })}
-                            placeholder="https://..."
-                            className="bg-stone-900 border-stone-800 focus:border-primary/50"
-                        />
-                        <p className="text-xs text-stone-500">
-                            Direct URL to an image (Temporary). Later this will use the media picker.
-                        </p>
                     </div>
                 </div>
             ) : activeTab === 'config' ? (
@@ -489,4 +522,3 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
         </EditorLayout>
     );
 }
-

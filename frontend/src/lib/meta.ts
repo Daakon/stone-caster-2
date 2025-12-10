@@ -1,7 +1,9 @@
 const SITE = (typeof window !== 'undefined' ? (window as any).PUBLIC_SITE_URL : undefined) || import.meta.env.VITE_PUBLIC_SITE_URL || '';
 
 export function makeTitle(parts: string[]): string {
-	const base = parts.filter(Boolean).join(' · ');
+	const appName = 'Stone Caster';
+	const uniqueParts = parts.filter(p => p !== appName && Boolean(p));
+	const base = [appName, ...uniqueParts].join(' · ');
 	return truncate(base, 65);
 }
 

@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { BookOpen, Globe, Users } from 'lucide-react';
 import { useStoryDraftStore } from '@/features/create-story';
+import { makeTitle } from '@/lib/meta';
 
 // Services & Hooks
 import { useMyStories, useMyWorlds, useMyEntities } from '@/services/chimera-api';
@@ -44,6 +45,11 @@ export function MyCreationsPage() {
   const [entityEditorOpen, setEntityEditorOpen] = useState(false);
   const [selectedWorldId, setSelectedWorldId] = useState<string | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+
+  // Update page title
+  React.useEffect(() => {
+    document.title = makeTitle(['My Creations']);
+  }, []);
 
   // Data Fetching - Conditionally enabled
   // Stories are default, so we might fetch them always or just when active. 

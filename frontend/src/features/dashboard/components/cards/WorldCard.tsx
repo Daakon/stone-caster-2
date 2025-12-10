@@ -1,4 +1,4 @@
-import { MoreHorizontal, Edit, Trash2, Clock } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import type { ChimeraWorldV2 } from '@/types/chimera-v2';
 import { getPrimaryImageUrl } from '@/types/chimera-v2';
 import { getDeterministicGradient } from '@/utils/visuals';
@@ -24,11 +24,28 @@ export function WorldCard({ data, onEdit }: WorldCardProps) {
         ? { backgroundImage: `url(${imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
         : { background: getDeterministicGradient(data.id) };
 
+    const statusColors = {
+        draft: 'bg-yellow-500/90 text-yellow-950',
+        pending: 'bg-blue-500/90 text-blue-950',
+        published: 'bg-green-500/90 text-green-950',
+    };
+
     return (
         <Card
             className="group overflow-hidden border-stone-800 bg-stone-900 transition-all hover:border-stone-600 flex flex-col h-full"
         >
             <div className="aspect-video relative w-full shrink-0" style={backgroundStyle}>
+                {/* Status Ribbon */}
+                {/* Status Ribbon */}
+                {data.status && (
+                    <div className={cn(
+                        "absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider backdrop-blur-sm shadow-sm",
+                        statusColors[data.status] || 'bg-stone-500/90 text-stone-950'
+                    )}>
+                        {data.status}
+                    </div>
+                )}
+
                 {!imageUrl && (
                     <div className="absolute inset-0 flex items-center justify-center text-white/20 text-4xl font-bold uppercase tracking-widest">
                         {data.display_name.slice(0, 2)}
@@ -37,8 +54,8 @@ export function WorldCard({ data, onEdit }: WorldCardProps) {
             </div>
 
             <CardContent className="p-4 flex flex-col grow justify-between">
-                <div>
-                    <div className="flex justify-between items-start mb-2">
+                <div className="space-y-4">
+                    <div className="flex justify-between items-start">
                         <h3
                             className="font-bold text-lg text-white line-clamp-1 cursor-pointer hover:underline"
                             onClick={onEdit}
@@ -47,15 +64,20 @@ export function WorldCard({ data, onEdit }: WorldCardProps) {
                         </h3>
                     </div>
 
-                    <div className="flex items-center justify-between text-stone-500 text-xs mt-2">
-                        <div className="flex items-center gap-2">
-                            <Badge variant={data.status === 'published' ? 'default' : 'secondary'} className="uppercase text-[10px]">
-                                {data.status}
-                            </Badge>
-                            <div className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                <span>{new Date(data.updated_at).toLocaleDateString()}</span>
-                            </div>
+                    <div className="flex items-center justify-between mt-auto">
+                        <div className="flex flex-wrap gap-1 max-w-[70%]">
+                            {data.tags && data.tags.length > 0 ? (
+                                data.tags.slice(0, 3).map(tag => (
+                                    <Badge key={tag} variant="secondary" className="text-[10px] bg-stone-800 text-stone-400 border-none px-1.5 h-5">
+                                        {tag}
+                                    </Badge>
+                                ))
+                            ) : (
+                                <span className="text-[10px] text-stone-600 italic">No tags</span>
+                            )}
+                            {data.tags && data.tags.length > 3 && (
+                                <span className="text-[10px] text-stone-600 self-center">+{data.tags.length - 3}</span>
+                            )}
                         </div>
 
                         <DropdownMenu>
