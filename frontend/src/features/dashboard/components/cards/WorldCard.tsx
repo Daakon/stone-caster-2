@@ -16,9 +16,10 @@ import { cn } from '@/lib/utils';
 interface WorldCardProps {
     data: ChimeraWorldV2;
     onEdit?: () => void;
+    onDelete?: () => void;
 }
 
-export function WorldCard({ data, onEdit }: WorldCardProps) {
+export function WorldCard({ data, onEdit, onDelete }: WorldCardProps) {
     const imageUrl = getPrimaryImageUrl(data.images);
     const backgroundStyle = imageUrl
         ? { backgroundImage: `url(${imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
@@ -91,7 +92,10 @@ export function WorldCard({ data, onEdit }: WorldCardProps) {
                                     <Edit className="mr-2 h-4 w-4" />
                                     Edit
                                 </DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-500 focus:bg-stone-800 focus:text-red-400 cursor-pointer">
+                                <DropdownMenuItem
+                                    onClick={onDelete}
+                                    className="text-red-500 focus:bg-stone-800 focus:text-red-400 cursor-pointer"
+                                >
                                     <Trash2 className="mr-2 h-4 w-4" />
                                     Delete
                                 </DropdownMenuItem>

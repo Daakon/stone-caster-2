@@ -32,8 +32,10 @@ const CreateEntitySchema = z.object({
   description_short: z.string().max(500).optional().nullable(),
   description_long: z.string().optional().nullable(),
   entity_type: EntityTypeSchema,
+  archetype_handle: z.string().optional().nullable(),
   base_state_json: z.record(z.unknown()).default({}),
-  tag_names: z.array(z.string()).default([]),
+  raw_data: z.record(z.unknown()).optional(),
+  tags: z.array(z.string()).default([]),
   images: z.array(z.object({
     id: z.string().optional(),
     url: z.string(),
@@ -47,8 +49,10 @@ const UpdateEntitySchema = z.object({
   description_short: z.string().max(500).optional().nullable(),
   description_long: z.string().optional().nullable(),
   entity_type: EntityTypeSchema.optional(),
+  archetype_handle: z.string().optional().nullable(),
   base_state_json: z.record(z.unknown()).optional(),
-  tag_names: z.array(z.string()).optional(),
+  raw_data: z.record(z.unknown()).optional(),
+  tags: z.array(z.string()).optional(),
   visibility: VisibilitySchema.optional(),
   images: z.array(z.object({
     id: z.string().optional(),
@@ -105,7 +109,7 @@ router.get('/selectable', async (req: Request, res: Response) => {
       .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at')
       .or(`owner_user_id.eq.${userId},visibility.eq.public`)
       .order('created_at', { ascending: false });
-    
+
     // Map to expected format (use SQL visibility column, fallback to raw_data for backward compatibility)
     const mappedEntities = (entities || []).map((entity: any) => {
       const rawData = entity.raw_data || {};
@@ -214,9 +218,9 @@ router.get('/pending', requireAuth, async (req: Request, res: Response) => {
       .select('role')
       .eq('id', userId)
       .single();
-    
+
     const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
-    
+
     if (!isAdmin) {
       return sendErrorWithStatus(
         res,
@@ -339,44 +343,79 @@ router.post(
 
       // Create the entity (Hybrid Schema: key/kind SQL columns + raw_data JSONB + owner_user_id)
       // Generate key from display_name (normalized)
-      const key = entityData.display_name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-      const kind = entityData.entity_type.toLowerCase() as 'npc' | 'item' | 'location' | 'faction' | 'creature';
-      
-      // Store full entity definition in raw_data JSONB
-      const rawData = {
-        display_name: entityData.display_name,
-        description_short: entityData.description_short,
-        description_long: entityData.description_long,
-        entity_type: entityData.entity_type,
-        base_state_json: baseStateJson,
-        images: entityData.images || [],
-        visibility: 'private', // Always private for new entities
-        owner_user_id: userId,
-        version: 1,
-      };
-      
-      const { data: entity, error: entityError } = await supabaseAdmin
-        .from('chimera_entities')
-        .insert({
-          key,
-          kind,
-          owner_user_id: userId, // SQL column for ownership tracking
-          raw_data: rawData, // JSONB containing full entity definition
-        })
-        .select('id, key, kind, owner_user_id, raw_data, created_at, updated_at')
-        .single();
+      let baseKey = entityData.display_name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      if (!baseKey) baseKey = 'entity';
 
-      if (entityError) {
-        console.error('[Chimera Entities] Error creating entity:', entityError);
-        // Check for unique constraint violation
-        if (entityError.code === '23505') {
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.CONFLICT,
-            'An entity with this name already exists',
-            req
-          );
+      let key = baseKey;
+      let attempt = 0;
+      let createdEntity = null;
+      let creationError = null;
+
+      // Retry loop for key collision
+      while (attempt < 5) {
+        try {
+          const kind = entityData.entity_type.toLowerCase() as 'npc' | 'item' | 'location' | 'faction' | 'creature';
+
+          // Store full entity definition in raw_data JSONB
+          const rawData = {
+            ...entityData.base_state_json, // Base state
+            ...(entityData.raw_data || {}), // Direct raw_data override
+            display_name: entityData.display_name,
+            description_short: entityData.description_short,
+            description_long: entityData.description_long,
+            entity_type: entityData.entity_type,
+            base_state_json: baseStateJson, // Keep distinct property too
+            archetype_handle: entityData.archetype_handle, // Pack into JSON
+            images: entityData.images || [],
+            visibility: 'private', // Always private for new entities
+            owner_user_id: userId,
+            version: 1,
+            tags: [], // Will be hydrated from valid tag links
+          };
+
+          const { data: entity, error: entityError } = await supabaseAdmin
+            .from('chimera_entities')
+            .insert({
+              key,
+              kind,
+              owner_user_id: userId, // SQL column for ownership tracking
+              // archetype_handle: entityData.archetype_handle, // REMOVED: Managed in raw_data
+              raw_data: rawData, // JSONB containing full entity definition
+            })
+            .select('id, key, kind, owner_user_id, raw_data, created_at, updated_at')
+            .single();
+
+          if (entityError) {
+            // Check for unique constraint violation on 'key'
+            if (entityError.code === '23505') {
+              console.log(`[Chimera Entities] Key collision for '${key}'. Retrying with suffix...`);
+              attempt++;
+              // Generate simple random suffix (4 chars alphanumeric)
+              const suffix = Math.random().toString(36).substring(2, 6);
+              key = `${baseKey}-${suffix}`;
+              continue;
+            }
+            throw entityError; // Re-throw other errors
+          }
+
+          createdEntity = entity;
+          creationError = null;
+          break; // Success
+
+        } catch (err: any) {
+          creationError = err;
+          // If it was not a collision error (already handled), break and return error
+          if (err.code !== '23505') {
+            break;
+          }
         }
+      }
+
+      const entity = createdEntity;
+      const entityError = creationError;
+
+      if (!entity || entityError) {
+        console.error('[Chimera Entities] Error creating entity:', entityError);
         return sendErrorWithStatus(
           res,
           ApiErrorCode.INTERNAL_ERROR,
@@ -386,10 +425,10 @@ router.post(
       }
 
       // Handle tags: normalize, create/get tags, and create links
-      if (entityData.tag_names && entityData.tag_names.length > 0) {
+      if (entityData.tags && entityData.tags.length > 0) {
         const tagIds: string[] = [];
 
-        for (const tagName of entityData.tag_names) {
+        for (const tagName of entityData.tags) {
           const normalized = normalizeTagName(tagName);
           if (!normalized) continue;
 
@@ -545,7 +584,7 @@ router.get(
       // Extract base_state_json from raw_data (handle both new and legacy formats)
       const rawData = entity.raw_data || {};
       let baseStateJson: Record<string, unknown> = {};
-      
+
       if (rawData.base_state_json) {
         // New format: base_state_json is nested
         baseStateJson = rawData.base_state_json;
@@ -565,13 +604,13 @@ router.get(
           'owner_user_id',
           'identity', // Legacy identity object
         ];
-        
+
         baseStateJson = { ...rawData };
         // Remove metadata fields to get just the state
         for (const field of metadataFields) {
           delete baseStateJson[field];
         }
-        
+
         // If identity exists, merge its contents into base_state_json
         if (rawData.identity && typeof rawData.identity === 'object') {
           baseStateJson = { ...baseStateJson, ...(rawData.identity as Record<string, unknown>) };
@@ -623,7 +662,7 @@ router.put(
 
       const { id } = req.params;
       const updateData = req.body;
-      const { tag_names, ...otherUpdateData } = updateData;
+      const { tags, ...otherUpdateData } = updateData;
 
       // Check ownership and lifecycle state
       const { data: existing, error: checkError } = await supabaseAdmin
@@ -673,7 +712,7 @@ router.put(
 
       // Track publishing: Detect if visibility is changing to 'public'
       const isPublishing = updateData.visibility === 'public' && currentVisibility !== 'public';
-      
+
       // Check if user is authorized to publish directly (admin or verified creator)
       const { data: profile } = await supabaseAdmin
         .from('profiles')
@@ -683,7 +722,7 @@ router.put(
       const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
       const isVerifiedCreator = profile?.is_verified_creator === true;
       const canPublishDirectly = isAdmin || isVerifiedCreator;
-      
+
       // Gatekeeper Logic: Force 'pending' if user tries to publish but isn't authorized
       let finalVisibility = updateData.visibility;
       let wasCoercedToPending = false;
@@ -720,13 +759,13 @@ router.put(
       if (otherUpdateData.visibility !== undefined) {
         updatePayload.visibility = finalVisibility; // Use coerced visibility if needed
         updatedRawData.visibility = finalVisibility;
-        
+
         // Track publishing: Set published_by and published_at when visibility changes to 'public'
         // Only set if actually publishing (not coerced to pending)
         if (isPublishing && canPublishDirectly) {
           updatePayload.published_by = userId;
           updatePayload.published_at = new Date().toISOString();
-          
+
           // Allow admins to set is_official flag when publishing
           if (updateData.is_official !== undefined && isAdmin) {
             updatePayload.is_official = updateData.is_official;
@@ -751,6 +790,17 @@ router.put(
           );
         }
         updatedRawData.base_state_json = baseStateJson;
+        // Merge base_state into top level too if desired, usually kept distinct
+      }
+
+      // Explicit raw_data merge if provided
+      if (otherUpdateData.raw_data) {
+        Object.assign(updatedRawData, otherUpdateData.raw_data);
+      }
+
+      if (otherUpdateData.archetype_handle !== undefined) {
+        updatedRawData.archetype_handle = otherUpdateData.archetype_handle;
+        // Do NOT add to updatePayload (SQL), it is in raw_data (JSONB)
       }
 
       if (otherUpdateData.images !== undefined) {
@@ -787,7 +837,7 @@ router.put(
       }
 
       // Handle tags if provided
-      if (tag_names !== undefined) {
+      if (tags !== undefined) {
         // Delete existing tag links
         await supabaseAdmin
           .from('chimera_asset_tags')
@@ -796,10 +846,10 @@ router.put(
           .eq('asset_type', 'entity_template');
 
         // Create new tag links
-        if (tag_names.length > 0) {
+        if (tags.length > 0) {
           const tagIds: string[] = [];
 
-          for (const tagName of tag_names) {
+          for (const tagName of tags) {
             const normalized = normalizeTagName(tagName);
             if (!normalized) continue;
 
@@ -885,11 +935,11 @@ router.put(
       // If visibility was coerced to pending, include a message
       if (wasCoercedToPending) {
         return sendSuccess(
-          res, 
-          { 
-            ...entity, 
-            _message: 'Content submitted for approval. Visibility set to "pending" as you are not a verified creator.' 
-          }, 
+          res,
+          {
+            ...entity,
+            _message: 'Content submitted for approval. Visibility set to "pending" as you are not a verified creator.'
+          },
           req
         );
       }

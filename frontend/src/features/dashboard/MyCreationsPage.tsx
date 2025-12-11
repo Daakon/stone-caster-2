@@ -10,7 +10,12 @@ import { useStoryDraftStore } from '@/features/create-story';
 import { makeTitle } from '@/lib/meta';
 
 // Services & Hooks
-import { useMyStories, useMyWorlds, useMyEntities } from '@/services/chimera-api';
+import {
+  useMyStories,
+  useMyWorlds,
+  useMyEntities,
+  useDeleteEntity
+} from '@/services/chimera-api';
 
 // Components
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -60,6 +65,9 @@ export function MyCreationsPage() {
   const { data: worlds, isLoading: loadingWorlds } = useMyWorlds({ enabled: activeTab === 'worlds' });
   const { data: entities, isLoading: loadingEntities } = useMyEntities({ enabled: activeTab === 'entities' });
 
+  const deleteEntityMutation = useDeleteEntity();
+  // const deleteWorldMutation = useDeleteWorld(); // Need to verify if this exists, likely does if pattern holds. I'll stick to Entity deletion first as requested.
+
   // Handlers
   const handleNewStory = () => {
     clearDraft();
@@ -92,6 +100,17 @@ export function MyCreationsPage() {
   const handleEditEntity = (id: string) => {
     setSelectedEntityId(id);
     setEntityEditorOpen(true);
+  };
+
+  const handleDeleteEntity = async (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
+      try {
+        await deleteEntityMutation.mutateAsync(id);
+      } catch (error) {
+        console.error("Failed to delete entity:", error);
+        alert("Failed to delete entity");
+      }
+    }
   };
 
   return (
@@ -210,6 +229,7 @@ export function MyCreationsPage() {
                     key={entity.id}
                     data={entity}
                     onEdit={() => handleEditEntity(entity.id)}
+                    onDelete={() => handleDeleteEntity(entity.id, entity.display_name)}
                   />
                 ))}
             </ResourceGrid>

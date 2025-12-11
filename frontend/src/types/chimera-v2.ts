@@ -25,8 +25,10 @@ export interface ChimeraEntityV2 {
     id: string;
     display_name: string;
     entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
+    world_id: string;
     archetype_handle?: string;
     images: ChimeraAssetRef[]; // Using shared type which has 'role' instead of 'usage_tag'
+    tags?: string[] | { tag_name: string }[]; // API might return simple strings or objects
     status: string;
     updated_at: string;
 }

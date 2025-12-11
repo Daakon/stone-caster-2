@@ -16,9 +16,10 @@ import { cn } from '@/lib/utils';
 interface EntityCardProps {
     data: ChimeraEntityV2;
     onEdit?: () => void;
+    onDelete?: () => void;
 }
 
-export function EntityCard({ data, onEdit }: EntityCardProps) {
+export function EntityCard({ data, onEdit, onDelete }: EntityCardProps) {
     const imageUrl = getPrimaryImageUrl(data.images);
     const backgroundStyle = imageUrl
         ? { backgroundImage: `url(${imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
@@ -31,8 +32,8 @@ export function EntityCard({ data, onEdit }: EntityCardProps) {
             {/* Visual - Square Aspect Ratio on Left */}
             <div className="w-32 h-32 shrink-0 relative" style={backgroundStyle}>
                 {!imageUrl && (
-                    <div className="absolute inset-0 flex items-center justify-center text-white/20 text-2xl font-bold uppercase">
-                        {(data.display_name || '?').slice(0, 2)}
+                    <div className="absolute inset-0 flex items-center justify-center bg-stone-800 text-white/20 text-2xl font-bold uppercase">
+                        {(data.display_name || '??').slice(0, 2)}
                     </div>
                 )}
             </div>
@@ -76,7 +77,10 @@ export function EntityCard({ data, onEdit }: EntityCardProps) {
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-500 focus:bg-stone-800 focus:text-red-400 cursor-pointer">
+                            <DropdownMenuItem
+                                onClick={onDelete}
+                                className="text-red-500 focus:bg-stone-800 focus:text-red-400 cursor-pointer"
+                            >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete
                             </DropdownMenuItem>

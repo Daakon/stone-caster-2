@@ -37,14 +37,15 @@ interface LoreManagerProps {
     worldId: string;
     contextType?: LoreContextType;
     onSubEditorChange?: (isOpen: boolean) => void;
+    readOnly?: boolean;
 }
 
 type EditorMode = 'LIST' | 'CREATE' | 'EDIT';
 
 const MAX_CONTENT_LENGTH = 1500;
 
-export function LoreManager({ worldId, contextType = 'world', onSubEditorChange }: LoreManagerProps) {
-    const { data: fragments, isLoading, error } = useLoreByWorld(worldId);
+export function LoreManager({ worldId, contextType = 'world', onSubEditorChange, readOnly = false }: LoreManagerProps) {
+    const { data: fragments, isLoading, error } = useLoreByWorld(readOnly ? null : worldId);
     const createLore = useCreateLore();
     const updateLore = useUpdateLore();
     const deleteLore = useDeleteLore();
@@ -143,6 +144,23 @@ export function LoreManager({ worldId, contextType = 'world', onSubEditorChange 
         setEditingId(id);
         setMode('EDIT');
     };
+
+    if (readOnly) {
+        return (
+            <div className="space-y-4">
+                <Alert className="bg-amber-950/20 border-amber-900/30 text-amber-400">
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>Read Only</AlertTitle>
+                    <AlertDescription>
+                        You are viewing a public world. Lore cannot be managed here.
+                    </AlertDescription>
+                </Alert>
+                <div className="text-center p-8 text-stone-500">
+                    <p>Lore information is not available for public worlds in this editor.</p>
+                </div>
+            </div>
+        );
+    }
 
     // --- Loading State ---
     if (isLoading) {

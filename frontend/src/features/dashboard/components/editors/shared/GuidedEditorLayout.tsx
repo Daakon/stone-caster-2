@@ -9,6 +9,7 @@ export interface WizardStep {
     id: string;
     label: string;
     isComplete?: boolean;
+    isValid?: boolean;
 }
 
 interface GuidedEditorLayoutProps {
@@ -41,6 +42,12 @@ export function GuidedEditorLayout({
     const currentIndex = steps.findIndex(s => s.id === currentStepId);
     const isLastStep = currentIndex === steps.length - 1;
     const nextStep = isLastStep ? null : steps[currentIndex + 1];
+    const currentStep = steps[currentIndex];
+
+    // Determine if Next should be disabled (blocking validation)
+    // Default to true (valid) if isValid is undefined
+    const isStepValid = currentStep?.isValid !== false;
+    const isNextDisabled = isSaving || isSubEditorActive || !isStepValid;
 
     const handleNext = () => {
         if (nextStep) {
@@ -181,14 +188,9 @@ export function GuidedEditorLayout({
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* Previous (Optional) - User didn't explicitly request, but nice to have? 
-                            Keeping it strictly to Wizard "Next" flow for now as requested. 
-                            Users can click the stepper to go back. 
-                        */}
-
                         <Button
                             onClick={handleNext}
-                            disabled={isSaving || isSubEditorActive}
+                            disabled={isNextDisabled}
                             className={cn(
                                 "min-w-[140px] shadow-lg transition-all",
                                 isLastStep

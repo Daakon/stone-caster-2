@@ -524,16 +524,31 @@ export async function fetchMyWorlds(): Promise<ChimeraWorldV2[]> {
   return result.data || [];
 }
 
+// Helper to map backend entity to frontend V2 interface
+function mapToEntityV2(item: any): ChimeraEntityV2 {
+  return {
+    id: item.id,
+    display_name: item.display_name || item.name || 'Untitled Entity',
+    entity_type: item.entity_type || item.type || 'NPC',
+    world_id: item.world_id,
+    archetype_handle: item.archetype_handle,
+    images: item.images || [],
+    tags: item.tags || [],
+    status: item.status || 'draft',
+    updated_at: item.updated_at || new Date().toISOString()
+  };
+}
+
 /**
  * Fetch entities owned by the current user
  * Route: GET /api/v2/chimera/entities/my-creations
  */
 export async function fetchMyEntities(): Promise<ChimeraEntityV2[]> {
-  const result = await apiFetch<ChimeraEntityV2[]>('/api/v2/chimera/entities/my-creations');
+  const result = await apiFetch<any[]>('/api/v2/chimera/entities/my-creations');
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to fetch my entities');
   }
-  return result.data || [];
+  return (result.data || []).map(mapToEntityV2);
 }
 
 /**
@@ -587,6 +602,31 @@ export function useMyStories(options?: { enabled?: boolean }) {
       return failureCount < 3;
     }
   });
+}
+
+/**
+ * Fetch all available worlds for selection (My Worlds + Public Worlds)
+ */
+export function useAvailableWorlds() {
+  const { data: myWorlds } = useMyWorlds();
+
+  // Also fetch public worlds
+  const { data: publicWorlds } = useQuery({
+    queryKey: ['public-worlds'],
+    queryFn: () => getWorlds(), // No genre filter = all public
+    staleTime: 1000 * 60 * 5
+  });
+
+  // Combine and deduplicate by ID
+  const allWorlds = [
+    ...(myWorlds || []),
+    ...(publicWorlds || [])
+  ];
+
+  // Deduplicate
+  const uniqueWorlds = Array.from(new Map(allWorlds.map(w => [w.id, w])).values());
+
+  return { data: uniqueWorlds };
 }
 
 // ============================================================================
@@ -679,6 +719,29 @@ export function useUpdateEntity() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<ChimeraEntityV2> }) => updateEntityV2(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-entities'] });
+    },
+  });
+}
+
+/**
+ * Delete an entity (V2)
+ */
+export async function deleteEntityV2(id: string): Promise<void> {
+  const result = await apiDelete(`/api/v2/chimera/entities/${id}`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to delete entity');
+  }
+}
+
+/**
+ * Hook to delete an entity (V2)
+ */
+export function useDeleteEntity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteEntityV2,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-entities'] });
     },
