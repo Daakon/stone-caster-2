@@ -245,7 +245,7 @@ export async function generateUploadUrl(
   contentType: string,
   folder: string
 ): Promise<UploadUrlResponse> {
-  const result = await apiPost<UploadUrlResponse>('/api/chimera/assets/upload-url', {
+  const result = await apiPost<UploadUrlResponse>('/api/v2/chimera/assets/upload-url', {
     contentType,
     folder,
   });
@@ -257,8 +257,10 @@ export async function generateUploadUrl(
 
 export interface SignUploadResponse {
   uploadUrl: string;
-  accessUrl: string;
+  accessUrl: string; // Legacy
+  publicUrl?: string; // New V2
   path: string;
+  id?: string; // ID returned by backend registration
 }
 
 /**
@@ -267,11 +269,21 @@ export interface SignUploadResponse {
 export async function signAssetUpload(
   data: { filename?: string; fileType?: string; contentType?: string; folder?: string }
 ): Promise<SignUploadResponse> {
-  const result = await apiPost<SignUploadResponse>('/api/chimera/assets/sign-upload', data);
+  const result = await apiPost<SignUploadResponse>('/api/v2/chimera/assets/sign-upload', data);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to sign upload');
   }
   return result.data!;
+}
+
+/**
+ * Helper to confirm asset details after upload
+ */
+async function confirmAssetUpdate(id: string, url: string, meta?: any): Promise<void> {
+  await apiFetch(`/api/v2/chimera/assets/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ url, meta })
+  });
 }
 
 /**
@@ -301,7 +313,9 @@ export async function uploadImage(file: File, folder: string = 'worlds'): Promis
   }
 
   // 3. Resolve URL
-  let url = signRes.accessUrl;
+  let url: string | undefined;
+
+  // Prefer Cloudflare's actual response (This works for Entity Card/Editor)
   if (upData.result?.variants?.[0]) {
     url = upData.result.variants[0];
   } else if (upData.result?.id) {
@@ -309,9 +323,28 @@ export async function uploadImage(file: File, folder: string = 'worlds'): Promis
     url = `${deliveryUrl.replace(/\/$/, '')}/${upData.result.id}/public`;
   }
 
+  // Fallback to backend signed ID only if CF response didn't give one
+  if (!url) {
+    url = signRes.publicUrl || signRes.accessUrl;
+  }
+
+  // 4. Confirm with Backend (Sync DB with real URL)
+  // We use the ID returned by the backend in step 1 `signRes.id`
+  if (signRes.id && url) {
+    try {
+      await confirmAssetUpdate(signRes.id, url, {
+        cloudflareId: upData.result?.id,
+        originalName: file.name
+      });
+    } catch (err) {
+      console.warn("Failed to confirm asset update with backend:", err);
+      // Don't block the UI flow, just warn
+    }
+  }
+
   return {
-    id: crypto.randomUUID(),
-    url,
+    id: signRes.id || crypto.randomUUID(), // Use backend ID if available
+    url: url || '', // Ensure it's always a string
     role: 'gallery'
   };
 }
@@ -530,8 +563,11 @@ function mapToEntityV2(item: any): ChimeraEntityV2 {
     id: item.id,
     display_name: item.display_name || item.name || 'Untitled Entity',
     entity_type: item.entity_type || item.type || 'NPC',
+    slug: item.slug || item.key || '', // Fallback to key or empty
     world_id: item.world_id,
     archetype_handle: item.archetype_handle,
+    primary_image_url: item.primary_image_url,
+    icon_image_url: item.icon_image_url,
     images: item.images || [],
     tags: item.tags || [],
     status: item.status || 'draft',
@@ -795,6 +831,45 @@ export function useRulesets(category?: 'foundation' | 'expansion' | 'flavor') {
     queryKey: ['rulesets', category],
     queryFn: () => getRulesets(category),
     staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+// ============================================================================
+// ASSETS API
+// ============================================================================
+
+export interface ChimeraAsset {
+  id: string;
+  url: string;
+  type: string;
+  category?: string;
+  meta?: any;
+  created_at: string;
+}
+
+/**
+ * Fetch My Assets
+ * Route: GET /api/chimera/assets/my-assets
+ */
+export async function fetchMyAssets(): Promise<ChimeraAsset[]> {
+  const result = await apiFetch<ChimeraAsset[]>('/api/v2/chimera/assets/my-assets');
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to fetch assets');
+  }
+  return (result.data || []).map(asset => {
+    // Fix for legacy or local assets that are just filenames
+    let url = asset.url;
+    if (url && !url.startsWith('http') && !url.startsWith('blob:') && !url.startsWith('data:') && !url.startsWith('/')) {
+      url = `/${url}`;
+    }
+    return { ...asset, url };
+  });
+}
+
+export function useMyAssets() {
+  return useQuery({
+    queryKey: ['my-assets'],
+    queryFn: fetchMyAssets
   });
 }
 

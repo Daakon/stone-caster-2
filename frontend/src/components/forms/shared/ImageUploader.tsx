@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Upload, Trash2, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type ChimeraAssetRef } from '@/types/chimera-v2';
+import { AssetPickerModal } from '@/features/dashboard/components/assets/AssetPickerModal';
 
 export type PendingImage = ChimeraAssetRef | File;
 
@@ -13,6 +14,7 @@ export interface ImageUploaderProps {
     folder?: string;
     maxSizeMB?: number;
     className?: string;
+    preferredCategory?: string;
 }
 
 const DEFAULT_MAX_SIZE = 10; // 10MB
@@ -22,9 +24,11 @@ export function ImageUploader({
     onChange,
     label = "Images",
     maxSizeMB = DEFAULT_MAX_SIZE,
-    className
+    className,
+    preferredCategory = 'all'
 }: ImageUploaderProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [showAssetPicker, setShowAssetPicker] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     // Store object URLs for preview to avoid re-creating them on every render
     const [previewUrls, setPreviewUrls] = useState<Map<File, string>>(new Map());
@@ -215,7 +219,6 @@ export function ImageUploader({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
                 className={cn(
                     "border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 text-center",
                     isDragging
@@ -243,7 +246,47 @@ export function ImageUploader({
                         Supported: JPG, PNG, WEBP (Max {maxSizeMB}MB)
                     </p>
                 </div>
+
+                <div className="flex gap-2 mt-2">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                        }}
+                    >
+                        Upload Files
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAssetPicker(true);
+                        }}
+                    >
+                        Select from Library
+                    </Button>
+                </div>
             </div>
+
+            <AssetPickerModal
+                isOpen={showAssetPicker}
+                onClose={() => setShowAssetPicker(false)}
+                onSelect={(url) => {
+                    // Create a new AssetRef
+                    const newAsset: ChimeraAssetRef = {
+                        id: crypto.randomUUID(), // Temporary ID until saved or real ID if we had it
+                        url: url,
+                        role: value.length === 0 ? 'portrait' : 'gallery'
+                    };
+                    onChange([...value, newAsset]);
+                }}
+                preferredCategory={preferredCategory}
+            />
         </div>
     );
 }

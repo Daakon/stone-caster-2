@@ -13,6 +13,8 @@ import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
 
+import { ChimeraEntitiesService } from '../services/chimera/chimera-entities.service.js';
+
 const router = Router();
 
 // Schema for UUID entity ID
@@ -36,6 +38,7 @@ const CreateEntitySchema = z.object({
   base_state_json: z.record(z.unknown()).default({}),
   raw_data: z.record(z.unknown()).optional(),
   tags: z.array(z.string()).default([]),
+  world_id: z.string().uuid().optional().nullable(),
   images: z.array(z.object({
     id: z.string().optional(),
     url: z.string(),
@@ -53,6 +56,7 @@ const UpdateEntitySchema = z.object({
   base_state_json: z.record(z.unknown()).optional(),
   raw_data: z.record(z.unknown()).optional(),
   tags: z.array(z.string()).optional(),
+  world_id: z.string().uuid().optional().nullable(),
   visibility: VisibilitySchema.optional(),
   images: z.array(z.object({
     id: z.string().optional(),
@@ -103,30 +107,12 @@ router.get('/selectable', async (req: Request, res: Response) => {
       );
     }
 
-    // listLibrary pattern: User's content OR public content (includes system)
+    // List View Optimizationn: Fetch minimal fields for cards
     const { data: entities, error } = await supabaseAdmin
       .from('chimera_entities')
-      .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at')
+      .select('id, slug, display_name, entity_type, primary_image_url, updated_at, visibility, is_official, owner_user_id')
       .or(`owner_user_id.eq.${userId},visibility.eq.public`)
-      .order('created_at', { ascending: false });
-
-    // Map to expected format (use SQL visibility column, fallback to raw_data for backward compatibility)
-    const mappedEntities = (entities || []).map((entity: any) => {
-      const rawData = entity.raw_data || {};
-      return {
-        id: entity.id,
-        key: entity.key,
-        kind: entity.kind,
-        owner_user_id: entity.owner_user_id,
-        raw_data: entity.raw_data,
-        display_name: rawData.display_name || rawData.identity?.name || entity.key,
-        entity_type: entity.kind,
-        version: rawData.version || 1,
-        visibility: entity.visibility || rawData.visibility || 'private', // Use SQL column first
-        created_at: entity.created_at,
-        updated_at: entity.updated_at,
-      };
-    }).sort((a: any, b: any) => (a.display_name || '').localeCompare(b.display_name || ''));
+      .order('updated_at', { ascending: false });
 
     if (error) {
       console.error('[Chimera Entities] Error fetching selectable entities:', error);
@@ -275,11 +261,12 @@ router.get('/my-creations', async (req: Request, res: Response) => {
       );
     }
 
+    // Optimized List View
     const { data: entities, error } = await supabaseAdmin
       .from('chimera_entities')
-      .select('*')
+      .select('id, slug, display_name, entity_type, primary_image_url, updated_at, visibility, is_official, owner_user_id')
       .eq('owner_user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('updated_at', { ascending: false });
 
     if (error) {
       console.error('[Chimera Entities] Error fetching user entities:', error);
@@ -322,181 +309,12 @@ router.post(
         );
       }
 
-      const entityData = req.body;
-
-      // Validate base_state_json is valid JSON
-      let baseStateJson: Record<string, unknown>;
-      try {
-        if (typeof entityData.base_state_json === 'string') {
-          baseStateJson = JSON.parse(entityData.base_state_json);
-        } else {
-          baseStateJson = entityData.base_state_json || {};
-        }
-      } catch (error) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'Invalid JSON in base_state_json',
-          req
-        );
-      }
-
-      // Create the entity (Hybrid Schema: key/kind SQL columns + raw_data JSONB + owner_user_id)
-      // Generate key from display_name (normalized)
-      let baseKey = entityData.display_name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-      if (!baseKey) baseKey = 'entity';
-
-      let key = baseKey;
-      let attempt = 0;
-      let createdEntity = null;
-      let creationError = null;
-
-      // Retry loop for key collision
-      while (attempt < 5) {
-        try {
-          const kind = entityData.entity_type.toLowerCase() as 'npc' | 'item' | 'location' | 'faction' | 'creature';
-
-          // Store full entity definition in raw_data JSONB
-          const rawData = {
-            ...entityData.base_state_json, // Base state
-            ...(entityData.raw_data || {}), // Direct raw_data override
-            display_name: entityData.display_name,
-            description_short: entityData.description_short,
-            description_long: entityData.description_long,
-            entity_type: entityData.entity_type,
-            base_state_json: baseStateJson, // Keep distinct property too
-            archetype_handle: entityData.archetype_handle, // Pack into JSON
-            images: entityData.images || [],
-            visibility: 'private', // Always private for new entities
-            owner_user_id: userId,
-            version: 1,
-            tags: [], // Will be hydrated from valid tag links
-          };
-
-          const { data: entity, error: entityError } = await supabaseAdmin
-            .from('chimera_entities')
-            .insert({
-              key,
-              kind,
-              owner_user_id: userId, // SQL column for ownership tracking
-              // archetype_handle: entityData.archetype_handle, // REMOVED: Managed in raw_data
-              raw_data: rawData, // JSONB containing full entity definition
-            })
-            .select('id, key, kind, owner_user_id, raw_data, created_at, updated_at')
-            .single();
-
-          if (entityError) {
-            // Check for unique constraint violation on 'key'
-            if (entityError.code === '23505') {
-              console.log(`[Chimera Entities] Key collision for '${key}'. Retrying with suffix...`);
-              attempt++;
-              // Generate simple random suffix (4 chars alphanumeric)
-              const suffix = Math.random().toString(36).substring(2, 6);
-              key = `${baseKey}-${suffix}`;
-              continue;
-            }
-            throw entityError; // Re-throw other errors
-          }
-
-          createdEntity = entity;
-          creationError = null;
-          break; // Success
-
-        } catch (err: any) {
-          creationError = err;
-          // If it was not a collision error (already handled), break and return error
-          if (err.code !== '23505') {
-            break;
-          }
-        }
-      }
-
-      const entity = createdEntity;
-      const entityError = creationError;
-
-      if (!entity || entityError) {
-        console.error('[Chimera Entities] Error creating entity:', entityError);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to create entity',
-          req
-        );
-      }
-
-      // Handle tags: normalize, create/get tags, and create links
-      if (entityData.tags && entityData.tags.length > 0) {
-        const tagIds: string[] = [];
-
-        for (const tagName of entityData.tags) {
-          const normalized = normalizeTagName(tagName);
-          if (!normalized) continue;
-
-          // Check if tag exists
-          const { data: existingTag, error: checkError } = await supabaseAdmin
-            .from('chimera_tags')
-            .select('id')
-            .eq('tag_name', normalized)
-            .single();
-
-          let tagId: string;
-
-          // PGRST116 is "not found" which is expected if tag doesn't exist
-          if (checkError && checkError.code !== 'PGRST116') {
-            console.error('[Chimera Entities] Error checking existing tag:', checkError);
-            // Continue to next tag instead of failing entire entity creation
-            continue;
-          }
-
-          if (existingTag) {
-            tagId = existingTag.id;
-          } else {
-            // Create new tag (unapproved)
-            const { data: newTag, error: tagError } = await supabaseAdmin
-              .from('chimera_tags')
-              .insert({
-                tag_name: normalized,
-                is_approved: false,
-              })
-              .select('id')
-              .single();
-
-            if (tagError) {
-              console.error('[Chimera Entities] Error creating tag:', tagError);
-              // Log the full error for debugging
-              console.error('[Chimera Entities] Tag creation error details:', JSON.stringify(tagError, null, 2));
-              continue;
-            }
-
-            if (!newTag || !newTag.id) {
-              console.error('[Chimera Entities] Tag created but no ID returned');
-              continue;
-            }
-
-            tagId = newTag.id;
-          }
-
-          tagIds.push(tagId);
-        }
-
-        // Create asset tag links
-        if (tagIds.length > 0 && entity?.id) {
-          const assetTagLinks = tagIds.map((tagId) => ({
-            tag_id: tagId,
-            asset_id: String(entity.id), // Convert UUID to string for TEXT column
-            asset_type: 'entity_template',
-          }));
-
-          const { error: linksError } = await supabaseAdmin
-            .from('chimera_asset_tags')
-            .insert(assetTagLinks);
-
-          if (linksError) {
-            console.error('[Chimera Entities] Error creating tag links:', linksError);
-            // Continue anyway - entity is created, tags can be fixed later
-          }
-        }
-      }
+      // Delegate to Service
+      // Service handles: sanitization, world_id strictness, retries, tags
+      const entity = await ChimeraEntitiesService.createEntity({
+        ...req.body,
+        userId
+      });
 
       return sendSuccess(res, entity, req);
     } catch (error) {
@@ -534,7 +352,7 @@ router.get(
 
       const { data: entity, error } = await supabaseAdmin
         .from('chimera_entities')
-        .select('*')
+        .select('*') // Detail view needs everything
         .eq('id', id)
         .single();
 
@@ -617,14 +435,12 @@ router.get(
         }
       }
 
-      // Transform response to include extracted fields
+      // Ensure display_name and entity_type are present (fallback to raw_data if legacy)
       const transformedEntity = {
         ...entity,
-        display_name: rawData.display_name || rawData.name || (rawData.identity && typeof rawData.identity === 'object' ? (rawData.identity as any).name : null) || entity.key,
-        description_short: rawData.description_short || rawData.description || null,
-        entity_type: rawData.entity_type || rawData.type || entity.kind?.toUpperCase(),
-        base_state_json: baseStateJson,
-        images: rawData.images || [],
+        display_name: entity.display_name || entity.raw_data?.display_name || entity.raw_data?.name,
+        entity_type: entity.entity_type || entity.raw_data?.entity_type || entity.raw_data?.type || 'NPC',
+        world_id: entity.world_id // Explicitly ensure world_id is passed
       };
 
       return sendSuccess(res, transformedEntity, req);
@@ -662,7 +478,6 @@ router.put(
 
       const { id } = req.params;
       const updateData = req.body;
-      const { tags, ...otherUpdateData } = updateData;
 
       // Check ownership and lifecycle state
       const { data: existing, error: checkError } = await supabaseAdmin
@@ -699,7 +514,6 @@ router.put(
       }
 
       // Lifecycle enforcement: Cannot edit published content
-      // Use SQL visibility column (primary source of truth)
       const currentVisibility = existing.visibility || (existing.raw_data as any)?.visibility || 'private';
       if (currentVisibility === 'public' && !updateData.visibility) {
         return sendErrorWithStatus(
@@ -710,241 +524,10 @@ router.put(
         );
       }
 
-      // Track publishing: Detect if visibility is changing to 'public'
-      const isPublishing = updateData.visibility === 'public' && currentVisibility !== 'public';
+      // Delegate to Service
+      await ChimeraEntitiesService.updateEntity(id, updateData);
 
-      // Check if user is authorized to publish directly (admin or verified creator)
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('role, is_verified_creator')
-        .eq('id', userId)
-        .single();
-      const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
-      const isVerifiedCreator = profile?.is_verified_creator === true;
-      const canPublishDirectly = isAdmin || isVerifiedCreator;
-
-      // Gatekeeper Logic: Force 'pending' if user tries to publish but isn't authorized
-      let finalVisibility = updateData.visibility;
-      let wasCoercedToPending = false;
-      if (updateData.visibility === 'public' && !canPublishDirectly) {
-        finalVisibility = 'pending';
-        wasCoercedToPending = true;
-        console.log(`[Chimera Entities] User ${userId} attempted to publish but is not authorized. Setting visibility to 'pending'.`);
-      }
-
-      // Build update payload
-      const updatePayload: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-
-      // Initialize updatedRawData from existing raw_data
-      const existingRawData = existing.raw_data || {};
-      const updatedRawData = { ...existingRawData };
-
-      if (otherUpdateData.display_name !== undefined) {
-        updatePayload.display_name = otherUpdateData.display_name;
-        updatedRawData.display_name = otherUpdateData.display_name;
-      }
-      if (otherUpdateData.description_short !== undefined) {
-        updatePayload.description_short = otherUpdateData.description_short;
-        updatedRawData.description_short = otherUpdateData.description_short;
-      }
-      if (otherUpdateData.description_long !== undefined) {
-        updatedRawData.description_long = otherUpdateData.description_long;
-      }
-      if (otherUpdateData.entity_type !== undefined) {
-        updatePayload.entity_type = otherUpdateData.entity_type;
-        updatedRawData.entity_type = otherUpdateData.entity_type;
-      }
-      if (otherUpdateData.visibility !== undefined) {
-        updatePayload.visibility = finalVisibility; // Use coerced visibility if needed
-        updatedRawData.visibility = finalVisibility;
-
-        // Track publishing: Set published_by and published_at when visibility changes to 'public'
-        // Only set if actually publishing (not coerced to pending)
-        if (isPublishing && canPublishDirectly) {
-          updatePayload.published_by = userId;
-          updatePayload.published_at = new Date().toISOString();
-
-          // Allow admins to set is_official flag when publishing
-          if (updateData.is_official !== undefined && isAdmin) {
-            updatePayload.is_official = updateData.is_official;
-          }
-        }
-      }
-      if (otherUpdateData.base_state_json !== undefined) {
-        // Validate JSON if it's a string
-        let baseStateJson: Record<string, unknown>;
-        try {
-          if (typeof otherUpdateData.base_state_json === 'string') {
-            baseStateJson = JSON.parse(otherUpdateData.base_state_json);
-          } else {
-            baseStateJson = otherUpdateData.base_state_json;
-          }
-        } catch (error) {
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.VALIDATION_FAILED,
-            'Invalid JSON in base_state_json',
-            req
-          );
-        }
-        updatedRawData.base_state_json = baseStateJson;
-        // Merge base_state into top level too if desired, usually kept distinct
-      }
-
-      // Explicit raw_data merge if provided
-      if (otherUpdateData.raw_data) {
-        Object.assign(updatedRawData, otherUpdateData.raw_data);
-      }
-
-      if (otherUpdateData.archetype_handle !== undefined) {
-        updatedRawData.archetype_handle = otherUpdateData.archetype_handle;
-        // Do NOT add to updatePayload (SQL), it is in raw_data (JSONB)
-      }
-
-      if (otherUpdateData.images !== undefined) {
-        updatedRawData.images = otherUpdateData.images;
-      }
-
-      // Update raw_data with all changes
-      updatePayload.raw_data = updatedRawData;
-
-      // Update the entity
-      const { data: entity, error: updateError } = await supabaseAdmin
-        .from('chimera_entities')
-        .update(updatePayload)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.error('[Chimera Entities] Error updating entity:', updateError);
-        if (updateError.code === '23505') {
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.CONFLICT,
-            'An entity with this name already exists',
-            req
-          );
-        }
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to update entity',
-          req
-        );
-      }
-
-      // Handle tags if provided
-      if (tags !== undefined) {
-        // Delete existing tag links
-        await supabaseAdmin
-          .from('chimera_asset_tags')
-          .delete()
-          .eq('asset_id', id)
-          .eq('asset_type', 'entity_template');
-
-        // Create new tag links
-        if (tags.length > 0) {
-          const tagIds: string[] = [];
-
-          for (const tagName of tags) {
-            const normalized = normalizeTagName(tagName);
-            if (!normalized) continue;
-
-            // Check if tag exists
-            const { data: existingTag, error: checkError } = await supabaseAdmin
-              .from('chimera_tags')
-              .select('id')
-              .eq('tag_name', normalized)
-              .single();
-
-            let tagId: string;
-
-            // PGRST116 is "not found" which is expected if tag doesn't exist
-            if (checkError && checkError.code !== 'PGRST116') {
-              console.error('[Chimera Entities] Error checking existing tag:', checkError);
-              continue;
-            }
-
-            if (existingTag) {
-              tagId = existingTag.id;
-            } else {
-              // Create new tag (unapproved)
-              const { data: newTag, error: tagError } = await supabaseAdmin
-                .from('chimera_tags')
-                .insert({
-                  tag_name: normalized,
-                  is_approved: false,
-                })
-                .select('id')
-                .single();
-
-              if (tagError) {
-                console.error('[Chimera Entities] Error creating tag:', tagError);
-                continue;
-              }
-
-              if (!newTag || !newTag.id) {
-                console.error('[Chimera Entities] Tag created but no ID returned');
-                continue;
-              }
-
-              tagId = newTag.id;
-            }
-
-            tagIds.push(tagId);
-          }
-
-          // Create asset tag links
-          if (tagIds.length > 0) {
-            const assetTagLinks = tagIds.map((tagId) => ({
-              tag_id: tagId,
-              asset_id: String(id), // Convert UUID to string for TEXT column
-              asset_type: 'entity_template',
-            }));
-
-            const { error: linksError } = await supabaseAdmin
-              .from('chimera_asset_tags')
-              .insert(assetTagLinks);
-
-            if (linksError) {
-              console.error('[Chimera Entities] Error creating tag links:', linksError);
-              // Continue anyway - entity is updated, tags can be fixed later
-            }
-          }
-        }
-      }
-
-      // Fetch tags for response
-      const { data: assetTags } = await supabaseAdmin
-        .from('chimera_asset_tags')
-        .select(`
-          tag:chimera_tags!tag_id(id, tag_name)
-        `)
-        .eq('asset_id', id)
-        .eq('asset_type', 'entity_template');
-
-      if (assetTags && entity) {
-        (entity as any).tags = assetTags
-          .map((link: any) => link.tag)
-          .filter((tag: any) => tag !== null);
-      }
-
-      // If visibility was coerced to pending, include a message
-      if (wasCoercedToPending) {
-        return sendSuccess(
-          res,
-          {
-            ...entity,
-            _message: 'Content submitted for approval. Visibility set to "pending" as you are not a verified creator.'
-          },
-          req
-        );
-      }
-
-      return sendSuccess(res, entity, req);
+      return sendSuccess(res, { success: true }, req);
     } catch (error) {
       console.error('[Chimera Entities] Unexpected error:', error);
       return sendErrorWithStatus(

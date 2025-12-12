@@ -17,6 +17,7 @@ import chimeraEntitiesRouter from './chimera-entities.js';
 import chimeraStoriesRouter from './chimera-stories.js';
 import chimeraPacksRouter from './chimera-packs.js';
 import chimeraLoreRouter from './chimera-lore.js';
+import chimeraAssetsRouter from './chimera-assets.api.js';
 
 const router = Router();
 
@@ -44,6 +45,7 @@ router.use('/entities', chimeraEntitiesRouter);
 router.use('/stories', chimeraStoriesRouter);
 router.use('/packs', chimeraPacksRouter);
 router.use('/lore', chimeraLoreRouter);
+router.use('/assets', chimeraAssetsRouter);
 
 export default router;
 

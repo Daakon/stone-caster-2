@@ -42,6 +42,12 @@ export function EntityIdentityForm({ data, onChange, isEditMode = false }: Entit
                         value={data.images}
                         onChange={(images) => handleChange('images', images)}
                         folder="entities"
+                        preferredCategory={
+                            data.entity_type === 'NPC' ? 'portrait' :
+                                data.entity_type === 'LOCATION' ? 'map' :
+                                    data.entity_type === 'ITEM' ? 'token' :
+                                        data.entity_type === 'FACTION' ? 'cover' : 'all'
+                        }
                     />
                 </div>
 
@@ -97,16 +103,7 @@ export function EntityIdentityForm({ data, onChange, isEditMode = false }: Entit
                         </Select>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="archetype_handle" className="text-stone-300">Archetype</Label>
-                        <Input
-                            id="archetype_handle"
-                            value={data.archetype_handle}
-                            onChange={(e) => handleChange('archetype_handle', e.target.value)}
-                            placeholder="e.g. Guard, Merchant"
-                            className="bg-stone-900 border-stone-800 focus:border-primary/50"
-                        />
-                    </div>
+
 
                     <div className="space-y-2">
                         <Label className="text-stone-300">Tags</Label>

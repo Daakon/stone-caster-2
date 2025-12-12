@@ -25,8 +25,11 @@ export interface ChimeraEntityV2 {
     id: string;
     display_name: string;
     entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
+    slug: string;
     world_id: string;
     archetype_handle?: string;
+    primary_image_url?: string;
+    icon_image_url?: string;
     images: ChimeraAssetRef[]; // Using shared type which has 'role' instead of 'usage_tag'
     tags?: string[] | { tag_name: string }[]; // API might return simple strings or objects
     status: string;
@@ -62,7 +65,9 @@ export interface ChimeraLoreFragment {
  * Helper to get the primary image URL from a list of assets.
  * Maps 'cover'/'primary' intent to shared 'banner'/'portrait' roles.
  */
-export function getPrimaryImageUrl(images?: ChimeraAssetRef[]): string | null {
+export function getPrimaryImageUrl(images?: ChimeraAssetRef[], primaryUrl?: string | null): string | null {
+    if (primaryUrl) return primaryUrl;
+
     if (!images || images.length === 0) {
         return null;
     }

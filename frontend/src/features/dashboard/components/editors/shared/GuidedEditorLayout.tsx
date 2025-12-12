@@ -22,6 +22,7 @@ interface GuidedEditorLayoutProps {
     onSaveExit: () => void;
     onManualSave?: () => Promise<void> | void;
     isSaving: boolean;
+    isValid?: boolean;
     isSubEditorActive?: boolean;
     children: ReactNode;
 }
@@ -36,6 +37,7 @@ export function GuidedEditorLayout({
     onSaveExit,
     onManualSave,
     isSaving,
+    isValid = true,
     isSubEditorActive = false,
     children
 }: GuidedEditorLayoutProps) {
@@ -89,7 +91,6 @@ export function GuidedEditorLayout({
                             {steps.map((step, idx) => {
                                 const isActive = step.id === currentStepId;
                                 const isPast = idx < currentIndex;
-                                const isFuture = idx > currentIndex;
 
                                 return (
                                     <div key={step.id} className="flex items-center">
@@ -163,8 +164,11 @@ export function GuidedEditorLayout({
                             <Button
                                 variant="outline"
                                 onClick={onManualSave}
-                                disabled={isSaving || isSubEditorActive}
-                                className="border-stone-700 text-stone-300 hover:text-white hover:bg-stone-800 hover:border-stone-600"
+                                disabled={isSaving || isSubEditorActive || !isValid}
+                                className={cn(
+                                    "border-stone-700 text-stone-300 hover:text-white hover:bg-stone-800 hover:border-stone-600",
+                                    !isValid && "opacity-50 cursor-not-allowed"
+                                )}
                             >
                                 {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                                 Save
@@ -173,8 +177,11 @@ export function GuidedEditorLayout({
                         <Button
                             variant="ghost"
                             onClick={onSaveExit}
-                            disabled={isSaving || isSubEditorActive}
-                            className="text-stone-400 hover:text-white hover:bg-stone-800"
+                            disabled={isSaving || isSubEditorActive || !isValid}
+                            className={cn(
+                                "text-stone-400 hover:text-white hover:bg-stone-800",
+                                !isValid && "opacity-50 cursor-not-allowed"
+                            )}
                         >
                             <Save className="w-4 h-4 mr-2" />
                             Save & Exit

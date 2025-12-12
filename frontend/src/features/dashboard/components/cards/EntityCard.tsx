@@ -20,7 +20,7 @@ interface EntityCardProps {
 }
 
 export function EntityCard({ data, onEdit, onDelete }: EntityCardProps) {
-    const imageUrl = getPrimaryImageUrl(data.images);
+    const imageUrl = getPrimaryImageUrl(data.images, data.primary_image_url);
     const backgroundStyle = imageUrl
         ? { backgroundImage: `url(${imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
         : { background: getDeterministicGradient(data.id) };

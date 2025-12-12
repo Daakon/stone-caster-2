@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GuidedEditorLayout } from './shared/GuidedEditorLayout';
-import { ScrollText, Box } from 'lucide-react';
+import { ScrollText } from 'lucide-react';
 import { useCreateEntity, useUpdateEntity, useEntityDetail, uploadImage, useLoreByWorld, useMyWorlds } from '@/services/chimera-api';
 import { type ChimeraAssetRef } from '@/types/chimera-v2';
 import { EntityIdentityForm, type EntityIdentityFormData } from './forms/EntityIdentityForm';
+import { EntityDetailsForm } from './forms/EntityDetailsForm';
 import { LoreManager } from './config/LoreManager';
 import { toast } from 'sonner';
 
@@ -64,11 +65,22 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                 entity_type: (entityDetail.entity_type as any) || (entityDetail as any).type || 'NPC',
                 world_id: entityDetail.world_id || '',
                 archetype_handle: raw.archetype_handle || entityDetail.archetype_handle || '', // Unpack from raw first
-                images: (entityDetail.images || []).map(img => ({
-                    id: img.id,
-                    url: img.url,
-                    role: img.role || 'portrait'
-                })),
+                images: (() => {
+                    const imgs = (entityDetail.images || []).map((img: any) => ({
+                        id: img.id,
+                        url: img.url,
+                        role: img.role || 'portrait'
+                    }));
+                    // Ensure primary image is included if not present in the list
+                    if (entityDetail.primary_image_url && !imgs.some((i: any) => i.url === entityDetail.primary_image_url)) {
+                        imgs.unshift({
+                            id: crypto.randomUUID(),
+                            url: entityDetail.primary_image_url,
+                            role: 'portrait'
+                        });
+                    }
+                    return imgs;
+                })(),
                 tags: (entityDetail.tags || []).map((t: any) =>
                     typeof t === 'string' ? t : t.tag_name || ''
                 ).filter(Boolean)
@@ -98,38 +110,39 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
         };
         const baseLore = { id: 'lore', label: 'Lore', isComplete: (loreFragments?.length || 0) > 0 };
 
-        switch (type) {
-            case 'NPC':
-                return [
-                    baseIdentity,
-                    { id: 'personality', label: 'Personality', isComplete: false },
-                    { id: 'stats', label: 'Stats', isComplete: false },
-                    baseLore
-                ];
-            case 'LOCATION':
-                return [
-                    baseIdentity,
-                    { id: 'geography', label: 'Geography', isComplete: false },
-                    { id: 'hierarchy', label: 'Hierarchy', isComplete: false },
-                    baseLore
-                ];
-            case 'ITEM':
-            case 'FACTION':
-            default:
-                // Default simple flow
-                return [baseIdentity, baseLore];
-        }
+        // Simplified Step Architecture: Identity -> Details -> Lore
+        // Details step label changes based on type
+        let detailsLabel = 'Details';
+        if (type === 'NPC') detailsLabel = 'Personality & Stats';
+        if (type === 'LOCATION') detailsLabel = 'Geography';
+
+        const detailsStep = {
+            id: 'details',
+            label: detailsLabel,
+            isComplete: !!formData.archetype_handle || type !== 'NPC', // Logic can be improved
+        };
+
+        return [baseIdentity, detailsStep, baseLore];
     };
 
     const steps = getStepsForType(formData.entity_type);
 
+    const isGlobalValid = !!formData.display_name && !!formData.world_id && !!formData.entity_type;
+
     const handleSave = async (isIntermediate = false) => {
+        if (!isIntermediate && !isGlobalValid) {
+            toast.error("Please fill in all required fields (Name, World, Type).", {
+                description: "These fields are necessary to create the entity."
+            });
+            return;
+        }
+
         try {
             setIsUploading(true);
 
             // Process images
             const processedImages: ChimeraAssetRef[] = await Promise.all(
-                formData.images.map(async (img, idx) => {
+                formData.images.map(async (img) => {
                     if (img instanceof File) {
                         const uploaded = await uploadImage(img, 'entities');
                         uploaded.role = 'portrait';
@@ -149,7 +162,7 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                 description_short: (entityDetail as any)?.description_short, // Preserve existing
                 entity_type: formData.entity_type,
                 world_id: formData.world_id,
-                // archetype_handle: formData.archetype_handle, // Maps to SQL, but we want it in raw_data too
+                // archetype_handle maps to SQL if column added, but we strictly pack into raw_data
                 base_state_json: { ...baseState },
                 // Explicitly pack raw_data
                 raw_data: {
@@ -193,9 +206,7 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
     const getLoreContextType = (entityType: string) => {
         switch (entityType) {
             case 'NPC': return 'npc';
-            case 'LOCATION': return 'world'; // Or specific location type? 'world' covers geo usually. Using default behavior strictly request says 'contextType derived from entity type'
-            // The request example said "LoreManager (pass contextType derived from entity type)"
-            // Looking at LoreManager, it accepts 'world' | 'npc' | 'item' | 'faction'
+            case 'LOCATION': return 'world';
             case 'ITEM': return 'item';
             case 'FACTION': return 'faction';
             default: return 'world';
@@ -213,6 +224,7 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
             onSaveExit={() => handleSave(false)}
             onManualSave={() => handleSave(true)}
             isSaving={createEntity.isPending || updateEntity.isPending || isUploading}
+            isValid={isGlobalValid}
             isSubEditorActive={isSubEditorActive}
         >
             {isLoadingDetail && entityId ? (
@@ -225,9 +237,15 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                     onChange={setFormData}
                     isEditMode={!!entityId}
                 />
+            ) : activeTab === 'details' ? (
+                <EntityDetailsForm
+                    entityType={formData.entity_type}
+                    archetype={formData.archetype_handle}
+                    onArchetypeChange={(val) => setFormData(d => ({ ...d, archetype_handle: val }))}
+                />
             ) : activeTab === 'lore' ? (
                 <div className="min-h-[400px] animate-in fade-in slide-in-from-right-4 duration-300">
-                    {entityId ? ( // Only allow Lore editing if entity exists (for now) - technically we auto-save so it should exist
+                    {entityId ? (
                         <LoreManager
                             worldId={formData.world_id}
                             contextType={getLoreContextType(formData.entity_type) as any}
@@ -242,15 +260,8 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                     )}
                 </div>
             ) : (
-                // Placeholder for other steps
-                <div className="flex flex-col items-center justify-center h-64 text-stone-500 border border-dashed border-stone-800 rounded-lg bg-stone-900/30">
-                    <div className="p-4 rounded-full bg-stone-900/50 mb-4">
-                        <Box className="w-8 h-8 opacity-50" />
-                    </div>
-                    <h3 className="text-lg font-medium text-stone-300 mb-2">Step Under Construction</h3>
-                    <p className="text-sm text-center max-w-sm">
-                        The <strong>{steps.find(s => s.id === activeTab)?.label}</strong> editor is coming in the next phase.
-                    </p>
+                <div className="flex flex-col items-center justify-center h-64 text-stone-500">
+                    <p>Unknown Step</p>
                 </div>
             )}
         </GuidedEditorLayout>
