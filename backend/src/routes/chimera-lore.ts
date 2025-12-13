@@ -551,8 +551,8 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
 
-    // Check ownership
-    if (world.owner_user_id !== userId) {
+    // Check ownership or public visibility
+    if (world.owner_user_id !== userId && world.visibility !== 'public') {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.FORBIDDEN,

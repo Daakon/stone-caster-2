@@ -24,6 +24,7 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
         entity_type: 'NPC',
         world_id: '',
         archetype_handle: '',
+        raw_data: {},
         images: [],
         tags: []
     });
@@ -65,6 +66,7 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                 entity_type: (entityDetail.entity_type as any) || (entityDetail as any).type || 'NPC',
                 world_id: entityDetail.world_id || '',
                 archetype_handle: raw.archetype_handle || entityDetail.archetype_handle || '', // Unpack from raw first
+                raw_data: raw,
                 images: (() => {
                     const imgs = (entityDetail.images || []).map((img: any) => ({
                         id: img.id,
@@ -93,6 +95,7 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                 entity_type: 'NPC',
                 world_id: '',
                 archetype_handle: '',
+                raw_data: {},
                 images: [],
                 tags: []
             });
@@ -167,6 +170,7 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                 // Explicitly pack raw_data
                 raw_data: {
                     ...existingRaw,
+                    ...formData.raw_data, // Merge dynamic form data
                     archetype_handle: formData.archetype_handle, // Pack Form Field -> JSONB
                 },
                 status: 'draft',
@@ -239,7 +243,10 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                 />
             ) : activeTab === 'details' ? (
                 <EntityDetailsForm
+                    worldId={formData.world_id}
                     entityType={formData.entity_type}
+                    data={formData.raw_data}
+                    onChange={(newData) => setFormData(prev => ({ ...prev, raw_data: newData }))}
                     archetype={formData.archetype_handle}
                     onArchetypeChange={(val) => setFormData(d => ({ ...d, archetype_handle: val }))}
                 />

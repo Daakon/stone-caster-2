@@ -12,6 +12,7 @@ export interface EntityIdentityFormData {
     entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
     world_id: string;
     archetype_handle: string;
+    raw_data: Record<string, any>;
     images: PendingImage[];
     tags: string[];
 }
