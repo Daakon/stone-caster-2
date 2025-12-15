@@ -54,6 +54,8 @@ export type ChimeraLoreType =
 export interface ChimeraLoreFragment {
     id: string;
     world_id: string;
+    entity_id?: string;
+    story_id?: string;
     title: string;
     type: ChimeraLoreType;
     content: string;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { GuidedEditorLayout } from './shared/GuidedEditorLayout';
 import { ScrollText } from 'lucide-react';
-import { useCreateEntity, useUpdateEntity, useEntityDetail, uploadImage, useLoreByWorld, useMyWorlds } from '@/services/chimera-api';
+import { useCreateEntity, useUpdateEntity, useEntityDetail, uploadImage, useLore, useMyWorlds } from '@/services/chimera-api';
 import { type ChimeraAssetRef } from '@/types/chimera-v2';
 import { EntityIdentityForm, type EntityIdentityFormData } from './forms/EntityIdentityForm';
 import { EntityDetailsForm } from './forms/EntityDetailsForm';
@@ -42,8 +42,8 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
     const { data: myWorlds } = useMyWorlds({ enabled: open });
     const isWorldPublic = Boolean(open && formData.world_id && myWorlds && !myWorlds.some(w => w.id === formData.world_id));
 
-    // We fetch lore just to check completion status, but ONLY if we own the world
-    const { data: loreFragments } = useLoreByWorld((open && formData.world_id && !isWorldPublic) ? formData.world_id : '');
+    // We fetch lore just to check completion status
+    const { data: loreFragments } = useLore(entityId ? { type: 'entity', id: entityId } : null);
 
     // Reset loop ref when id changes or modal closes
     useEffect(() => {
@@ -255,9 +255,10 @@ export function EntityEditorModal({ open, onOpenChange, entityId }: EntityEditor
                     {entityId ? (
                         <LoreManager
                             worldId={formData.world_id}
+                            context={{ type: 'entity', id: entityId }}
                             contextType={getLoreContextType(formData.entity_type) as any}
                             onSubEditorChange={setSubEditorActive}
-                            readOnly={isWorldPublic}
+                            readOnly={false}
                         />
                     ) : (
                         <div className="flex flex-col items-center justify-center h-64 text-stone-500">

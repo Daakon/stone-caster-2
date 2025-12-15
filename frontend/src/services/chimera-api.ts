@@ -184,21 +184,26 @@ export async function deleteEntity(id: string): Promise<void> {
 }
 
 /**
- * Get all lore fragments
+ * Get all lore fragments, optionally filtered by context
  */
-export async function getLore(): Promise<LoreFragment[]> {
-  const result = await apiFetch<LoreFragment[]>('/api/chimera/lore');
+export async function getLore(filters?: { world_id?: string; entity_id?: string; story_id?: string }): Promise<ChimeraLoreFragment[]> {
+  const params = new URLSearchParams();
+  if (filters?.world_id) params.append('world_id', filters.world_id);
+  if (filters?.entity_id) params.append('entity_id', filters.entity_id);
+  if (filters?.story_id) params.append('story_id', filters.story_id);
+
+  const result = await apiFetch<any[]>(`/api/v2/chimera/lore?${params.toString()}`);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to fetch lore');
   }
-  return result.data || [];
+  return (result.data || []).map(mapToFragment);
 }
 
 /**
  * Get a single lore fragment by ID
  */
 export async function getLoreFragment(id: string): Promise<LoreFragment> {
-  const result = await apiFetch<LoreFragment>(`/api/chimera/lore/${id}`);
+  const result = await apiFetch<LoreFragment>(`/api/v2/chimera/lore/${id}`);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to fetch lore fragment');
   }
@@ -208,8 +213,8 @@ export async function getLoreFragment(id: string): Promise<LoreFragment> {
 /**
  * Create a new lore fragment
  */
-export async function createLore(data: LoreFragment): Promise<string> {
-  const result = await apiPost<CreateLoreResponse>('/api/chimera/lore', data);
+export async function createLore(data: LoreFragment & { world_id: string; entity_id?: string; story_id?: string }): Promise<string> {
+  const result = await apiPost<CreateLoreResponse>('/api/v2/chimera/lore', data);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to create lore fragment');
   }
@@ -220,7 +225,7 @@ export async function createLore(data: LoreFragment): Promise<string> {
  * Update an existing lore fragment
  */
 export async function updateLore(id: string, data: Partial<LoreFragment>): Promise<LoreFragment> {
-  const result = await apiPut<LoreFragment>(`/api/chimera/lore/${id}`, data);
+  const result = await apiPut<LoreFragment>(`/api/v2/chimera/lore/${id}`, data);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to update lore fragment');
   }
@@ -231,7 +236,7 @@ export async function updateLore(id: string, data: Partial<LoreFragment>): Promi
  * Delete a lore fragment
  */
 export async function deleteLore(id: string): Promise<void> {
-  const result = await apiDelete(`/api/chimera/lore/${id}`);
+  const result = await apiDelete(`/api/v2/chimera/lore/${id}`);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to delete lore fragment');
   }
@@ -915,6 +920,8 @@ function mapToFragment(item: any): ChimeraLoreFragment {
   return {
     id: item.id,
     world_id: item.world_id,
+    entity_id: item.entity_id,
+    story_id: item.story_id,
     title: item.display_name || 'Untitled',
     type: item.type || (item.fragment?.type) || 'general',
     content: item.entry_text || '',
@@ -941,6 +948,8 @@ export async function getLoreByWorld(worldId: string): Promise<ChimeraLoreFragme
 export async function createLoreV2(data: Partial<ChimeraLoreFragment>): Promise<ChimeraLoreFragment> {
   const payload = {
     world_id: data.world_id,
+    entity_id: data.entity_id,
+    story_id: data.story_id,
     display_name: data.title,
     entry_text: data.content,
     keywords: data.keywords,
@@ -983,15 +992,33 @@ export async function deleteLoreV2(id: string): Promise<void> {
 
 // --- Lore Hooks ---
 
-export function useLoreByWorld(worldId?: string | null) {
+export function useLore(context: { type: 'world' | 'entity' | 'story'; id: string } | null) {
   return useQuery({
-    queryKey: ['lore', worldId],
+    queryKey: ['lore', context?.type, context?.id],
     queryFn: () => {
-      if (!worldId) return Promise.resolve([]);
-      return getLoreByWorld(worldId);
+      if (!context) return Promise.resolve([]);
+      const filters: any = {};
+
+      // Map context to ID filter
+      if (context.type === 'world') {
+        filters.world_id = context.id;
+      } else if (context.type === 'entity') {
+        filters.entity_id = context.id;
+      } else if (context.type === 'story') {
+        filters.story_id = context.id;
+      }
+
+      return getLore(filters);
     },
-    enabled: !!worldId,
+    enabled: !!context?.id,
   });
+}
+
+/**
+ * @deprecated Use useLore instead
+ */
+export function useLoreByWorld(worldId?: string | null) {
+  return useLore(worldId ? { type: 'world', id: worldId } : null);
 }
 
 export function useCreateLore() {
@@ -999,7 +1026,8 @@ export function useCreateLore() {
   return useMutation({
     mutationFn: createLoreV2,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['lore', data.world_id] });
+      // Invalidate all lore queries to ensure lists update regardless of context (world/entity/story)
+      queryClient.invalidateQueries({ queryKey: ['lore'] });
     },
   });
 }
@@ -1009,7 +1037,7 @@ export function useUpdateLore() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<ChimeraLoreFragment> }) => updateLoreV2(id, data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['lore', data.world_id] });
+      queryClient.invalidateQueries({ queryKey: ['lore'] });
     },
   });
 }

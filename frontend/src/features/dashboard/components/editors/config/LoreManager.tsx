@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-    useLoreByWorld,
+    useLore,
     useCreateLore,
     useUpdateLore,
     useDeleteLore
@@ -34,8 +34,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getLoreTypesForContext, getLoreTypeColor, type LoreContextType } from '@/utils/lore-context';
 
 interface LoreManagerProps {
-    worldId: string;
-    contextType?: LoreContextType;
+    worldId: string; // Keep for fallback/reference
+    context?: { type: 'world' | 'entity' | 'story', id: string };
+    contextType?: LoreContextType; // UI Hint for available types
     onSubEditorChange?: (isOpen: boolean) => void;
     readOnly?: boolean;
 }
@@ -44,8 +45,11 @@ type EditorMode = 'LIST' | 'CREATE' | 'EDIT';
 
 const MAX_CONTENT_LENGTH = 1500;
 
-export function LoreManager({ worldId, contextType = 'world', onSubEditorChange, readOnly = false }: LoreManagerProps) {
-    const { data: fragments, isLoading, error } = useLoreByWorld(readOnly ? null : worldId);
+export function LoreManager({ worldId, context, contextType = 'world', onSubEditorChange, readOnly = false }: LoreManagerProps) {
+    // Determine effective context
+    const effectiveContext = context || { type: 'world', id: worldId };
+
+    const { data: fragments, isLoading, error } = useLore(readOnly ? null : effectiveContext);
     const createLore = useCreateLore();
     const updateLore = useUpdateLore();
     const deleteLore = useDeleteLore();
@@ -108,13 +112,22 @@ export function LoreManager({ worldId, contextType = 'world', onSubEditorChange,
 
         try {
             if (mode === 'CREATE') {
-                await createLore.mutateAsync({
-                    world_id: worldId,
+                const payload: any = {
+                    world_id: worldId, // Always required as base
                     title: formData.title,
                     type: formData.type,
                     content: formData.content,
                     keywords: formData.keywords
-                });
+                };
+
+                // Add specific context
+                if (effectiveContext.type === 'entity') {
+                    payload.entity_id = effectiveContext.id;
+                } else if (effectiveContext.type === 'story') {
+                    payload.story_id = effectiveContext.id;
+                }
+
+                await createLore.mutateAsync(payload);
             } else if (mode === 'EDIT' && editingId) {
                 await updateLore.mutateAsync({
                     id: editingId,
@@ -385,8 +398,8 @@ export function LoreManager({ worldId, contextType = 'world', onSubEditorChange,
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex flex-wrap gap-1">
-                                            {fragment.keywords?.slice(0, 2).map(k => (
-                                                <Badge key={k} variant="outline" className="text-stone-400 border-stone-700 text-[10px] h-5">
+                                            {fragment.keywords?.slice(0, 2).map((k, i) => (
+                                                <Badge key={`${k}-${i}`} variant="outline" className="text-stone-400 border-stone-700 text-[10px] h-5">
                                                     {k}
                                                 </Badge>
                                             ))}

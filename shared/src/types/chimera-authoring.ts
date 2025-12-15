@@ -206,7 +206,7 @@ export const LoreFragmentSchema = z.object({
   /**
    * Optional embedding vector for semantic search
    */
-  embedding: z.array(z.number()).optional(),
+  embedding: z.array(z.number()).nullable().optional(),
 });
 
 export type LoreFragment = z.infer<typeof LoreFragmentSchema>;

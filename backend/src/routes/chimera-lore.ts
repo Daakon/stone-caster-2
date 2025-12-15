@@ -26,12 +26,16 @@ const UuidParamSchema = z.object({
 });
 
 const CreateLoreEntrySchema = z.object({
-  world_id: z.string().uuid(),
+  world_id: z.string().uuid().optional(),
   display_name: z.string().min(1).max(200),
   entry_text: z.string().min(1),
   keywords: z.array(z.string()).default([]),
   type: z.string().optional(),
+  entity_id: z.string().uuid().optional(),
+  story_id: z.string().uuid().optional(),
   tag_names: z.array(z.string()).optional(), // Keep for backward compat, but keywords preferred
+}).refine(data => data.world_id || data.entity_id || data.story_id, {
+  message: "At least one of world_id, entity_id, or story_id must be provided",
 });
 
 const UpdateLoreEntrySchema = z.object({
@@ -51,14 +55,11 @@ function normalizeTagName(tagName: string): string {
     .replace(/[^A-Z0-9_]/g, '');
 }
 
-const WorldIdQuerySchema = z.object({
-  world_id: z.string().uuid(),
-  display_name: z.string().optional(), // Allow filtering by name if needed
-});
-
-// Support querying by story_id for backward compatibility (gets world_id from story)
-const StoryIdQuerySchema = z.object({
-  story_id: z.string().min(1),
+const ContextQuerySchema = z.object({
+  world_id: z.string().uuid().optional(),
+  entity_id: z.string().uuid().optional(),
+  story_id: z.string().uuid().optional(), // Also supports backward compat
+  display_name: z.string().optional(),
 });
 
 /**
@@ -80,38 +81,72 @@ router.post(
         );
       }
 
-      const { world_id, display_name, entry_text, keywords, type, tag_names } = req.body;
+      const { display_name, entry_text, keywords, type, tag_names, entity_id, story_id } = req.body;
+      let { world_id } = req.body;
 
-      // Check world ownership
-      const { data: world, error: worldError } = await supabaseAdmin
-        .from('chimera_worlds')
-        .select('owner_user_id')
-        .eq('id', world_id)
-        .single();
+      // RESOLVE CONTEXT AND WORLD ID
+      // Priority: Entity > Story > World (Specific to General)
 
-      if (worldError || !world) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.NOT_FOUND,
-          'World not found',
-          req
-        );
-      }
+      if (entity_id) {
+        // Case 1: Entity Context
+        const { data: entity, error: entityError } = await supabaseAdmin
+          .from('chimera_entities')
+          .select('world_id, owner_user_id')
+          .eq('id', entity_id)
+          .single();
 
-      if (world.owner_user_id !== userId) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.FORBIDDEN,
-          'You do not have permission to add lore to this world',
-          req
-        );
+        if (entityError || !entity) {
+          return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Entity not found', req);
+        }
+        if (entity.owner_user_id !== userId) {
+          return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'You do not have permission to add lore to this entity', req);
+        }
+
+        // Infer world_id from entity
+        world_id = entity.world_id;
+
+      } else if (story_id) {
+        // Case 2: Story Context
+        const { data: story, error: storyError } = await supabaseAdmin
+          .from('chimera_stories')
+          .select('world_id, owner_user_id')
+          .eq('id', story_id)
+          .single();
+
+        if (storyError || !story) {
+          return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Story not found', req);
+        }
+        if (story.owner_user_id !== userId) {
+          return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'You do not have permission to add lore to this story', req);
+        }
+
+        // Infer world_id from story
+        world_id = story.world_id;
+
+      } else if (world_id) {
+        // Case 3: World Context (General Lore)
+        const { data: world, error: worldError } = await supabaseAdmin
+          .from('chimera_worlds')
+          .select('owner_user_id')
+          .eq('id', world_id)
+          .single();
+
+        if (worldError || !world) {
+          return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'World not found', req);
+        }
+        if (world.owner_user_id !== userId) {
+          return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'You do not have permission to add lore to this world', req);
+        }
+      } else {
+        // Should be caught by Zod refine, but double check
+        return sendErrorWithStatus(res, ApiErrorCode.VALIDATION_FAILED, 'Validation Error: No context provided', req);
       }
 
       // Create the lore entry using Repository
       const repo = new LoreRepository(supabaseAdmin);
       const loreEntry = await repo.createV2(
         world_id,
-        { display_name, entry_text, keywords, type },
+        { display_name, entry_text, keywords, type, entity_id, story_id },
         userId
       );
 
@@ -468,105 +503,56 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
 
-    let worldId: string | null = null;
+    // Verify context and access
+    const query = ContextQuerySchema.safeParse(req.query);
+    if (!query.success) {
+      return sendErrorWithStatus(res, ApiErrorCode.VALIDATION_FAILED, 'Invalid query parameters', req);
+    }
 
-    // Try world_id first (new way)
-    const worldIdResult = WorldIdQuerySchema.safeParse(req.query);
-    if (worldIdResult.success) {
-      worldId = worldIdResult.data.world_id;
-    } else {
-      // Fallback to story_id for backward compatibility
-      const storyIdResult = StoryIdQuerySchema.safeParse(req.query);
-      if (storyIdResult.success) {
-        const { story_id } = storyIdResult.data;
+    const { world_id, entity_id, story_id } = query.data;
 
-        // Get world_id from story
-        const { data: story, error: storyError } = await supabaseAdmin
-          .from('chimera_stories')
-          .select('id, world_id, owner_user_id')
-          .eq('id', story_id)
-          .single();
+    if (!world_id && !entity_id && !story_id) {
+      return sendErrorWithStatus(res, ApiErrorCode.VALIDATION_FAILED, 'world_id, entity_id, or story_id is required', req);
+    }
 
-        if (storyError || !story) {
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.NOT_FOUND,
-            'Story not found',
-            req
-          );
-        }
+    let targetWorldId = world_id;
 
-        // Check story ownership
-        if (story.owner_user_id !== userId) {
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.FORBIDDEN,
-            'You do not have permission to view lore for this story',
-            req
-          );
-        }
+    // Entity Context
+    if (entity_id) {
+      const { data: entity, error } = await supabaseAdmin.from('chimera_entities').select('world_id, owner_user_id').eq('id', entity_id).single();
+      if (error || !entity) return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Entity not found', req);
 
-        if (!story.world_id) {
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.VALIDATION_FAILED,
-            'Story does not have a world assigned',
-            req
-          );
-        }
+      targetWorldId = entity.world_id; // Infer world for checking public visibility fallback if needed
 
-        worldId = story.world_id;
-      } else {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'world_id or story_id query parameter is required',
-          req
-        );
+      // If I own the entity, I can see its lore.
+      if (entity.owner_user_id !== userId) {
+        // Check if world is public as fallback
+        const { data: w } = await supabaseAdmin.from('chimera_worlds').select('visibility').eq('id', targetWorldId).single();
+        if (w?.visibility !== 'public') return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
       }
     }
-
-    if (!worldId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'world_id is required',
-        req
-      );
+    // Story Context (Legacy/backward compat mostly)
+    else if (story_id) {
+      const { data: story, error } = await supabaseAdmin.from('chimera_stories').select('world_id, owner_user_id').eq('id', story_id).single();
+      if (error || !story) return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Story not found', req);
+      if (story.owner_user_id !== userId) return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
+      targetWorldId = story.world_id;
+    }
+    // World Context
+    else if (world_id) {
+      const { data: world, error } = await supabaseAdmin.from('chimera_worlds').select('owner_user_id, visibility').eq('id', world_id).single();
+      if (error || !world) return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'World not found', req);
+      if (world.owner_user_id !== userId && world.visibility !== 'public') return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
     }
 
-    // Verify world exists and user has access
-    const { data: world, error: worldError } = await supabaseAdmin
-      .from('chimera_worlds')
-      .select('id, owner_user_id')
-      .eq('id', worldId)
-      .single();
-
-    if (worldError || !world) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.NOT_FOUND,
-        'World not found',
-        req
-      );
-    }
-
-    // Check ownership or public visibility
-    if (world.owner_user_id !== userId && world.visibility !== 'public') {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.FORBIDDEN,
-        'You do not have permission to view lore for this world',
-        req
-      );
-    }
-
-    // Fetch lore entries for the world (Hybrid Schema: use world_id SQL column)
-    const { data: loreEntries, error: loreError } = await supabaseAdmin
-      .from('chimera_lore')
-      .select('id, world_id, fragment, created_at, updated_at')
-      .eq('world_id', worldId)
-      .order('created_at', { ascending: false });
+    // Use Repository for strict filtering and logging
+    const repo = new LoreRepository(supabaseAdmin);
+    // repo.findAll throws on error, so we rely on the outer try/catch
+    const loreEntries = await repo.findAll({
+      world_id,
+      entity_id,
+      story_id
+    });
 
     // Map to expected format (extract from fragment for backward compatibility)
     const mappedLore = (loreEntries || []).map((entry: any) => {
@@ -578,16 +564,6 @@ router.get('/', async (req: Request, res: Response) => {
         type: fragment.type,
       };
     });
-
-    if (loreError) {
-      console.error('[Chimera Lore] Error fetching lore entries:', loreError);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        'Failed to fetch lore entries',
-        req
-      );
-    }
 
     // Fetch tags for all lore entries
     if (mappedLore && mappedLore.length > 0) {

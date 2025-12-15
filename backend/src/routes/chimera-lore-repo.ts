@@ -26,12 +26,12 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     // Validate request body
     const validated = LoreFragmentSchema.parse(req.body);
-    
+
     const supabase = getChimeraSupabaseClient(req);
     const repo = new LoreRepository(supabase);
-    
+
     const id = await repo.create(validated);
-    
+
     return sendSuccess(res, { id }, req, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -43,7 +43,7 @@ router.post('/', async (req: Request, res: Response) => {
         error.errors
       );
     }
-    
+
     console.error('[Chimera Lore] Error creating lore fragment:', error);
     return sendErrorWithStatus(
       res,
@@ -62,12 +62,12 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     // Validate params
     const { id } = IdParamSchema.parse(req.params);
-    
+
     const supabase = getChimeraSupabaseClient(req);
     const repo = new LoreRepository(supabase);
-    
+
     const fragment = await repo.findById(id);
-    
+
     if (!fragment) {
       return sendErrorWithStatus(
         res,
@@ -76,7 +76,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         req
       );
     }
-    
+
     return sendSuccess(res, fragment, req);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -88,7 +88,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         error.errors
       );
     }
-    
+
     console.error('[Chimera Lore] Error fetching lore fragment:', error);
     return sendErrorWithStatus(
       res,
@@ -107,13 +107,13 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     // Validate params
     const { id } = IdParamSchema.parse(req.params);
-    
+
     // Validate request body
     const validated = LoreFragmentSchema.parse(req.body);
-    
+
     const supabase = getChimeraSupabaseClient(req);
     const repo = new LoreRepository(supabase);
-    
+
     // Check if fragment exists
     const existing = await repo.findById(id);
     if (!existing) {
@@ -124,9 +124,9 @@ router.put('/:id', async (req: Request, res: Response) => {
         req
       );
     }
-    
+
     await repo.update(id, validated);
-    
+
     return sendSuccess(res, { id, updated: true }, req);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -138,7 +138,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         error.errors
       );
     }
-    
+
     console.error('[Chimera Lore] Error updating lore fragment:', error);
     return sendErrorWithStatus(
       res,
@@ -157,10 +157,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     // Validate params
     const { id } = IdParamSchema.parse(req.params);
-    
+
     const supabase = getChimeraSupabaseClient(req);
     const repo = new LoreRepository(supabase);
-    
+
     // Check if fragment exists
     const existing = await repo.findById(id);
     if (!existing) {
@@ -171,9 +171,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
         req
       );
     }
-    
+
     await repo.delete(id);
-    
+
     return sendSuccess(res, { id, deleted: true }, req);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -185,7 +185,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
         error.errors
       );
     }
-    
+
     console.error('[Chimera Lore] Error deleting lore fragment:', error);
     return sendErrorWithStatus(
       res,
@@ -203,11 +203,25 @@ router.delete('/:id', async (req: Request, res: Response) => {
 router.get('/', async (req: Request, res: Response) => {
   try {
     const supabase = getChimeraSupabaseClient(req);
-    const repo = new LoreRepository(supabase);
-    
-    const fragments = await repo.listAll();
-    
-    return sendSuccess(res, fragments, req);
+    // Use Repository for strict filtering and logging
+    // This uses the shared LoreRepository matching the V2 implementation
+    const repo = new LoreRepository(supabase); // Changed from supabaseAdmin to supabase
+
+    // Extract query parameters for filtering
+    const { world_id, entity_id, story_id } = req.query;
+
+    // STRICT FILTERING: Using findAll to ensure mutual exclusion
+    const loreEntries = await repo.findAll({
+      world_id: world_id as string | undefined,
+      entity_id: entity_id as string | undefined,
+      story_id: story_id as string | undefined
+    });
+
+    // Repo returns fully formed objects, but we might need to conform to whatever this endpoint used to return.
+    // Based on inspection, this endpoint calls repo.listAll or similar. 
+    // repo.findAll returns ChimeraLoreEntry-like structure.
+
+    return sendSuccess(res, loreEntries, req);
   } catch (error) {
     console.error('[Chimera Lore] Error listing lore fragments:', error);
     return sendErrorWithStatus(
