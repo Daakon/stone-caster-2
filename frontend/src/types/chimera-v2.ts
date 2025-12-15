@@ -17,6 +17,7 @@ export interface ChimeraWorldV2 {
     tags: string[];
     images: ChimeraAssetRef[];
     metadata?: Record<string, unknown>;
+    definition?: Record<string, unknown>; // Added definition
     status: 'draft' | 'pending' | 'published';
     updated_at: string;
 }
@@ -41,8 +42,10 @@ export interface ChimeraStoryV2 {
     display_name: string;
     world_id: string;
     world_display_name?: string;
+    active_ruleset_ids?: string[]; // Added active_ruleset_ids (Draft only field)
     status: string;
     updated_at: string;
+    configuration?: Record<string, unknown>;
 }
 
 export type ChimeraLoreType =

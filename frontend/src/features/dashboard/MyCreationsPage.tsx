@@ -79,7 +79,7 @@ export function MyCreationsPage() {
       safety_filters: ['pg'],
       ruleset_keys: [],
     });
-    navigate('/casting-circle');
+    navigate('/stories/compose');
   };
 
   const handleCreateWorld = () => {

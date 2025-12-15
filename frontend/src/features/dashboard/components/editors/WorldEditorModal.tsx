@@ -18,6 +18,7 @@ import { type ChimeraAssetRef } from '@/types/chimera-v2';
 import { GENRES, SETTINGS } from '@/data/world-presets';
 import { PresetSelector } from './config/PresetSelector';
 import { RulesetConfigurator } from './config/RulesetConfigurator';
+import { useRulesetLogic } from '@/features/rulesets/hooks/useRulesetLogic';
 import { ImageUploader, type PendingImage } from '@/components/forms/shared/ImageUploader';
 import { TagSelector } from '@/components/forms/shared/TagSelector';
 import { LoreManager } from './config/LoreManager';
@@ -46,23 +47,17 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
     // Configuration State
     const [selectedGenreId, setSelectedGenreId] = useState<string | null>(null);
     const [selectedSettingId, setSelectedSettingId] = useState<string | null>(null);
-    const [selectedRulesetKeys, setSelectedRulesetKeys] = useState<string[]>([]);
     const [isConfigOpen, setConfigOpen] = useState(false);
 
-    // Conflict/Confirmation Dialog State
-    const [confirmationDialog, setConfirmationDialog] = useState<{
-        isOpen: boolean;
-        title: string;
-        description: React.ReactNode;
-        confirmLabel: string;
-        onConfirm: () => void;
-    }>({
-        isOpen: false,
-        title: '',
-        description: null,
-        confirmLabel: 'Confirm',
-        onConfirm: () => { },
-    });
+    // Ruleset Logic using shared hook
+    // Note: We initialize with empty array, but update via useEffect when hydrating
+    const {
+        selectedKeys: selectedRulesetKeys,
+        setSelectedKeys: setSelectedRulesetKeys,
+        toggleRuleset: handleRulesetToggle,
+        confirmationDialog,
+        setConfirmationDialog
+    } = useRulesetLogic({ initialSelectedKeys: [] });
 
     const createWorld = useCreateWorld();
     const updateWorld = useUpdateWorld();
@@ -166,147 +161,7 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
         }
     };
 
-    // --- Dependency Logic ---
 
-    const getRuleset = (id: string) => rulesets?.find(r => r.id === id);
-
-    const getAllDependencies = (startKey: string): string[] => {
-        const visited = new Set<string>();
-        const queue = [startKey];
-        const result: string[] = [];
-
-        while (queue.length > 0) {
-            const currentId = queue.shift()!;
-            if (visited.has(currentId)) continue;
-            visited.add(currentId);
-
-            const ruleset = getRuleset(currentId);
-            if (ruleset && ruleset.dependencies) {
-                for (const depId of ruleset.dependencies) {
-                    if (!result.includes(depId)) {
-                        result.push(depId);
-                        queue.push(depId);
-                    }
-                }
-            }
-        }
-        return result;
-    };
-
-    const handleRulesetToggle = (key: string) => {
-        if (!rulesets) return;
-
-        const isAdding = !selectedRulesetKeys.includes(key);
-
-        if (isAdding) {
-            // logic for ADDING
-            const target = getRuleset(key);
-            if (!target) return;
-
-            // 1. Calculate all implicitly added rules (dependencies)
-            const dependencies = getAllDependencies(key);
-            const toAdd = [key, ...dependencies];
-
-            // 2. Check for conflicts
-            const toRemove = new Set<string>();
-            const conflicts: { added: string, removed: string, group: string }[] = [];
-
-            toAdd.forEach(addId => {
-                const addRule = getRuleset(addId);
-                if (addRule?.exclusion_group) {
-                    // Find existing selected rule in this group
-                    const existingId = selectedRulesetKeys.find(selectedId => {
-                        const selectedRule = getRuleset(selectedId);
-                        return selectedRule?.exclusion_group === addRule.exclusion_group;
-                    });
-
-                    if (existingId && existingId !== addId) {
-                        // Conflict found! We must remove 'existingId' to add 'addId'.
-                        toRemove.add(existingId);
-                        conflicts.push({
-                            added: addRule.name,
-                            removed: getRuleset(existingId)?.name || existingId,
-                            group: addRule.exclusion_group
-                        });
-                    }
-                }
-            });
-
-            // 3. Apply changes
-            const applyAdd = () => {
-                const newKeys = selectedRulesetKeys.filter(k => !toRemove.has(k));
-                // Add all `toAdd` that aren't already there
-                const finalKeys = [...new Set([...newKeys, ...toAdd])];
-                setSelectedRulesetKeys(finalKeys);
-                setConfirmationDialog(prev => ({ ...prev, isOpen: false }));
-            };
-
-            if (conflicts.length > 0) {
-                const isDirectSwitch = conflicts.length === 1 && conflicts[0].added === target.name;
-
-                if (isDirectSwitch) {
-                    applyAdd();
-                } else {
-                    setConfirmationDialog({
-                        isOpen: true,
-                        title: "Resolve Conflicts",
-                        description: (
-                            <div className="space-y-2">
-                                <p>Enabling <strong>{target.name}</strong> requires changes to your current selection:</p>
-                                <ul className="list-disc pl-5 text-stone-400 space-y-1">
-                                    {conflicts.map((c, i) => (
-                                        <li key={i}>
-                                            Switch <strong>{c.removed}</strong> to <strong>{c.added}</strong>
-                                        </li>
-                                    ))}
-                                </ul>
-                                <p>Do you want to proceed?</p>
-                            </div>
-                        ),
-                        confirmLabel: "Switch Rulesets",
-                        onConfirm: applyAdd
-                    });
-                }
-            } else {
-                applyAdd();
-            }
-
-        } else {
-            // Logic for REMOVING
-            const dependents = selectedRulesetKeys.filter(otherKey => {
-                if (otherKey === key) return false;
-                const deps = getAllDependencies(otherKey);
-                return deps.includes(key);
-            });
-
-            const applyRemove = () => {
-                const toRemove = [key, ...dependents];
-                setSelectedRulesetKeys(prev => prev.filter(k => !toRemove.includes(k)));
-                setConfirmationDialog(prev => ({ ...prev, isOpen: false }));
-            };
-
-            if (dependents.length > 0) {
-                setConfirmationDialog({
-                    isOpen: true,
-                    title: "Remove Dependencies?",
-                    description: (
-                        <div className="space-y-2">
-                            <p>The following rulesets depend on <strong>{getRuleset(key)?.name}</strong> and will also be removed:</p>
-                            <ul className="list-disc pl-5 text-stone-400">
-                                {dependents.map(d => (
-                                    <li key={d}>{getRuleset(d)?.name || d}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    ),
-                    confirmLabel: "Remove All",
-                    onConfirm: applyRemove
-                });
-            } else {
-                applyRemove();
-            }
-        }
-    };
 
     // Upload State
     const [isUploading, setIsUploading] = useState(false);
@@ -596,7 +451,7 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                 </div>
             )}
             {/* Confirmation Dialog */}
-            <Dialog open={confirmationDialog.isOpen} onOpenChange={(open) => !open && setConfirmationDialog(prev => ({ ...prev, isOpen: false }))}>
+            <Dialog open={confirmationDialog.isOpen} onOpenChange={(open) => !open && setConfirmationDialog((prev: any) => ({ ...prev, isOpen: false }))}>
                 <DialogContent className="bg-stone-950 border-stone-800 text-stone-200">
                     <DialogHeader>
                         <div className="flex items-center gap-2 text-amber-500 mb-2">
@@ -612,8 +467,8 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                     <DialogFooter className="mt-4">
                         <Button
                             variant="outline"
-                            onClick={() => setConfirmationDialog(prev => ({ ...prev, isOpen: false }))}
-                            className="border-stone-700 hover:bg-stone-900"
+                            onClick={() => setConfirmationDialog((prev: any) => ({ ...prev, isOpen: false }))}
+                            className="border-stone-700 hover:bg-stone-900 bg-transparent text-stone-200"
                         >
                             Cancel
                         </Button>

@@ -32,6 +32,7 @@ import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import MyCreationsDashboard from './pages/dashboard/creations/index';
 import { MyCreationsPage } from './features/dashboard/MyCreationsPage';
+import { CastingCircleWizard } from './features/casting-circle/CastingCircleWizard';
 import { CreateStoryPage } from './features/create-story';
 import WorldEditor from './pages/dashboard/worlds/Editor';
 import WorldManage from './pages/dashboard/worlds/Manage';
@@ -104,9 +105,24 @@ function AppContent() {
 
           {/* Protected routes - require early access approval */}
           <Route path="/stories" element={
-            <EarlyAccessRoute>
+            <ProtectedRoute>
               <StoriesPage />
-            </EarlyAccessRoute>
+            </ProtectedRoute>
+          } />
+          <Route path="/stories/compose" element={
+            <ProtectedRoute>
+              <CastingCircleWizard />
+            </ProtectedRoute>
+          } />
+          <Route path="/stories/:id/compose" element={
+            <ProtectedRoute>
+              <CastingCircleWizard />
+            </ProtectedRoute>
+          } />
+          <Route path="/stories/:id/compose/:step" element={
+            <ProtectedRoute>
+              <CastingCircleWizard />
+            </ProtectedRoute>
           } />
           <Route path="/stories/:id" element={
             <EarlyAccessRoute>

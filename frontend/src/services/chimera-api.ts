@@ -432,71 +432,54 @@ export async function initializeGame(
  * Fetch a draft by ID
  * Mock implementation: Returns predefined draft data or empty draft
  */
-export async function fetchDraft(draftId: string): Promise<StoryDraft> {
-  // TODO: Replace with actual API call
-  // const result = await apiFetch<StoryDraft>(`/api/chimera/drafts/${draftId}`);
-  // if (!result.ok) {
-  //   throw new Error(result.error.message || 'Failed to fetch draft');
-  // }
-  // return result.data!;
-
-  // Mock implementation: Check mock data for matching draft
-  const { MOCK_USER_STORIES } = await import('@/features/create-story/data/mock-library');
-  const mockStory = MOCK_USER_STORIES.find((s) => s.id === draftId && s.status === 'draft');
-
-  if (mockStory) {
-    // Return a mock draft based on the story data
-    return {
-      draft_id: mockStory.id,
-      current_step: mockStory.step ?? 0,
-      last_modified: mockStory.lastEdited ? new Date(mockStory.lastEdited).getTime() : Date.now(),
-      metadata: {
-        title: mockStory.title,
-        summary: `A story about ${mockStory.title}`,
-        genre_tags: ['fantasy'],
-        safety_filters: ['pg13'],
-        ruleset_keys: ['foundation-d100-5-pillars'],
-      },
-      staged_entity_ids: [],
-      staged_lore_ids: [],
-      is_saving: false,
-      is_dirty: false,
-    };
+/**
+ * Fetch a draft by ID (Real API)
+ */
+export async function fetchDraft(draftId: string): Promise<ChimeraStoryV2> {
+  const result = await apiFetch<ChimeraStoryV2>(`/api/v2/chimera/stories/${draftId}`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to fetch draft');
   }
-
-  // Return empty draft if not found
-  return {
-    draft_id: draftId,
-    current_step: 0,
-    last_modified: Date.now(),
-    metadata: {
-      title: '',
-      summary: '',
-      genre_tags: [],
-      safety_filters: ['pg'],
-      ruleset_keys: [],
-    },
-    staged_entity_ids: [],
-    staged_lore_ids: [],
-    is_saving: false,
-    is_dirty: false,
-  };
+  return result.data!;
 }
 
 /**
  * Save a draft to the backend
  * Mock implementation: Logs and simulates success
  */
-export async function saveDraft(draft: StoryDraft): Promise<void> {
-  // TODO: Replace with actual API call
-  // const result = await apiPut<StoryDraft>(`/api/chimera/drafts/${draft.draft_id}`, draft);
-  // if (!result.ok) {
-  //   throw new Error(result.error.message || 'Failed to save draft');
-  // }
+/**
+ * Create a new blank draft
+ */
+export async function createStoryDraft(): Promise<ChimeraStoryV2> {
+  const result = await apiPost<ChimeraStoryV2>('/api/v2/chimera/stories', {});
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to create draft');
+  }
+  return result.data!;
+}
 
-  // Mock implementation: Simulate API delay
-  console.log('[chimera-api] Saving draft to DB:', draft.draft_id);
-  await new Promise((resolve) => setTimeout(resolve, 300));
+/**
+ * Update a story draft
+ */
+export async function updateStoryDraft(id: string, data: Partial<ChimeraStoryV2>): Promise<ChimeraStoryV2> {
+  // Use PATCH for partial updates
+  const result = await apiFetch<ChimeraStoryV2>(`/api/v2/chimera/stories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to update draft');
+  }
+  return result.data!;
+}
+
+/**
+ * Save draft (Legacy Compatibility)
+ */
+export async function saveDraft(draft: any): Promise<any> {
+  return updateStoryDraft(draft.id || draft.draft_id, draft);
 }
 
 /**

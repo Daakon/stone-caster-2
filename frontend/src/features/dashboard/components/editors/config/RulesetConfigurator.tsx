@@ -10,11 +10,12 @@ import type { RulesetDefinition } from '@shared/types/chimera-authoring';
 
 interface RulesetConfiguratorProps {
     selectedKeys: string[];
+    lockedKeys?: string[];
     onToggle: (key: string) => void;
     className?: string;
 }
 
-export function RulesetConfigurator({ selectedKeys, onToggle, className }: RulesetConfiguratorProps) {
+export function RulesetConfigurator({ selectedKeys, lockedKeys = [], onToggle, className }: RulesetConfiguratorProps) {
     const { data: rulesets, isLoading } = useRulesets();
     const [viewInfo, setViewInfo] = useState<RulesetDefinition | null>(null);
 
@@ -135,11 +136,12 @@ export function RulesetConfigurator({ selectedKeys, onToggle, className }: Rules
                                                     <Checkbox
                                                         id={foundation.id}
                                                         checked={isSelected}
-                                                        disabled={isOtherSelected}
+                                                        disabled={isOtherSelected || lockedKeys.includes(foundation.id)}
                                                         onCheckedChange={() => onToggle(foundation.id)}
                                                         className={cn(
                                                             "border-stone-600 data-[state=checked]:bg-cyan-600 data-[state=checked]:border-cyan-600",
-                                                            isOtherSelected ? "opacity-50" : ""
+                                                            isOtherSelected ? "opacity-50" : "",
+                                                            lockedKeys.includes(foundation.id) ? "opacity-75 cursor-not-allowed" : ""
                                                         )}
                                                     />
                                                     <div className="grid gap-0.5">
@@ -176,8 +178,12 @@ export function RulesetConfigurator({ selectedKeys, onToggle, className }: Rules
                                                                     <Checkbox
                                                                         id={exp.id}
                                                                         checked={selectedKeys.includes(exp.id)}
+                                                                        disabled={lockedKeys.includes(exp.id)}
                                                                         onCheckedChange={() => onToggle(exp.id)}
-                                                                        className="mt-0.5 border-stone-600 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                                                                        className={cn(
+                                                                            "mt-0.5 border-stone-600 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600",
+                                                                            lockedKeys.includes(exp.id) ? "opacity-75 cursor-not-allowed" : ""
+                                                                        )}
                                                                     />
                                                                     <div className="grid gap-0.5">
                                                                         <Label htmlFor={exp.id} className="text-stone-300 text-sm font-medium cursor-pointer">
@@ -217,8 +223,12 @@ export function RulesetConfigurator({ selectedKeys, onToggle, className }: Rules
                                                     <Checkbox
                                                         id={foundation.id}
                                                         checked={isSelected}
+                                                        disabled={lockedKeys.includes(foundation.id)}
                                                         onCheckedChange={() => onToggle(foundation.id)}
-                                                        className="border-stone-600 data-[state=checked]:bg-stone-200 data-[state=checked]:text-stone-900"
+                                                        className={cn(
+                                                            "border-stone-600 data-[state=checked]:bg-stone-200 data-[state=checked]:text-stone-900",
+                                                            lockedKeys.includes(foundation.id) ? "opacity-75 cursor-not-allowed" : ""
+                                                        )}
                                                     />
                                                     <div className="grid gap-0.5">
                                                         <Label htmlFor={foundation.id} className="text-stone-200 font-medium cursor-pointer">
@@ -290,8 +300,12 @@ export function RulesetConfigurator({ selectedKeys, onToggle, className }: Rules
                                         <Checkbox
                                             id={ruleset.id}
                                             checked={selectedKeys.includes(ruleset.id)}
+                                            disabled={lockedKeys.includes(ruleset.id)}
                                             onCheckedChange={() => onToggle(ruleset.id)}
-                                            className="mt-1 border-stone-600 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                                            className={cn(
+                                                "mt-1 border-stone-600 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600",
+                                                lockedKeys.includes(ruleset.id) ? "opacity-75 cursor-not-allowed" : ""
+                                            )}
                                         />
                                         <div className="grid gap-1">
                                             <Label htmlFor={ruleset.id} className="text-stone-200 font-medium cursor-pointer leading-tight">
