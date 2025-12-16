@@ -13,9 +13,11 @@ interface RulesetConfiguratorProps {
     lockedKeys?: string[];
     onToggle: (key: string) => void;
     className?: string;
+    filterKeys?: string[]; // Only show these keys
+    excludeKeys?: string[]; // Hide these keys
 }
 
-export function RulesetConfigurator({ selectedKeys, lockedKeys = [], onToggle, className }: RulesetConfiguratorProps) {
+export function RulesetConfigurator({ selectedKeys, lockedKeys = [], onToggle, className, filterKeys, excludeKeys }: RulesetConfiguratorProps) {
     const { data: rulesets, isLoading } = useRulesets();
     const [viewInfo, setViewInfo] = useState<RulesetDefinition | null>(null);
 
@@ -28,6 +30,10 @@ export function RulesetConfigurator({ selectedKeys, lockedKeys = [], onToggle, c
 
         // 1. Separate Foundations and Expansions
         rulesets.forEach(r => {
+            // FILTERING LOGIC
+            if (filterKeys && !filterKeys.includes(r.id)) return;
+            if (excludeKeys && excludeKeys.includes(r.id)) return;
+
             if (r.ui_category === 'foundation') {
                 foundations.push(r);
             } else {

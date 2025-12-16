@@ -26,7 +26,9 @@ export function ForcesStone() {
     const lockedKeys = useMemo(() => {
         if (!world?.definition) return [];
         // Rulesets are stored in definition.ruleset_template_ids
-        return (world.definition as any).ruleset_template_ids || [];
+        // Ensure we handle the type correctly
+        const def = world.definition as { ruleset_template_ids?: string[] };
+        return def.ruleset_template_ids || [];
     }, [world]);
 
     // 3. Initialize Shared Logic
@@ -94,13 +96,41 @@ export function ForcesStone() {
                 </p>
             </div>
 
-            <div className="bg-black/40 border border-stone-800/50 rounded-xl p-6 backdrop-blur-sm">
-                <RulesetConfigurator
-                    selectedKeys={selectedKeys}
-                    lockedKeys={lockedKeys}
-                    onToggle={toggleRuleset}
-                    className="max-w-3xl"
-                />
+            <div className="grid gap-6">
+                {/* SECTION A: FOUNDATION (LOCKED/MANDATORY) */}
+                {lockedKeys.length > 0 && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-stone-800">
+                            <div className="h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+                            <h3 className="text-sm font-semibold text-stone-400 uppercase tracking-widest">World Anchors (Immutable)</h3>
+                        </div>
+                        <div className="bg-black/40 border border-stone-800/50 rounded-xl p-6 backdrop-blur-sm opacity-80 pointer-events-none">
+                            <RulesetConfigurator
+                                selectedKeys={lockedKeys}
+                                lockedKeys={lockedKeys} // All passed here are locked
+                                onToggle={() => { }} // No-op
+                                filterKeys={lockedKeys} // New prop to only show these
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* SECTION B: FORCES (OPTIONAL) */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-stone-800">
+                        <div className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                        <h3 className="text-sm font-semibold text-stone-400 uppercase tracking-widest">Optional Forces</h3>
+                    </div>
+                    <div className="bg-black/40 border border-stone-800/50 rounded-xl p-6 backdrop-blur-sm">
+                        <RulesetConfigurator
+                            selectedKeys={selectedKeys}
+                            lockedKeys={lockedKeys}
+                            onToggle={toggleRuleset}
+                            excludeKeys={lockedKeys} // New prop to hide locked ones from this list
+                            className="max-w-3xl"
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Conflict Dialog (Rendered by component via state passed from hook) */}

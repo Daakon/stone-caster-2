@@ -481,11 +481,12 @@ router.put(
       }
 
       // Validate world_id if being updated
+      let newRulesetIds: string[] = [];
       if (updateData.world_id !== undefined) {
         if (updateData.world_id) {
           const { data: world, error: worldError } = await supabaseAdmin
             .from('chimera_worlds')
-            .select('id, owner_user_id, visibility')
+            .select('id, owner_user_id, visibility, definition')
             .eq('id', updateData.world_id)
             .single();
 
@@ -505,6 +506,11 @@ router.put(
               'You do not have permission to use this world',
               req
             );
+          }
+
+          // Auto-inherit rulesets from the new world
+          if (world.definition?.ruleset_template_ids) {
+            newRulesetIds = world.definition.ruleset_template_ids;
           }
         }
       }
@@ -528,6 +534,12 @@ router.put(
       }
       if (updateData.story_definition !== undefined) {
         updatePayload.story_definition = updateData.story_definition;
+      }
+      if (updateData.status !== undefined) {
+        updatePayload.status = updateData.status;
+      }
+      if (updateData.title !== undefined) {
+        updatePayload.title = updateData.title;
       }
 
       // Update the story
@@ -557,7 +569,8 @@ router.put(
       // Handle configuration updates (ruleset, entity, world IDs)
       if (updateData.ruleset_template_ids !== undefined ||
         updateData.entity_ids !== undefined ||
-        updateData.world_id !== undefined) {
+        updateData.world_id !== undefined ||
+        updateData.active_ruleset_ids !== undefined) { // Check active_ruleset_ids too
         // Get current story to read existing configuration
         const { data: currentStory, error: currentStoryError } = await supabaseAdmin
           .from('chimera_stories')
@@ -577,9 +590,27 @@ router.put(
 
         // Build updated configuration
         const currentConfig = (currentStory?.configuration as any) || {};
+
+        // Determine the final ruleset list
+        let finalRulesetIds = currentConfig.rulesetIds || [];
+
+        // Priority 1: If world changed, use the world's rulesets (Server Authority)
+        if (updateData.world_id !== undefined && updateData.world_id) {
+          finalRulesetIds = newRulesetIds;
+        }
+        // Priority 2: If explicit rulesets provided (e.g. from Forces tab), use those
+        // This allows adding optional rulesets ON TOP of world rules
+        else if (updateData.active_ruleset_ids !== undefined) {
+          finalRulesetIds = updateData.active_ruleset_ids;
+        }
+        else if (updateData.ruleset_template_ids !== undefined) {
+          finalRulesetIds = updateData.ruleset_template_ids;
+        }
+
+
         const updatedConfig = {
           worldId: updateData.world_id !== undefined ? (updateData.world_id || '') : (currentConfig.worldId || ''),
-          rulesetIds: updateData.ruleset_template_ids !== undefined ? updateData.ruleset_template_ids : (currentConfig.rulesetIds || []),
+          rulesetIds: finalRulesetIds,
           entityIds: updateData.entity_ids !== undefined ? updateData.entity_ids : (currentConfig.entityIds || []),
         };
 

@@ -4,6 +4,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStoryDraftStore } from './stores/useStoryDraftStore';
 import { WorldStone } from './steps/WorldStone';
 import { ForcesStone } from './steps/ForcesStone';
+import { ElementsStone } from './steps/ElementsStone';
+import { Button } from '@/components/ui/button';
+import { ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export function CastingCircleWizard() {
@@ -24,6 +28,7 @@ export function CastingCircleWizard() {
     const isLoading = useStoryDraftStore((state) => state.isLoading);
     const error = useStoryDraftStore((state) => state.error);
     const storyId = useStoryDraftStore((state) => state.storyId);
+    const draft = useStoryDraftStore((state) => state.draft);
 
     // Initial load logic
     useEffect(() => {
@@ -84,9 +89,9 @@ export function CastingCircleWizard() {
             <Tabs value={activeStep} onValueChange={handleTabChange} className="flex-1 flex flex-col">
                 <TabsList className="grid w-full grid-cols-5 mb-8">
                     <TabsTrigger value="world">World</TabsTrigger>
-                    <TabsTrigger value="forces" disabled={!useStoryDraftStore.getState().draft?.world_id}>Forces</TabsTrigger>
-                    <TabsTrigger value="elements" disabled>Elements</TabsTrigger>
-                    <TabsTrigger value="lore" disabled>Lore</TabsTrigger>
+                    <TabsTrigger value="forces" disabled={!draft?.world_id}>Forces</TabsTrigger>
+                    <TabsTrigger value="elements" disabled={!draft?.world_id}>Elements</TabsTrigger>
+                    <TabsTrigger value="lore" disabled={!draft?.world_id}>Lore</TabsTrigger>
                     <TabsTrigger value="bind" disabled>Bind</TabsTrigger>
                 </TabsList>
 
@@ -97,11 +102,83 @@ export function CastingCircleWizard() {
                     <TabsContent value="forces" className="mt-0 h-full">
                         <ForcesStone />
                     </TabsContent>
-                    <TabsContent value="elements">Elements Content</TabsContent>
+                    <TabsContent value="elements" className="mt-0 h-full">
+                        <ElementsStone />
+                    </TabsContent>
                     <TabsContent value="lore">Lore Content</TabsContent>
                     <TabsContent value="bind">Bind Content</TabsContent>
                 </div>
             </Tabs>
+            {/* Sticky Footer */}
+            <div className="fixed bottom-0 left-0 right-0 p-4 border-t bg-stone-950/80 backdrop-blur-md flex justify-between items-center z-50 animate-in slide-in-from-bottom-5">
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            const steps = ['world', 'forces', 'elements', 'lore', 'bind'];
+                            const currentIndex = steps.indexOf(activeStep);
+                            if (currentIndex > 0) handleTabChange(steps[currentIndex - 1]);
+                        }}
+                        disabled={activeStep === 'world'}
+                        className="border-stone-700 hover:bg-stone-900"
+                    >
+                        Back
+                    </Button>
+                </div>
+
+                <div className="flex gap-2">
+                    <Button variant="ghost" className="text-stone-500 hover:text-stone-300">Save Draft</Button> {/* Auto-save handles most, manual save for peace of mind */}
+
+                    {(() => {
+                        const steps = ['world', 'forces', 'elements', 'lore', 'bind'];
+                        const currentIndex = steps.indexOf(activeStep);
+                        const isLastStep = currentIndex === steps.length - 1;
+                        const nextStep = steps[currentIndex + 1];
+
+                        // Validation Logic
+                        // Draft is already subscribed above
+                        let canProceed = false;
+
+                        // Step 1: World
+                        if (activeStep === 'world') {
+                            canProceed = !!draft?.world_id;
+                        }
+                        // Step 2: Forces (Always proceedable, default rules exist)
+                        else if (activeStep === 'forces') {
+                            canProceed = true;
+                        }
+                        // Step 3: Elements
+                        else if (activeStep === 'elements') {
+                            // Always proceedable (Default is Player Creation which is null)
+                            canProceed = true;
+                        }
+                        // Other steps placeholders
+                        else {
+                            canProceed = true;
+                        }
+
+                        return (
+                            <Button
+                                onClick={() => {
+                                    if (isLastStep) {
+                                        // Finalize Logic
+                                        toast.success("Fate Bound!");
+                                    } else {
+                                        handleTabChange(nextStep);
+                                    }
+                                }}
+                                disabled={!canProceed}
+                                className={cn(
+                                    "px-6 transition-all duration-300",
+                                    canProceed ? "bg-amber-600 hover:bg-amber-700 text-white shadow-[0_0_15px_rgba(245,158,11,0.3)]" : "opacity-50"
+                                )}
+                            >
+                                {isLastStep ? "Bind Fate" : <span className="flex items-center">Next: {nextStep.charAt(0).toUpperCase() + nextStep.slice(1)} <ArrowRight className="ml-2 h-4 w-4" /></span>}
+                            </Button>
+                        );
+                    })()}
+                </div>
+            </div>
         </div>
     );
 }

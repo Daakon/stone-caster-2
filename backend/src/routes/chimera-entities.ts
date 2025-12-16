@@ -108,11 +108,23 @@ router.get('/selectable', async (req: Request, res: Response) => {
     }
 
     // List View Optimizationn: Fetch minimal fields for cards
-    const { data: entities, error } = await supabaseAdmin
+    // Start building the query
+    let query = supabaseAdmin
       .from('chimera_entities')
-      .select('id, slug, display_name, entity_type, primary_image_url, updated_at, visibility, is_official, owner_user_id')
-      .or(`owner_user_id.eq.${userId},visibility.eq.public`)
-      .order('updated_at', { ascending: false });
+      .select('id, slug, display_name, entity_type, primary_image_url, updated_at, visibility, is_official, owner_user_id, world_id');
+
+    // Apply Filters
+    const worldId = req.query.world_id as string;
+    if (worldId) {
+      // If filtering by world, we want entities in that world that are (Public OR Owned)
+      query = query.eq('world_id', worldId);
+    }
+
+    // Always apply security scope: (Owner OR Public)
+    query = query.or(`owner_user_id.eq.${userId},visibility.eq.public`);
+
+    // Execute
+    const { data: entities, error } = await query.order('updated_at', { ascending: false });
 
     if (error) {
       console.error('[Chimera Entities] Error fetching selectable entities:', error);

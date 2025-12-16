@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Check, Loader2, Globe, Users } from 'lucide-react';
+import { Search, Filter, Globe, Users, Check, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useStoryDraftStore } from '../stores/useStoryDraftStore';
+import { useStoryDraftStore } from '@/features/casting-circle/stores/useStoryDraftStore';
 import { chimeraWorldsService } from '@/services/chimera.worlds';
 import type { ChimeraWorld } from '@/services/chimera.worlds';
 
@@ -57,7 +57,7 @@ export function WorldStone() {
         return source;
     }, [selectedTab, selectedGenre, myWorlds, officialWorlds]);
 
-    const handleSelectWorld = async (worldId: string) => {
+    const handleWorldSelect = async (worldId: string) => {
         if (selectedWorldId === worldId) return;
         await setWorld(worldId);
     };
@@ -127,19 +127,21 @@ export function WorldStone() {
                                     <Card
                                         key={world.id}
                                         className={cn(
-                                            "cursor-pointer transition-all hover:shadow-md relative overflow-hidden group border-2 h-full",
-                                            isSelected ? "border-primary bg-primary/5" : "border-transparent border-border hover:border-primary/50"
+                                            "cursor-pointer transition-all duration-300 hover:shadow-md relative overflow-hidden group border-2 h-full",
+                                            isSelected
+                                                ? "border-emerald-500 bg-emerald-950/10 shadow-[0_0_20px_rgba(16,185,129,0.2)] scale-[1.02]"
+                                                : "border-border/50 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:scale-[1.01] hover:border-stone-600 bg-black/40"
                                         )}
-                                        onClick={() => handleSelectWorld(world.id)}
+                                        onClick={() => handleWorldSelect(world.id)}
                                     >
+                                        {isSelected && (
+                                            <div className="absolute top-3 right-3 z-20 bg-emerald-500 text-white rounded-full p-1 shadow-lg animate-in zoom-in spin-in-12 duration-300">
+                                                <Check className="w-5 h-5" strokeWidth={3} />
+                                            </div>
+                                        )}
                                         <CardHeader>
                                             <div className="flex justify-between items-start gap-2">
                                                 <CardTitle className="text-lg leading-tight">{world.display_name}</CardTitle>
-                                                {isSelected && (
-                                                    <div className="h-6 w-6 bg-primary rounded-full flex items-center justify-center shrink-0">
-                                                        <Check className="h-4 w-4 text-primary-foreground" />
-                                                    </div>
-                                                )}
                                             </div>
                                             {world.tags && world.tags.length > 0 && (
                                                 <div className="flex flex-wrap gap-1 mt-2">

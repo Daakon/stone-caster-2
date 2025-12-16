@@ -57,17 +57,16 @@ export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
             draft: {
                 ...draft,
                 world_id: worldId,
-                active_ruleset_ids: [], // Clear rulesets to prevent zombies
+                active_ruleset_ids: [], // Clear locally for optimistic UI visual
                 // Also update configuration if needed by frontend
                 configuration: { ...draft.configuration, worldId }
             }
         });
 
         try {
-            // Send empty active_ruleset_ids to backend
+            // Frontend: Send ONLY world_id. Backend will auto-set rulesets.
             await updateStoryDraft(storyId, {
                 world_id: worldId,
-                active_ruleset_ids: []
             });
         } catch (error) {
             console.error('Failed to set world:', error);
