@@ -37,7 +37,7 @@ const CreateStorySchema = z.object({
   ruleset_template_ids: z.array(z.string()).default([]),
   pack_ids: z.array(z.string()).default([]),
   entity_ids: z.array(z.string()).default([]),
-  primary_image_url: z.string().url().optional().nullable(),
+  image_url: z.string().url().optional().nullable(),
 });
 
 const UpdateStorySchema = CreateStorySchema.partial().extend({
@@ -46,10 +46,10 @@ const UpdateStorySchema = CreateStorySchema.partial().extend({
   protagonist_id: z.string().uuid().optional().nullable(),
   cast_ids: z.array(z.string().uuid()).optional(),
   active_ruleset_ids: z.record(z.unknown()).optional(), // JSONB
-  status: z.enum(['draft', 'compiled']).optional(),
+  status: z.enum(['draft', 'compiled', 'bound']).optional(),
   title: z.string().optional(),
   description: z.string().optional().nullable(),
-  primary_image_url: z.string().url().optional().nullable(),
+  image_url: z.string().url().optional().nullable(),
 });
 
 const UpdateStoryDefinitionSchema = z.object({
@@ -257,7 +257,7 @@ router.post(
           display_name: storyData.display_name || `Untitled Story ${id.slice(0, 8)}`,
           description_short: storyData.description_short,
           description: storyData.description,
-          primary_image_url: storyData.primary_image_url,
+          image_url: storyData.image_url,
           content_rating: storyData.content_rating || 'safe',
           world_id: storyData.world_id || null,
           visibility: 'private', // Always private for new stories
@@ -535,8 +535,8 @@ router.put(
       if (updateData.description !== undefined) {
         updatePayload.description = updateData.description;
       }
-      if (updateData.primary_image_url !== undefined) {
-        updatePayload.primary_image_url = updateData.primary_image_url;
+      if (updateData.image_url !== undefined) {
+        updatePayload.image_url = updateData.image_url;
       }
       if (updateData.world_id !== undefined) {
         updatePayload.world_id = updateData.world_id || null;

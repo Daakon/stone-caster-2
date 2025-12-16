@@ -54,12 +54,12 @@ export function CastingCircleWizard() {
             await updateStoryDraft(draft.id, {
                 title: draft.title,
                 description: draft.description,
-                primary_image_url: primaryImageUrl,
-                status: 'compiled'
+                image_url: primaryImageUrl,
+                status: 'bound'
             });
 
-            toast.success("Fate Bound!");
-            navigate(`/play/${draft.id}`);
+            toast.success("Story successfully bound. Ready for compilation.");
+            navigate(`/dashboard/creations?tab=stories`);
 
         } catch (err: any) {
             console.error(err);

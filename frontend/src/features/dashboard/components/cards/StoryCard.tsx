@@ -52,7 +52,7 @@ export function StoryCard({ data, onClick, onEdit }: StoryCardProps) {
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                         </button>
                     )}
-                    <Badge variant={data.status === 'published' ? 'default' : 'secondary'} className="text-[10px] uppercase shadow-sm">
+                    <Badge variant={(data.status === 'published' || data.status === 'compiled' || data.status === 'bound') ? 'default' : 'secondary'} className="text-[10px] uppercase shadow-sm">
                         {data.status || 'Draft'}
                     </Badge>
                 </div>
@@ -63,11 +63,11 @@ export function StoryCard({ data, onClick, onEdit }: StoryCardProps) {
                 <div className="space-y-1 mt-auto">
                     <div className="flex justify-between text-xs text-stone-500">
                         <span>Progress</span>
-                        <span>{data.status === 'compiled' ? '100%' : 'Drafting'}</span>
+                        <span>{data.status === 'compiled' || data.status === 'bound' ? '100%' : 'Drafting'}</span>
                     </div>
                     <div className="h-1.5 w-full bg-stone-800 rounded-full overflow-hidden">
                         <div
-                            className={cn("h-full bg-primary rounded-full", data.status === 'compiled' ? 'w-full' : 'w-[40%]')}
+                            className={cn("h-full bg-primary rounded-full", (data.status === 'compiled' || data.status === 'bound') ? 'w-full' : 'w-[40%]')}
                         />
                     </div>
                 </div>

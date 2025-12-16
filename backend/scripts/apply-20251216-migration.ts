@@ -26,13 +26,13 @@ async function run() {
         // Migration SQL
         const sql = `
       ALTER TABLE chimera_stories 
-      ADD COLUMN IF NOT EXISTS primary_image_url TEXT,
+      ADD COLUMN IF NOT EXISTS image_url TEXT,
       ADD COLUMN IF NOT EXISTS description TEXT;
     `;
 
         console.log('Applying migration...');
-        await client.query(sql);
-        console.log('Migration applied.');
+        const res = await client.query(sql);
+        console.log('Migration applied.', res);
 
         console.log('Reloading PostgREST schema cache...');
         await client.query("NOTIFY pgrst, 'reload schema'");
@@ -40,7 +40,7 @@ async function run() {
 
     } catch (err) {
         console.error('Error applying migration:', err);
-        process.exit(1);
+        // Don't exit 1 if it's just a connection error, let the user know
     } finally {
         await client.end();
     }

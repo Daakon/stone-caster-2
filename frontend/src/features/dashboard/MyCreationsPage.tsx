@@ -175,8 +175,10 @@ export function MyCreationsPage() {
                     onClick={() => {
                       if (story.status === 'draft') {
                         navigate(`/stories/${story.id}/compose`);
-                      } else {
-                        navigate(`/play/${story.id}`);
+                      } else if (story.status === 'bound' || story.status === 'compiled') {
+                        // Correct: Bound/Compiled stories go to overview or play if compiled
+                        // User requirement: "Primary Action: 'Manage' -> Navigates to /stories/[id]"
+                        navigate(`/stories/${story.id}`);
                       }
                     }}
                     onEdit={() => navigate(`/stories/${story.id}/compose`)}
