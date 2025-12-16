@@ -59,6 +59,17 @@ export const chimeraEntitiesService = {
   },
 
   /**
+   * Get entities belonging to a specific world (Public or Owned)
+   */
+  async getWorldEntities(worldId: string): Promise<SelectableEntity[]> {
+    const result = await apiFetch<SelectableEntity[]>(`/api/v2/chimera/entities/selectable?world_id=${worldId}`);
+    if (!result.ok) {
+      throw new Error(result.error.message || 'Failed to fetch world entities');
+    }
+    return result.data || [];
+  },
+
+  /**
    * Get all entities owned by the current user
    */
   async getMyEntities(): Promise<ChimeraEntity[]> {

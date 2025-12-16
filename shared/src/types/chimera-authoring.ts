@@ -114,6 +114,11 @@ export const RulesetDefinitionSchema = z.object({
   ui_category: z.enum(['foundation', 'expansion', 'flavor']),
 
   /**
+   * Target entity type that this ruleset applies to
+   */
+  target: z.enum(['NPC', 'LOCATION', 'PLAYER', 'STORY', 'GLOBAL']).default('GLOBAL'),
+
+  /**
    * Exclusion group identifier - rulesets in the same group are mutually exclusive
    * null if the ruleset has no exclusion constraints
    */
@@ -201,7 +206,7 @@ export const LoreFragmentSchema = z.object({
   /**
    * Optional embedding vector for semantic search
    */
-  embedding: z.array(z.number()).optional(),
+  embedding: z.array(z.number()).nullable().optional(),
 });
 
 export type LoreFragment = z.infer<typeof LoreFragmentSchema>;

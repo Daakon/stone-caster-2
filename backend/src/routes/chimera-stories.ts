@@ -29,18 +29,27 @@ const TextIdParamSchema = z.object({
 const VisibilitySchema = z.enum(['private', 'pending_approval', 'public']);
 
 const CreateStorySchema = z.object({
-  display_name: z.string().min(1).max(200),
+  display_name: z.string().min(1).max(200).optional(),
+  description: z.string().optional().nullable(),
   description_short: z.string().max(500).optional().nullable(),
   content_rating: z.enum(['safe', 'mature', 'explicit']).default('safe'),
   world_id: z.string().min(1).optional().nullable(),
   ruleset_template_ids: z.array(z.string()).default([]),
   pack_ids: z.array(z.string()).default([]),
   entity_ids: z.array(z.string()).default([]),
+  image_url: z.string().url().optional().nullable(),
 });
 
 const UpdateStorySchema = CreateStorySchema.partial().extend({
   visibility: VisibilitySchema.optional(),
   story_definition: z.record(z.unknown()).optional(),
+  protagonist_id: z.string().uuid().optional().nullable(),
+  cast_ids: z.array(z.string().uuid()).optional(),
+  active_ruleset_ids: z.record(z.unknown()).optional(), // JSONB
+  status: z.enum(['draft', 'compiled', 'bound']).optional(),
+  title: z.string().optional(),
+  description: z.string().optional().nullable(),
+  image_url: z.string().url().optional().nullable(),
 });
 
 const UpdateStoryDefinitionSchema = z.object({
@@ -154,7 +163,7 @@ router.post(
           .select('id, owner_user_id, visibility')
           .eq('id', storyData.world_id)
           .single();
-        
+
         if (worldWithVisibility && worldWithVisibility.owner_user_id !== userId && worldWithVisibility.visibility !== 'public') {
           return sendErrorWithStatus(
             res,
@@ -245,14 +254,18 @@ router.post(
         .insert({
           id,
           owner_user_id: userId,
-          display_name: storyData.display_name,
+          display_name: storyData.display_name || `Untitled Story ${id.slice(0, 8)}`,
           description_short: storyData.description_short,
+          description: storyData.description,
+          image_url: storyData.image_url,
           content_rating: storyData.content_rating || 'safe',
           world_id: storyData.world_id || null,
           visibility: 'private', // Always private for new stories
           configuration: configuration,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          status: 'draft',
+          title: storyData.display_name || `Untitled Story ${id.slice(0, 8)}`
         })
         .select()
         .single();
@@ -383,7 +396,7 @@ router.get(
       // Return 404 (not 403) if visibility check fails to prevent information leakage
       const isOwner = story.owner_user_id === userId;
       const isPublic = story.visibility === 'public';
-      
+
       if (!isOwner && !isPublic) {
         return sendErrorWithStatus(
           res,
@@ -474,11 +487,12 @@ router.put(
       }
 
       // Validate world_id if being updated
+      let newRulesetIds: string[] = [];
       if (updateData.world_id !== undefined) {
         if (updateData.world_id) {
           const { data: world, error: worldError } = await supabaseAdmin
             .from('chimera_worlds')
-            .select('id, owner_user_id, visibility')
+            .select('id, owner_user_id, visibility, definition')
             .eq('id', updateData.world_id)
             .single();
 
@@ -499,6 +513,11 @@ router.put(
               req
             );
           }
+
+          // Auto-inherit rulesets from the new world
+          if (world.definition?.ruleset_template_ids) {
+            newRulesetIds = world.definition.ruleset_template_ids;
+          }
         }
       }
 
@@ -513,6 +532,12 @@ router.put(
       if (updateData.description_short !== undefined) {
         updatePayload.description_short = updateData.description_short;
       }
+      if (updateData.description !== undefined) {
+        updatePayload.description = updateData.description;
+      }
+      if (updateData.image_url !== undefined) {
+        updatePayload.image_url = updateData.image_url;
+      }
       if (updateData.world_id !== undefined) {
         updatePayload.world_id = updateData.world_id || null;
       }
@@ -521,6 +546,12 @@ router.put(
       }
       if (updateData.story_definition !== undefined) {
         updatePayload.story_definition = updateData.story_definition;
+      }
+      if (updateData.status !== undefined) {
+        updatePayload.status = updateData.status;
+      }
+      if (updateData.title !== undefined) {
+        updatePayload.title = updateData.title;
       }
 
       // Update the story
@@ -548,9 +579,10 @@ router.put(
       }
 
       // Handle configuration updates (ruleset, entity, world IDs)
-      if (updateData.ruleset_template_ids !== undefined || 
-          updateData.entity_ids !== undefined || 
-          updateData.world_id !== undefined) {
+      if (updateData.ruleset_template_ids !== undefined ||
+        updateData.entity_ids !== undefined ||
+        updateData.world_id !== undefined ||
+        updateData.active_ruleset_ids !== undefined) { // Check active_ruleset_ids too
         // Get current story to read existing configuration
         const { data: currentStory, error: currentStoryError } = await supabaseAdmin
           .from('chimera_stories')
@@ -570,9 +602,27 @@ router.put(
 
         // Build updated configuration
         const currentConfig = (currentStory?.configuration as any) || {};
+
+        // Determine the final ruleset list
+        let finalRulesetIds = currentConfig.rulesetIds || [];
+
+        // Priority 1: If world changed, use the world's rulesets (Server Authority)
+        if (updateData.world_id !== undefined && updateData.world_id) {
+          finalRulesetIds = newRulesetIds;
+        }
+        // Priority 2: If explicit rulesets provided (e.g. from Forces tab), use those
+        // This allows adding optional rulesets ON TOP of world rules
+        else if (updateData.active_ruleset_ids !== undefined) {
+          finalRulesetIds = updateData.active_ruleset_ids;
+        }
+        else if (updateData.ruleset_template_ids !== undefined) {
+          finalRulesetIds = updateData.ruleset_template_ids;
+        }
+
+
         const updatedConfig = {
           worldId: updateData.world_id !== undefined ? (updateData.world_id || '') : (currentConfig.worldId || ''),
-          rulesetIds: updateData.ruleset_template_ids !== undefined ? updateData.ruleset_template_ids : (currentConfig.rulesetIds || []),
+          rulesetIds: finalRulesetIds,
           entityIds: updateData.entity_ids !== undefined ? updateData.entity_ids : (currentConfig.entityIds || []),
         };
 
@@ -706,6 +756,114 @@ router.put(
 );
 
 /**
+ * PATCH /api/v2/chimera/stories/:id
+ * Partial update for a story (owner-only)
+ */
+router.patch(
+  '/:id',
+  validateRequest(TextIdParamSchema, 'params'),
+  validateRequest(UpdateStorySchema),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.ctx?.userId;
+      if (!userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.UNAUTHORIZED,
+          'Authentication required',
+          req
+        );
+      }
+
+      const { id } = req.params;
+      const updateData = req.body;
+
+      // Check ownership
+      const { data: existing, error: checkError } = await supabaseAdmin
+        .from('chimera_stories')
+        .select('owner_user_id')
+        .eq('id', id)
+        .single();
+
+      if (checkError || !existing) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.NOT_FOUND,
+          'Story not found',
+          req
+        );
+      }
+
+      if (existing.owner_user_id !== userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.FORBIDDEN,
+          'You do not have permission to update this story',
+          req
+        );
+      }
+
+      // Build update payload
+      const updatePayload: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+        ...updateData
+      };
+
+      // Clean up undefined values
+      Object.keys(updatePayload).forEach(key =>
+        updatePayload[key] === undefined && delete updatePayload[key]
+      );
+
+      // Handle configuration JSONB updates directly if needed
+      if (updateData.world_id !== undefined || updateData.ruleset_template_ids !== undefined || updateData.entity_ids !== undefined) {
+        const { data: currentStory } = await supabaseAdmin
+          .from('chimera_stories')
+          .select('configuration')
+          .eq('id', id)
+          .single();
+
+        const currentConfig = (currentStory?.configuration as any) || {};
+        const updatedConfig = {
+          ...currentConfig,
+          worldId: updateData.world_id !== undefined ? updateData.world_id : currentConfig.worldId,
+          rulesetIds: updateData.ruleset_template_ids !== undefined ? updateData.ruleset_template_ids : currentConfig.rulesetIds,
+          entityIds: updateData.entity_ids !== undefined ? updateData.entity_ids : currentConfig.entityIds,
+        };
+        updatePayload.configuration = updatedConfig;
+      }
+
+      const { data: updatedStory, error: updateError } = await supabaseAdmin
+        .from('chimera_stories')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('[Chimera Stories] Error patching story:', updateError);
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.INTERNAL_ERROR,
+          'Failed to update story',
+          req
+        );
+      }
+
+      return sendSuccess(res, updatedStory, req);
+
+    } catch (error) {
+      console.error('[Chimera Stories] Unexpected error:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Internal server error',
+        req
+      );
+    }
+  }
+);
+
+/**
  * POST /api/v2/chimera/stories/:id/rebuild
  * Rebuild/compile the story's ruleset by merging all linked ruleset templates
  * Owner-only endpoint
@@ -733,7 +891,7 @@ router.post(
       return sendSuccess(res, result, req);
     } catch (error) {
       console.error('[Chimera Stories] Unexpected error in rebuild:', error);
-      
+
       // Handle specific error types
       if (error instanceof Error) {
         if (error.message === 'Story not found') {

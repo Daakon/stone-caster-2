@@ -31,7 +31,7 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
   // Authenticated-only navigation items
   const authenticatedNavigation = [
     { name: 'My Stories', href: '/my-stories' },
-    ...(enableChimeraUi ? [{ name: 'My Creations', href: '/dashboard/creations/worlds' }] : []),
+    ...(enableChimeraUi ? [{ name: 'My Creations', href: '/my-creations' }] : []),
     { name: 'Profile', href: '/profile' },
   ];
 

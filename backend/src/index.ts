@@ -39,7 +39,7 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     // Define allowed origins
     const allowedOrigins = [
       'http://localhost:5173',  // Local development (Vite default)
@@ -53,24 +53,24 @@ app.use(cors({
 
     // Also allow any subdomain of stonecaster.ai (e.g., preview hosts)
     const stonecasterSubdomain = /^https:\/\/([a-z0-9-]+\.)*stonecaster\.ai$/i;
-    
+
     // Add configured CORS origin if it exists and isn't already in the list
     if (config.cors.origin && !allowedOrigins.includes(config.cors.origin)) {
       allowedOrigins.push(config.cors.origin);
     }
-    
+
     // Check if origin is allowed
     if (allowedOrigins.includes(origin) || stonecasterSubdomain.test(origin)) {
       return callback(null, true);
     }
-    
+
     // Log the blocked origin for debugging
     console.log(`[CORS] Blocked origin: ${origin}`);
     console.log(`[CORS] Allowed origins: ${allowedOrigins.join(', ')}`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   // Let cors echo back requested headers to avoid blocking custom ones (e.g., apikey, x-client-info)
   optionsSuccessStatus: 200,
 }));
@@ -89,8 +89,8 @@ app.use(testTxMiddleware);
 
 // Health check - Phase 5.1: Expose test transaction availability
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     testTxEnabled: process.env.TEST_TX_ENABLED === 'true',
   });
@@ -132,7 +132,7 @@ import chimeraWorldsRepoRouter from './routes/chimera-worlds-repo.js';
 import chimeraRulesetsRepoRouter from './routes/chimera-rulesets-repo.js';
 import chimeraEntitiesRepoRouter from './routes/chimera-entities-repo.js';
 import chimeraLoreRepoRouter from './routes/chimera-lore-repo.js';
-import chimeraAssetsRepoRouter from './routes/chimera-assets-repo.js';
+import chimeraAssetsRouter from './routes/chimera-assets.api.js';
 import chimeraCompileRouter from './routes/chimera-compile.js';
 import chimeraPlayRouter from './routes/chimera-play.js';
 import chimeraGameInitRouter from './routes/chimera-game-init.js';
@@ -141,7 +141,7 @@ console.log('[Server] Mounted /api/chimera/rulesets route');
 app.use('/api/chimera/rulesets', chimeraRulesetsRepoRouter);
 app.use('/api/chimera/entities', chimeraEntitiesRepoRouter);
 app.use('/api/chimera/lore', chimeraLoreRepoRouter);
-app.use('/api/chimera/assets', chimeraAssetsRepoRouter);
+// app.use('/api/chimera/assets', chimeraAssetsRouter); // Moved to V2 router
 app.use('/api/chimera/compile', chimeraCompileRouter);
 app.use('/api/chimera/play', chimeraPlayRouter);
 app.use('/api/chimera/game', chimeraGameInitRouter);
@@ -172,7 +172,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'tru
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
   });
-  
+
   // Serve Swagger UI
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     explorer: true,
@@ -182,7 +182,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'tru
       url: '/swagger.json'
     }
   }));
-  
+
   console.log(`📚 Swagger UI available at: http://localhost:${config.port}/api-docs`);
   console.log(`📄 Swagger JSON available at: http://localhost:${config.port}/swagger.json`);
 }
@@ -198,7 +198,7 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 // Start server only if not in test environment
 if (process.env.NODE_ENV !== 'test') {
   const port = config.port;
-  
+
   // Seed slots and templates on boot if empty
   (async () => {
     try {
@@ -209,11 +209,11 @@ if (process.env.NODE_ENV !== 'test') {
       // Don't fail startup if seeding fails
     }
   })();
-  
+
   app.listen(port, () => {
     console.log(`🎲 Stonecaster API server running on port ${port}`);
     console.log(`📍 Health check: http://localhost:${port}/health`);
-    
+
     // Phase 4: Start dependency monitor cron job (if enabled)
     (async () => {
       try {

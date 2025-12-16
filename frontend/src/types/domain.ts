@@ -1,6 +1,9 @@
 /**
  * Clean domain types for the new product model
  * No status fields - only active content is exposed publicly
+ * 
+ * Note: For Chimera authoring domain model (WorldDefinition, EntityTemplate, StoryDraft),
+ * see @/types/chimera-domain.ts
  */
 
 export type ID = string;

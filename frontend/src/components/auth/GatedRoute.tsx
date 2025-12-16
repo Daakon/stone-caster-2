@@ -5,9 +5,9 @@ import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { useAuthStore } from '../../store/auth';
 import { RoutePreservationService } from '../../services/routePreservation';
-import { 
-  Shield, 
-  AlertTriangle, 
+import {
+  Shield,
+  AlertTriangle,
   RefreshCw,
   ArrowLeft
 } from 'lucide-react';
@@ -20,8 +20,8 @@ interface GatedRouteProps {
   showGuestMessage?: boolean;
 }
 
-export function GatedRoute({ 
-  children, 
+export function GatedRoute({
+  children,
   fallback,
   redirectTo = '/auth/signin',
   requireAuth = true,
@@ -29,7 +29,7 @@ export function GatedRoute({
 }: GatedRouteProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, isGuest, isCookied, loading: authLoading } = useAuthStore();
+  const { isAuthenticated, isGuest, isCookied } = useAuthStore();
   const [hasCheckedAccess, setHasCheckedAccess] = useState(false);
 
   // Use simple store values instead of API calls
@@ -45,30 +45,31 @@ export function GatedRoute({
       return;
     }
 
-    if (authLoading) return;
+    // if (authLoading) return; // Removed as loading is handled by parent AppContent
 
     setHasCheckedAccess(true);
-    
+
     // If authentication is required but user can't access, redirect
     if (requireAuth && !canAccess) {
       // Store the current route as intended route for post-auth redirect
-      RoutePreservationService.setIntendedRoute(location.pathname);
-      
+      const fullPath = location.pathname + location.search;
+      RoutePreservationService.setIntendedRoute(fullPath);
+
       const reason = isGuestUser ? 'unauthenticated' : 'insufficient_permissions';
-      navigate(redirectTo, { 
+      navigate(redirectTo, {
         replace: true,
-        state: { 
-          from: location.pathname,
+        state: {
+          from: fullPath,
           message: 'Please sign in to access this page'
         }
       });
     } else if (requireAuth && canAccess) {
     } else if (!requireAuth) {
     }
-  }, [canAccess, isGuestUser, authLoading, requireAuth, redirectTo, navigate, hasCheckedAccess, location.pathname]);
+  }, [canAccess, isGuestUser, requireAuth, redirectTo, navigate, hasCheckedAccess, location.pathname]);
 
   // Show loading state
-  if (authLoading || !hasCheckedAccess) {
+  if (!hasCheckedAccess) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
         <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -97,17 +98,17 @@ export function GatedRoute({
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    You're currently browsing as a guest. Sign in to access your profile, 
+                    You're currently browsing as a guest. Sign in to access your profile,
                     save your progress, and unlock additional features.
                   </AlertDescription>
                 </Alert>
               )}
-              
+
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
                   This page requires authentication. Please sign in to continue.
                 </p>
-                
+
                 <div className="flex gap-3">
                   <Button onClick={() => navigate('/auth/signin')}>
                     Sign In
@@ -133,12 +134,12 @@ export function GatedRoute({
  * Hook for checking if user can access gated features
  */
 export function useGatedAccess() {
-  const { isAuthenticated, isGuest, isCookied, loading: authLoading } = useAuthStore();
+  const { isAuthenticated, isGuest, isCookied } = useAuthStore();
 
   return {
     canAccess: isAuthenticated,
     isGuest: isGuest || isCookied,
-    isLoading: authLoading,
+    isLoading: false,
     error: null,
     accessInfo: {
       canAccess: isAuthenticated,

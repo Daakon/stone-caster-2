@@ -12,11 +12,14 @@ import { Loader2, Upload, Image as ImageIcon, X, AlertCircle } from 'lucide-reac
 import { apiPost } from '@/lib/api';
 import { toast } from 'sonner';
 
+import { AssetPickerModal } from '@/features/dashboard/components/assets/AssetPickerModal';
+
 export interface ImageUploaderProps {
   onUploadComplete: (publicUrl: string) => void;
   folder?: string;
   className?: string;
   maxSizeMB?: number;
+  preferredCategory?: string;
 }
 
 const DEFAULT_MAX_SIZE = 10; // 10MB
@@ -26,12 +29,14 @@ export function ImageUploader({
   folder = 'worlds',
   className = '',
   maxSizeMB = DEFAULT_MAX_SIZE,
+  preferredCategory = 'all'
 }: ImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
 
   const validateFile = (file: File): string | null => {
     if (!file.type.startsWith('image/')) {
@@ -116,7 +121,7 @@ export function ImageUploader({
         // Cloudflare returns the actual image ID in result.variants[0], not the temporary upload ID
         // The accessUrl from sign-upload contains a temporary upload ID that won't work after upload completes
         let finalImageUrl = accessUrl; // Fallback to accessUrl if variants not available
-        
+
         if (uploadData.result?.variants && Array.isArray(uploadData.result.variants) && uploadData.result.variants.length > 0) {
           // Use the variant URL from the upload result (this is the actual image URL)
           finalImageUrl = uploadData.result.variants[0];
@@ -228,9 +233,8 @@ export function ImageUploader({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`cursor-pointer transition-colors ${
-            isDragging ? 'border-primary bg-primary/5' : ''
-          }`}
+          className={`cursor-pointer transition-colors ${isDragging ? 'border-primary bg-primary/5' : ''
+            }`}
         >
           <CardContent className="p-8">
             <div className="flex flex-col items-center justify-center gap-4 text-center">
@@ -249,15 +253,25 @@ export function ImageUploader({
                   or click to browse (max {maxSizeMB}MB)
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Select Image
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload New
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowAssetPicker(true)}
+                  disabled={isUploading}
+                >
+                  Select from Library
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -269,6 +283,16 @@ export function ImageUploader({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
+      <AssetPickerModal
+        isOpen={showAssetPicker}
+        onClose={() => setShowAssetPicker(false)}
+        onSelect={(url) => {
+          onUploadComplete(url);
+          setPreviewUrl(url); // Optimistic preview
+        }}
+        preferredCategory={preferredCategory}
+      />
     </div>
   );
 }

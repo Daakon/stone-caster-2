@@ -9,7 +9,7 @@ import type { RulesetDefinition } from '@shared/types/chimera-authoring';
 import { RulesetDefinitionSchema } from '@shared/types/chimera-authoring';
 
 export class RulesetsRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<Database>) { }
 
   /**
    * Generate a unique key from a name
@@ -20,7 +20,7 @@ export class RulesetsRepository {
       // Fallback to timestamp-based key if name is empty
       return `ruleset_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     }
-    
+
     // Convert to lowercase, replace spaces with dashes, remove special chars
     const baseKey = name
       .toLowerCase()
@@ -29,7 +29,7 @@ export class RulesetsRepository {
       .replace(/[^a-z0-9-]/g, '')
       .replace(/-+/g, '-')
       .replace(/^-+|-+$/g, '');
-    
+
     return baseKey || `ruleset_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
@@ -87,7 +87,7 @@ export class RulesetsRepository {
 
     // Use the id from the definition as the key, or generate one from the name
     let key = validated.id?.trim() || '';
-    
+
     // If id is empty, generate a unique key from the name
     if (!key) {
       const baseKey = this.generateKeyFromName(validated.name);
@@ -144,7 +144,7 @@ export class RulesetsRepository {
   async findByCategory(category: string): Promise<RulesetDefinition[]> {
     const { data, error } = await this.supabase
       .from('chimera_ruleset_templates')
-      .select('definition')
+      .select('id, definition')
       .eq('ui_category', category);
 
     if (error) {
@@ -158,7 +158,7 @@ export class RulesetsRepository {
     // Parse and validate each definition
     return data.map((row) => {
       const parsed = RulesetDefinitionSchema.parse(row.definition);
-      return parsed;
+      return { ...parsed, id: row.id, key: parsed.id };
     });
   }
 
@@ -174,7 +174,7 @@ export class RulesetsRepository {
 
     const { data, error } = await this.supabase
       .from('chimera_ruleset_templates')
-      .select('definition')
+      .select('id, definition')
       .in('key', ids);
 
     if (error) {
@@ -188,7 +188,7 @@ export class RulesetsRepository {
     // Parse and validate each definition
     return data.map((row) => {
       const parsed = RulesetDefinitionSchema.parse(row.definition);
-      return parsed;
+      return { ...parsed, id: row.id, key: parsed.id };
     });
   }
 
@@ -251,7 +251,7 @@ export class RulesetsRepository {
    */
   async getKeyById(id: string): Promise<string | null> {
     console.log('[RulesetsRepository] getKeyById() called with UUID:', id);
-    
+
     const { data, error } = await this.supabase
       .from('chimera_ruleset_templates')
       .select('key')
@@ -283,7 +283,7 @@ export class RulesetsRepository {
   async updateById(id: string, def: RulesetDefinition): Promise<void> {
     console.log('[RulesetsRepository] updateById() called with UUID:', id);
     console.log('[RulesetsRepository] updateById() definition:', JSON.stringify(def, null, 2));
-    
+
     // Validate the definition
     const validated = RulesetDefinitionSchema.parse(def);
     console.log('[RulesetsRepository] updateById() validated definition');
@@ -324,7 +324,7 @@ export class RulesetsRepository {
       console.error('[RulesetsRepository] updateById() Supabase error:', error);
       throw new Error(`Failed to update ruleset: ${error.message}`);
     }
-    
+
     console.log('[RulesetsRepository] updateById() Success');
   }
 
@@ -336,7 +336,7 @@ export class RulesetsRepository {
   async update(key: string, def: RulesetDefinition): Promise<void> {
     console.log('[RulesetsRepository] update() called with key:', key);
     console.log('[RulesetsRepository] update() definition:', JSON.stringify(def, null, 2));
-    
+
     // Validate the definition
     const validated = RulesetDefinitionSchema.parse(def);
     console.log('[RulesetsRepository] update() validated definition');
@@ -372,7 +372,7 @@ export class RulesetsRepository {
       console.error('[RulesetsRepository] update() Supabase error:', error);
       throw new Error(`Failed to update ruleset: ${error.message}`);
     }
-    
+
     console.log('[RulesetsRepository] update() Success');
   }
 
@@ -383,7 +383,7 @@ export class RulesetsRepository {
   async listAll(): Promise<RulesetDefinition[]> {
     const { data, error } = await this.supabase
       .from('chimera_ruleset_templates')
-      .select('definition')
+      .select('id, definition')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -397,7 +397,7 @@ export class RulesetsRepository {
     // Parse and validate each definition
     return data.map((row) => {
       const parsed = RulesetDefinitionSchema.parse(row.definition);
-      return parsed;
+      return { ...parsed, id: row.id, key: parsed.id };
     });
   }
 }
