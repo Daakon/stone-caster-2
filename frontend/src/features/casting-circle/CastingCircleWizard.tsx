@@ -1,18 +1,22 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStoryDraftStore } from './stores/useStoryDraftStore';
+import { updateStoryDraft } from '@/services/chimera-api';
 import { WorldStone } from './steps/WorldStone';
 import { ForcesStone } from './steps/ForcesStone';
 import { ElementsStone } from './steps/ElementsStone';
+import { LoreStone } from './steps/LoreStone';
+import { BindStone } from './steps/BindStone';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export function CastingCircleWizard() {
     const { id, step } = useParams<{ id: string; step?: string }>();
     const navigate = useNavigate();
+    const [isFinalizing, setIsFinalizing] = useState(false);
 
     // Default to 'world' if no step provided
     const activeStep = step || 'world';
@@ -29,6 +33,41 @@ export function CastingCircleWizard() {
     const error = useStoryDraftStore((state) => state.error);
     const storyId = useStoryDraftStore((state) => state.storyId);
     const draft = useStoryDraftStore((state) => state.draft);
+
+    const handleFinalize = async () => {
+        if (!draft || !draft.id) return;
+
+        setIsFinalizing(true);
+        try {
+            // Extract primary image URL if available
+            let primaryImageUrl = draft.primary_image_url;
+
+            if (draft.images && draft.images.length > 0) {
+                const firstImage = draft.images[0];
+                // Check if it's an AssetRef (has url property)
+                if ('url' in firstImage) {
+                    primaryImageUrl = firstImage.url;
+                }
+                // Note: File objects are skipped for now as we require Asset Upload service integration
+            }
+
+            await updateStoryDraft(draft.id, {
+                title: draft.title,
+                description: draft.description,
+                primary_image_url: primaryImageUrl,
+                status: 'compiled'
+            });
+
+            toast.success("Fate Bound!");
+            navigate(`/play/${draft.id}`);
+
+        } catch (err: any) {
+            console.error(err);
+            toast.error(err.message || "Failed to bind fate.");
+        } finally {
+            setIsFinalizing(false);
+        }
+    };
 
     // Initial load logic
     useEffect(() => {
@@ -54,7 +93,6 @@ export function CastingCircleWizard() {
         };
 
         // Only run if storyId doesn't match URL ID (or if strictly mounting)
-        // To prevent loops, we check strict conditions
         if (id && storyId !== id) {
             load();
         } else if (!id && !storyId) {
@@ -79,11 +117,26 @@ export function CastingCircleWizard() {
         );
     }
 
+    const coverImage = draft?.primary_image_url || ((draft?.images && draft.images.length > 0 && 'url' in draft.images[0]) ? (draft.images[0] as any).url : null);
+
     return (
         <div className="container mx-auto py-8 px-4 h-full flex flex-col">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold tracking-tight">Casting Circle</h1>
-                <p className="text-muted-foreground">Weave your story from the threads of the Chimera.</p>
+            <div className="mb-8 relative rounded-xl overflow-hidden border border-stone-800 bg-stone-900/50">
+                {coverImage && (
+                    <div className="absolute inset-0 z-0">
+                        <img src={coverImage} alt="Story Cover" className="w-full h-full object-cover opacity-30 mask-image-gradient-b" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-stone-950 to-transparent" />
+                    </div>
+                )}
+
+                <div className="relative z-10 p-8">
+                    <h1 className="text-3xl font-bold tracking-tight drop-shadow-md text-stone-100">
+                        {draft?.title || "Casting Circle"}
+                    </h1>
+                    <p className="text-stone-400 drop-shadow-sm mt-2 max-w-2xl">
+                        {draft?.description || "Weave your story from the threads of the Chimera."}
+                    </p>
+                </div>
             </div>
 
             <Tabs value={activeStep} onValueChange={handleTabChange} className="flex-1 flex flex-col">
@@ -92,7 +145,7 @@ export function CastingCircleWizard() {
                     <TabsTrigger value="forces" disabled={!draft?.world_id}>Forces</TabsTrigger>
                     <TabsTrigger value="elements" disabled={!draft?.world_id}>Elements</TabsTrigger>
                     <TabsTrigger value="lore" disabled={!draft?.world_id}>Lore</TabsTrigger>
-                    <TabsTrigger value="bind" disabled>Bind</TabsTrigger>
+                    <TabsTrigger value="bind" disabled={!draft?.title || draft.title.length === 0}>Bind</TabsTrigger>
                 </TabsList>
 
                 <div className="flex-1 min-h-0 bg-card rounded-xl border p-6 overflow-y-auto">
@@ -105,10 +158,15 @@ export function CastingCircleWizard() {
                     <TabsContent value="elements" className="mt-0 h-full">
                         <ElementsStone />
                     </TabsContent>
-                    <TabsContent value="lore">Lore Content</TabsContent>
-                    <TabsContent value="bind">Bind Content</TabsContent>
+                    <TabsContent value="lore" className="mt-0 h-full">
+                        <LoreStone />
+                    </TabsContent>
+                    <TabsContent value="bind" className="mt-0 h-full">
+                        <BindStone />
+                    </TabsContent>
                 </div>
             </Tabs>
+
             {/* Sticky Footer */}
             <div className="fixed bottom-0 left-0 right-0 p-4 border-t bg-stone-950/80 backdrop-blur-md flex justify-between items-center z-50 animate-in slide-in-from-bottom-5">
                 <div className="flex items-center gap-4">
@@ -119,7 +177,7 @@ export function CastingCircleWizard() {
                             const currentIndex = steps.indexOf(activeStep);
                             if (currentIndex > 0) handleTabChange(steps[currentIndex - 1]);
                         }}
-                        disabled={activeStep === 'world'}
+                        disabled={activeStep === 'world' || isFinalizing}
                         className="border-stone-700 hover:bg-stone-900"
                     >
                         Back
@@ -127,7 +185,7 @@ export function CastingCircleWizard() {
                 </div>
 
                 <div className="flex gap-2">
-                    <Button variant="ghost" className="text-stone-500 hover:text-stone-300">Save Draft</Button> {/* Auto-save handles most, manual save for peace of mind */}
+                    <Button variant="ghost" className="text-stone-500 hover:text-stone-300" disabled={isFinalizing}>Save Draft</Button> {/* Auto-save handles most, manual save for peace of mind */}
 
                     {(() => {
                         const steps = ['world', 'forces', 'elements', 'lore', 'bind'];
@@ -136,24 +194,19 @@ export function CastingCircleWizard() {
                         const nextStep = steps[currentIndex + 1];
 
                         // Validation Logic
-                        // Draft is already subscribed above
                         let canProceed = false;
 
-                        // Step 1: World
                         if (activeStep === 'world') {
                             canProceed = !!draft?.world_id;
-                        }
-                        // Step 2: Forces (Always proceedable, default rules exist)
-                        else if (activeStep === 'forces') {
+                        } else if (activeStep === 'forces') {
                             canProceed = true;
-                        }
-                        // Step 3: Elements
-                        else if (activeStep === 'elements') {
-                            // Always proceedable (Default is Player Creation which is null)
+                        } else if (activeStep === 'elements') {
                             canProceed = true;
-                        }
-                        // Other steps placeholders
-                        else {
+                        } else if (activeStep === 'lore') {
+                            canProceed = true;
+                        } else if (activeStep === 'bind') {
+                            canProceed = !!draft?.title && draft.title.length > 0;
+                        } else {
                             canProceed = true;
                         }
 
@@ -161,19 +214,19 @@ export function CastingCircleWizard() {
                             <Button
                                 onClick={() => {
                                     if (isLastStep) {
-                                        // Finalize Logic
-                                        toast.success("Fate Bound!");
+                                        handleFinalize();
                                     } else {
                                         handleTabChange(nextStep);
                                     }
                                 }}
-                                disabled={!canProceed}
+                                disabled={!canProceed || isFinalizing}
                                 className={cn(
-                                    "px-6 transition-all duration-300",
-                                    canProceed ? "bg-amber-600 hover:bg-amber-700 text-white shadow-[0_0_15px_rgba(245,158,11,0.3)]" : "opacity-50"
+                                    "gap-2 min-w-[120px] transition-all",
+                                    isLastStep ? "bg-amber-600 hover:bg-amber-700 hover:shadow-[0_0_15px_rgba(245,158,11,0.5)] border-amber-500/50" : ""
                                 )}
                             >
-                                {isLastStep ? "Bind Fate" : <span className="flex items-center">Next: {nextStep.charAt(0).toUpperCase() + nextStep.slice(1)} <ArrowRight className="ml-2 h-4 w-4" /></span>}
+                                {isFinalizing ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                                    isLastStep ? "Bind Fate" : <span className="flex items-center">Next: {nextStep.charAt(0).toUpperCase() + nextStep.slice(1)} <ArrowRight className="ml-2 h-4 w-4" /></span>}
                             </Button>
                         );
                     })()}

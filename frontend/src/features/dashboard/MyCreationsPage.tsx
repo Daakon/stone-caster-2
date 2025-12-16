@@ -172,7 +172,14 @@ export function MyCreationsPage() {
                   <StoryCard
                     key={story.id}
                     data={story}
-                    onClick={() => console.log('Open story', story.id)}
+                    onClick={() => {
+                      if (story.status === 'draft') {
+                        navigate(`/stories/${story.id}/compose`);
+                      } else {
+                        navigate(`/play/${story.id}`);
+                      }
+                    }}
+                    onEdit={() => navigate(`/stories/${story.id}/compose`)}
                   />
                 ))}
             </ResourceGrid>

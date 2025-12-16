@@ -30,12 +30,14 @@ const VisibilitySchema = z.enum(['private', 'pending_approval', 'public']);
 
 const CreateStorySchema = z.object({
   display_name: z.string().min(1).max(200).optional(),
+  description: z.string().optional().nullable(),
   description_short: z.string().max(500).optional().nullable(),
   content_rating: z.enum(['safe', 'mature', 'explicit']).default('safe'),
   world_id: z.string().min(1).optional().nullable(),
   ruleset_template_ids: z.array(z.string()).default([]),
   pack_ids: z.array(z.string()).default([]),
   entity_ids: z.array(z.string()).default([]),
+  primary_image_url: z.string().url().optional().nullable(),
 });
 
 const UpdateStorySchema = CreateStorySchema.partial().extend({
@@ -46,6 +48,8 @@ const UpdateStorySchema = CreateStorySchema.partial().extend({
   active_ruleset_ids: z.record(z.unknown()).optional(), // JSONB
   status: z.enum(['draft', 'compiled']).optional(),
   title: z.string().optional(),
+  description: z.string().optional().nullable(),
+  primary_image_url: z.string().url().optional().nullable(),
 });
 
 const UpdateStoryDefinitionSchema = z.object({
@@ -252,6 +256,8 @@ router.post(
           owner_user_id: userId,
           display_name: storyData.display_name || `Untitled Story ${id.slice(0, 8)}`,
           description_short: storyData.description_short,
+          description: storyData.description,
+          primary_image_url: storyData.primary_image_url,
           content_rating: storyData.content_rating || 'safe',
           world_id: storyData.world_id || null,
           visibility: 'private', // Always private for new stories
@@ -525,6 +531,12 @@ router.put(
       }
       if (updateData.description_short !== undefined) {
         updatePayload.description_short = updateData.description_short;
+      }
+      if (updateData.description !== undefined) {
+        updatePayload.description = updateData.description;
+      }
+      if (updateData.primary_image_url !== undefined) {
+        updatePayload.primary_image_url = updateData.primary_image_url;
       }
       if (updateData.world_id !== undefined) {
         updatePayload.world_id = updateData.world_id || null;
