@@ -14,6 +14,7 @@ import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
 import { rebuildStory } from '../services/chimera/rebuild-service.js';
+import { Compiler } from '../services/compiler/Compiler.js';
 
 const router = Router();
 
@@ -526,32 +527,31 @@ router.put(
         updated_at: new Date().toISOString(),
       };
 
-      if (updateData.display_name !== undefined) {
-        updatePayload.display_name = updateData.display_name;
+      if (updateData.display_name !== undefined) updatePayload.display_name = updateData.display_name;
+      if (updateData.title !== undefined) updatePayload.title = updateData.title; // Legacy/Alias
+      if (updateData.description_short !== undefined) updatePayload.description_short = updateData.description_short;
+      if (updateData.description !== undefined) updatePayload.description = updateData.description; // Legacy long desc
+      if (updateData.opening_text !== undefined) updatePayload.opening_text = updateData.opening_text;
+
+      if (updateData.image_url !== undefined) updatePayload.image_url = updateData.image_url;
+      if (updateData.world_id !== undefined) updatePayload.world_id = updateData.world_id || null;
+      if (updateData.visibility !== undefined) updatePayload.visibility = updateData.visibility;
+      if (updateData.story_definition !== undefined) updatePayload.story_definition = updateData.story_definition;
+      if (updateData.status !== undefined) updatePayload.status = updateData.status;
+
+      // Handle rulesets - Source of Truth is now the active_ruleset_ids column
+      // Priority 1: Direct update via active_ruleset_ids
+      if (updateData.active_ruleset_ids !== undefined) {
+        updatePayload.active_ruleset_ids = updateData.active_ruleset_ids;
       }
-      if (updateData.description_short !== undefined) {
-        updatePayload.description_short = updateData.description_short;
+      // Priority 2: Legacy/World Inheritance (only if active not explicit)
+      else if (newRulesetIds.length > 0) {
+        // If we switched worlds and got new defaults, apply them to the column
+        updatePayload.active_ruleset_ids = newRulesetIds;
       }
-      if (updateData.description !== undefined) {
-        updatePayload.description = updateData.description;
-      }
-      if (updateData.image_url !== undefined) {
-        updatePayload.image_url = updateData.image_url;
-      }
-      if (updateData.world_id !== undefined) {
-        updatePayload.world_id = updateData.world_id || null;
-      }
-      if (updateData.visibility !== undefined) {
-        updatePayload.visibility = updateData.visibility;
-      }
-      if (updateData.story_definition !== undefined) {
-        updatePayload.story_definition = updateData.story_definition;
-      }
-      if (updateData.status !== undefined) {
-        updatePayload.status = updateData.status;
-      }
-      if (updateData.title !== undefined) {
-        updatePayload.title = updateData.title;
+      else if (updateData.ruleset_template_ids !== undefined) {
+        // Fallback for legacy calls
+        updatePayload.active_ruleset_ids = updateData.ruleset_template_ids;
       }
 
       // Update the story
@@ -578,68 +578,31 @@ router.put(
         );
       }
 
-      // Handle configuration updates (ruleset, entity, world IDs)
-      if (updateData.ruleset_template_ids !== undefined ||
-        updateData.entity_ids !== undefined ||
-        updateData.world_id !== undefined ||
-        updateData.active_ruleset_ids !== undefined) { // Check active_ruleset_ids too
-        // Get current story to read existing configuration
+      // ---------------------------------------------------------
+      // Configuration JSONB Cleanup
+      // We no longer write worldId or rulesetIds to configuration.
+      // We ONLY write entityIds there for now (or move it too).
+      // For now, let's keep entityIds in config as we didn't migrate that column yet.
+      // ---------------------------------------------------------
+      if (updateData.entity_ids !== undefined) {
         const { data: currentStory, error: currentStoryError } = await supabaseAdmin
           .from('chimera_stories')
-          .select('configuration, world_id')
+          .select('configuration')
           .eq('id', id)
           .single();
 
-        if (currentStoryError) {
-          console.error('[Chimera Stories] Error fetching current story:', currentStoryError);
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.INTERNAL_ERROR,
-            'Failed to fetch current story',
-            req
-          );
-        }
+        if (!currentStoryError) {
+          const currentConfig = (currentStory?.configuration as any) || {};
+          const updatedConfig = {
+            ...currentConfig,
+            entityIds: updateData.entity_ids
+            // implicit: we stop syncing worldId/rulesetIds here
+          };
 
-        // Build updated configuration
-        const currentConfig = (currentStory?.configuration as any) || {};
-
-        // Determine the final ruleset list
-        let finalRulesetIds = currentConfig.rulesetIds || [];
-
-        // Priority 1: If world changed, use the world's rulesets (Server Authority)
-        if (updateData.world_id !== undefined && updateData.world_id) {
-          finalRulesetIds = newRulesetIds;
-        }
-        // Priority 2: If explicit rulesets provided (e.g. from Forces tab), use those
-        // This allows adding optional rulesets ON TOP of world rules
-        else if (updateData.active_ruleset_ids !== undefined) {
-          finalRulesetIds = updateData.active_ruleset_ids;
-        }
-        else if (updateData.ruleset_template_ids !== undefined) {
-          finalRulesetIds = updateData.ruleset_template_ids;
-        }
-
-
-        const updatedConfig = {
-          worldId: updateData.world_id !== undefined ? (updateData.world_id || '') : (currentConfig.worldId || ''),
-          rulesetIds: finalRulesetIds,
-          entityIds: updateData.entity_ids !== undefined ? updateData.entity_ids : (currentConfig.entityIds || []),
-        };
-
-        // Update configuration field
-        const { error: configError } = await supabaseAdmin
-          .from('chimera_stories')
-          .update({ configuration: updatedConfig })
-          .eq('id', id);
-
-        if (configError) {
-          console.error('[Chimera Stories] Error updating configuration:', configError);
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.INTERNAL_ERROR,
-            'Failed to update configuration',
-            req
-          );
+          await supabaseAdmin
+            .from('chimera_stories')
+            .update({ configuration: updatedConfig })
+            .eq('id', id);
         }
       }
 
@@ -1336,5 +1299,53 @@ router.delete(
   }
 );
 
-export default router;
+/**
+ * POST /api/v2/chimera/stories/:id/bind
+ * Bind Fate (Compile Story)
+ */
+router.post(
+  '/:id/bind',
+  validateRequest(TextIdParamSchema, 'params'),
+  async (req: Request, res: Response) => {
+    console.log(`[API] Bind Fate triggered for Story ID: ${req.params.id}`);
+    try {
+      const userId = req.ctx?.userId;
+      if (!userId) {
+        return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'Authentication required', req);
+      }
+      const { id } = req.params;
 
+      // Ownership check
+      const { data: story, error } = await supabaseAdmin
+        .from('chimera_stories')
+        .select('owner_user_id')
+        .eq('id', id)
+        .single();
+
+      if (error || !story) {
+        return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Story not found', req);
+      }
+      if (story.owner_user_id !== userId) {
+        return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
+      }
+
+      await Compiler.compileStory(id);
+      return sendSuccess(res, { success: true }, req);
+
+    } catch (error: any) {
+      console.error('[Chimera Bind] Error:', error);
+      // Return 400 for validation errors as requested, or 500 otherwise
+      // Compiler throws "Validation Error..." strings often, or general Errors
+      const status = error.message.includes('Validation') ? ApiErrorCode.VALIDATION_FAILED : ApiErrorCode.INTERNAL_ERROR;
+
+      return sendErrorWithStatus(
+        res,
+        status === ApiErrorCode.VALIDATION_FAILED ? ApiErrorCode.VALIDATION_FAILED : ApiErrorCode.INTERNAL_ERROR,
+        error.message || 'Bind failed',
+        req
+      );
+    }
+  }
+);
+
+export default router;

@@ -52,16 +52,8 @@ export function ForcesStone() {
     async function handleRulesetChange(newKeys: string[]) {
         if (!storyId) return;
 
-        // Optimistic Update
+        // Local Store Update Only (User must click Save)
         setDraftData({ active_ruleset_ids: newKeys });
-
-        // API Update
-        try {
-            await updateStoryDraft(storyId, { active_ruleset_ids: newKeys });
-        } catch (error) {
-            console.error("Failed to save rulesets:", error);
-            // Could revert store here
-        }
     }
 
     // Effect to ensure Locked Keys are always selected (if draft was stale)

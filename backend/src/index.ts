@@ -144,7 +144,16 @@ app.use('/api/chimera/lore', chimeraLoreRepoRouter);
 // app.use('/api/chimera/assets', chimeraAssetsRouter); // Moved to V2 router
 app.use('/api/chimera/compile', chimeraCompileRouter);
 app.use('/api/chimera/play', chimeraPlayRouter);
+// Stories (V2 & V1 mixed context)
+import chimeraStoriesRouter from './routes/chimera-stories.js';
+app.use('/api/chimera/stories', chimeraStoriesRouter); // For legacy/mixed
+app.use('/api/v2/chimera/stories', chimeraStoriesRouter); // For V2 strict
+
 app.use('/api/chimera/game', chimeraGameInitRouter);
+
+// Phase 3: Story Compiler Orchestrator
+import compilerRouter from './routes/compiler.routes.js';
+app.use(compilerRouter);
 
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);
