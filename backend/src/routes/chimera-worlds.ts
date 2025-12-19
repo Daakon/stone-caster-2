@@ -13,6 +13,7 @@ import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
 import { ChimeraAssetRefSchema } from '@shared/types/chimera-assets';
+import { WorldPresetService } from '../services/chimera/world-preset.service.js';
 
 const router = Router();
 
@@ -37,6 +38,8 @@ const CreateWorldSchema = z.object({
   tag_names: z.array(z.string()).default([]),
   tags: z.array(z.string()).optional().default([]), // Direct tags array on world
   images: z.array(ChimeraAssetRefSchema).optional().default([]), // CRITICAL: Include images in schema
+  genre: z.string().optional(),
+  setting: z.string().optional(),
 });
 
 // UpdateWorldSchema explicitly excludes visibility - it can only be changed via publish endpoint
@@ -105,9 +108,70 @@ function transformWorldForResponse(world: any): any {
     ...world,
     display_name: world.name || world.display_name || '',  // Map name -> display_name
     images: images, // Extract images from definition JSONB
+    genre: world.genre || world.definition?.genre || null,
+    setting: world.setting || world.definition?.setting || null,
     // Keep all other fields as-is
   };
 }
+
+/**
+ * GET /api/v2/chimera/worlds/presets
+ * Get all available world presets (genres)
+ */
+router.get(
+  '/presets',
+  async (req: Request, res: Response) => {
+    try {
+      const presets = WorldPresetService.getInstance().getAvailableGenres();
+      // Strip defaultRulesetKeys to avoid sending keys to frontend as per user request
+      const sanitizedPresets = presets.map(({ defaultRulesetKeys, ...rest }) => rest);
+      return sendSuccess(res, sanitizedPresets, req);
+    } catch (error) {
+      console.error('[Chimera Worlds] Error fetching presets:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to fetch world presets',
+        req
+      );
+    }
+  }
+);
+
+import { RulesetsRepository } from '../db/repos/rulesets.repo.js';
+
+/**
+ * GET /api/v2/chimera/worlds/presets/:genre
+ * Get default rulesets for a specific genre
+ * 
+ * Returns UUIDs of the rulesets, resolving them from the preset slugs.
+ */
+router.get(
+  '/presets/:genre',
+  async (req: Request, res: Response) => {
+    try {
+      const { genre } = req.params;
+      const rulesetRepo = new RulesetsRepository(supabaseAdmin);
+
+      // Get the preset IDs (UUIDs) from the service (which resolves keys using the repo checks)
+      const rulesetIds = await WorldPresetService.getInstance().getPresetsForGenre(genre, rulesetRepo);
+
+      if (rulesetIds.length === 0) {
+        return sendSuccess(res, [], req);
+      }
+
+      return sendSuccess(res, rulesetIds, req);
+    } catch (error) {
+      console.error('[Chimera Worlds] Error fetching preset details:', error);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.INTERNAL_ERROR,
+        'Failed to fetch preset details',
+        req
+      );
+    }
+  }
+);
 
 /**
  * POST /api/v2/chimera/worlds
@@ -193,6 +257,8 @@ router.post(
         description_long: worldData.description_long || null,
         ruleset_template_ids: worldData.ruleset_template_ids || [],
         images: worldData.images || [],
+        genre: worldData.genre || null,
+        setting: worldData.setting || null,
       };
 
       const worldInsertData: any = {
@@ -205,6 +271,8 @@ router.post(
         description_long: worldData.description_long,
         visibility: 'private', // Always private for new worlds
         tags: worldData.tags || [], // Store tags directly on world
+        genre: worldData.genre || null,
+        setting: worldData.setting || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };

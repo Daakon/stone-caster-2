@@ -833,6 +833,33 @@ export function useRulesets(category?: 'foundation' | 'expansion' | 'flavor') {
   });
 }
 
+// --- World Presets ---
+export const useWorldPresets = () => {
+  return useQuery({
+    queryKey: ['world-presets'],
+    queryFn: async () => {
+      const { data } = await apiFetch<{ id: string; name: string; defaultRulesetKeys: string[] }[]>('/api/v2/chimera/worlds/presets');
+      if (!data) return [];
+      return data;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+};
+
+export const fetchGenrePreset = async (genre: string): Promise<string[]> => {
+  const { data } = await apiFetch<string[]>(`/api/v2/chimera/worlds/presets/${encodeURIComponent(genre)}`);
+  return data || [];
+};
+
+export const useGenrePreset = (genre?: string | null) => {
+  return useQuery({
+    queryKey: ['genre-preset', genre],
+    queryFn: () => fetchGenrePreset(genre!),
+    enabled: !!genre,
+    staleTime: 1000 * 60 * 60,
+  });
+};
+
 // ============================================================================
 // ASSETS API
 // ============================================================================

@@ -60,6 +60,16 @@ export const WorldDefinitionSchema = z.object({
   description: z.string(),
 
   /**
+   * World genre classification (e.g. "High Fantasy", "Cyberpunk")
+   */
+  genre: z.string().optional(),
+
+  /**
+   * World setting description (e.g. "A dark, gritty world...")
+   */
+  setting: z.string().optional(),
+
+  /**
    * Array of image references for the world
    */
   images: z.array(ChimeraAssetRefSchema).optional().default([]),
@@ -92,6 +102,12 @@ export const RulesetDefinitionSchema = z.object({
    * Unique identifier for the ruleset
    */
   id: z.string(),
+
+  /**
+   * The human-readable slug/key for the ruleset (e.g. 'd100-5-pillars')
+   * Used for dependencies and presets.
+   */
+  key: z.string().optional(),
 
   /**
    * Human-readable name of the ruleset

@@ -144,7 +144,7 @@ export class RulesetsRepository {
   async findByCategory(category: string): Promise<RulesetDefinition[]> {
     const { data, error } = await this.supabase
       .from('chimera_ruleset_templates')
-      .select('id, definition')
+      .select('id, key, definition')
       .eq('ui_category', category);
 
     if (error) {
@@ -158,8 +158,31 @@ export class RulesetsRepository {
     // Parse and validate each definition
     return data.map((row) => {
       const parsed = RulesetDefinitionSchema.parse(row.definition);
-      return { ...parsed, id: row.id, key: parsed.id };
+      return { ...parsed, id: row.id, key: row.key || parsed.id || parsed.key };
     });
+  }
+
+  /**
+   * Find ruleset IDs by their keys (slugs)
+   * Efficiently resolves a list of slugs to their corresponding UUIDs
+   * @param keys - Array of ruleset keys (slugs)
+   * @returns Array of UUID strings
+   */
+  async findIdsByKeys(keys: string[]): Promise<string[]> {
+    if (!keys || keys.length === 0) {
+      return [];
+    }
+
+    const { data, error } = await this.supabase
+      .from('chimera_ruleset_templates')
+      .select('id')
+      .in('key', keys);
+
+    if (error) {
+      throw new Error(`Failed to find ruleset IDs by keys: ${error.message}`);
+    }
+
+    return (data || []).map(row => row.id);
   }
 
   /**
@@ -174,7 +197,7 @@ export class RulesetsRepository {
 
     const { data, error } = await this.supabase
       .from('chimera_ruleset_templates')
-      .select('id, definition')
+      .select('id, key, definition')
       .in('key', ids);
 
     if (error) {
@@ -188,7 +211,7 @@ export class RulesetsRepository {
     // Parse and validate each definition
     return data.map((row) => {
       const parsed = RulesetDefinitionSchema.parse(row.definition);
-      return { ...parsed, id: row.id, key: parsed.id };
+      return { ...parsed, id: row.id, key: row.key || parsed.id || parsed.key };
     });
   }
 
@@ -383,7 +406,7 @@ export class RulesetsRepository {
   async listAll(): Promise<RulesetDefinition[]> {
     const { data, error } = await this.supabase
       .from('chimera_ruleset_templates')
-      .select('id, definition')
+      .select('id, key, definition')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -397,7 +420,8 @@ export class RulesetsRepository {
     // Parse and validate each definition
     return data.map((row) => {
       const parsed = RulesetDefinitionSchema.parse(row.definition);
-      return { ...parsed, id: row.id, key: parsed.id };
+      // Ensure 'key' is set from the DB column (preferred) or the definition ID
+      return { ...parsed, id: row.id, key: row.key || parsed.id };
     });
   }
 }
