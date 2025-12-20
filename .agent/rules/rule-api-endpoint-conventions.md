@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 All API development must conform to the standards in `docs/API_ENDPOINTS_BY_DOMAIN.md`.
 
 1.  **Response Envelope**: All handlers must return data using the standard `ApiSuccessResponse<T>` or `ApiErrorResponse` envelopes. This is typically handled by `sendSuccess` or `sendErrorWithStatus` utilities.

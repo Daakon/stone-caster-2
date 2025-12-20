@@ -1,3 +1,7 @@
+---
+description: Ux Flow Adherence
+---
+
 Before implementing any new user-facing feature or flow, you must consult the diagrams in `docs/UX_Flow_Mermaid.md` and `docs/Page_Component_Hierarchy.md`.
 
 **Workflow**:

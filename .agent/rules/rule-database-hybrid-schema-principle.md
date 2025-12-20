@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 Per `docs/CHIMERA_ARCHITECTURE_SPEC.md`, the database follows a **Hybrid Schema Principle**.
 
 - **SQL Columns**: Use for fields that require indexing for fast filtering and querying (e.g., `name`, `slug`, `visibility`, `owner_user_id`, `status`).

@@ -1,1 +1,5 @@
+---
+description: New Feature E2e Test
+---
+
 For any new user-facing feature, a corresponding Playwright E2E test must be created. The workflow is: 1. Understand the feature's acceptance criteria. 2. Create a new test file in `frontend/e2e/`. 3. Write a test that simulates the user flow and asserts the expected outcome. 4. Implement the feature. 5. Run the test to confirm success.

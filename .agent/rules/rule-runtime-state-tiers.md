@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 As defined in `docs/CHIMERA_ARCHITECTURE_SPEC.md`, game state is divided into two tiers with strict modification rules.
 
 - **Tier 1 (Mechanical State)**: Numeric/boolean facts (e.g., HP, status effects). This tier can ONLY be modified by the deterministic **Engine** (`services/runtime/engine.service.ts`).

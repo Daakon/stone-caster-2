@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 All backend development must strictly adhere to the **Route -> Service -> Repository** pattern defined in `docs/CHIMERA_ARCHITECTURE_SPEC.md`.
 
 1.  **Routes (`backend/src/routes/`)**: Must only be used for HTTP-level tasks: validating inputs with Zod, calling a single service method, and formatting the final response (e.g., `sendSuccess`). No business logic is permitted here.

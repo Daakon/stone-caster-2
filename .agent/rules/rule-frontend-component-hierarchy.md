@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 When creating or modifying frontend components, you must adhere to the structure laid out in `docs/Page_Component_Hierarchy.md`.
 
 1.  **Page Components (`frontend/src/pages/`)**: These are top-level, route-bound components. Their primary responsibility is data fetching (using React Query hooks from `frontend/src/services/`) and laying out the main sections of a view.
