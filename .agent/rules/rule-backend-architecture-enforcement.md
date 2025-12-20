@@ -1,0 +1,5 @@
+All backend development must strictly adhere to the **Route -> Service -> Repository** pattern defined in `docs/CHIMERA_ARCHITECTURE_SPEC.md`.
+
+1.  **Routes (`backend/src/routes/`)**: Must only be used for HTTP-level tasks: validating inputs with Zod, calling a single service method, and formatting the final response (e.g., `sendSuccess`). No business logic is permitted here.
+2.  **Services (`backend/src/services/`)**: Must contain all business logic. Services orchestrate calls to repositories and other services. They must not directly interact with the database. Logic must be organized by context (`authoring`, `compile`, `runtime`).
+3.  **Repositories (`backend/src/db/repos/`)**: Must only contain direct database interactions using the Supabase client. No business logic, data transformation (beyond simple DTO mapping), or joins that belong in a service layer are permitted here.

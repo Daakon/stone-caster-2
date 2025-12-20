@@ -131,19 +131,23 @@ export class Compiler {
             };
 
             // Snapshots
+            // Snapshots
             const snapshotWorld = await SnapshotManager.fetchWorld(story.world_id);
             const snapshotEntities = await SnapshotManager.fetchEntities(story.cast_ids || []);
 
             // 5. Database Write
-            // Upsert into chimera_compiled_stories where story_id matches
-            // We need to check if one exists or just insert. "Upsert" usually means insert on conflict update.
-            // But we have `current_compiled_id` on the story. Phase 1 logic inserted new and updated story. 
-            // Prompt says "Upsert... where story_id matches". 
-            // This implies 1:1 relationship enforcement? 
-            // Phase 1 schema: `id` is PK. `story_id` is FK.
-            // We can search for existing by story_id.
+            // Calculate next version
+            const { data: maxVerRoot } = await supabase
+                .from('chimera_compiled_stories')
+                .select('version')
+                .eq('world_id', story.world_id)
+                .order('version', { ascending: false })
+                .limit(1)
+                .single();
 
-            // Let's try to update existing if linked, or insert new.
+            const nextVersion = (maxVerRoot?.version || 0) + 1;
+
+            // Upsert into chimera_compiled_stories where story_id matches
             let compiledId = story.current_compiled_id;
 
             if (compiledId) {
@@ -151,7 +155,7 @@ export class Compiler {
                 const { error: updateError } = await supabase
                     .from('chimera_compiled_stories')
                     .update({
-                        version: (Date.now()), // Or increment?
+                        version: nextVersion,
                         config_engine: finalEngineConfig,
                         prompt_interpreter_logic,
                         prompt_narrator_style,
@@ -168,7 +172,8 @@ export class Compiler {
                     .from('chimera_compiled_stories')
                     .insert({
                         story_id: storyId,
-                        version: 1,
+                        world_id: story.world_id, // Ensure world_id is set
+                        version: nextVersion,
                         config_engine: finalEngineConfig,
                         prompt_interpreter_logic,
                         prompt_narrator_style,

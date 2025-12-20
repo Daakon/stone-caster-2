@@ -1,10 +1,10 @@
+import 'dotenv/config';
 import { Compiler } from '../services/compiler/Compiler.js';
-import dotenv from 'dotenv';
 import path from 'path';
 
 // Construct path to .env file relative to this script
 // Assumes running from project root or backend root
-dotenv.config();
+// dotenv.config(); - Handled by import above
 
 const STORY_ID = '97af18c8-79fc-422c-a830-7cac257685a7'; // Hardcoded ID from user
 
