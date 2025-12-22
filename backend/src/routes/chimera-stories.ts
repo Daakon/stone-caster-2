@@ -14,7 +14,7 @@ import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { supabaseAdmin } from '../services/supabase.js';
 import { rebuildStory } from '../services/chimera/rebuild-service.js';
-import { Compiler } from '../services/compiler/Compiler.js';
+import { StoryCompilerService } from '../services/compiler/compiler.service.js';
 
 const router = Router();
 
@@ -1329,7 +1329,7 @@ router.post(
         return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
       }
 
-      await Compiler.compileStory(id);
+      await StoryCompilerService.compileStory(id, userId);
       return sendSuccess(res, { success: true }, req);
 
     } catch (error: any) {

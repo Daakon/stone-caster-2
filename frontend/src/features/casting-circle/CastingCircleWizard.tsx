@@ -60,7 +60,7 @@ export function CastingCircleWizard() {
             await bindStory(draft.id);
 
             toast.success("Story successfully bound. Ready for compilation.");
-            navigate(`/dashboard/creations?tab=stories`);
+            navigate(`/my-creations`);
 
         } catch (err: any) {
             console.error(err);

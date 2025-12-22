@@ -1,47 +1,80 @@
-/**
- * Interpreter Refiner
- * Extracts logic/rule-parsing instructions for the "Arbiter" Agent.
- */
+
+import { RulesetDTO } from '../schemas';
+
+export interface InterpreterConfig {
+    intents: Record<string, string>; // verb -> trigger_id
+    constraints: Array<{ logic: string; context?: string }>;
+}
+
 export class InterpreterRefiner {
     /**
-     * Generate the System Prompt for the Logic Agent
+     * Extracts structured, deterministic rules for the Game Engine.
      */
-    static refine(rulesets: any[]): string {
-        let promptSections: string[] = [];
+    static extractConfig(rulesets: RulesetDTO[]): InterpreterConfig {
+        const config: InterpreterConfig = { intents: {}, constraints: [] };
 
-        for (const ruleset of rulesets) {
-            const ruleName = ruleset.name || 'Unknown Rule';
-            const definition = ruleset.definition || {};
-            const aiInstructions = definition.ai_instructions || {};
+        rulesets.forEach(rule => {
+            const def = rule.definition;
+            const name = rule.name || def.name || rule.key || 'Unknown';
 
-            // Look for Interpreter or Action Parser instructions
-            const instruction = aiInstructions.mas1_interpreter || aiInstructions.mas1_action_parser;
+            // 1. Locate the Instruction Set (Handle all variations)
+            const source =
+                def.ai_instructions?.mas1_interpreter ||
+                def.ai_instructions?.mas1_action_parser ||
+                def.actions?.['mas1_interpreter'] ||
+                def.actions?.['mas1_action_parser'];
 
-            if (instruction) {
-                promptSections.push(`[RULESET: ${ruleName}]`);
+            if (!source) return;
 
-                if (instruction.logic) {
-                    promptSections.push(`- Constraint: ${instruction.logic}`);
-                }
-
-                // If there are intent keywords/verb mappings
-                // This assumes instruction might have a 'verbs' or similar structure, 
-                // but based on prompt we just need to capture the available info.
-                // We'll dump the raw instruction fields that are relevant if they exist.
-
-                // Use the example format if specific fields are present
-                if (instruction.verbs) {
-                    // Generic handling for verbs if present
-                    // Logic: {verb} -> {trigger_id}
-                    for (const [verb, trigger] of Object.entries(instruction.verbs)) {
-                        promptSections.push(`- Intent Keywords: ${verb} -> ${trigger}`);
+            // 2. Extract Intents (Deterministic Mapping)
+            // Structure: { verb: "attack", trigger_id: "combat_action", tags: [...] }
+            if (Array.isArray(source.intent_keywords)) {
+                source.intent_keywords.forEach((kw: any) => {
+                    if (kw.verb && kw.trigger_id) {
+                        // Normalize to lowercase for O(1) lookups
+                        config.intents[kw.verb.toLowerCase()] = kw.trigger_id;
                     }
-                }
-
-                promptSections.push(''); // Spacing
+                });
             }
+
+            // 3. Extract Constraints (Deterministic Checks)
+            // Structure: { logic: "If stamina is 0, reject..." }
+            if (Array.isArray(source.instructions)) {
+                source.instructions.forEach((instr: any) => {
+                    if (instr.logic) {
+                        config.constraints.push({
+                            logic: instr.logic,
+                            context: name
+                        });
+                    }
+                });
+            }
+        });
+
+        return config;
+    }
+
+    /**
+     * Generates the System Prompt for the LLM (Text Representation).
+     */
+    static process(rulesets: RulesetDTO[]): string {
+        const config = this.extractConfig(rulesets);
+        let prompt = "";
+
+        if (config.constraints.length > 0) {
+            prompt += "[LOGIC CONSTRAINTS]\n";
+            config.constraints.forEach(c => prompt += `- [${c.context}] ${c.logic} \n`);
+            prompt += "\n";
         }
 
-        return promptSections.join('\n').trim();
+        if (Object.keys(config.intents).length > 0) {
+            prompt += "[INTENT MAPPINGS]\n";
+            Object.entries(config.intents).forEach(([verb, trigger]) => {
+                prompt += `- "${verb}" -> TRIGGER: ${trigger} \n`;
+            });
+        }
+
+        return prompt.trim();
     }
 }
+

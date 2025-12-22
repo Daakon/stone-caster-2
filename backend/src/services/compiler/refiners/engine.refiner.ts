@@ -1,5 +1,7 @@
 import { ENGINE_FUNCTION_MAP } from '../../../engine/registry.js';
-import { EngineConfig } from '../types';
+import { CompiledCartridge, RuntimeConfig, CreationConfig } from '../../../engine/types';
+import { InterpreterRefiner } from './interpreter.refiner';
+import { RulesetDTO } from '../schemas'; // Assuming types are available here
 
 /**
  * Engine Refiner
@@ -7,27 +9,32 @@ import { EngineConfig } from '../types';
  */
 export class EngineRefiner {
     /**
-     * Parse raw rulesets into a strict EngineConfig
+     * Parse raw rulesets into a strict CompiledCartridge (Creation vs Runtime split)
      */
-    static refine(rulesets: any[]): EngineConfig {
-        const config: EngineConfig = {
+    static refine(rulesets: RulesetDTO[]): CompiledCartridge {
+        // 1. Initialize Runtime Config
+        const runtime: RuntimeConfig = {
+            logic: InterpreterRefiner.extractConfig(rulesets), // Reuse Logic Extraction
             actions: {},
-            state_schema: {},
-            form_hints: {}
+            schema: {}
+        };
+
+        // 2. Initialize Creation Config
+        const creation: CreationConfig = {
+            fields: []
         };
 
         for (const ruleset of rulesets) {
-            const ruleName = ruleset.name || 'Unknown Rule';
+            const ruleName = ruleset.name || ruleset.key || 'Unknown Rule';
             const definition = ruleset.definition || {};
 
-            // 1. Merge Actions
+            // A. Merge Actions (Runtime)
             if (definition.actions) {
                 for (const [actionKey, actionSteps] of Object.entries(definition.actions)) {
                     // Validate every step in the action chain
                     if (Array.isArray(actionSteps)) {
                         (actionSteps as any[]).forEach((step, index) => {
                             if (!step.function) return;
-
                             // STRICT VALIDATION
                             if (!ENGINE_FUNCTION_MAP[step.function]) {
                                 throw new Error(
@@ -36,30 +43,44 @@ export class EngineRefiner {
                             }
                         });
                     }
-
                     // Merge into output
-                    config.actions[actionKey] = actionSteps;
+                    runtime.actions[actionKey] = actionSteps;
                 }
             }
 
-            // 2. Merge State Schema
+            // B. Merge State Schema (Runtime)
             if (definition.state_contributions) {
-                config.state_schema = {
-                    ...config.state_schema,
-                    ...definition.state_contributions
-                };
+                // Convert old state_contributions to strict RuntimeSchema
+                // Assuming state_contributions aligns with RuntimeSchema for now
+                // or needs mapping. For now, strict copy.
+                Object.entries(definition.state_contributions).forEach(([key, value]) => {
+                    // Start simple: assume value matches compatible schema or is a direct object
+                    // In reality, we might need to normalize "defaults" here.
+                    runtime.schema[key] = value as any;
+                });
             }
 
-            // 3. Outlier Fix: Legacy Form Hints (stamina-based-magic support)
+            // C. Extract Form Hints (Creation)
             // Path: definition.ai_instructions.tier1_entity.form_hints
-            if (definition.ai_instructions?.tier1_entity?.form_hints) {
-                config.form_hints = {
-                    ...config.form_hints,
-                    ...definition.ai_instructions.tier1_entity.form_hints
-                };
+            const formHints = definition.ai_instructions?.tier1_entity?.form_hints;
+            if (formHints) {
+                Object.entries(formHints).forEach(([key, hint]: [string, any]) => {
+                    creation.fields.push({
+                        key: key,
+                        label: hint.label || key,
+                        control: hint.control || 'text',
+                        options: hint.options,
+                        min: hint.min,
+                        max: hint.max,
+                        description: hint.description
+                    });
+                });
             }
         }
 
-        return config;
+        return {
+            runtime,
+            creation
+        };
     }
 }
