@@ -18,10 +18,23 @@ import { type ChimeraAssetRef } from '@/types/chimera-v2';
 import { GENRES, SETTINGS } from '@/data/world-presets';
 import { PresetSelector } from './config/PresetSelector';
 import { RulesetConfigurator } from './config/RulesetConfigurator';
-import { useRulesetLogic } from '@/features/rulesets/hooks/useRulesetLogic';
+import { useRulesetSelectionManager } from '@/features/rulesets/hooks/useRulesetSelectionManager';
 import { ImageUploader, type PendingImage } from '@/components/forms/shared/ImageUploader';
 import { TagSelector } from '@/components/forms/shared/TagSelector';
 import { LoreManager } from './config/LoreManager';
+import { Zap, BookOpen, Ghost, Building2, Landmark, Sword, Skull, Cpu, Radiation } from 'lucide-react';
+
+// Icon Mapping Helper
+const getIconForGenre = (id: string) => {
+    switch (id) {
+        case 'high-fantasy': return Sword;
+        case 'low-fantasy-gritty': return Skull; // or Ghost?
+        case 'narrative-cozy': return BookOpen;
+        case 'survival': return Radiation; // or Landmark?
+        case 'cyberpunk': return Cpu;
+        default: return Zap; // Fallback
+    }
+};
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -55,9 +68,10 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
         selectedKeys: selectedRulesetKeys,
         setSelectedKeys: setSelectedRulesetKeys,
         toggleRuleset: handleRulesetToggle,
+        applyPreset,
         confirmationDialog,
         setConfirmationDialog
-    } = useRulesetLogic({ initialSelectedKeys: [] });
+    } = useRulesetSelectionManager({ initialSelectedKeys: [] });
 
     const createWorld = useCreateWorld();
     const updateWorld = useUpdateWorld();
@@ -118,11 +132,19 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
 
             // Prefer metadata keys strictly as per save logic
             // Use undefined check to allow empty strings/zeros if valid, though IDs usually truthy
-            if (meta.ui_genre_id !== undefined) setSelectedGenreId(meta.ui_genre_id);
-            if (meta.ui_setting_id !== undefined) setSelectedSettingId(meta.ui_setting_id);
+            const genre = meta.ui_genre_id || worldDetail.genre;
+            const setting = meta.ui_setting_id || worldDetail.setting;
+
+            if (genre) setSelectedGenreId(genre);
+            if (setting) setSelectedSettingId(setting);
 
             // Rulesets might be on root or metadata depending on Schema
-            if (meta.ruleset_keys && Array.isArray(meta.ruleset_keys)) {
+            // Fix: Check definition.ruleset_template_ids first as per backend V2 API
+            const defIds = (worldDetail as any).definition?.ruleset_template_ids;
+
+            if (Array.isArray(defIds) && defIds.length > 0) {
+                setSelectedRulesetKeys(defIds);
+            } else if (meta.ruleset_keys && Array.isArray(meta.ruleset_keys)) {
                 setSelectedRulesetKeys(meta.ruleset_keys);
             } else if ((worldDetail as any).ruleset_keys && Array.isArray((worldDetail as any).ruleset_keys)) {
                 setSelectedRulesetKeys((worldDetail as any).ruleset_keys);
@@ -150,15 +172,15 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
     const handleGenreSelect = (id: string) => {
         setSelectedGenreId(id);
         setSelectedSettingId(null); // Reset setting when genre changes
+        console.log('[WorldEditorModal] handleGenreSelect applying preset for:', id);
+        applyPreset(id);
     };
 
     const handleSettingSelect = (id: string) => {
+        console.log('[WorldEditorModal] handleSettingSelect:', id);
         setSelectedSettingId(id);
-        const setting = SETTINGS.find(s => s.id === id);
-        if (setting) {
-            // Overwrite rulesets with setting defaults
-            setSelectedRulesetKeys(setting.defaultRulesetKeys);
-        }
+        // Apply preset from backend (using the setting ID map to a preset)
+        applyPreset(id);
     };
 
 
@@ -256,6 +278,7 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                 status: 'draft',
                 images: processedImages,
                 tags: formData.tags,
+                ruleset_template_ids: selectedRulesetKeys, // Fix: Send correct key for backend schema
                 ruleset_keys: selectedRulesetKeys,
                 metadata: {
                     ...(worldDetail?.metadata || {}), // Preserve existing metadata

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useStoryDraftStore } from '@/features/casting-circle/stores/useStoryDraftStore';
 import { useWorldDetail, updateStoryDraft } from '@/services/chimera-api';
 import { RulesetConfigurator } from '@/features/dashboard/components/editors/config/RulesetConfigurator';
-import { useRulesetLogic } from '@/features/rulesets/hooks/useRulesetLogic';
+import { useRulesetSelectionManager } from '@/features/rulesets/hooks/useRulesetSelectionManager';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 import {
@@ -38,7 +38,7 @@ export function ForcesStone() {
         toggleRuleset,
         confirmationDialog,
         setConfirmationDialog
-    } = useRulesetLogic({
+    } = useRulesetSelectionManager({
         // If draft has rules, use them. If not (e.g. world switch reset), use locked keys.
         initialSelectedKeys: (draft?.active_ruleset_ids && draft.active_ruleset_ids.length > 0)
             ? draft.active_ruleset_ids
@@ -52,16 +52,8 @@ export function ForcesStone() {
     async function handleRulesetChange(newKeys: string[]) {
         if (!storyId) return;
 
-        // Optimistic Update
+        // Local Store Update Only (User must click Save)
         setDraftData({ active_ruleset_ids: newKeys });
-
-        // API Update
-        try {
-            await updateStoryDraft(storyId, { active_ruleset_ids: newKeys });
-        } catch (error) {
-            console.error("Failed to save rulesets:", error);
-            // Could revert store here
-        }
     }
 
     // Effect to ensure Locked Keys are always selected (if draft was stale)

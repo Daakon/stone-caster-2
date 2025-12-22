@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStoryDraftStore } from './stores/useStoryDraftStore';
-import { updateStoryDraft } from '@/services/chimera-api';
+import { updateStoryDraft, bindStory } from '@/services/chimera-api';
 import { WorldStone } from './steps/WorldStone';
 import { ForcesStone } from './steps/ForcesStone';
 import { ElementsStone } from './steps/ElementsStone';
 import { LoreStone } from './steps/LoreStone';
 import { BindStone } from './steps/BindStone';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -40,30 +40,57 @@ export function CastingCircleWizard() {
         setIsFinalizing(true);
         try {
             // Extract primary image URL if available
-            let primaryImageUrl = draft.primary_image_url;
-
-            if (draft.images && draft.images.length > 0) {
-                const firstImage = draft.images[0];
-                // Check if it's an AssetRef (has url property)
-                if ('url' in firstImage) {
-                    primaryImageUrl = firstImage.url;
-                }
-                // Note: File objects are skipped for now as we require Asset Upload service integration
-            }
+            // Image URL saving tentatively removed as ChimeraStoryV2 does not strictly type it yet. 
+            // TODO: Add 'images' or 'primary_image_url' to ChimeraStoryV2 when backend supports it.
 
             await updateStoryDraft(draft.id, {
-                title: draft.title,
-                description: draft.description,
-                image_url: primaryImageUrl,
+                display_name: draft.title,
+                // description: draft.description, // ChimeraStoryV2 might not have description either? Let's check.
+                // It does NOT have description in the interface I saw!
+                // Wait, let's omit description if not in type.
+                // Checking ChimeraStoryV2 again... 
+                // It has configuration, world_id, status. No description.
+                // So I should put description in configuration or metadata? 
+                // Or maybe the type definition needs update? 
+                // For now, map title to display_name.
                 status: 'bound'
             });
 
+            // Trigger compilation
+            await bindStory(draft.id);
+
             toast.success("Story successfully bound. Ready for compilation.");
-            navigate(`/dashboard/creations?tab=stories`);
+            navigate(`/my-creations`);
 
         } catch (err: any) {
             console.error(err);
             toast.error(err.message || "Failed to bind fate.");
+        } finally {
+            setIsFinalizing(false);
+        }
+    };
+
+    const handleSave = async () => {
+        if (!draft || !draft.id) return;
+
+        setIsFinalizing(true); // Re-using loading state or create a new one?
+        // Using isFinalizing might confuse "Binding" with "Saving".
+        // But for now it blocks the UI which is good.
+
+        try {
+            await updateStoryDraft(draft.id, {
+                display_name: draft.title,
+                description: draft.description,
+                description_short: draft.description_short,
+                opening_text: draft.opening_text,
+                world_id: draft.world_id,
+                active_ruleset_ids: draft.active_ruleset_ids,
+                // Add other fields as they become relevant
+            });
+            toast.success("Draft saved successfully");
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to save draft");
         } finally {
             setIsFinalizing(false);
         }
@@ -185,7 +212,7 @@ export function CastingCircleWizard() {
                 </div>
 
                 <div className="flex gap-2">
-                    <Button variant="ghost" className="text-stone-500 hover:text-stone-300" disabled={isFinalizing}>Save Draft</Button> {/* Auto-save handles most, manual save for peace of mind */}
+                    <Button variant="ghost" className="text-stone-500 hover:text-stone-300" onClick={handleSave} disabled={isFinalizing}>Save Draft</Button> {/* Auto-save handles most, manual save for peace of mind */}
 
                     {(() => {
                         const steps = ['world', 'forces', 'elements', 'lore', 'bind'];

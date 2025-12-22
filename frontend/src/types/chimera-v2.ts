@@ -18,6 +18,8 @@ export interface ChimeraWorldV2 {
     images: ChimeraAssetRef[];
     metadata?: Record<string, unknown>;
     definition?: Record<string, unknown>; // Added definition
+    genre?: string;
+    setting?: string;
     status: 'draft' | 'pending' | 'published';
     updated_at: string;
 }

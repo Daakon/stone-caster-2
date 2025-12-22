@@ -1,0 +1,5 @@
+---
+trigger: always_on
+---
+
+When creating new UI, you MUST use components from the existing component library (powered by `components.json`, likely Shadcn UI/Radix) whenever possible. Check `frontend/src/components/ui` for available components before creating new ones. If a new component is necessary, it must follow the project's styling and accessibility conventions.

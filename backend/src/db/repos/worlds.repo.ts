@@ -9,7 +9,7 @@ import type { WorldDefinition } from '@shared/types/chimera-authoring';
 import { WorldDefinitionSchema } from '@shared/types/chimera-authoring';
 
 export class WorldsRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<Database>) { }
 
   /**
    * Create a new world
@@ -30,6 +30,8 @@ export class WorldsRepository {
         key: worldKey,
         definition: validated as unknown as Record<string, unknown>,
         owner_id: ownerId || null,
+        genre: validated.genre || null,
+        setting: validated.setting || null,
       })
       .select('id')
       .single();
@@ -139,6 +141,8 @@ export class WorldsRepository {
       .update({
         definition: definitionToSave as unknown as Record<string, unknown>,
         updated_at: new Date().toISOString(),
+        genre: validated.genre || null,
+        setting: validated.setting || null,
       })
       .eq('key', key);
 
@@ -182,10 +186,10 @@ export class WorldsRepository {
     // Parse and validate each world definition, ensuring images are preserved
     return data.map((row) => {
       const definition = row.definition as any;
-      
+
       // Extract images from definition if present (CRITICAL: preserve images)
       const images = Array.isArray(definition?.images) ? definition.images : [];
-      
+
       // Parse with schema (may fail if structure doesn't match exactly)
       try {
         const parsed = WorldDefinitionSchema.parse(definition);
@@ -199,16 +203,18 @@ export class WorldsRepository {
         // If schema parsing fails, construct a valid WorldDefinition
         // This handles cases where definition structure doesn't match schema exactly
         // CRITICAL: Always preserve images from definition
-        const description = definition?.description 
-          || definition?.description_long 
-          || definition?.description_short 
+        const description = definition?.description
+          || definition?.description_long
+          || definition?.description_short
           || '';
-        
+
         return {
           id: row.id || definition?.id || '',
           name: definition?.name || definition?.display_name || '',
           description: description,
           images: images, // Explicitly preserve images from definition JSONB
+          genre: definition?.genre || row.genre || undefined,
+          setting: definition?.setting || row.setting || undefined,
           tags: definition?.tags || [],
           character_schema_extensions: definition?.character_schema_extensions || {},
           lore_fragments: definition?.lore_fragments || [],

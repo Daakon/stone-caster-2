@@ -483,6 +483,17 @@ export async function saveDraft(draft: any): Promise<any> {
 }
 
 /**
+ * Bind Fate (Compile Story)
+ */
+export const bindStory = async (id: string): Promise<{ success: boolean }> => {
+  const result = await apiPost<{ success: boolean }>(`/api/v2/chimera/stories/${id}/bind`, {});
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Bind failed');
+  }
+  return result.data!;
+};
+
+/**
  * Compile a story from a draft
  * Mock implementation: Returns mock CompiledStory after delay, with 10% error rate
  */
@@ -821,6 +832,33 @@ export function useRulesets(category?: 'foundation' | 'expansion' | 'flavor') {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
+
+// --- World Presets ---
+export const useWorldPresets = () => {
+  return useQuery({
+    queryKey: ['world-presets'],
+    queryFn: async () => {
+      const { data } = await apiFetch<{ id: string; name: string; defaultRulesetKeys: string[] }[]>('/api/v2/chimera/worlds/presets');
+      if (!data) return [];
+      return data;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+};
+
+export const fetchGenrePreset = async (genre: string): Promise<string[]> => {
+  const { data } = await apiFetch<string[]>(`/api/v2/chimera/worlds/presets/${encodeURIComponent(genre)}`);
+  return data || [];
+};
+
+export const useGenrePreset = (genre?: string | null) => {
+  return useQuery({
+    queryKey: ['genre-preset', genre],
+    queryFn: () => fetchGenrePreset(genre!),
+    enabled: !!genre,
+    staleTime: 1000 * 60 * 60,
+  });
+};
 
 // ============================================================================
 // ASSETS API
