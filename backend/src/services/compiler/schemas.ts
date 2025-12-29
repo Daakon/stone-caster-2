@@ -16,8 +16,10 @@ export const RulesetSchema = z.object({
     id: z.string(),
     key: z.string().optional(),  // The DB Column 'key' (often used for lookups)
     name: z.string().optional(), // The DB Column 'name' (often the user-facing name)
+    ui_category: z.string().optional(), // UI Category for grouping
     definition: JsonOrObject.pipe(z.object({
         name: z.string().optional(), // The Internal Name within definition
+        description_short: z.string().optional(), // Helper text
         actions: z.record(z.any()).optional(),
         state_contributions: z.record(z.any()).optional(),
         ai_instructions: z.record(z.any()).optional() // Use record(any) to be permissive so we don't drop data

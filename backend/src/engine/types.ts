@@ -21,11 +21,14 @@ export interface RuntimeConfig {
 export interface CreationField {
     key: string;
     label: string;
-    control: string; // 'slider', 'dropdown'
+    control: string; // 'slider', 'dropdown', 'text', 'tag_list'
     options?: string[];
+    suggestions?: string[];
     min?: number;
     max?: number;
     description?: string;
+    entity?: string;
+    category?: string;
 }
 
 export interface CreationConfig {

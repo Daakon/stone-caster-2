@@ -161,7 +161,7 @@ export const useStoryDraftStore = create<StoryDraftState>()(
        */
       initializeDraft: (draftId, metadata) => {
         const existingDraft = get().draft;
-        
+
         // If draft already exists with same ID, don't reset
         if (existingDraft?.draft_id === draftId) {
           return;
@@ -332,8 +332,30 @@ export const useStoryDraftStore = create<StoryDraftState>()(
         });
 
         try {
+          const { staged_entity_ids } = draft;
+
+          // DEBUG LOGGING
+          console.log('[StoryDraftStore] Saving to backend:', {
+            draftId: draft.draft_id,
+            stagedCount: staged_entity_ids.length,
+            stagedIds: staged_entity_ids
+          });
+
+          // Construct payload
+          const payload: any = {
+            ...draft,
+            // Explicitly map staged_entity_ids to entity_ids for backend
+            entity_ids: [...(staged_entity_ids || [])],
+
+            // Clean up internal flags
+            is_saving: undefined,
+            is_dirty: undefined,
+            staged_entity_ids: undefined, // cleanup redundant key
+            _saveTimer: undefined
+          };
+
           // Use API service
-          await saveDraft(draft);
+          await saveDraft(payload);
 
           // Clear dirty flag and update timestamp
           set({
@@ -346,7 +368,7 @@ export const useStoryDraftStore = create<StoryDraftState>()(
           });
         } catch (error) {
           console.error('[StoryDraftStore] Failed to save to backend:', error);
-          
+
           // Keep dirty flag on error
           set({
             draft: {
@@ -363,7 +385,7 @@ export const useStoryDraftStore = create<StoryDraftState>()(
        */
       debouncedSave: () => {
         const state = get();
-        
+
         // Clear existing timer
         if (state._saveTimer) {
           clearTimeout(state._saveTimer);
@@ -411,15 +433,41 @@ export const useStoryDraftStore = create<StoryDraftState>()(
         try {
           const loadedDraft = await fetchDraft(draftId);
 
+          // Map backend configuration to frontend state
+          // Prioritize first-class entity_ids column > configuration > empty
+          const config = loadedDraft.configuration as any;
+          const entityIds = loadedDraft.entity_ids || config?.entityIds || [];
+
+          // Merge backend data into StoryDraft structure
+          const mappedDraft: StoryDraft = {
+            draft_id: loadedDraft.id,
+            current_step: 0, // Default to 0, or infer from status?
+            last_modified: new Date(loadedDraft.updated_at).getTime(),
+            metadata: {
+              title: loadedDraft.display_name || '',
+              summary: (loadedDraft as any).description || '',
+              // Parse genre_tags if they exist on the story level, otherwise default
+              genre_tags: [],
+              safety_filters: ['pg'],
+              ruleset_keys: [],
+              world_preset_id: undefined,
+              ...loadedDraft.configuration // Spread existing config into metadata just in case
+            },
+            staged_entity_ids: entityIds,
+            staged_lore_ids: [], // TODO: Map lore IDs if backend supports it
+            is_saving: false,
+            is_dirty: false,
+          };
+
           // Update store with loaded draft
           set({
-            draft: loadedDraft,
+            draft: mappedDraft,
             isLoading: false,
             error: null,
           });
         } catch (error) {
           console.error('[StoryDraftStore] Failed to load draft:', error);
-          
+
           set({
             isLoading: false,
             error: error instanceof Error ? error.message : 'Failed to load draft',
@@ -436,8 +484,8 @@ export const useStoryDraftStore = create<StoryDraftState>()(
           throw new Error('No draft to compile');
         }
 
-        set({ 
-          isLoading: true, 
+        set({
+          isLoading: true,
           error: null,
           draft: {
             ...draft,
@@ -461,7 +509,7 @@ export const useStoryDraftStore = create<StoryDraftState>()(
           return compiledStory;
         } catch (error) {
           console.error('[StoryDraftStore] Failed to compile story:', error);
-          
+
           set({
             draft: {
               ...draft,

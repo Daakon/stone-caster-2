@@ -150,6 +150,8 @@ app.use('/api/chimera/stories', chimeraStoriesRouter); // For legacy/mixed
 app.use('/api/v2/chimera/stories', chimeraStoriesRouter); // For V2 strict
 
 app.use('/api/chimera/game', chimeraGameInitRouter);
+import gameV3Router from './routes/game-v3.routes.js';
+app.use('/api/chimera/v3/game', gameV3Router);
 
 // Phase 3: Story Compiler Orchestrator
 import compilerRouter from './routes/compiler.routes.js';

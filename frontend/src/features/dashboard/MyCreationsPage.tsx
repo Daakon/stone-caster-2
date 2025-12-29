@@ -14,7 +14,8 @@ import {
   useMyStories,
   useMyWorlds,
   useMyEntities,
-  useDeleteEntity
+  useDeleteEntity,
+  useDeleteStory
 } from '@/services/chimera-api';
 
 // Components
@@ -66,6 +67,7 @@ export function MyCreationsPage() {
   const { data: entities, isLoading: loadingEntities } = useMyEntities({ enabled: activeTab === 'entities' });
 
   const deleteEntityMutation = useDeleteEntity();
+  const deleteStoryMutation = useDeleteStory();
   // const deleteWorldMutation = useDeleteWorld(); // Need to verify if this exists, likely does if pattern holds. I'll stick to Entity deletion first as requested.
 
   // Handlers
@@ -109,6 +111,17 @@ export function MyCreationsPage() {
       } catch (error) {
         console.error("Failed to delete entity:", error);
         alert("Failed to delete entity");
+      }
+    }
+  };
+
+  const handleDeleteStory = async (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
+      try {
+        await deleteStoryMutation.mutateAsync(id);
+      } catch (error) {
+        console.error("Failed to delete story:", error);
+        alert("Failed to delete story");
       }
     }
   };
@@ -182,6 +195,7 @@ export function MyCreationsPage() {
                       }
                     }}
                     onEdit={() => navigate(`/stories/${story.id}/compose`)}
+                    onDelete={() => handleDeleteStory(story.id, story.display_name)}
                   />
                 ))}
             </ResourceGrid>

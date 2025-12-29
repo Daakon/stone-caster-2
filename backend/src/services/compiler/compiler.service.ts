@@ -4,6 +4,7 @@ import { InterpreterRefiner } from './refiners/interpreter.refiner';
 import { NarratorRefiner } from './refiners/narrator.refiner';
 import { SnapshotManager } from './refiners/snapshot.manager';
 import { RulesetSchema } from './schemas';
+import { EntitiesRepository } from '../../db/repos/entities.repo';
 
 // Ensure we have environment variables
 const supabaseUrl = process.env.SUPABASE_URL || '';
@@ -45,7 +46,7 @@ export class StoryCompilerService {
      * 3. Creates Snapshots
      * 4. Saves to chimera_compiled_stories
      */
-    static async compileStory(storyId: string, userId: string): Promise<{ success: boolean; compiledId: string }> {
+    static async compileStory(storyId: string, userId: string, entityOverrides?: string[]): Promise<{ success: boolean; compiledId: string }> {
         console.log(`[Compiler V3] 🚀 Starting Compilation for ${storyId} (User: ${userId})`);
 
         try {
@@ -148,10 +149,39 @@ export class StoryCompilerService {
             const narratorPrompt = NarratorRefiner.refine(rulesets);
 
             // C. Snapshots
-            const snapshotEntities = await SnapshotManager.fetchEntities(story.cast_ids || []);
+            // C. Snapshots
+            // Resolve Entity IDs: Overrides > DB Column (entity_ids) > Config (Legacy) > cast_ids (Legacy)
+            const configIds = ensureObject(story.configuration)?.entityIds;
+            const dbEntityIds = (story as any).entity_ids; // New column
+
+            const targetEntityIds: string[] = Array.isArray(entityOverrides) ? entityOverrides :
+                (Array.isArray(dbEntityIds) ? dbEntityIds :
+                    (Array.isArray(configIds) ? configIds : (story.cast_ids || [])));
+
+            console.log(`[Compiler V3] Resolving Entities: Target Count = ${targetEntityIds.length}`);
+
+            const entitiesRepo = new EntitiesRepository(supabase);
+            // Fetch all requested entities
+            const fetchedEntities = await entitiesRepo.findByIds(targetEntityIds);
+
+            // Partial Failure Handling: Log missing IDs
+            if (fetchedEntities.length !== targetEntityIds.length) {
+                const foundIds = new Set(fetchedEntities.map(e => e.id));
+                const missingIds = targetEntityIds.filter(id => !foundIds.has(id));
+                console.warn(`[Compiler V3] ⚠️ Warning: ${missingIds.length} entities not found:`, missingIds);
+            }
+
+            // Map to generic structure for snapshot (Schema Compliance)
+            const snapshotEntities = fetchedEntities.map(e => ({
+                id: e.id,
+                kind: e.kind,
+                raw_data: e.raw_data
+            }));
+
+            console.log(`[Compiler V3] Snapshot Entities Prepared: ${snapshotEntities.length} entities.`);
             // snapshotWorld is already fetched
 
-            // 7. Calculate Version
+            // 7. Calculate Version & Manage Active State
             // Query max version for this story
             const { data: maxVerRow } = await supabase
                 .from('chimera_compiled_stories')
@@ -163,24 +193,38 @@ export class StoryCompilerService {
 
             const nextVersion = (maxVerRow?.version || 0) + 1;
 
-            // 8. Save Cartridge
+            // Deactivate previous versions (if any) - Semantic "latest is active"
+            await supabase
+                .from('chimera_compiled_stories')
+                .update({ is_active: false } as any)
+                .eq('story_id', storyId);
+
+            // 8. Save Cartridge (V3 Schema - Split Columns)
+            // Note: We use INSERT to create a new versioned record, not UPSERT.
+            // Using created_at which is default, no updated_at column
             const { data: compiledStory, error: insertError } = await supabase
                 .from('chimera_compiled_stories')
                 .insert({
                     story_id: storyId,
                     version: nextVersion,
-                    config_engine: cartridge, // Saving the full CompiledCartridge (Runtime + Creation)
+                    is_active: true,
+                    ruleset_ids: targetRulesetIds,
+                    entity_ids: snapshotEntities.map(e => e.id),
+                    config_engine: cartridge,
                     prompt_interpreter_logic: interpreterPrompt,
                     prompt_narrator_style: narratorPrompt,
-                    snapshot_world: worldSnapshot, // Use parsed object
+                    snapshot_world: worldSnapshot,
                     snapshot_entities: snapshotEntities,
                 })
                 .select('id')
                 .single();
 
-            if (insertError || !compiledStory) {
+            if (insertError) {
+                console.error(`[Compiler V3] Failed to save to chimera_compiled_stories:`, insertError);
                 throw new Error(`Failed to save compiled story: ${insertError?.message}`);
             }
+
+            console.log(`[Compiler V3] Successfully saved compiled story. Key: ${storyId}, ID: ${compiledStory?.id}`);
 
             // 9. Finalize Schema
             await supabase

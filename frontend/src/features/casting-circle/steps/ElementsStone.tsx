@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 export function ElementsStone() {
     const { draft, setDraftData } = useStoryDraftStore();
     const worldId = draft?.world_id;
-    const castIds = draft?.cast_ids || [];
+    const entityIds = draft?.entity_ids || [];
 
     const [searchQuery, setSearchQuery] = useState('');
     const [activeSourceTab, setActiveSourceTab] = useState<string>('official');
@@ -38,11 +38,11 @@ export function ElementsStone() {
 
     // Toggle Handler
     const handleCastToggle = (id: string) => {
-        const newCast = castIds.includes(id)
-            ? castIds.filter((cid: string) => cid !== id)
-            : [...castIds, id];
+        const newCast = entityIds.includes(id)
+            ? entityIds.filter((cid: string) => cid !== id)
+            : [...entityIds, id];
 
-        setDraftData({ cast_ids: newCast });
+        setDraftData({ entity_ids: newCast });
     };
 
     // Filter Logic
@@ -168,7 +168,7 @@ export function ElementsStone() {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-4">
                         {filteredEntities.map((entity) => {
-                            const isSelected = castIds.includes(entity.id);
+                            const isSelected = entityIds.includes(entity.id);
                             // Fallback for types if mapped differently
                             const type = entity.entity_type || (entity as any).kind || 'unknown';
 

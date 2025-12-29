@@ -12,6 +12,7 @@ interface StoryDraftState {
     hydrateDraft: (storyId: string) => Promise<void>;
     setWorld: (worldId: string) => Promise<void>;
     setDraftData: (data: Partial<any>) => void;
+    saveToBackend: () => Promise<void>;
 }
 
 export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
@@ -79,5 +80,34 @@ export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
         set(state => ({
             draft: state.draft ? { ...state.draft, ...data } : null
         }));
+    },
+
+    saveToBackend: async () => {
+        const { storyId, draft } = get();
+        if (!storyId || !draft) return;
+
+        set({ isLoading: true }); // Optional: could have a specific isSaving flag
+        try {
+            // Construct payload with explicit entity_ids mapping if needed, 
+            // though setDraftData should keep draft in sync.
+            // We ensure entity_ids is sent if present.
+            const payload = {
+                display_name: draft.title || draft.display_name,
+                description: draft.description,
+                description_short: draft.description_short,
+                opening_text: draft.opening_text,
+                world_id: draft.world_id,
+                active_ruleset_ids: draft.active_ruleset_ids,
+                entity_ids: draft.entity_ids || [], // Ensure this is sent
+                status: draft.status
+            };
+
+            await updateStoryDraft(storyId, payload);
+            set({ isLoading: false });
+        } catch (error) {
+            console.error('Failed to save draft:', error);
+            set({ isLoading: false, error: 'Failed to save draft' });
+            throw error;
+        }
     }
 }));

@@ -274,9 +274,9 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
     // Default to 'MODIFIER' if not found (most common for world/pack rulesets)
     const ruleType = def?.rule_type || def?.metadata?.rule_type || 'MODIFIER';
     // main_system_dependency may be in dependencies array or definition
-    const mainSystemDep = def?.main_system_dependency || 
-                         (Array.isArray(t.dependencies) && t.dependencies.length > 0 ? t.dependencies[0] : null);
-    
+    const mainSystemDep = def?.main_system_dependency ||
+      (Array.isArray(t.dependencies) && t.dependencies.length > 0 ? t.dependencies[0] : null);
+
     return {
       id: t.id,
       definition: t.definition,
@@ -345,11 +345,11 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
   const { data: loreEntries, error: loreError } = await supabaseAdmin
     .from('chimera_lore')
     .select('id, fragment');
-  
+
   if (loreError) {
     throw new Error(`Failed to fetch lore entries: ${loreError.message}`);
   }
-  
+
   // Filter by story_id in application layer
   const filteredLore = (loreEntries || []).filter((entry: any) => {
     const fragment = entry.fragment || {};
@@ -395,19 +395,22 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
     version: item.version,
   }));
 
-  // Step 16: Save to chimera_story_compiled_ruleset (upsert)
+  // Step 16: Save to compiled_stories (upsert)
   const lastCompiledAt = new Date().toISOString();
+
+  // Convert Sets to Arrays for JSONB storage if present in compiledJson
+  // (compiledJson structure in this file seems to use Arrays/Objects already, but good to be safe)
+
   const { data: compiledData, error: saveError } = await supabaseAdmin
-    .from('chimera_story_compiled_ruleset')
+    .from('compiled_stories')
     .upsert(
       {
-        story_id: storyId,
-        compiled_json: compiledJson,
-        source_manifest: sourceManifest,
-        last_compiled_at: lastCompiledAt,
+        story_key: storyId, // Using StoryLink/ID as the Unique Key
+        compiled: compiledJson,
+        updated_at: lastCompiledAt,
       },
       {
-        onConflict: 'story_id',
+        onConflict: 'story_key',
       }
     )
     .select()
@@ -421,7 +424,7 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
     story_id: storyId,
     compiled_json: compiledJson,
     source_manifest: sourceManifest,
-    last_compiled_at: compiledData.last_compiled_at,
+    last_compiled_at: compiledData.updated_at || lastCompiledAt,
   };
 }
 
@@ -430,12 +433,12 @@ export async function rebuildStory(storyId: string, userId: string): Promise<{
  */
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
   const result = { ...target };
-  
+
   for (const key in source) {
     if (Object.prototype.hasOwnProperty.call(source, key)) {
       const sourceValue = source[key];
       const targetValue = result[key];
-      
+
       if (
         typeof sourceValue === 'object' &&
         sourceValue !== null &&
@@ -455,7 +458,7 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
       }
     }
   }
-  
+
   return result;
 }
 
@@ -486,12 +489,12 @@ function mergeRulesets(rulesets: RulesetTemplate[]): {
   for (const ruleset of rulesets) {
     // Parse definition - handle both object and string cases
     let def: RulesetDefinitionV1 | null = null;
-    
+
     if (!ruleset.definition) {
       console.warn(`[Rebuild] Ruleset ${ruleset.id} has no definition, skipping`);
       continue;
     }
-    
+
     if (typeof ruleset.definition === 'string') {
       try {
         def = JSON.parse(ruleset.definition) as RulesetDefinitionV1;
@@ -548,7 +551,7 @@ function mergeRulesets(rulesets: RulesetTemplate[]): {
     // Merge state_schema_contributions (deep merge)
     if (def.state_schema_contributions && typeof def.state_schema_contributions === 'object') {
       const contributions = def.state_schema_contributions;
-      
+
       if (contributions.tier0_tracked_state && typeof contributions.tier0_tracked_state === 'object' && !Array.isArray(contributions.tier0_tracked_state)) {
         stateSchema.tier0_tracked_state = deepMerge(
           stateSchema.tier0_tracked_state as Record<string, unknown>,

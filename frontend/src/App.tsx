@@ -19,7 +19,7 @@ import { useAuth } from './hooks/useAuth';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
-import StartStoryPage from './pages/play/StartStoryPage';
+import StartStoryPage from './features/play/start/StartStoryPage';
 import CharacterCreationPage from './pages/play/CharacterCreationPage';
 import CharacterCreatorPageV2 from './pages/play/create/CharacterCreatorPage';
 import PlayerGatewayPage from './pages/play/PlayerGatewayPage';
@@ -34,6 +34,7 @@ import MyCreationsDashboard from './pages/dashboard/creations/index';
 import { MyCreationsPage } from './features/dashboard/MyCreationsPage';
 import { CastingCircleWizard } from './features/casting-circle/CastingCircleWizard';
 import { CreateStoryPage } from './features/create-story';
+import NewGameWizard from './features/game-v3/NewGameWizard';
 import WorldEditor from './pages/dashboard/worlds/Editor';
 import WorldManage from './pages/dashboard/worlds/Manage';
 import EntityEditor from './pages/dashboard/entities/Editor';
@@ -129,7 +130,7 @@ function AppContent() {
               <StoryDetailPage />
             </EarlyAccessRoute>
           } />
-          <Route path="/play/start" element={
+          <Route path="/play/start/:storyId" element={
             <EarlyAccessRoute>
               <StartStoryPage />
             </EarlyAccessRoute>
@@ -143,6 +144,11 @@ function AppContent() {
             <EarlyAccessRoute>
               <CharacterCreatorPageV2 />
             </EarlyAccessRoute>
+          } />
+          <Route path="/story/:id/new" element={
+            <ProtectedRoute>
+              <NewGameWizard />
+            </ProtectedRoute>
           } />
           <Route path="/create-character/:storyId" element={
             <EarlyAccessRoute>

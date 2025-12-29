@@ -13,9 +13,13 @@ interface StoryCardProps {
     coverImage?: string;
     onClick: () => void;
     onDelete?: () => void;
+    isCompiled?: boolean;
+    id?: string;
 }
 
-export function StoryCard({ title, worldName, lastPlayed, coverImage, onClick, onDelete }: StoryCardProps) {
+import { Link } from 'react-router-dom';
+
+export function StoryCard({ title, worldName, lastPlayed, coverImage, onClick, onDelete, isCompiled, id }: StoryCardProps) {
     return (
         <CardBase
             onClick={onClick}
@@ -31,9 +35,17 @@ export function StoryCard({ title, worldName, lastPlayed, coverImage, onClick, o
 
                 {/* Play Overlay */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-[2px]">
-                    <div className="h-12 w-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-md shadow-xl">
-                        <Play className="h-5 w-5 text-white ml-1" />
-                    </div>
+                    {isCompiled && id ? (
+                        <Link to={`/story/${id}/new`} onClick={(e) => e.stopPropagation()}>
+                            <div className="h-12 w-12 rounded-full bg-emerald-600/90 border border-emerald-400/20 flex items-center justify-center backdrop-blur-md shadow-xl hover:bg-emerald-500 hover:scale-110 transition-all cursor-pointer">
+                                <Play className="h-5 w-5 text-white ml-1" />
+                            </div>
+                        </Link>
+                    ) : (
+                        <div className="h-12 w-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-md shadow-xl">
+                            <Play className="h-5 w-5 text-white ml-1" />
+                        </div>
+                    )}
                 </div>
 
                 {/* World Label Badge */}

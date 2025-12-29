@@ -24,21 +24,27 @@ export function CreateStoryPage() {
   const initializeDraft = useStoryDraftStore((state) => state.initializeDraft);
   const loadDraft = useStoryDraftStore((state) => state.loadDraft);
 
+  // Ref to track initialization status
+  const initialized = React.useRef(false);
+
   // Initialize or load draft on mount
   useEffect(() => {
+    if (initialized.current) return;
+
     const draftIdFromUrl = searchParams.get('draftId');
-    
+
     if (draftIdFromUrl) {
-      // Check if draft is already loaded with matching ID
       if (draft?.draft_id === draftIdFromUrl) {
-        // Draft already loaded, no action needed
+        // Already loaded
         return;
       }
-      
-      // Load draft from backend
+
+      console.log('[CreateStoryPage] Loading draft:', draftIdFromUrl);
       loadDraft(draftIdFromUrl);
+      initialized.current = true;
     } else if (!draft) {
-      // Generate a new draft ID if no draft exists
+      // New draft
+      console.log('[CreateStoryPage] Initializing new draft');
       const draftId = `draft-${Date.now()}`;
       initializeDraft(draftId, {
         title: '',
@@ -47,8 +53,9 @@ export function CreateStoryPage() {
         safety_filters: ['pg'],
         ruleset_keys: [],
       });
+      initialized.current = true;
     }
-  }, [draft, initializeDraft, loadDraft, searchParams]);
+  }, [loadDraft, initializeDraft, searchParams]); // simplified deps
 
   // Show loading skeleton while loading draft
   if (isLoading) {

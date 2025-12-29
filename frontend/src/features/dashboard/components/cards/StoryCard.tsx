@@ -11,9 +11,10 @@ interface StoryCardProps {
     data: ChimeraStoryV2;
     onClick?: () => void;
     onEdit?: () => void;
+    onDelete?: () => void;
 }
 
-export function StoryCard({ data, onClick, onEdit }: StoryCardProps) {
+export function StoryCard({ data, onClick, onEdit, onDelete }: StoryCardProps) {
     // Priority: Explicit primary_image_url > First image in images array > Gradient Fallback
     const imageUrl = data.primary_image_url || (data.images && data.images.length > 0 ? data.images[0].url : null);
 
@@ -50,6 +51,18 @@ export function StoryCard({ data, onClick, onEdit }: StoryCardProps) {
                             title="Edit Story"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        </button>
+                    )}
+                    {onDelete && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete();
+                            }}
+                            className="p-1.5 rounded-full bg-black/40 hover:bg-red-900/80 text-stone-300 hover:text-red-200 transition-colors opacity-0 group-hover:opacity-100 backdrop-blur-sm"
+                            title="Delete Story"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
                         </button>
                     )}
                     <Badge variant={(data.status === 'published' || data.status === 'compiled' || data.status === 'bound') ? 'default' : 'secondary'} className="text-[10px] uppercase shadow-sm">

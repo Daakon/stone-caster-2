@@ -9,7 +9,7 @@ import type { EntityTemplate } from '@shared/types/chimera-authoring';
 import { EntityTemplateSchema } from '@shared/types/chimera-authoring';
 
 export class EntitiesRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<Database>) { }
 
   /**
    * Create a new entity
@@ -27,7 +27,7 @@ export class EntitiesRepository {
       .from('chimera_entities')
       .insert({
         key: entityKey,
-        kind: validated.kind,
+        entity_type: validated.kind,
         raw_data: validated.raw_data as unknown as Record<string, unknown>,
       })
       .select('id')
@@ -52,7 +52,7 @@ export class EntitiesRepository {
   async findByKey(key: string): Promise<EntityTemplate | null> {
     const { data, error } = await this.supabase
       .from('chimera_entities')
-      .select('kind, raw_data')
+      .select('entity_type, raw_data')
       .eq('key', key)
       .single();
 
@@ -69,8 +69,8 @@ export class EntitiesRepository {
 
     return EntityTemplateSchema.parse({
       id: key, // Use key as id for the template
-      kind: data.kind,
-      raw_data: data.raw_data,
+      kind: (data as any).entity_type?.toLowerCase(),
+      raw_data: (data as any).raw_data,
     });
   }
 
@@ -82,7 +82,7 @@ export class EntitiesRepository {
   async findById(id: string): Promise<EntityTemplate | null> {
     const { data, error } = await this.supabase
       .from('chimera_entities')
-      .select('id, kind, raw_data')
+      .select('id, entity_type, raw_data')
       .eq('id', id)
       .single();
 
@@ -99,8 +99,8 @@ export class EntitiesRepository {
 
     return EntityTemplateSchema.parse({
       id: data.id,
-      kind: data.kind,
-      raw_data: data.raw_data,
+      kind: (data as any).entity_type?.toLowerCase(),
+      raw_data: (data as any).raw_data,
     });
   }
 
@@ -116,7 +116,7 @@ export class EntitiesRepository {
     const { error } = await this.supabase
       .from('chimera_entities')
       .update({
-        kind: validated.kind,
+        entity_type: validated.kind,
         raw_data: validated.raw_data as unknown as Record<string, unknown>,
         updated_at: new Date().toISOString(),
       })
@@ -154,7 +154,7 @@ export class EntitiesRepository {
 
     const { data, error } = await this.supabase
       .from('chimera_entities')
-      .select('id, kind, raw_data')
+      .select('id, entity_type, raw_data')
       .in('id', ids);
 
     if (error) {
@@ -169,8 +169,8 @@ export class EntitiesRepository {
     return data.map((row) => {
       return EntityTemplateSchema.parse({
         id: row.id,
-        kind: row.kind,
-        raw_data: row.raw_data,
+        kind: (row as any).entity_type?.toLowerCase(), // Map entity_type (DB) to kind (Domain)
+        raw_data: (row as any).raw_data,
       });
     });
   }
@@ -182,7 +182,7 @@ export class EntitiesRepository {
   async listAll(): Promise<EntityTemplate[]> {
     const { data, error } = await this.supabase
       .from('chimera_entities')
-      .select('id, kind, raw_data');
+      .select('id, entity_type, raw_data');
 
     if (error) {
       throw new Error(`Failed to list entities: ${error.message}`);
@@ -196,8 +196,8 @@ export class EntitiesRepository {
     return data.map((row) => {
       return EntityTemplateSchema.parse({
         id: row.id,
-        kind: row.kind,
-        raw_data: row.raw_data,
+        kind: (row as any).entity_type?.toLowerCase(),
+        raw_data: (row as any).raw_data,
       });
     });
   }

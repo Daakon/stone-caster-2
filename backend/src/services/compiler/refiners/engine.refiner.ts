@@ -60,19 +60,27 @@ export class EngineRefiner {
                 });
             }
 
-            // C. Extract Form Hints (Creation)
-            // Path: definition.ai_instructions.tier1_entity.form_hints
-            const formHints = definition.ai_instructions?.tier1_entity?.form_hints;
-            if (formHints) {
-                Object.entries(formHints).forEach(([key, hint]: [string, any]) => {
-                    creation.fields.push({
-                        key: key,
-                        label: hint.label || key,
-                        control: hint.control || 'text',
-                        options: hint.options,
-                        min: hint.min,
-                        max: hint.max,
-                        description: hint.description
+            // C. Extract Form Hints (Creation) - Deep Aggregation
+            // Iterate over all entities participating in the state
+            if (definition.state_contributions) {
+                Object.keys(definition.state_contributions).forEach(entityKey => {
+                    const contribution = definition.state_contributions?.[entityKey];
+                    const hints = contribution?.form_hints;
+                    if (!hints) return;
+
+                    Object.entries(hints).forEach(([key, hint]: [string, any]) => {
+                        creation.fields.push({
+                            key: key,
+                            entity: entityKey,
+                            label: hint.label || key,
+                            control: hint.control || 'text',
+                            min: hint.min,
+                            max: hint.max,
+                            options: hint.options,
+                            suggestions: hint.suggestions,
+                            category: ruleset.ui_category || 'General',
+                            description: ruleset.definition?.description_short || hint.description
+                        });
                     });
                 });
             }

@@ -11,7 +11,7 @@ import { CompiledStorySchema } from '@shared/types/chimera-compiled';
 import { GameStateSchema } from '@shared/types/chimera-runtime';
 
 export class StoriesRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<Database>) { }
 
   /**
    * Save a compiled story
@@ -173,6 +173,43 @@ export class StoriesRepository {
         return null; // Not found
       }
       throw new Error(`Failed to get compiled story by ID: ${error.message}`);
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return CompiledStorySchema.parse(data.compiled);
+  }
+
+  /**
+   * Get a compiled story by its draft Story ID.
+   * This is useful when the frontend only has the Draft ID (URL param).
+   * @param storyId - The Draft Story ID
+   * @returns CompiledStory or null if not found
+   */
+  async getCompiledStoryByDraftId(storyId: string): Promise<CompiledStory | null> {
+    // Find the latest compiled version for this story_id
+    // Phase 4: We assume 'story_id' column exists in 'compiled_stories'
+    // If not, we might need to rely on 'story_key' actually being the Draft ID (which is common)
+    // But let's try the explicit column first if user evidence suggests 'story_id' field exists.
+
+    // User evidence showed: [{"idx":0,"id":"...","story_id":"97af...","version":12, ...}]
+    // So 'story_id' column DEFINITELY exists in 'compiled_stories'.
+
+    const { data, error } = await this.supabase
+      .from('compiled_stories')
+      .select('compiled')
+      .eq('story_id', storyId)
+      .order('version', { ascending: false }) // Get latest version
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // Not found
+      }
+      throw new Error(`Failed to get compiled story by Draft ID: ${error.message}`);
     }
 
     if (!data) {

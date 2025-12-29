@@ -103,20 +103,20 @@ router.get('/worlds', async (req: Request, res: Response) => {
   try {
     const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
     console.log('[CATALOG] GET /worlds - Starting query', searchQuery ? `(search: ${searchQuery})` : '');
-    
+
     // Phase 4.9: Select ONLY existing columns to prevent "column not found" errors
     // chimera_worlds has: id, key, name, slug, tags, visibility, is_official, definition (JSONB), created_at, updated_at
     let query = supabaseAdmin
       .from('chimera_worlds')
       .select('id, key, name, slug, tags, visibility, is_official, definition, created_at, updated_at')
       .or('visibility.eq.public,is_official.eq.true');
-    
+
     // Phase 4.10: Add search filter if provided (searches name and tags)
     if (searchQuery) {
       // Search in name (text) and tags (array) - use ilike for name, contains for tags
       query = query.or(`name.ilike.%${searchQuery}%,tags.cs.{${searchQuery}}`);
     }
-    
+
     const { data: worldsData, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
@@ -241,37 +241,37 @@ router.get('/stories', async (req: Request, res: Response) => {
   try {
     const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
     console.log('[CATALOG] GET /stories - Starting query', searchQuery ? `(search: ${searchQuery})` : '');
-    
+
     // Phase 4.3: Use compiled_stories instead of entry_points
     // compiled_stories schema: id, story_key, compiled (JSONB), created_at, updated_at
     const { data: storiesData, error, count } = await supabaseAdmin
       .from('compiled_stories')
       .select('id, story_key, compiled, created_at, updated_at', { count: 'exact' })
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       console.error('Supabase query error:', error);
       throw error;
     }
-    
+
     // Phase 4.3: Transform compiled_stories to catalog DTO format
     // Extract data from compiled JSONB (CompiledStory structure)
     let items = (storiesData || []).map((story: any) => {
       const compiled = story.compiled || {};
       const meta = compiled.meta || {};
       const worldKey = meta.world || null; // World is stored as key/ID in meta.world
-      
+
       // Extract story metadata (may be in different locations in compiled JSONB)
       const title = meta.title || meta.name || story.story_key || 'Untitled Story';
       const description = meta.description || meta.synopsis || 'No description available';
       const synopsis = meta.synopsis || null;
       const tags = meta.tags || [];
       const contentRating = meta.content_rating || null;
-      
+
       // Extract images if available (may be in meta or top-level)
       const images = meta.images || compiled.images || [];
       const coverImage = images.length > 0 ? images[0] : null;
-      
+
       return {
         id: story.id,
         slug: story.id, // Use ID as slug for compiled stories
@@ -295,7 +295,7 @@ router.get('/stories', async (req: Request, res: Response) => {
         updated_at: story.updated_at,
       };
     });
-    
+
     // Phase 4.10: Apply search filter if provided (client-side since data is in JSONB)
     if (searchQuery) {
       const queryLower = searchQuery.toLowerCase();
@@ -306,7 +306,7 @@ router.get('/stories', async (req: Request, res: Response) => {
         return title.includes(queryLower) || description.includes(queryLower) || tags.includes(queryLower);
       });
     }
-    
+
     // Return unified response format
     res.json({
       ok: true,
@@ -333,7 +333,7 @@ router.get('/stories', async (req: Request, res: Response) => {
 router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
-    
+
     // Phase 4.3: Use compiled_stories instead of entry_points
     // compiled_stories schema: id, story_key, compiled (JSONB), created_at, updated_at
     const { data: story, error } = await supabaseAdmin
@@ -342,7 +342,7 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
       .or(`id.eq.${idOrSlug},story_key.eq.${idOrSlug}`) // Support both UUID id and story_key
       .limit(1)
       .single();
-    
+
     if (error) {
       if (error.code === 'PGRST116') {
         return res.status(404).json({
@@ -353,30 +353,30 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
       console.error('Supabase query error:', error);
       throw error;
     }
-    
+
     if (!story) {
       return res.status(404).json({
         ok: false,
         error: 'Story not found'
       });
     }
-    
+
     // Phase 4.3: Extract data from compiled JSONB (CompiledStory structure)
     const compiled = story.compiled || {};
     const meta = compiled.meta || {};
     const worldKey = meta.world || null; // World is stored as key/ID in meta.world
-    
+
     // Extract story metadata
     const title = meta.title || meta.name || story.story_key || 'Untitled Story';
     const description = meta.description || meta.synopsis || 'No description available';
     const synopsis = meta.synopsis || null;
     const tags = meta.tags || [];
     const contentRating = meta.content_rating || null;
-    
+
     // Extract images if available
     const images = meta.images || compiled.images || [];
     const coverImage = images.length > 0 ? images[0] : null;
-    
+
     // Get world name if worldKey exists (lookup by key or id)
     let worldName = null;
     let worldSlug = null;
@@ -392,7 +392,7 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
         worldSlug = worldData.slug;
       }
     }
-    
+
     const dto = {
       id: story.id,
       slug: story.id, // Use ID as slug for compiled stories
@@ -416,7 +416,7 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
       created_at: story.created_at,
       updated_at: story.updated_at,
     };
-    
+
     res.json({
       ok: true,
       data: dto
@@ -464,8 +464,8 @@ router.get('/npcs', async (req: Request, res: Response) => {
     // Phase 4.3: Use chimera_entities instead of deleted npcs table
     let query = supabaseAdmin
       .from('chimera_entities')
-      .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at', { count: 'exact' })
-      .eq('kind', 'npc') // Only NPCs
+      .select('id, key, entity_type, owner_user_id, visibility, raw_data, created_at, updated_at', { count: 'exact' })
+      .eq('entity_type', 'NPC') // Only NPCs
       .eq('visibility', 'public'); // Only public entities
 
     // Filter by world_id if provided (world_id is in raw_data JSONB)
@@ -499,7 +499,7 @@ router.get('/npcs', async (req: Request, res: Response) => {
       const displayName = rawData.display_name || rawData.name || entity.key;
       const description = rawData.description_short || rawData.description || '';
       const worldId = rawData.world_id || null;
-      
+
       // Extract images from raw_data if available
       const images = rawData.images || [];
       const coverImage = images.length > 0 ? images[0] : null;
@@ -535,7 +535,7 @@ router.get('/npcs', async (req: Request, res: Response) => {
     const searchTerm = filters.q || filters.search;
     if (searchTerm) {
       const queryLower = searchTerm.toLowerCase();
-      npcs = npcs.filter((npc: any) => 
+      npcs = npcs.filter((npc: any) =>
         npc.name.toLowerCase().includes(queryLower) ||
         npc.description.toLowerCase().includes(queryLower) ||
         (npc.roleTags || []).some((tag: string) => tag.toLowerCase().includes(queryLower))
@@ -571,9 +571,9 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
     // Phase 4.3: Use chimera_entities instead of deleted npcs table
     const { data: entity, error } = await supabaseAdmin
       .from('chimera_entities')
-      .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at')
+      .select('id, key, entity_type, owner_user_id, visibility, raw_data, created_at, updated_at')
       .eq('id', id)
-      .eq('kind', 'npc')
+      .eq('entity_type', 'NPC')
       .eq('visibility', 'public')
       .single();
 
@@ -599,7 +599,7 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
     const displayName = rawData.display_name || rawData.name || entity.key;
     const description = rawData.description_short || rawData.description || '';
     const worldId = rawData.world_id || null;
-    
+
     // Extract images from raw_data if available
     const images = rawData.images || [];
     const coverImage = images.length > 0 ? images[0] : null;
@@ -654,25 +654,25 @@ const ListQuerySchema = z.object({
   // Filters
   world: z.string().uuid().optional(),
   q: z.string().optional(),
-  tags: z.union([z.string(), z.array(z.string())]).optional().transform(val => 
+  tags: z.union([z.string(), z.array(z.string())]).optional().transform(val =>
     val ? (Array.isArray(val) ? val : [val]) : undefined
   ),
-  rating: z.union([z.string(), z.array(z.string())]).optional().transform(val => 
+  rating: z.union([z.string(), z.array(z.string())]).optional().transform(val =>
     val ? (Array.isArray(val) ? val : [val]) : undefined
   ),
-  visibility: z.union([z.string(), z.array(z.string())]).optional().transform(val => 
+  visibility: z.union([z.string(), z.array(z.string())]).optional().transform(val =>
     val ? (Array.isArray(val) ? val : [val]) : undefined
   ),
-  activeOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val => 
+  activeOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val =>
     val === undefined ? true : (val === '1' || val === 'true')
   ),
-  playableOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val => 
+  playableOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val =>
     val === undefined ? true : (val === '1' || val === 'true')
   ),
-  
+
   // Sorting
   sort: z.enum(['-updated', '-created', '-popularity', 'alpha', 'custom']).optional().default('-updated'),
-  
+
   // Pagination
   limit: z.string().optional().transform(val => {
     const num = val ? parseInt(val, 10) : 20;
@@ -720,12 +720,12 @@ function transformToCatalogDTO(row: any, includeDetail = false): any {
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
-  
+
   if (includeDetail) {
     dto.hero_quote = row.prompt?.hero_quote || null;
     dto.rulesets = row.rulesets || [];
   }
-  
+
   return dto;
 }
 
@@ -758,9 +758,9 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         details: queryValidation.error.errors
       });
     }
-    
+
     const filters = queryValidation.data;
-    
+
     const sortConfig = buildSortClause(filters.sort);
     const from = filters.offset;
     const to = from + filters.limit - 1;
@@ -832,25 +832,25 @@ router.get('/entry-points', async (req: Request, res: Response) => {
 
       return query;
     });
-    
+
     if (error) {
       console.error('Supabase query error:', error);
       throw error;
     }
-    
+
     // Fetch cover media separately for entry points that have cover_media_id
     // Use supabaseAdmin to bypass RLS for public media assets
     const coverMediaIds = (data || [])
       .filter((row: any) => row.cover_media_id)
       .map((row: any) => row.cover_media_id);
-    
+
     let coverMediaMap: Record<string, any> = {};
     if (coverMediaIds.length > 0) {
       const { data: coverMediaData, error: coverError } = await supabaseAdmin
         .from('media_assets')
         .select('id, provider_key, status, image_review_status, visibility')
         .in('id', coverMediaIds);
-      
+
       if (!coverError && coverMediaData) {
         coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
           acc[media.id] = media;
@@ -858,7 +858,7 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         }, {});
       }
     }
-    
+
     // Phase 2: Post-filter to ensure parent world is public+approved for story/npc
     let items = (data || [])
       .filter((row: any) => {
@@ -870,22 +870,22 @@ router.get('/entry-points', async (req: Request, res: Response) => {
       })
       .map((row: any) => {
         const { worlds, cover_media_id, ...restRow } = row;
-        
+
         // Get cover media from the map we fetched separately
         const coverMedia = cover_media_id ? coverMediaMap[cover_media_id] : null;
-        
+
         // For published entry points (visibility === 'public'), show cover if ready and approved
         const isPublishedEntryPoint = restRow.visibility === 'public';
-        const coverMediaData = coverMedia && 
+        const coverMediaData = coverMedia &&
           typeof coverMedia === 'object' &&
-          coverMedia.status === 'ready' && 
+          coverMedia.status === 'ready' &&
           coverMedia.image_review_status === 'approved' &&
           (isPublishedEntryPoint || coverMedia.visibility === 'public')
-            ? {
-                id: coverMedia.id,
-                provider_key: coverMedia.provider_key,
-              }
-            : null;
+          ? {
+            id: coverMedia.id,
+            provider_key: coverMedia.provider_key,
+          }
+          : null;
 
         const flatRow = {
           ...restRow,
@@ -893,14 +893,14 @@ router.get('/entry-points', async (req: Request, res: Response) => {
           // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
           cover_media: coverMediaData,
         };
-        
+
         return transformToCatalogDTO(flatRow, false);
       });
-    
+
     if (filters.playableOnly) {
       items = items.filter(item => item.is_playable);
     }
-    
+
     res.json({
       ok: true,
       data: items,
@@ -934,7 +934,7 @@ router.get('/entry-points', async (req: Request, res: Response) => {
 router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
-    
+
     // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
     const { data, error } = await supabase
       .from('entry_points')
@@ -959,19 +959,19 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
       .or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`)
       .limit(1)
       .single();
-    
+
     if (error && error.code === 'PGRST116') {
       return res.status(404).json({
         ok: false,
         error: 'Entry point not found'
       });
     }
-    
+
     if (error) {
       console.error('Supabase query error:', error);
       throw error;
     }
-    
+
     const { data: rulesetsData, error: rulesetsError } = await supabase
       .from('entry_point_rulesets')
       .select(`
@@ -980,11 +980,11 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
       `)
       .eq('entry_point_id', data.id)
       .order('sort_order');
-    
+
     if (rulesetsError) {
       console.error('Rulesets query error:', rulesetsError);
     }
-    
+
     // Fetch cover media separately if it exists
     let coverMediaData = null;
     if (data.cover_media_id) {
@@ -993,13 +993,13 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
         .select('id, provider_key, status, image_review_status, visibility')
         .eq('id', data.cover_media_id)
         .single();
-      
+
       if (!coverError && coverMedia) {
         // For published entry points, show cover if ready and approved (even if cover visibility isn't public)
         const isPublishedEntryPoint = data.visibility === 'public';
-        if (coverMedia.status === 'ready' && 
-            coverMedia.image_review_status === 'approved' &&
-            (isPublishedEntryPoint || coverMedia.visibility === 'public')) {
+        if (coverMedia.status === 'ready' &&
+          coverMedia.image_review_status === 'approved' &&
+          (isPublishedEntryPoint || coverMedia.visibility === 'public')) {
           coverMediaData = {
             id: coverMedia.id,
             provider_key: coverMedia.provider_key,
@@ -1007,7 +1007,7 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
         }
       }
     }
-    
+
     const { worlds, ...restData } = data;
 
     const flatRow = {
@@ -1021,9 +1021,9 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
         sort_order: r.sort_order
       }))
     };
-    
+
     const dto = transformToCatalogDTO(flatRow, true);
-    
+
     res.json({
       ok: true,
       data: dto

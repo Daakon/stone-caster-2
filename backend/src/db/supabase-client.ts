@@ -169,6 +169,42 @@ export interface Database {
           updated_at?: string;
         };
       };
+      chimera_instances_v3: {
+        Row: {
+          id: string;
+          user_id: string;
+          compiled_story_id: string;
+          status: 'active' | 'ended';
+          current_state: Record<string, unknown>;
+          event_log: Record<string, unknown>[];
+          turn_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          compiled_story_id: string;
+          status?: 'active' | 'ended';
+          current_state?: Record<string, unknown>;
+          event_log?: Record<string, unknown>[];
+          turn_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          compiled_story_id?: string;
+          status?: 'active' | 'ended';
+          current_state?: Record<string, unknown>;
+          event_log?: Record<string, unknown>[];
+          turn_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+
     };
   };
 }

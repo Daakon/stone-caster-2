@@ -34,25 +34,18 @@ export function CastingCircleWizard() {
     const storyId = useStoryDraftStore((state) => state.storyId);
     const draft = useStoryDraftStore((state) => state.draft);
 
+    const saveToBackend = useStoryDraftStore((state) => state.saveToBackend);
+
     const handleFinalize = async () => {
         if (!draft || !draft.id) return;
 
         setIsFinalizing(true);
         try {
-            // Extract primary image URL if available
-            // Image URL saving tentatively removed as ChimeraStoryV2 does not strictly type it yet. 
-            // TODO: Add 'images' or 'primary_image_url' to ChimeraStoryV2 when backend supports it.
-
+            // Ensure latest state is saved including entities
             await updateStoryDraft(draft.id, {
                 display_name: draft.title,
-                // description: draft.description, // ChimeraStoryV2 might not have description either? Let's check.
-                // It does NOT have description in the interface I saw!
-                // Wait, let's omit description if not in type.
-                // Checking ChimeraStoryV2 again... 
-                // It has configuration, world_id, status. No description.
-                // So I should put description in configuration or metadata? 
-                // Or maybe the type definition needs update? 
-                // For now, map title to display_name.
+                description: draft.description, // Pass description if available
+                entity_ids: draft.entity_ids, // CRITICAL: Persist entities
                 status: 'bound'
             });
 
@@ -73,20 +66,9 @@ export function CastingCircleWizard() {
     const handleSave = async () => {
         if (!draft || !draft.id) return;
 
-        setIsFinalizing(true); // Re-using loading state or create a new one?
-        // Using isFinalizing might confuse "Binding" with "Saving".
-        // But for now it blocks the UI which is good.
-
+        setIsFinalizing(true);
         try {
-            await updateStoryDraft(draft.id, {
-                display_name: draft.title,
-                description: draft.description,
-                description_short: draft.description_short,
-                opening_text: draft.opening_text,
-                world_id: draft.world_id,
-                active_ruleset_ids: draft.active_ruleset_ids,
-                // Add other fields as they become relevant
-            });
+            await saveToBackend();
             toast.success("Draft saved successfully");
         } catch (err: any) {
             console.error(err);

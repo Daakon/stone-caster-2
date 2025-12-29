@@ -598,6 +598,30 @@ export async function fetchMyStories(): Promise<ChimeraStoryV2[]> {
   return result.data || [];
 }
 
+/**
+ * Delete a story
+ * Route: DELETE /api/v2/chimera/stories/:id
+ */
+export async function deleteStory(id: string): Promise<void> {
+  const result = await apiDelete(`/api/v2/chimera/stories/${id}`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to delete story');
+  }
+}
+
+/**
+ * Hook to delete a story
+ */
+export function useDeleteStory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteStory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-stories'] });
+    },
+  });
+}
+
 // ============================================================================
 // REACT QUERY HOOKS
 // ============================================================================
