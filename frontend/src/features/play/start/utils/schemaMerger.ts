@@ -45,6 +45,38 @@ export function mergeCharacterSchema(compiledStory: any): Tier1Schema {
     // The user didn't explicitly forbid dependencies but let's be safe and write a helper if simple.
     // Actually, deep merging schemas can be tricky. Let's try to assume lodash or write a recursive merge.
 
+    // MERGE ENGINE CONFIG CREATION FIELDS
+    // V3 Schema stores wizard fields in config_engine.creation.fields
+    const engineCreationFields = story.config_engine?.creation?.fields;
+    if (Array.isArray(engineCreationFields)) {
+        engineCreationFields.forEach((field: any) => {
+            const key = field.key;
+            if (!key) return;
+
+            // 1. Definition (Schema)
+            if (!base.definitions[key] && !override.definitions[key]) {
+                base.definitions[key] = {
+                    type: field.control === 'slider' || field.min !== undefined ? 'number' : 'string',
+                    label: field.label,
+                    description: field.description,
+                    default: field.min // Heuristic default
+                };
+            }
+
+            // 2. Form Hint (UI)
+            if (!base.form_hints[key] && !override.form_hints[key]) {
+                base.form_hints[key] = {
+                    ui_widget: field.control,
+                    section: field.category?.toLowerCase() || 'general',
+                    min: field.min,
+                    max: field.max,
+                    options: field.options,
+                    order: 100 // Default order
+                };
+            }
+        });
+    }
+
     return deepMerge(base, override);
 }
 

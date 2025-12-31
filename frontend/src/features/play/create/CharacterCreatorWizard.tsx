@@ -2,9 +2,10 @@
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight, Wand2 } from 'lucide-react';
+import { useForm, FormProvider } from 'react-hook-form';
 import { splitSchema, type SplittedSchema } from './utils/schemaSplitter';
 import { Step1_Identity } from './steps/Step1_Identity';
-import { Step2_Capabilities } from './steps/Step2_Capabilities';
+import { Step2_Attributes } from './steps/Step2_Attributes';
 import { Step3_Personality } from './steps/Step3_Personality';
 import { LiveCharacterSheet } from './components/LiveCharacterSheet';
 import { apiPost } from '@/lib/api';
@@ -13,44 +14,66 @@ import { useNavigate } from 'react-router-dom';
 
 interface CharacterCreatorWizardProps {
     storyId: string;
-    mergedSchema: mergedSchema;
+    mergedSchema: any; // Tier1Schema
+    activeRulesets?: any[];
     onCancel: () => void;
 }
 
-export default function CharacterCreatorWizard({ storyId, mergedSchema, onCancel }: CharacterCreatorWizardProps) {
+export default function CharacterCreatorWizard({ storyId, mergedSchema, activeRulesets = [], onCancel }: CharacterCreatorWizardProps) {
     const navigate = useNavigate();
 
     // 1. Split schema into steps
     const schemaParts = useMemo<SplittedSchema>(() => splitSchema(mergedSchema), [mergedSchema]);
 
+    // Debug logging
+    console.log('[Wizard] Active Rulesets:', activeRulesets);
+    console.log('[Wizard] Schema Capabilities:', Object.keys(schemaParts.capabilities));
+
     // 2. Determine active steps (Skip empty steps logic)
     // Always Step 1 (Identity)
-    // Step 2 only if capabilities exist
+    // Step 2 only if capabilities exist OR if we have active rulesets (to show empty state/debug)
     // Step 3 (Personality) usually exists, but conditional
     const steps = useMemo(() => {
-        const _steps = [
+        const _steps: { id: string; label: string; component: any; schema: any; extraProps?: any }[] = [
             { id: 'identity', label: 'Identity', component: Step1_Identity, schema: schemaParts.identity },
         ];
 
-        if (Object.keys(schemaParts.capabilities).length > 0) {
-            _steps.push({ id: 'capabilities', label: 'Capabilities', component: Step2_Capabilities, schema: schemaParts.capabilities });
+        if (Object.keys(schemaParts.capabilities).length > 0 || (activeRulesets && activeRulesets.length > 0)) {
+            _steps.push({
+                id: 'capabilities',
+                label: 'Attributes',
+                component: Step2_Attributes,
+                schema: schemaParts.capabilities,
+                extraProps: { activeRulesets }
+            });
         }
 
         _steps.push({ id: 'personality', label: 'Personality', component: Step3_Personality, schema: schemaParts.personality });
 
         return _steps;
-    }, [schemaParts]);
+    }, [schemaParts, activeRulesets]);
 
     const [currentStepIdx, setCurrentStepIdx] = useState(0);
-    const [formData, setFormData] = useState<Record<string, any>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Initialize React Hook Form
+    const methods = useForm<Record<string, any>>({
+        mode: 'onChange',
+        defaultValues: {
+            // Can extract defaults from schema if needed
+        }
+    });
+
+    // Sync formData for LiveCharacterSheet (optional, can use watch() inside Sheet)
+    const formData = methods.watch();
 
     const currentStep = steps[currentStepIdx];
     const isFirstStep = currentStepIdx === 0;
     const isLastStep = currentStepIdx === steps.length - 1;
 
+    // Helper to update specific fields manually if needed (legacy compat)
     const updateData = (key: string, value: any) => {
-        setFormData(prev => ({ ...prev, [key]: value }));
+        methods.setValue(key, value, { shouldValidate: true, shouldDirty: true });
     };
 
     const handleNext = () => {
@@ -70,9 +93,12 @@ export default function CharacterCreatorWizard({ storyId, mergedSchema, onCancel
         }
     };
 
-    const validateStep = () => {
+    const validateStep = async () => {
+        // Trigger validation for current step fields if possible
+        // For MVP, we'll do simple checks or rely on form state
         if (currentStep.id === 'identity') {
-            if (!formData.name) {
+            const name = methods.getValues('name');
+            if (!name) {
                 toast.error("Name required", { description: "Please give your character a name." });
                 return false;
             }
@@ -85,14 +111,10 @@ export default function CharacterCreatorWizard({ storyId, mergedSchema, onCancel
             setIsSubmitting(true);
 
             // Construct payload matching InitializeGameRequestSchema
-            // We need to separate universal fields from tier1_overrides
-            const { name, pronouns, appearance, backstory, race_handle, species, archetype_handle, user_role, role, ...overrides } = formData;
+            const allData = methods.getValues() as any;
+            const { name, pronouns, appearance, backstory, race_handle, species, archetype_handle, user_role, role, ...overrides } = allData;
 
             // Map special fields
-            // race/species might need to go into overrides depending on backend implementation
-            // The prompt says: "tier1_overrides: { ...dynamic_field_values... }"
-            // race_handle/archetype_handle are usually top-level Tier 1 properties, so they should go in overrides.
-
             const tier1_overrides = { ...overrides };
             if (race_handle) tier1_overrides.race_handle = race_handle;
             if (species) tier1_overrides.species = species;
@@ -105,17 +127,10 @@ export default function CharacterCreatorWizard({ storyId, mergedSchema, onCancel
                     identity: {
                         name,
                         pronouns,
-                        role: role || archetype_handle // Use either local var
+                        role: role || archetype_handle
                     },
-                    appearance: { description: appearance }, // Backend expects record? Prompt said "appearance": "..." but Schema said z.record. Let's send object.
-                    // Wait, Looking at InitializeGameRequestSchema in Backend:
-                    // appearance: z.record(z.unknown()).optional()
-                    // Prompt said: { "appearance": "..." }
-                    // I'll send { description: appearance } to be safe and rich.
+                    appearance: { description: appearance },
                     backstory,
-                    // We need to pass the dynamic fields. The Schema has .passthrough() !!
-                    // So we can put tier1_overrides at the top level of playerInput?
-                    // "allow additional world-specific fields" -> Yes.
                     ...tier1_overrides
                 }
             };
@@ -138,55 +153,65 @@ export default function CharacterCreatorWizard({ storyId, mergedSchema, onCancel
     };
 
     return (
-        <div className="flex h-screen w-full bg-background overflow-hidden">
+        <div className="flex h-[calc(100vh-3.5rem)] md:h-screen w-full bg-background overflow-hidden flex-col md:flex-row">
             {/* Left Panel: Wizard Steps */}
-            <div className="flex-1 flex flex-col h-full overflow-y-auto border-r border-border custom-scrollbar">
+            <div className="flex-1 flex flex-col min-h-0 border-r border-border">
 
                 {/* Progress Bar */}
-                <div className="w-full h-1 bg-secondary sticky top-0 z-10">
+                <div className="w-full h-1 bg-secondary shrink-0">
                     <div
                         className="h-full bg-primary transition-all duration-300 ease-out"
                         style={{ width: `${((currentStepIdx + 1) / steps.length) * 100}%` }}
                     />
                 </div>
 
-                <div className="p-8 pb-32 max-w-2xl mx-auto w-full flex-1 flex flex-col justify-center min-h-[600px]">
-                    <div className="mb-8">
-                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                            Step {currentStepIdx + 1} of {steps.length}
-                        </span>
-                        <h1 className="text-3xl font-extrabold mt-1">{currentStep.label}</h1>
-                    </div>
+                {/* Scrollable Content Area */}
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-8">
+                    <div className="max-w-2xl mx-auto w-full flex flex-col min-h-[500px]">
+                        <div className="mb-8">
+                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                                Step {currentStepIdx + 1} of {steps.length}
+                            </span>
+                            <h1 className="text-3xl font-extrabold mt-1">{currentStep.label}</h1>
+                        </div>
 
-                    <currentStep.component
-                        data={formData}
-                        updateData={updateData}
-                        schema={currentStep.schema}
-                    />
+                        <FormProvider {...methods}>
+                            <form onSubmit={methods.handleSubmit(handleSubmit)}>
+                                <currentStep.component
+                                    data={formData}
+                                    updateData={updateData}
+                                    schema={currentStep.schema as any}
+                                    {...(currentStep.extraProps || {})}
+                                />
+                            </form>
+                        </FormProvider>
+                    </div>
                 </div>
 
-                {/* Buttom Navigation Bar */}
-                <div className="p-6 border-t border-border bg-background/95 backdrop-blur sticky bottom-0 z-10 flex justify-between items-center max-w-2xl mx-auto w-full">
-                    <Button
-                        variant="ghost"
-                        onClick={handleBack}
-                        disabled={isSubmitting}
-                    >
-                        <ArrowLeft className="mr-2 h-4 w-4" /> {isFirstStep ? 'Cancel' : 'Back'}
-                    </Button>
+                {/* Bottom Navigation Bar */}
+                <div className="p-6 border-t border-border bg-background/95 backdrop-blur shrink-0 pb-8 flex justify-between items-center w-full">
+                    <div className="max-w-2xl mx-auto w-full flex justify-between items-center">
+                        <Button
+                            variant="ghost"
+                            onClick={handleBack}
+                            disabled={isSubmitting}
+                        >
+                            <ArrowLeft className="mr-2 h-4 w-4" /> {isFirstStep ? 'Cancel' : 'Back'}
+                        </Button>
 
-                    <Button
-                        size="lg"
-                        onClick={handleNext}
-                        disabled={isSubmitting}
-                        className={isLastStep ? 'bg-amber-600 hover:bg-amber-700' : ''}
-                    >
-                        {isLastStep ? (
-                            <>Begin Adventure <Wand2 className="ml-2 h-4 w-4" /></>
-                        ) : (
-                            <>Next Step <ArrowRight className="ml-2 h-4 w-4" /></>
-                        )}
-                    </Button>
+                        <Button
+                            size="lg"
+                            onClick={handleNext}
+                            disabled={isSubmitting}
+                            className={isLastStep ? 'bg-amber-600 hover:bg-amber-700' : ''}
+                        >
+                            {isLastStep ? (
+                                <>Begin Adventure <Wand2 className="ml-2 h-4 w-4" /></>
+                            ) : (
+                                <>Next Step <ArrowRight className="ml-2 h-4 w-4" /></>
+                            )}
+                        </Button>
+                    </div>
                 </div>
             </div>
 

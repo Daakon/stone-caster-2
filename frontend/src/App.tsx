@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { useAuthStore } from './store/auth';
@@ -30,7 +30,7 @@ import WorldDetailPage from './pages/worlds/WorldDetailPage';
 import NPCDetailPage from './pages/npcs/NPCDetailPage';
 import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
 import ProfilePage from './pages/ProfilePage';
-import MyCreationsDashboard from './pages/dashboard/creations/index';
+// import MyCreationsDashboard from './pages/dashboard/creations/index';
 import { MyCreationsPage } from './features/dashboard/MyCreationsPage';
 import { CastingCircleWizard } from './features/casting-circle/CastingCircleWizard';
 import { CreateStoryPage } from './features/create-story';
@@ -202,14 +202,14 @@ function AppContent() {
           <Route path="/dashboard/creations" element={
             <ProtectedRoute>
               <EarlyAccessRoute>
-                <Navigate to="/dashboard/creations/worlds" replace />
+                <Navigate to="/my-creations" replace />
               </EarlyAccessRoute>
             </ProtectedRoute>
           } />
           <Route path="/dashboard/creations/:tab" element={
             <ProtectedRoute>
               <EarlyAccessRoute>
-                <MyCreationsDashboard />
+                <LegacyCreationsRedirect />
               </EarlyAccessRoute>
             </ProtectedRoute>
           } />
@@ -421,6 +421,11 @@ function App() {
       </ThemeProvider>
     </ErrorBoundary>
   );
+}
+
+function LegacyCreationsRedirect() {
+  const { tab } = useParams<{ tab: string }>();
+  return <Navigate to={`/my-creations${tab ? `?tab=${tab}` : ''}`} replace />;
 }
 
 export default App;

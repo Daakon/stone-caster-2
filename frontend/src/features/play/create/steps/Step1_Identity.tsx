@@ -1,11 +1,10 @@
 
-import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { DynamicControl } from '../components/DynamicControl';
+import { DynamicSchemaField } from '@/components/form/DynamicSchemaField';
+import type { FormHint } from '@/types/chimera-form';
 
 interface Step1Props {
     data: any;
@@ -59,25 +58,15 @@ export function Step1_Identity({ data, updateData, schema }: Step1Props) {
 
             {/* Special Selection Cards (Race/Class) if they exist */}
             {Object.keys(specials).length > 0 && (
-                <div className="grid grid-cols-1 gap-4 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                     {Object.entries(specials).map(([key, def]) => {
-                        // Render these as prominently styled cards or enhanced dropdowns
-                        // For MVP, we'll use a styled card wrapping the interaction
+                        const hint = def as unknown as FormHint;
                         return (
-                            <Card key={key} className="border-primary/20 bg-primary/5">
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-lg capitalize">{def.label || key.replace('_handle', '')}</CardTitle>
-                                    <CardDescription>{def.description || 'Choose your path.'}</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <DynamicControl
-                                        fieldKey={key}
-                                        schema={def}
-                                        value={data[key]}
-                                        onChange={(val) => updateData(key, val)}
-                                    />
-                                </CardContent>
-                            </Card>
+                            <DynamicSchemaField
+                                key={key}
+                                name={key}
+                                hint={hint}
+                            />
                         );
                     })}
                 </div>

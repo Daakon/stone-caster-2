@@ -39,4 +39,5 @@ export interface CreationConfig {
 export interface CompiledCartridge {
     runtime: RuntimeConfig;
     creation: CreationConfig;
+    active_rulesets?: any[]; // Full Ruleset Objects for UI hydration
 }

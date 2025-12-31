@@ -26,7 +26,7 @@ export default function StartGatewayPage() {
     // 1. Fetch Compiled Story
     const { data: storyData, isLoading: storyLoading, error: storyError } = useQuery({
         queryKey: ['chimera-story', storyId],
-        queryFn: () => getCompiledStory(storyId!),
+        queryFn: () => getCompiledStory(storyId!) as Promise<any>,
         enabled: !!storyId
     });
 
@@ -35,7 +35,7 @@ export default function StartGatewayPage() {
     // 2. Fetch User Characters (filtered by world if possible - using world_id from story if available)
     const { data: charactersData, isLoading: charsLoading } = useQuery({
         queryKey: ['my-characters', story?.world_id],
-        queryFn: () => getMyCharacters(story?.world_id),
+        queryFn: () => getMyCharacters(story?.world_id) as Promise<any>,
         enabled: !!story?.world_id
     });
 
@@ -118,6 +118,7 @@ export default function StartGatewayPage() {
             <CharacterCreatorWizard
                 storyId={storyId!}
                 mergedSchema={mergedSchema}
+                activeRulesets={story.config_engine?.active_rulesets || []}
                 onCancel={() => setViewMode('SELECTION')}
             />
         );
@@ -129,7 +130,8 @@ export default function StartGatewayPage() {
 
                 {/* Header */}
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" icon={<ArrowLeft />} onClick={() => navigate('/stories')}>
+                    <Button variant="ghost" onClick={() => navigate('/stories')}>
+                        <ArrowLeft className="mr-2 h-4 w-4" />
                         Back
                     </Button>
                     <div>

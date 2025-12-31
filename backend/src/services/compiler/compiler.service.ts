@@ -143,6 +143,8 @@ export class StoryCompilerService {
 
             // A. Engine Config (Master Cartridge)
             const cartridge = EngineRefiner.refine(rulesets);
+            // Attach source rulesets for UI hydration
+            cartridge.active_rulesets = rulesets;
 
             // B. System Prompts
             const interpreterPrompt = InterpreterRefiner.process(rulesets);
