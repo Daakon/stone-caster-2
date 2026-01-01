@@ -30,7 +30,7 @@ export interface PlayerInputDto {
 }
 
 export class GameInitService {
-  constructor(private storiesRepo: StoriesRepository) {}
+  constructor(private storiesRepo: StoriesRepository) { }
 
   /**
    * Initialize a new game from a compiled story
@@ -45,7 +45,13 @@ export class GameInitService {
     playerId: string
   ): Promise<string> {
     // Step 1: Fetch CompiledStory from DB
-    const compiledStory = await this.storiesRepo.getCompiledStoryById(storyId);
+    let compiledStory = await this.storiesRepo.getCompiledStoryById(storyId);
+
+    // Fallback: Try by Draft Story ID (as frontend often passes this)
+    if (!compiledStory) {
+      compiledStory = await this.storiesRepo.getCompiledStoryByDraftId(storyId);
+    }
+
     if (!compiledStory) {
       throw new Error(`Compiled story not found: ${storyId}`);
     }
@@ -95,7 +101,7 @@ export class GameInitService {
     }
 
     const entities = gameState.tier1_mechanical.entities as Record<string, unknown>;
-    
+
     // Ensure player entity exists
     if (!entities.player) {
       entities.player = {};

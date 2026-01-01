@@ -16,6 +16,22 @@ const CreatePlayerCharacterSchema = z.object({
     world_id: z.string().uuid(),
 });
 
+
+router.get('/', async (req, res) => {
+    try {
+        const userId = req.user!.id;
+        const characters = await ChimeraEntitiesService.listPlayerCharacters(userId);
+        return sendSuccess(res, characters, req);
+    } catch (error) {
+        return sendErrorWithStatus(
+            res,
+            ApiErrorCode.INTERNAL_ERROR,
+            error instanceof Error ? error.message : 'Failed to list player characters',
+            req
+        );
+    }
+});
+
 router.post('/', validateRequest(CreatePlayerCharacterSchema), async (req, res) => {
     try {
         const userId = req.user!.id;

@@ -16,6 +16,10 @@ import { StatsPanel } from '@/components/game/StatsPanel';
 import { ActionInput } from '@/components/game/ActionInput';
 import { castStone, loadState, type CastStoneResponse } from '@/services/game-client';
 import type { GameState } from '@shared/types/chimera-runtime';
+import { useGameSession } from '@/hooks/game/useGameSession';
+import { GameGenesisLoader } from '@/components/game/GameGenesisLoader';
+import { ActiveGameInterface } from '@/components/game/ActiveGameInterface';
+import { supabase } from '@/lib/supabase';
 
 export default function GamePage() {
   const { gameStateId } = useParams<{ gameStateId: string }>();
@@ -23,6 +27,40 @@ export default function GamePage() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // 1. Resolve Story ID from Game State ID (for Validator)
+  const { data: sessionMeta } = useQuery({
+    queryKey: ['session-meta', gameStateId],
+    queryFn: async () => {
+      if (!gameStateId) return null;
+      const { data, error } = await supabase
+        .from('chimera_game_states')
+        .select('story_id')
+        .eq('id', gameStateId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!gameStateId
+  });
+
+  // 2. Validate Session Integrity
+  const { status, refresh } = useGameSession(sessionMeta?.story_id || null);
+
+  // 3. Gate UI based on Status
+  if (status === 'needs_genesis') {
+    return <GameGenesisLoader />;
+  }
+
+  // Debug/Placeholder override as requested
+  if (status === 'ready') {
+    // We can return ActiveGameInterface here if we want to bypass the old UI entirely as requested
+    // "If status === 'ready' -> Render <ActiveGameInterface />."
+    // But the user also wants to "Manage the entry".
+    // If I return ActiveGameInterface here, the useQuery below for 'game-state' might not have finished?
+    // Actually user logic said: "Render <ActiveGameInterface />"
+    return <ActiveGameInterface gameStateId={gameStateId!} />;
+  }
 
   // Load initial game state
   const { data: initialState, isLoading, error } = useQuery({
@@ -75,7 +113,7 @@ export default function GamePage() {
     } catch (error) {
       // Remove optimistic entry on error
       setLogEntries((prev) => prev.filter((entry) => entry.id !== playerEntry.id));
-      
+
       console.error('Error casting stone:', error);
       toast.error(
         error instanceof Error ? error.message : 'Failed to process action'

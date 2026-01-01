@@ -37,11 +37,13 @@ export default function StartGatewayPage() {
 
     const story = storyData?.data;
 
-    // 2. Fetch User Characters (filtered by world if possible - using world_id from story if available)
+    // 2. Fetch User Characters (filtered by world if possible - using world_id from snapshot if available)
+    const worldId = story?.snapshot_world?.id;
+
     const { data: charactersData, isLoading: charsLoading } = useQuery({
-        queryKey: ['my-characters', story?.world_id],
-        queryFn: () => getMyCharacters(story?.world_id) as Promise<any>,
-        enabled: !!story?.world_id
+        queryKey: ['my-characters', worldId],
+        queryFn: () => getMyCharacters(worldId) as Promise<any>,
+        enabled: !!worldId
     });
 
     const characters = charactersData?.data || [];
@@ -52,7 +54,13 @@ export default function StartGatewayPage() {
             toast.info("Starting session...");
             const res = await apiPost<{ id: string }>('/api/chimera/game/init', {
                 storyId,
-                characterId: char.id
+                characterId: char.id,
+                // Adding dummy playerInput to satisfy backend Zod schema
+                playerInput: {
+                    identity: { name: char.name },
+                    input_type: 'system_start',
+                    content: 'Initialize Narrative'
+                }
             });
 
             if (res.ok) {

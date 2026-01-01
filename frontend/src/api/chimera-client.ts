@@ -17,10 +17,9 @@ export async function getCompiledStory(id: string) {
  * Supports filtering by world_id if needed, but for the gateway we usually want all or filtered by compatibility.
  */
 export async function getMyCharacters(worldId?: string) {
-    // Legacy mapping: The legacy API `getCharacters` uses /api/characters
-    // We'll stick to that or /api/me/characters if it exists.
-    // existing api.ts uses /api/characters with query params.
-    const url = worldId ? `/api/me/characters?world=${worldId}` : '/api/me/characters';
+    // Phase 1 Migration: Use new Chimera Player Characters table
+    // Ignore worldId filter for now on the endpoint if it doesn't support it, or add it as query param
+    const url = worldId ? `/api/v2/chimera/player-characters?world_id=${worldId}` : '/api/v2/chimera/player-characters';
     return apiGet<any[]>(url);
 }
 

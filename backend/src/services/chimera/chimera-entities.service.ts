@@ -58,8 +58,22 @@ export class ChimeraEntitiesService {
             .single();
 
         if (error) throw error;
+    }
+
+    /**
+     * Lists all Player Characters for a user.
+     */
+    static async listPlayerCharacters(userId: string) {
+        const { data, error } = await supabaseAdmin
+            .from('chimera_player_characters')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
         return data;
     }
+
 
 
     /**

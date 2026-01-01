@@ -102,10 +102,9 @@ export const useRulesetQuery = (id: ID) =>
 
 export const useCharactersQuery = () =>
   useQuery({
-    queryKey: ['characters'],
+    queryKey: ['characters', 'v2'],
     queryFn: () => listCharacters(),
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: 10 * 1000,
   });
 
 export const useCreateCharacter = () => {
@@ -115,7 +114,7 @@ export const useCreateCharacter = () => {
     mutationFn: createCharacter,
     onSuccess: () => {
       // Invalidate and refetch characters list
-      queryClient.invalidateQueries({ queryKey: ['characters'] });
+      queryClient.invalidateQueries({ queryKey: ['characters', 'v2'] });
     },
   });
 };
