@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { WorldDefinition, RulesetDefinition } from '@shared/types/chimera-authoring';
 import type { FormHint } from '../../types/chimera-form';
+import { UNIVERSAL_IDENTITY_RULESET } from '../../data/rulesets/core-identity';
 
 export interface StepDefinition {
     id: string;
@@ -29,62 +30,7 @@ export interface UseEntitySchemaOptions {
     targetKind: 'player' | 'npc';
 }
 
-const UNIVERSAL_IDENTITY_SCHEMA: Record<string, Partial<StepField>> = {
-    name: {
-        key: 'name',
-        label: 'Character Name',
-        control: 'text',
-        ui_step: 'identity',
-        ui_step_priority: 0,
-        ui_group: 'Character Basics',
-        ui_group_priority: 0,
-        description: "What are you called?",
-        default: ''
-    },
-    pronouns: {
-        key: 'pronouns',
-        label: 'Pronouns',
-        control: 'select',
-        options: ['He/Him', 'She/Her', 'They/Them', 'Other'],
-        ui_step: 'identity',
-        ui_step_priority: 0,
-        ui_group: 'Character Basics',
-        ui_group_priority: 0,
-        default: 'They/Them'
-    },
-    age: {
-        key: 'age',
-        label: 'Age',
-        control: 'number',
-        ui_step: 'identity',
-        ui_step_priority: 0,
-        ui_group: 'Character Basics',
-        ui_group_priority: 0,
-        default: 25
-    },
-    appearance: {
-        key: 'appearance',
-        label: 'Visual Description',
-        control: 'textarea',
-        ui_step: 'identity',
-        ui_step_priority: 0,
-        ui_group: 'Character Basics',
-        ui_group_priority: 0,
-        description: "How do you look to others?",
-        default: ''
-    },
-    backstory: {
-        key: 'backstory',
-        label: 'History & Origin',
-        control: 'textarea',
-        ui_step: 'identity',
-        ui_step_priority: 0,
-        ui_group: 'Character Basics',
-        ui_group_priority: 0,
-        description: "Where do you come from?",
-        default: ''
-    }
-};
+
 
 /**
  * Aggregates and structures the schema for an entity based on the World and Rulesets.
@@ -97,41 +43,50 @@ export function useEntitySchema(
 ) {
     const { targetKind } = options;
 
-    return useMemo(() => {
-        // Initialize with Universal Identity
-        const rawFields: Record<string, StepField> = {};
+    const activeRulesets = useMemo(() => {
+        // Cast UNIVERSAL_IDENTITY_RULESET to any to avoid strict type mismatch if RulesetDefinition differs slightly
+        // We know it provides the necessary structure.
+        return [UNIVERSAL_IDENTITY_RULESET as any, ...(rulesets || [])];
+    }, [rulesets]);
 
-        Object.values(UNIVERSAL_IDENTITY_SCHEMA).forEach(field => {
-            if (field.key) {
-                rawFields[field.key] = field as StepField;
-            }
-        });
+    return useMemo(() => {
+        const rawFields: Record<string, StepField> = {};
 
         // Helper: safe merge
         const mergeField = (key: string, source: any, sourceName: string) => {
             const existing = rawFields[key];
 
-            // Extract ui_group:
+            // 1. Extract or Heuristic for Group
             let group = source.ui_group || source.group;
             if (!group && source.section) group = source.section;
+            if (existing && !group) group = existing.ui_group; // Keep existing if source has none
 
-            if (!group) {
-                if (existing) {
-                    group = existing.ui_group; // Keep existing group if not overridden
+            // 2. Extract or Heuristic for Step
+            let step = source.ui_step;
+            if (!step && source.step) step = source.step;
+            if (existing && !step) step = existing.ui_step; // Keep existing if source has none
+
+            // HEURISTICS: If Step is still missing, guess based on key
+            if (!step) {
+                const lowerKey = key.toLowerCase();
+                if (
+                    lowerKey.includes('race') ||
+                    lowerKey.includes('species') ||
+                    lowerKey.includes('archetype') ||
+                    lowerKey.includes('class')
+                ) {
+                    step = 'identity';
+                    if (!group) group = 'Background & Origin';
                 } else {
-                    group = sourceName; // Default to Source Name
+                    step = 'attributes';
+                    // Default group for attributes if missing
+                    if (!group) group = 'General';
                 }
             }
 
-            // Extract ui_step:
-            let step = source.ui_step;
-            if (!step && source.step) step = source.step;
-            if (!step) {
-                if (existing) {
-                    step = existing.ui_step;
-                } else {
-                    step = 'misc';
-                }
+            // Fallback group if still missing after heuristics
+            if (!group) {
+                group = sourceName; // Default to Source Name
             }
 
             // Merge
@@ -143,6 +98,7 @@ export function useEntitySchema(
                 ui_step_priority: source.ui_step_priority ?? existing?.ui_step_priority ?? 99,
                 ui_group: group,
                 ui_group_priority: source.ui_group_priority ?? existing?.ui_group_priority ?? 50,
+                ui_order: source.ui_order ?? existing?.ui_order ?? 999, // Added ui_order
                 default: source.default ?? existing?.default,
                 options: source.options || existing?.options,
                 min: source.min ?? existing?.min,
@@ -154,30 +110,36 @@ export function useEntitySchema(
             rawFields[key] = merged;
         };
 
-        // 1. Process World Extensions
-        if (world?.character_schema_extensions) {
-            Object.entries(world?.character_schema_extensions || {}).forEach(([key, val]) => {
-                mergeField(key, val, 'Core Rules');
-            });
-        }
-
-        // 2. Process Rulesets
-        rulesets?.forEach(ruleset => {
-            const contributions = ruleset.character_schema_contributions?.tier1_entity
+        // 1. Process RuleSets (including Universal Identity)
+        activeRulesets.forEach(ruleset => {
+            // Handle both flat structure (RulesetDefinition) and nested structure (RulesetTemplate)
+            const contributions =
+                // Priority 1: Direct contributions (RulesetDefinition)
+                ruleset.character_schema_contributions?.tier1_entity
+                || ruleset.state_contributions?.tier1_entity
                 || ruleset.state_contributions
+                // Priority 2: Nested in definition (RulesetTemplate)
+                || ruleset.definition?.state_contributions?.tier1_entity
                 || {};
 
             const definitions = contributions.definitions || {};
             const hints = contributions.form_hints || {};
 
             Object.entries(definitions).forEach(([key, val]) => {
-                mergeField(key, val, ruleset.name || 'Ruleset');
+                mergeField(key, val, ruleset.name || ruleset.definition?.name || 'Ruleset');
             });
 
             Object.entries(hints).forEach(([key, val]) => {
-                mergeField(key, val, ruleset.name || 'Ruleset');
+                mergeField(key, val, ruleset.name || ruleset.definition?.name || 'Ruleset');
             });
         });
+
+        // 2. Process World Extensions (overrides rulesets)
+        if (world?.character_schema_extensions) {
+            Object.entries(world?.character_schema_extensions || {}).forEach(([key, val]) => {
+                mergeField(key, val, 'Core Rules');
+            });
+        }
 
         // 3. Structure into Steps > Groups > Fields
         const stepsMap = new Map<string, StepDefinition>();
@@ -221,7 +183,7 @@ export function useEntitySchema(
             group.fields.push(field);
         });
 
-        // FORCE IDENTITY STEP if somehow missing (though Universal should ensure it)
+        // FORCE IDENTITY STEP if somehow missing
         if (!stepsMap.has('identity')) {
             stepsMap.set('identity', {
                 id: 'identity',
@@ -235,11 +197,17 @@ export function useEntitySchema(
         const sortedSteps = Array.from(stepsMap.values()).sort((a, b) => a.priority - b.priority);
 
         sortedSteps.forEach(step => {
+            // Sort Groups by priority
             step.groups.sort((a, b) => a.priority - b.priority);
+
+            // Sort Fields by ui_order
+            step.groups.forEach(group => {
+                group.fields.sort((a, b) => (a.ui_order ?? 999) - (b.ui_order ?? 999));
+            });
         });
 
         return sortedSteps;
-    }, [world, rulesets, targetKind]);
+    }, [world, activeRulesets, targetKind]);
 }
 
 function capitalize(s: string) {

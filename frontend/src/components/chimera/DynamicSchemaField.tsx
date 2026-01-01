@@ -45,7 +45,7 @@ export function DynamicSchemaField({ field, control }: DynamicSchemaFieldProps) 
                                 onValueChange={(vals) => onChange(vals[0])}
                                 className="flex-1"
                             />
-                            <Badge variant="secondary" className="w-12 justify-center font-mono">
+                            <Badge variant="secondary" className="w-12 justify-center font-mono text-center">
                                 {Number(value) || 0}
                             </Badge>
                         </div>
@@ -67,7 +67,7 @@ export function DynamicSchemaField({ field, control }: DynamicSchemaFieldProps) 
                             onChange={onChange}
                             onBlur={onBlur}
                             placeholder={field.loading_placeholder}
-                            className="min-h-[100px]"
+                            className="min-h-[120px] resize-y"
                         />
                     )}
                 />

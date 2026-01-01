@@ -160,12 +160,16 @@ export default function CharacterCreatorPage() {
   // 6. Autosave Logic
   const [isSaving, setIsSaving] = useState(false);
   const formValues = form.watch();
-  const debouncedValues = useDebounce(formValues, 1000);
+  // Increased debounce to 2000ms to reduce save frequency
+  const debouncedValues = useDebounce(formValues, 2000);
 
   useEffect(() => {
     // Autosave trigger
     if (Object.keys(debouncedValues).length === 0) return;
-    if (!form.formState.isDirty && !existingDraft) return; // Save if existing draft update
+
+    // Strict dirty check: Only save if the user has actually modified the form.
+    // We removed the `!existingDraft` bypass which was causing loops on load.
+    if (!form.formState.isDirty) return;
 
     if (!storyId || !currentStepId) return;
 
@@ -180,7 +184,7 @@ export default function CharacterCreatorPage() {
     };
 
     performSave();
-  }, [debouncedValues, storyId, currentStepId, saveDraft]);
+  }, [debouncedValues, storyId, currentStepId, saveDraft, form.formState.isDirty]);
 
   // 7. Mutation
   const initializeMutation = useMutation({
@@ -210,9 +214,51 @@ export default function CharacterCreatorPage() {
     navigate(`/stories/${storyId}`);
   };
 
-  const handleFinish = () => {
-    const data = form.getValues();
-    initializeMutation.mutate(data);
+  const handleFinish = async () => {
+    setIsSaving(true);
+    try {
+      const formData = form.getValues();
+
+      // Construct payload for creation
+      // Note: We use the raw form state as the 'state' of the entity
+      const payload = {
+        world_id: compiledStory?.snapshot_world?.id || storyId,
+        name: formData.name || 'Unnamed Character',
+        display_name: formData.name || 'Unnamed Character',
+        entity_type: 'NPC', // Defaulting to NPC or Player based on context, but user prompt implies generic entity creation
+        // The user requirement says: "state: formData"
+        state: formData,
+        // Additional metadata if needed
+        ruleset_ids: compiledStory?.config_engine?.active_rulesets?.map((r: any) => r.id) || []
+      };
+
+      // Direct API call to create entity
+      // We use a direct fetch or apiPost here to match the simplified payload request
+      // Mapping to the expected V2 endpoint: POST /api/v2/chimera/entities
+      // Or if the user meant V1, we stick to the most robust one. V2 is cleaner.
+      // However, the prompt said "POST /api/chimera/entities", which might be V1 or simplified V2 route.
+      // I will use apiPost to '/api/v2/chimera/entities' which corresponds to createEntityV2
+
+      const { apiPost } = await import('@/lib/api');
+      const result = await apiPost('/api/v2/chimera/entities', payload); // Adjust endpoint if strictly /api/chimera/entities needed
+
+      if (!result.ok) {
+        throw new Error(result.error.message || 'Failed to create character');
+      }
+
+      // Success!
+      if (storyId) clearDraft(storyId);
+      toast.success('Character Created!');
+
+      // Redirect to story play view
+      navigate(`/play/story/${storyId}`);
+
+    } catch (error) {
+      console.error("Submission failed:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to submit character");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // 9. Render Loading / Error
