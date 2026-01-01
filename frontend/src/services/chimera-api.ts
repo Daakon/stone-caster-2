@@ -390,6 +390,17 @@ export async function getCompiledStory(id: string): Promise<import('@shared/type
 }
 
 /**
+ * Get just the creation manifest for a story
+ */
+export async function getCreationManifest(id: string): Promise<{ creation_manifest: any; snapshot_world: any }> {
+  const result = await apiFetch<{ creation_manifest: any; snapshot_world: any }>(`/api/chimera/compile/${id}/manifest`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to fetch creation manifest');
+  }
+  return result.data!;
+}
+
+/**
  * Initialize a game from a compiled story
  */
 export interface InitializeGameRequest {

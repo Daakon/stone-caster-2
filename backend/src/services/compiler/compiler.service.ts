@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { EngineRefiner } from './refiners/engine.refiner';
 import { InterpreterRefiner } from './refiners/interpreter.refiner';
 import { NarratorRefiner } from './refiners/narrator.refiner';
+import { CreationRefiner } from './refiners/creation.refiner';
 import { SnapshotManager } from './refiners/snapshot.manager';
 import { RulesetSchema } from './schemas';
 import { EntitiesRepository } from '../../db/repos/entities.repo';
@@ -150,8 +151,10 @@ export class StoryCompilerService {
             const interpreterPrompt = InterpreterRefiner.process(rulesets);
             const narratorPrompt = NarratorRefiner.refine(rulesets);
 
-            // C. Snapshots
-            // C. Snapshots
+            // C. Creation Manifest
+            const creationManifest = CreationRefiner.refine(rulesets, 'player');
+
+            // D. Snapshots
             // Resolve Entity IDs: Overrides > DB Column (entity_ids) > Config (Legacy) > cast_ids (Legacy)
             const configIds = ensureObject(story.configuration)?.entityIds;
             const dbEntityIds = (story as any).entity_ids; // New column
@@ -215,6 +218,7 @@ export class StoryCompilerService {
                     config_engine: cartridge,
                     prompt_interpreter_logic: interpreterPrompt,
                     prompt_narrator_style: narratorPrompt,
+                    creation_manifest: creationManifest,
                     snapshot_world: worldSnapshot,
                     snapshot_entities: snapshotEntities,
                 })

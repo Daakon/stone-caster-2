@@ -131,6 +131,7 @@ app.use('/api/v2/chimera', chimeraRouter);
 import chimeraWorldsRepoRouter from './routes/chimera-worlds-repo.js';
 import chimeraRulesetsRepoRouter from './routes/chimera-rulesets-repo.js';
 import chimeraEntitiesRepoRouter from './routes/chimera-entities-repo.js';
+import chimeraPlayerCharactersRouter from './routes/chimera-player-characters.js';
 import chimeraLoreRepoRouter from './routes/chimera-lore-repo.js';
 import chimeraAssetsRouter from './routes/chimera-assets.api.js';
 import chimeraCompileRouter from './routes/chimera-compile.js';
@@ -140,6 +141,7 @@ app.use('/api/chimera/worlds', chimeraWorldsRepoRouter);
 console.log('[Server] Mounted /api/chimera/rulesets route');
 app.use('/api/chimera/rulesets', chimeraRulesetsRepoRouter);
 app.use('/api/chimera/entities', chimeraEntitiesRepoRouter);
+app.use('/api/v2/chimera/player-characters', chimeraPlayerCharactersRouter);
 app.use('/api/chimera/lore', chimeraLoreRepoRouter);
 // app.use('/api/chimera/assets', chimeraAssetsRouter); // Moved to V2 router
 app.use('/api/chimera/compile', chimeraCompileRouter);

@@ -182,5 +182,52 @@ router.get('/:storyId', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/chimera/compile/:storyId/manifest
+ * Optimized endpoint for Character Creator to fetch only necessary UI schema
+ */
+router.get('/:storyId/manifest', async (req: Request, res: Response) => {
+  try {
+    const { storyId } = req.params;
+    const userId = req.ctx?.userId;
+
+    if (!userId) {
+      return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'Authentication required', req);
+    }
+
+    // Use admin client for access check
+    const { data: story, error: storyError } = await supabaseAdmin
+      .from('chimera_stories')
+      .select('owner_user_id, visibility')
+      .eq('id', storyId)
+      .single();
+
+    if (storyError || !story) {
+      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Story not found', req);
+    }
+
+    if (story.owner_user_id !== userId && story.visibility !== 'public') {
+      return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
+    }
+
+    const compiledStoriesRepo = new CompiledStoriesRepository(supabaseAdmin as any);
+    const manifestData = await compiledStoriesRepo.getManifestByKey(storyId);
+
+    if (!manifestData) {
+      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Compiled schema not found', req);
+    }
+
+    return sendSuccess(res, manifestData, req);
+  } catch (error) {
+    console.error('[Chimera Compile] Error fetching manifest:', error);
+    return sendErrorWithStatus(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      error instanceof Error ? error.message : 'Failed to fetch manifest',
+      req
+    );
+  }
+});
+
 export default router;
 

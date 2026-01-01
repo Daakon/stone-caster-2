@@ -242,77 +242,58 @@ router.get('/stories', async (req: Request, res: Response) => {
     const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
     console.log('[CATALOG] GET /stories - Starting query', searchQuery ? `(search: ${searchQuery})` : '');
 
-    // Phase 4.3: Use compiled_stories instead of entry_points
-    // compiled_stories schema: id, story_key, compiled (JSONB), created_at, updated_at
-    const { data: storiesData, error, count } = await supabaseAdmin
-      .from('compiled_stories')
-      .select('id, story_key, compiled, created_at, updated_at', { count: 'exact' })
+    // Phase 5: Query chimera_stories directly (V3 Schema)
+    let query = supabaseAdmin
+      .from('chimera_stories')
+      .select('id, title, display_name, description, description_short, image_url, world_id, content_rating, created_at, updated_at, status', { count: 'exact' })
+      .in('status', ['compiled', 'bound']) // Only show playable stories
       .order('created_at', { ascending: false });
 
+    // Phase 4.10: Add search filter if provided
+    if (searchQuery) {
+      query = query.or(`title.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+    }
+
+    const { data: storiesData, error, count } = await query;
+
     if (error) {
-      console.error('Supabase query error:', error);
+      console.error('[CATALOG] GET /stories - Supabase query error:', error);
       throw error;
     }
 
-    // Phase 4.3: Transform compiled_stories to catalog DTO format
-    // Extract data from compiled JSONB (CompiledStory structure)
-    let items = (storiesData || []).map((story: any) => {
-      const compiled = story.compiled || {};
-      const meta = compiled.meta || {};
-      const worldKey = meta.world || null; // World is stored as key/ID in meta.world
-
-      // Extract story metadata (may be in different locations in compiled JSONB)
-      const title = meta.title || meta.name || story.story_key || 'Untitled Story';
-      const description = meta.description || meta.synopsis || 'No description available';
-      const synopsis = meta.synopsis || null;
-      const tags = meta.tags || [];
-      const contentRating = meta.content_rating || null;
-
-      // Extract images if available (may be in meta or top-level)
-      const images = meta.images || compiled.images || [];
-      const coverImage = images.length > 0 ? images[0] : null;
-
+    // Transform to catalog DTO format
+    const items = (storiesData || []).map((story: any) => {
       return {
         id: story.id,
-        slug: story.id, // Use ID as slug for compiled stories
+        slug: story.id, // Use ID as slug
         type: 'story',
-        title: title,
+        title: story.title || story.display_name || 'Untitled Story',
         subtitle: null,
-        description: description,
-        synopsis: synopsis,
-        tags: tags,
-        world_id: worldKey, // World key/ID from meta.world
-        world_name: null, // Would need lookup to get world name
+        description: story.description || story.description_short || 'No description available',
+        synopsis: story.description_short || null,
+        tags: [], // Tags not yet in chimera_stories top-level?
+        world_id: story.world_id,
+        world_name: null, // Would need lookup
         world_slug: null,
-        content_rating: contentRating,
-        is_playable: true, // Compiled stories are playable
-        has_prompt: !!(compiled.prompt || meta.prompt),
-        cover_media: coverImage ? {
-          id: coverImage.id || null,
-          provider_key: coverImage.url || coverImage.provider_key || null,
+        content_rating: story.content_rating,
+        is_playable: true,
+        has_prompt: true, // Assumed if compiled
+        cover_media: story.image_url ? {
+          id: null,
+          provider_key: story.image_url,
+          url: story.image_url
         } : null,
         created_at: story.created_at,
         updated_at: story.updated_at,
       };
     });
 
-    // Phase 4.10: Apply search filter if provided (client-side since data is in JSONB)
-    if (searchQuery) {
-      const queryLower = searchQuery.toLowerCase();
-      items = items.filter((item: any) => {
-        const title = (item.title || '').toLowerCase();
-        const description = (item.description || item.synopsis || '').toLowerCase();
-        const tags = (item.tags || []).join(' ').toLowerCase();
-        return title.includes(queryLower) || description.includes(queryLower) || tags.includes(queryLower);
-      });
-    }
-
     // Return unified response format
     res.json({
       ok: true,
       data: items,
       meta: {
-        total: items.length, // Use filtered count
+        total: count || items.length,
         limit: 20,
         offset: 0,
         filters: searchQuery ? { search: searchQuery } : {},
@@ -334,14 +315,24 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
 
-    // Phase 4.3: Use compiled_stories instead of entry_points
-    // compiled_stories schema: id, story_key, compiled (JSONB), created_at, updated_at
-    const { data: story, error } = await supabaseAdmin
-      .from('compiled_stories')
-      .select('id, story_key, compiled, created_at, updated_at')
-      .or(`id.eq.${idOrSlug},story_key.eq.${idOrSlug}`) // Support both UUID id and story_key
-      .limit(1)
-      .single();
+    // Check if UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+
+    let query = supabaseAdmin
+      .from('chimera_stories')
+      .select(`
+        id, title, display_name, description, description_short, image_url, world_id, content_rating, created_at, updated_at, status, configuration,
+        world:chimera_worlds (id, name, slug)
+      `);
+
+    if (isUUID) {
+      query = query.eq('id', idOrSlug);
+    } else {
+      // Stories don't have slugs yet, so only ID supported for now. Fallback to ID check.
+      query = query.eq('id', idOrSlug);
+    }
+
+    const { data: story, error } = await query.single();
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -361,58 +352,27 @@ router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
       });
     }
 
-    // Phase 4.3: Extract data from compiled JSONB (CompiledStory structure)
-    const compiled = story.compiled || {};
-    const meta = compiled.meta || {};
-    const worldKey = meta.world || null; // World is stored as key/ID in meta.world
-
-    // Extract story metadata
-    const title = meta.title || meta.name || story.story_key || 'Untitled Story';
-    const description = meta.description || meta.synopsis || 'No description available';
-    const synopsis = meta.synopsis || null;
-    const tags = meta.tags || [];
-    const contentRating = meta.content_rating || null;
-
-    // Extract images if available
-    const images = meta.images || compiled.images || [];
-    const coverImage = images.length > 0 ? images[0] : null;
-
-    // Get world name if worldKey exists (lookup by key or id)
-    let worldName = null;
-    let worldSlug = null;
-    if (worldKey) {
-      const { data: worldData } = await supabaseAdmin
-        .from('chimera_worlds')
-        .select('name, slug')
-        .or(`id.eq.${worldKey},key.eq.${worldKey},slug.eq.${worldKey}`)
-        .limit(1)
-        .single();
-      if (worldData) {
-        worldName = worldData.name;
-        worldSlug = worldData.slug;
-      }
-    }
-
     const dto = {
       id: story.id,
-      slug: story.id, // Use ID as slug for compiled stories
+      slug: story.id,
       type: 'story',
-      title: title,
+      title: story.title || story.display_name || 'Untitled Story',
       subtitle: null,
-      description: description,
-      synopsis: synopsis,
-      tags: tags,
-      world_id: worldKey,
-      world_name: worldName,
-      world_slug: worldSlug,
-      content_rating: contentRating,
-      is_playable: true, // Compiled stories are playable
-      has_prompt: !!(compiled.prompt || meta.prompt),
-      cover_media: coverImage ? {
-        id: coverImage.id || null,
-        provider_key: coverImage.url || coverImage.provider_key || null,
+      description: story.description || story.description_short || 'No description available',
+      synopsis: story.description_short || null,
+      tags: [],
+      world_id: story.world_id,
+      world_name: story.world?.name || null,
+      world_slug: story.world?.slug || null,
+      content_rating: story.content_rating,
+      is_playable: true,
+      has_prompt: true,
+      cover_media: story.image_url ? {
+        id: null,
+        provider_key: story.image_url,
+        url: story.image_url
       } : null,
-      rulesets: meta.active_rulesets || [], // Rulesets are in meta.active_rulesets
+      rulesets: (story.configuration as any)?.rulesetIds || [],
       created_at: story.created_at,
       updated_at: story.updated_at,
     };
