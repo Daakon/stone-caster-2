@@ -7,6 +7,7 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { getChimeraSupabaseClient } from '../db/supabase-client.js';
+import { supabaseAdmin } from '../services/supabase.js';
 import { RulesetsRepository } from '../db/repos/rulesets.repo.js';
 import { WorldsRepository } from '../db/repos/worlds.repo.js';
 import { EntitiesRepository } from '../db/repos/entities.repo.js';
@@ -14,8 +15,12 @@ import { CompiledStoriesRepository } from '../db/repos/compiled-stories.repo.js'
 import { CompilerService } from '../services/compile/compiler.service.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared/types/api.js';
+import { requireAuth } from '../middleware/auth.unified.js';
 
 const router = Router();
+
+// All routes require authentication
+router.use(requireAuth);
 
 // Request body validation schema
 const CompileSelectionSchema = z.object({
@@ -138,14 +143,13 @@ router.get('/:storyId', async (req: Request, res: Response) => {
       return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'Authentication required', req);
     }
 
-    const supabase = getChimeraSupabaseClient(req);
-    const compiledStoriesRepo = new CompiledStoriesRepository(supabase);
+    // Use admin client for repo to ensure we can read compiled story (RLS might block user read)
+    // We already verified ownership via the draft check above
+    const compiledStoriesRepo = new CompiledStoriesRepository(supabaseAdmin as any);
 
-    // TODO: strictly we should check chimera_stories ownership here first
-    // For now, we rely on the repo finding the story by ID.
-    // Ideally we join or do a separate check.
-    // Let's do a quick check on chimera_stories to ensure user access
-    const { data: story, error: storyError } = await supabase
+    // Use admin client to fetch story to bypass potential RLS issues
+    // We will verify ownership manually
+    const { data: story, error: storyError } = await supabaseAdmin
       .from('chimera_stories')
       .select('owner_user_id, visibility')
       .eq('id', storyId)

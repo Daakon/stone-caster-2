@@ -12,6 +12,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Loader2, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiPost } from '@/lib/api';
+import { SchemaDebug } from '@/components/debug/SchemaDebug';
+import type { RulesetDefinition } from '@shared/types/chimera-authoring';
+
+// DEBUG FLAGS
+const DEBUG_SCHEMA_ENGINE = false;
 
 type ViewMode = 'SELECTION' | 'CREATION';
 type Tab = 'MY_CHARACTERS' | 'PREMADES';
@@ -75,9 +80,9 @@ export default function StartGatewayPage() {
         // Actually, let's just use the Wizard but pre-fill it.
         // But Wizard refactor in Step 4 doesn't mention pre-fill props yet.
         // Let's just log for now and maybe switch to creation.
-        toast.info(`Selected ${premade.name} - Opening Wizard...`);
-        // Ideally we pass `initialData` to Wizard.
-        setViewMode('CREATION');
+        // TODO: Pass premade template to V2 Forge via state or query param
+        toast.info(`Selected ${premade.name} - Opening Forge...`);
+        navigate(`/play/create/${storyId}`);
     };
 
     if (storyLoading) {
@@ -108,6 +113,16 @@ export default function StartGatewayPage() {
                 </div>
             </div>
         );
+    }
+
+    if (DEBUG_SCHEMA_ENGINE && story) {
+        // Validation: Ensure we are passing correct types.
+        // story.snapshot_world should map to WorldDefinition
+        // story.config_engine.active_rulesets should map to RulesetDefinition[] if available
+        const world = story.snapshot_world as any;
+        const rulesets = (story.config_engine?.active_rulesets || []) as RulesetDefinition[];
+
+        return <SchemaDebug world={world} rulesets={rulesets} />;
     }
 
     // Merge Schema
@@ -156,7 +171,7 @@ export default function StartGatewayPage() {
                             selectedTab="MY_CHARACTERS"
                             onSelectCharacter={handleSelectCharacter}
                             onSelectPremade={() => { }}
-                            onCreateNew={() => setViewMode('CREATION')}
+                            onCreateNew={() => navigate(`/play/create/${storyId}`)}
                         />
                     </TabsContent>
 
@@ -167,7 +182,7 @@ export default function StartGatewayPage() {
                             selectedTab="PREMADES"
                             onSelectCharacter={() => { }}
                             onSelectPremade={handleSelectPremade}
-                            onCreateNew={() => setViewMode('CREATION')}
+                            onCreateNew={() => navigate(`/play/create/${storyId}`)}
                         />
                     </TabsContent>
                 </Tabs>

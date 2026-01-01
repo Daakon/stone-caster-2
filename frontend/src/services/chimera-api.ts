@@ -382,7 +382,7 @@ export async function compileStory(
  * Get a compiled story by ID
  */
 export async function getCompiledStory(id: string): Promise<import('@shared/types/chimera-compiled').CompiledStory> {
-  const result = await apiFetch<import('@shared/types/chimera-compiled').CompiledStory>(`/api/chimera/stories/${id}`);
+  const result = await apiFetch<import('@shared/types/chimera-compiled').CompiledStory>(`/api/chimera/compile/${id}`);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to fetch compiled story');
   }
