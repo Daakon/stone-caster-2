@@ -58,20 +58,29 @@ export class StoriesRepository {
    * @param playerId - The player's user ID
    * @returns The ID of the created game state
    */
+  /**
+   * Create a new game state from a bundle
+   * @param storyId - The ID of the compiled story
+   * @param bundle - The GameStateBundle
+   * @param playerId - The player's user ID
+   * @returns The ID of the created game state
+   */
   async createGameState(
     storyId: string,
-    initialState: GameState,
+    bundle: any, // Typed as GameStateBundle in service, but using any here to avoid strict circular deps if needed
     playerId: string
   ): Promise<string> {
-    // Validate the game state
-    const validated = GameStateSchema.parse(initialState);
+    const { mechanical, narrative, registry, queue } = bundle;
 
     const { data, error } = await this.supabase
       .from('chimera_game_states')
       .insert({
         story_id: storyId,
-        state: validated as unknown as Record<string, unknown>,
         player_id: playerId,
+        mechanical_state: mechanical,
+        narrative_focus: narrative,
+        scene_registry: registry,
+        action_queue: queue || []
       })
       .select('id')
       .single();
@@ -90,49 +99,28 @@ export class StoriesRepository {
   /**
    * Load a game state by ID
    * @param id - The game state ID
-   * @returns GameState or null if not found
+   * @returns GameStateBundle or null
    */
-  async loadGameState(id: string): Promise<GameState | null> {
+  async loadGameState(id: string): Promise<any | null> {
     const { data, error } = await this.supabase
       .from('chimera_game_states')
-      .select('state')
+      .select('mechanical_state, narrative_focus, scene_registry, action_queue')
       .eq('id', id)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return null; // Not found
-      }
+      if (error.code === 'PGRST116') return null;
       throw new Error(`Failed to load game state: ${error.message}`);
     }
 
-    if (!data) {
-      return null;
-    }
+    if (!data) return null;
 
-    return GameStateSchema.parse(data.state);
-  }
-
-  /**
-   * Update a game state
-   * @param id - The game state ID
-   * @param newState - The updated GameState
-   */
-  async updateGameState(id: string, newState: GameState): Promise<void> {
-    // Validate the game state
-    const validated = GameStateSchema.parse(newState);
-
-    const { error } = await this.supabase
-      .from('chimera_game_states')
-      .update({
-        state: validated as unknown as Record<string, unknown>,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-
-    if (error) {
-      throw new Error(`Failed to update game state: ${error.message}`);
-    }
+    return {
+      mechanical: data.mechanical_state,
+      narrative: data.narrative_focus,
+      registry: data.scene_registry,
+      queue: data.action_queue
+    };
   }
 
   /**

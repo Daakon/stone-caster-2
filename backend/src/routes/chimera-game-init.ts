@@ -12,12 +12,14 @@ import { GameInitService } from '../services/game/game-init.service.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared';
 import { requireAuth } from '../middleware/auth.unified.js';
+import { SupabaseGameStateRepository } from '../services/game/supabase-state.repository.js';
 
 const router = Router();
 
 // Request body validation schema
 const InitializeGameRequestSchema = z.object({
   storyId: z.string().uuid('Invalid story ID'),
+  characterId: z.string().uuid().optional(), // Allow passing explicit character ID
   playerInput: z.object({
     identity: z.object({
       name: z.string().min(1, 'Name is required'),
@@ -56,12 +58,14 @@ router.post(
 
       const supabase = getChimeraSupabaseClient(req);
       const storiesRepo = new StoriesRepository(supabase);
-      const gameInitService = new GameInitService(storiesRepo);
+      const stateRepo = new SupabaseGameStateRepository(supabase);
+      const gameInitService = new GameInitService(storiesRepo, stateRepo);
 
       const gameStateId = await gameInitService.initializeGame(
         validated.storyId,
         validated.playerInput,
-        userId
+        userId,
+        validated.characterId
       );
 
       return sendSuccess(res, { id: gameStateId }, req, 201);

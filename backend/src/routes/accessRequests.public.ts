@@ -53,7 +53,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (!accessRequestRateLimiter.check(rateLimitKey, limit)) {
       const resetTime = accessRequestRateLimiter.getResetTime(rateLimitKey);
-      
+
       // Log rate limit event
       console.log(
         JSON.stringify({
@@ -155,15 +155,11 @@ router.get('/status', optionalAuth, async (req: Request, res: Response) => {
     const userEmail = req.ctx?.user?.email || null;
 
     // Log for debugging
-    console.log('[accessRequests.public] Status check', {
-      userId,
-      userEmail,
-      hasEmail: !!userEmail,
-    });
+
 
     // If not authenticated, return null (no request)
     if (!userId && !userEmail) {
-      console.log('[accessRequests.public] No userId or email, returning null');
+
       return sendSuccess(res, { request: null }, req);
     }
 
@@ -181,17 +177,13 @@ router.get('/status', optionalAuth, async (req: Request, res: Response) => {
 
       if (!userIdError && userIdRequests && userIdRequests.length > 0) {
         requests = userIdRequests;
-        console.log('[accessRequests.public] Found request by user_id', { userId, requestId: requests[0].id });
-      } else {
-        console.log('[accessRequests.public] No request found by user_id', { userId, error: userIdError?.message });
       }
     }
 
     // If no request found by user_id, try by email (handles requests submitted before login)
     if (requests.length === 0 && userEmail) {
       const normalizedEmail = userEmail.toLowerCase().trim();
-      console.log('[accessRequests.public] Searching by email', { email: normalizedEmail });
-      
+
       // Try exact match first (using the index on lower(email))
       const { data: emailRequests, error: emailError } = await supabaseAdmin
         .from('access_requests')
@@ -202,19 +194,8 @@ router.get('/status', optionalAuth, async (req: Request, res: Response) => {
 
       if (!emailError && emailRequests && emailRequests.length > 0) {
         requests = emailRequests;
-        console.log('[accessRequests.public] Found request by email', { 
-          email: normalizedEmail, 
-          requestId: requests[0].id, 
-          status: requests[0].status,
-          dbEmail: requests[0].email 
-        });
       } else {
         // If exact match fails, try case-insensitive pattern match as fallback
-        console.log('[accessRequests.public] Exact email match failed, trying ilike', { 
-          email: normalizedEmail, 
-          error: emailError?.message 
-        });
-        
         const { data: emailRequestsIlike, error: emailErrorIlike } = await supabaseAdmin
           .from('access_requests')
           .select('*')
@@ -224,50 +205,25 @@ router.get('/status', optionalAuth, async (req: Request, res: Response) => {
 
         if (!emailErrorIlike && emailRequestsIlike && emailRequestsIlike.length > 0) {
           requests = emailRequestsIlike;
-          console.log('[accessRequests.public] Found request by email (ilike)', { 
-            email: normalizedEmail, 
-            requestId: requests[0].id, 
-            status: requests[0].status,
-            dbEmail: requests[0].email 
-          });
-        } else {
-          console.log('[accessRequests.public] No request found by email (both eq and ilike failed)', { 
-            email: normalizedEmail, 
-            eqError: emailError?.message,
-            ilikeError: emailErrorIlike?.message 
-          });
         }
       }
     }
 
     // Return the latest request or null
     const request = requests && requests.length > 0 ? requests[0] : null;
-    
+
     if (request) {
-      console.log('[accessRequests.public] Returning request', {
-        requestId: request.id,
-        status: request.status,
-        email: request.email,
-        userId: request.user_id,
-      });
       sendSuccess(res, { request }, req);
     } else {
       // Log detailed info about why no request was found
-      console.log('[accessRequests.public] No request found', {
-        searchedUserId: userId,
-        searchedEmail: userEmail,
-        reason: userId 
-          ? `No request found for user_id: ${userId} or email: ${userEmail || 'N/A'}`
-          : `No request found for email: ${userEmail || 'N/A'}`,
-      });
-      sendSuccess(res, { 
+      sendSuccess(res, {
         request: null,
         // Include helpful debug info in development
         ...(process.env.NODE_ENV === 'development' && {
           _debug: {
             searchedUserId: userId,
             searchedEmail: userEmail,
-            message: userId 
+            message: userId
               ? `Searched by user_id (${userId}) and email (${userEmail || 'N/A'})`
               : `Searched by email (${userEmail || 'N/A'})`,
           },

@@ -71,15 +71,21 @@ export async function validateSessionIntegrity(
         }
 
         // 2. Load Actor (The "Player")
-        const { data: playerData, error: pErr } = await supabase
-            .from('chimera_entities')
-            .select('*')
-            .eq('story_id', storyId)
-            .eq('kind', 'PLAYER')
-            .maybeSingle(); // Use maybeSingle to avoid throwing on empty
+        // 2. Load Actor (The "Player")
+        const protagonistId = story.protagonist_id;
 
-        if (pErr) return { status: 'error', error: pErr.message };
-        if (!playerData) return { status: 'error', error: 'Player Character missing. Please create your character.' };
+        if (!protagonistId) {
+            return { status: 'error', error: 'Player Character missing (No protagonist_id linked). Please create or bind your character.' };
+        }
+
+        const { data: playerData, error: pErr } = await supabase
+            .from('chimera_player_characters')
+            .select('*')
+            .eq('id', protagonistId)
+            .single();
+
+        if (pErr) return { status: 'error', error: 'Failed to load Character: ' + pErr.message };
+        if (!playerData) return { status: 'error', error: 'Player Character record not found.' };
 
         const player = playerData as any;
 
