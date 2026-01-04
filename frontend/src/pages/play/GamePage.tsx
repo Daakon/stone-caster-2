@@ -16,7 +16,7 @@ import { StatsPanel } from '@/components/game/StatsPanel';
 import { ActionInput } from '@/components/game/ActionInput';
 import { castStone, loadState, type CastStoneResponse } from '@/services/game-client';
 import type { GameState } from '@shared/types/chimera-runtime';
-import { useGameSession } from '@/hooks/game/useGameSession';
+// import { useGameSession } from '@/hooks/game/useGameSession';
 import { GameGenesisLoader } from '@/components/game/GameGenesisLoader';
 import { ActiveGameInterface } from '@/components/game/ActiveGameInterface';
 
@@ -38,8 +38,8 @@ export default function GamePage() {
     // onSuccess is removed in v5, using useEffect instead
   });
 
-  // 2. Validate Session Integrity checks
-  const { status, refresh } = useGameSession(initialGameState?.story_id || null);
+  // 2. Session validation is handled implicitly by loadState success
+  // const { status, refresh } = useGameSession(initialGameState?.story_id || null);
 
   // 3. Hydrate Local State when Data Loads
   useEffect(() => {
