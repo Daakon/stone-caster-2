@@ -13,6 +13,9 @@ import {
 } from '../utils/adventure-identity.js';
 import { PerformanceTimer } from '../utils/timing.js';
 import { rulesetCache, npcListCache } from '../utils/cache.js';
+import { CompiledStoriesRepository } from '../db/repos/compiled-stories.repo.js';
+import { gameStateService } from './game-state.service.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface Game {
   id: string;
@@ -102,7 +105,7 @@ export class GamesService {
       }
 
       const adventureWorldId = adventure.worldId; // UUID
-      
+
       // Fetch entry_point to get its type
       let entryPointType: string = 'adventure'; // default fallback
       if (adventure.id) {
@@ -111,12 +114,12 @@ export class GamesService {
           .select('type')
           .eq('id', adventure.id)
           .single();
-        
+
         if (entryPoint?.type) {
           entryPointType = entryPoint.type;
         }
       }
-      
+
       // Fetch primary ruleset from entry_point_rulesets junction table
       // Get the first one ordered by sort_order (primary ruleset)
       let rulesetId: string | undefined;
@@ -127,12 +130,12 @@ export class GamesService {
           .eq('entry_point_id', adventure.id)
           .order('sort_order', { ascending: true })
           .limit(1);
-        
+
         if (rulesets && rulesets.length > 0) {
           rulesetId = rulesets[0].ruleset_id;
         }
       }
-      
+
       // If ruleset_id is still missing, we can't create the game
       if (!rulesetId) {
         return {
@@ -141,11 +144,11 @@ export class GamesService {
           message: `Entry point '${adventure.id}' does not have any associated rulesets in entry_point_rulesets table`,
         };
       }
-      
+
       // Get worldSlug for games table (denormalized field for display/filtering)
       // First try to get from adventure, then from character
       let worldSlug: string | undefined = adventure.worldSlug;
-      
+
       // If character is specified, validate it exists and is available
       let character: any = null;
       if (characterId) {
@@ -187,7 +190,7 @@ export class GamesService {
             worldSlug: adventure.worldSlug,
           },
         });
-        
+
         if (character.worldId !== adventureWorldId) {
           return {
             success: false,
@@ -196,7 +199,7 @@ export class GamesService {
           };
         }
       }
-      
+
       // Fallback to 'unknown' if we still don't have it
       // Note: worldSlug is now optional/denormalized - world_id (UUID) is the source of truth
       if (!worldSlug) {
@@ -310,7 +313,7 @@ export class GamesService {
   async spawnV3(request: SpawnRequestV3): Promise<SpawnResultV3> {
     const timer = new PerformanceTimer();
     timer.start('totalMs');
-    
+
     const {
       entry_point_id,
       world_id,
@@ -329,10 +332,10 @@ export class GamesService {
       // In test mode, use transaction client; otherwise use Supabase
       const { getTestTxClient } = await import('../middleware/testTx.js');
       const txClient = request.req ? getTestTxClient(request.req) : null;
-      
+
       if (idempotency_key) {
         let existingIdempotency: any = null;
-        
+
         if (txClient) {
           // Test mode: query within transaction
           const result = await txClient.query(
@@ -397,7 +400,7 @@ export class GamesService {
 
       // 2. Resolve ruleset (from entry_point_rulesets or use provided/default)
       timer.start('resolveContextMs');
-      
+
       let rulesetId: string | undefined = ruleset_slug;
       let resolvedRulesetSlug: string = ruleset_slug || 'default';
 
@@ -405,7 +408,7 @@ export class GamesService {
         // Check cache first
         const cacheKey = `ruleset:${entry_point_id}`;
         const cachedSlug = rulesetCache.get(cacheKey);
-        
+
         if (cachedSlug) {
           resolvedRulesetSlug = cachedSlug;
           // Still need to resolve rulesetId from slug
@@ -536,10 +539,10 @@ export class GamesService {
       await this.handleStarterStonesGrant(ownerId, isGuest);
 
       timer.end('resolveContextMs');
-      
+
       // 9. Assemble prompt using v3 entry-point assembler
       timer.start('assemblerMs');
-      
+
       const { EntryPointAssemblerV3, EntryPointAssemblerError } = await import('../prompts/entry-point-assembler-v3.js');
       const { config: appConfig } = await import('../config/index.js');
       const { MetricsService } = await import('./metrics.service.js');
@@ -583,7 +586,7 @@ export class GamesService {
           } else if (error.code === 'RULESET_NOT_ALLOWED') {
             apiCode = ApiErrorCode.VALIDATION_FAILED;
           }
-          
+
           return {
             success: false,
             error: apiCode,
@@ -593,29 +596,84 @@ export class GamesService {
         }
         throw error; // Re-throw unexpected errors
       }
-      
+
       timer.end('assemblerMs');
 
-      // Increment v3 usage metric for game creation
-      MetricsService.increment('prompt_v3_used_total', {
-        phase: 'start',
-        policy: (assembleResult.meta.policy || []).join(','),
-      });
+      // 10. Hydrate Game State from Version (Genesis Config) if available
+      timer.start('hydrationMs');
+      let hydratedState: any = null;
+      let generatedGameId = uuidv4(); // Generate UUID for state consistency (though DB might generate its own if we don't pass it, but assuming we can/should aligns state)
 
-      // 10. Atomic transaction: insert game and first turn via stored procedure
+      try {
+        // Attempt to load Compiled Story (Version) using entry_point_id (assuming it maps to story_id for stories)
+        const compiledStoriesRepo = new CompiledStoriesRepository(supabaseAdmin);
+        // Try finding by ID first (cartridge ID), then by Key (story ID)
+        let compiledStory = await compiledStoriesRepo.findById(entry_point_id);
+        if (!compiledStory) {
+          compiledStory = await compiledStoriesRepo.findByKey(entry_point_id);
+        }
+
+        if (compiledStory) {
+          console.log(`[GAME_SPAWN_V3] Hydrating state from Story Version: ${compiledStory.id}`);
+          const gameStateBundle = await gameStateService.initializeActiveGame(
+            generatedGameId, // pass anticipated ID
+            compiledStory,
+            character,
+            ownerId
+          );
+
+          // Verify Location Alignment (User Refinement 1)
+          // We rely on initializeActiveGame to set it, but we can double check here if needed.
+          // const playerNode = gameStateBundle.mechanical.entities[character?.id]?.properties.location_id;
+
+          hydratedState = {
+            ...gameStateBundle,
+            // Preserve metadata
+            metadata: {
+              entryPointId: entry_point_id,
+              entryPointSlug: entryPoint.slug,
+              entryStartSlug: entry_start_slug,
+              scenarioSlug: scenario_slug || null,
+              rulesetSlug: resolvedRulesetSlug,
+              storyVersion: compiledStory.version
+            }
+          };
+        }
+      } catch (hydrationError) {
+        console.error('[GAME_SPAWN_V3] Error hydrating game state:', hydrationError);
+        // Fallback to basic state if hydration fails? Or strict fail?
+        // For now, log and proceed with basic snapshot if possible, or undefined (proc handles it?)
+        // The current proc expects p_state_snapshot
+      }
+      timer.end('hydrationMs');
+
+      // 11. Atomic transaction: insert game and first turn via stored procedure
       timer.start('persistMs');
+
+      // Default snapshot if hydration failed or not a Compiled Story
+      const finalStateSnapshot = hydratedState || {
+        metadata: {
+          entryPointId: entry_point_id,
+          entryPointSlug: entryPoint.slug,
+          entryStartSlug: entry_start_slug,
+          scenarioSlug: scenario_slug || null,
+          rulesetSlug: resolvedRulesetSlug,
+        },
+      };
+
+      // Using stored procedure ensures true atomicity with automatic rollback on error
       // Using stored procedure ensures true atomicity with automatic rollback on error
       // In test mode, execute via transaction client to ensure rollback
       // Reuse txClient already declared at line 313 (don't redeclare)
       let transactionResult: any;
       let transactionError: any;
-      
+
       if (txClient) {
         // Test mode: execute stored procedure via transaction client
         // Set statement timeout to prevent stuck procedures from pinning the transaction
         try {
           await txClient.query('SET LOCAL statement_timeout = 10000'); // 10s timeout
-          
+
           const result = await txClient.query(
             `SELECT * FROM spawn_game_v3_atomic(
               $1::uuid, $2::text, $3::uuid, $4::uuid, $5::uuid,
@@ -629,15 +687,7 @@ export class GamesService {
               rulesetId,
               characterId || null,
               worldSlug,
-              JSON.stringify({
-                metadata: {
-                  entryPointId: entry_point_id,
-                  entryPointSlug: entryPoint.slug,
-                  entryStartSlug: entry_start_slug,
-                  scenarioSlug: scenario_slug || null,
-                  rulesetSlug: resolvedRulesetSlug,
-                },
-              }),
+              JSON.stringify(finalStateSnapshot),
               isGuest ? null : ownerId,
               isGuest ? ownerId : null,
               'narrator',
@@ -648,7 +698,7 @@ export class GamesService {
               }),
             ]
           );
-          
+
           transactionResult = result.rows[0];
           transactionError = null;
         } catch (err: any) {
@@ -666,15 +716,7 @@ export class GamesService {
             p_ruleset_id: rulesetId,
             p_character_id: characterId || null,
             p_world_slug: worldSlug,
-            p_state_snapshot: {
-              metadata: {
-                entryPointId: entry_point_id,
-                entryPointSlug: entryPoint.slug,
-                entryStartSlug: entry_start_slug,
-                scenarioSlug: scenario_slug || null,
-                rulesetSlug: resolvedRulesetSlug,
-              },
-            },
+            p_state_snapshot: finalStateSnapshot,
             p_user_id: isGuest ? null : ownerId,
             p_cookie_group_id: isGuest ? ownerId : null,
             p_turn_role: 'narrator',
@@ -687,7 +729,7 @@ export class GamesService {
             },
           }
         );
-        
+
         // Extract result from RPC response
         transactionResult = rpcResult.data || null;
         transactionError = rpcResult.error || null;
@@ -695,7 +737,7 @@ export class GamesService {
 
       if (transactionError) {
         console.error('[SPAWN_V3] Transaction error:', transactionError);
-        
+
         // Map transaction error codes
         if (transactionError.code === '23505' || transactionResult?.error_code === 'DB_CONFLICT') {
           return {
@@ -745,7 +787,7 @@ export class GamesService {
       }
 
       timer.end('persistMs');
-      
+
       // Success: extract results
       const createdGameId = transactionResult?.game_id;
       const createdTurnNumber = transactionResult?.turn_number || 1;
@@ -763,7 +805,7 @@ export class GamesService {
       // In test mode, use transaction client; otherwise use Supabase
       let createdTurn: any;
       let fetchTurnError: any = null;
-      
+
       if (txClient) {
         // Test mode: query within transaction
         try {
@@ -852,7 +894,7 @@ export class GamesService {
               .is('game_id', null)
               .eq('status', 'completed')
               .single();
-            
+
             if (prodCheck.data?.response_data) {
               // Winner-takes-all: return cached production result (do not write new row)
               return {
@@ -861,7 +903,7 @@ export class GamesService {
                 first_turn: prodCheck.data.response_data.first_turn,
               };
             }
-            
+
             // No production record; write within test transaction (will rollback)
             await txClient.query(
               `INSERT INTO idempotency_keys (key, owner_id, game_id, operation, request_hash, response_data, status, completed_at)
@@ -901,7 +943,7 @@ export class GamesService {
       // 13. Structured logging
       const { isTestTxActive } = await import('../middleware/testTx.js');
       const testTxActive = request.req ? isTestTxActive(request.req) : false;
-      
+
       console.log('[SPAWN_V3]', {
         event: 'game.spawned',
         gameId: createdGameId,
@@ -929,7 +971,7 @@ export class GamesService {
       };
 
       timer.end('totalMs');
-      
+
       const timings = {
         resolveContextMs: timer.getDuration('resolveContextMs') || 0,
         assemblerMs: timer.getDuration('assemblerMs') || 0,
@@ -937,19 +979,19 @@ export class GamesService {
         persistMs: timer.getDuration('persistMs') || 0,
         totalMs: timer.getDuration('totalMs') || 0,
       };
-      
+
       // Record metrics
       const { metricsCollector, checkSLOViolations } = await import('../utils/metrics.js');
       const totalMs = timings.totalMs;
       metricsCollector.recordHistogram('v3_spawn_ms', totalMs);
       metricsCollector.recordHistogram('v3_assembler_ms', timings.assemblerMs);
-      
+
       // Check SLO violations
       const spawnPercentiles = metricsCollector.getHistogramPercentiles('v3_spawn_ms');
       if (spawnPercentiles) {
         checkSLOViolations('v3_spawn_ms', spawnPercentiles.p95, appConfig.slo.spawnP95Ms);
       }
-      
+
       // Include assembler metadata if requested (for debug)
       if (request.includeAssemblerMetadata) {
         result.assemblerMetadata = {
@@ -971,9 +1013,9 @@ export class GamesService {
             .select('role')
             .eq('auth_user_id', ownerId)
             .single();
-          
+
           const userRole = profile?.role || null;
-          
+
           if (userRole === 'admin') {
             const { writePromptTrace } = await import('./prompt-trace.service.js');
             // Get turn ID from turns table
@@ -983,7 +1025,7 @@ export class GamesService {
               .eq('game_id', result.game_id)
               .eq('turn_number', result.first_turn?.turn_number || 1)
               .single();
-            
+
             const turnId = turnData?.id || result.game_id;
             await writePromptTrace({
               gameId: result.game_id!,
@@ -1007,7 +1049,7 @@ export class GamesService {
       return result;
     } catch (error: any) {
       console.error('[SPAWN_V3] Unexpected error:', error);
-      
+
       // Check for EntryPointAssemblerError (v3 assembler)
       const { EntryPointAssemblerError } = await import('../prompts/entry-point-assembler-v3.js');
       if (error instanceof EntryPointAssemblerError) {
@@ -1090,8 +1132,8 @@ export class GamesService {
         // Also allow if game has user_id but no cookie_group_id (legacy authenticated game)
         // This handles games created before cookie_group tracking was added
         ownershipMatches = gameData.cookie_group_id === ownerId ||
-                          (!gameData.cookie_group_id && !!gameData.user_id);
-        
+          (!gameData.cookie_group_id && !!gameData.user_id);
+
         if (!gameData.cookie_group_id && !!gameData.user_id) {
           console.warn('[GAMES_SERVICE] Allowing guest access to authenticated game (legacy):', {
             gameId,
@@ -1102,9 +1144,9 @@ export class GamesService {
         }
       } else {
         // Authenticated user: check user_id or cookie_group_id (for linked accounts)
-        ownershipMatches = gameData.user_id === ownerId || 
-                          (guestCookieId && gameData.cookie_group_id === guestCookieId) ||
-                          gameData.cookie_group_id === ownerId;
+        ownershipMatches = gameData.user_id === ownerId ||
+          (guestCookieId && gameData.cookie_group_id === guestCookieId) ||
+          gameData.cookie_group_id === ownerId;
       }
 
       if (!ownershipMatches) {
@@ -1231,10 +1273,10 @@ export class GamesService {
    * @returns Turn record with ID and metadata
    */
   async applyTurn(
-    gameId: string, 
-    turnResult: TurnResponse, 
-    optionId: string, 
-      turnData?: {
+    gameId: string,
+    turnResult: TurnResponse,
+    optionId: string,
+    turnData?: {
       userInput?: string;
       userInputType?: 'choice' | 'text' | 'action';
       promptData?: any;
@@ -1274,13 +1316,13 @@ export class GamesService {
         optionIdUuid = crypto.randomUUID();
         console.log(`[GAMES_SERVICE] Generated UUID for optionId "${optionId}": ${optionIdUuid}`);
       }
-      
+
       // Determine if this is an initialization turn
       const isInitialization = nextTurnNumber === 1;
-      
+
       // Extract narrative summary from turn result
       const narrativeSummary = turnResult.narrative || 'Narrative not available';
-      
+
       // Phase 4.2: Extract V2 assembler metadata if present
       const promptMeta = turnData?.promptMetadata;
       const v2Meta = promptMeta?.meta || null;
@@ -1346,18 +1388,18 @@ export class GamesService {
         try {
           const { emitTurnMetrics, estimateCost } = await import('./turn-metrics.service.js');
           const { getPromptSnapshot } = await import('./prompt-snapshots.service.js');
-          
+
           // Try to get budget_report from snapshot
           const snapshot = await getPromptSnapshot(turnData.snapshotId);
           const budgetReport = snapshot?.budget_report || turnData.promptMetadata?.budget_report;
           const model = turnData.promptMetadata?.meta?.model || snapshot?.tp?.meta?.budgets?.model || 'gpt-4o-mini';
-          
+
           if (budgetReport) {
             const topTrims = (budgetReport.trims || [])
               .sort((a: any, b: any) => b.removedTokens - a.removedTokens)
               .slice(0, 3)
               .map((t: any) => t.key);
-            
+
             await emitTurnMetrics({
               turn_id: createdTurn.id,
               story_id: gameId, // Using gameId as story_id
@@ -1446,11 +1488,11 @@ export class GamesService {
       }
 
       const allTurns = turns || [];
-      
+
       // Check if there's a next page
       const hasMore = allTurns.length > limit;
       const turnsToReturn = hasMore ? allTurns.slice(0, limit) : allTurns;
-      
+
       // Build response with cursor
       const lastTurnNumber = turnsToReturn.length > 0
         ? turnsToReturn[turnsToReturn.length - 1].turn_number
@@ -1506,11 +1548,11 @@ export class GamesService {
         `)
         .eq('game_id', gameId)
         .order('turn_number', { ascending: true });
-      
+
       if (error) {
         throw new Error(`Failed to fetch session turns: ${error.message}`);
       }
-      
+
       // Map content.narrative to narrative_summary for compatibility
       const mappedTurns = (turns || []).map((turn: any) => ({
         id: turn.id,
@@ -1560,12 +1602,12 @@ export class GamesService {
       if (turn.content && typeof turn.content === 'object') {
         return (turn.content as any).narrative || null;
       }
-      
+
       // Fallback to meta.narrativeSummary
       if (turn.meta && typeof turn.meta === 'object') {
         return (turn.meta as any).narrativeSummary || null;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Unexpected error in getInitializeNarrative:', error);
@@ -1593,7 +1635,7 @@ export class GamesService {
 
       // Cookie group doesn't exist - create it manually
       console.log(`Creating cookie group for guest user ${cookieId}`);
-      
+
       // First, create the cookie group
       const { data: newGroup, error: groupCreateError } = await supabaseAdmin
         .from('cookie_groups')
@@ -1612,7 +1654,7 @@ export class GamesService {
           console.log(`Cookie group already exists for guest user ${cookieId} (duplicate key)`);
           return;
         }
-        
+
         console.error('Error creating cookie group:', groupCreateError);
         throw new Error(`Failed to create cookie group: ${groupCreateError.message}`);
       }
@@ -1633,7 +1675,7 @@ export class GamesService {
           console.log(`Cookie group member already exists for guest user ${cookieId}`);
           return;
         }
-        
+
         console.error('Error creating cookie group member:', memberCreateError);
         throw new Error(`Failed to create cookie group member: ${memberCreateError.message}`);
       }
@@ -1654,7 +1696,7 @@ export class GamesService {
     try {
       // Check if starter stones are enabled in config
       const pricingConfig = configService.getPricing();
-      
+
       if (pricingConfig.guestStarterCastingStones <= 0) {
         return; // Starter stones disabled
       }

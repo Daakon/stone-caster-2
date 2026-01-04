@@ -20,7 +20,8 @@ const CreatePlayerCharacterSchema = z.object({
 router.get('/', async (req, res) => {
     try {
         const userId = req.user!.id;
-        const characters = await ChimeraEntitiesService.listPlayerCharacters(userId);
+        const worldId = req.query.world_id as string | undefined;
+        const characters = await ChimeraEntitiesService.listPlayerCharacters(userId, worldId);
         return sendSuccess(res, characters, req);
     } catch (error) {
         return sendErrorWithStatus(

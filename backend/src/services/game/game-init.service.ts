@@ -158,13 +158,15 @@ export class GameInitService {
     if (allGenesisEntities.length > 0) {
       // 1. Add Extras and Stars to mechanical entities
       if (!bundle.mechanical.entities) {
-        bundle.mechanical.entities = [];
+        bundle.mechanical.entities = {};
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const existingEntities = (bundle.mechanical.entities as any[]);
+
+      const entitiesRecord = bundle.mechanical.entities;
 
       // Add Extras
-      existingEntities.push(...genesisEntities);
+      genesisEntities.forEach(extra => {
+        entitiesRecord[extra.id] = extra;
+      });
 
       // Add Stars (Clone and Activate)
       if (resolvedStars.length > 0) {
@@ -172,8 +174,8 @@ export class GameInitService {
           // Ensure they are treated as active instances
           const instance = { ...star, status: 'active' };
           // Avoid duplicates if star is somehow already in extras (unlikely)
-          if (!existingEntities.find(e => e.id === instance.id)) {
-            existingEntities.push(instance);
+          if (!entitiesRecord[instance.id]) {
+            entitiesRecord[instance.id] = instance;
           }
         });
       }

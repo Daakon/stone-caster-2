@@ -43,7 +43,7 @@ export default function StartGatewayPage() {
     const { data: charactersData, isLoading: charsLoading } = useQuery({
         queryKey: ['my-characters', worldId],
         queryFn: () => getMyCharacters(worldId) as Promise<any>,
-        enabled: !!worldId
+        enabled: !!story
     });
 
     const characters = charactersData?.data || [];

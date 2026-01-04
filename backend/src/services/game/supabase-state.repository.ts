@@ -14,6 +14,7 @@ export class SupabaseGameStateRepository implements IGameStateRepository {
             .from('chimera_game_states')
             .insert({
                 story_id: storyId,
+                player_id: userId,
 
                 mechanical_state: bundle.mechanical,
                 narrative_focus: bundle.narrative,

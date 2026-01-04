@@ -1,5 +1,8 @@
 import { supabaseAdmin } from './supabase.js';
 import type { Character, WorldTemplate } from '@shared';
+import type { GameStateBundle, ActiveEntity, EntityProperties, NarrativeFocus, MechanicalState, SceneRegistry } from '../domain/game-state.types.js';
+import type { CompiledStory } from './compile/compiler.service.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface GameState {
   id: string;
@@ -102,6 +105,169 @@ export class GameStateService {
     } catch (error) {
       console.error('Error creating initial game state:', error);
       throw new Error(`Failed to create initial game state: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * [CHIMERA V3] Initialize Active Game from Story Version (Director's Slate)
+   * Hydrates the Genesis Config into a live GameStateBundle.
+   */
+  async initializeActiveGame(
+    gameId: string,
+    compiledStory: CompiledStory,
+    playerCharacter: Character | null,
+    userId: string
+  ): Promise<GameStateBundle> {
+    try {
+      const { genesis_config, snapshot_entities, snapshot_world } = compiledStory;
+
+      // 1. Determine Start Scene
+      // Priority: Genesis Config > World First Scene > "default"
+      const startingSceneId = genesis_config?.opening_action?.scene_id || 'scene_start_01'; // Fallback
+
+      // 2. Hydrate Extras (Factory Pattern) & Setup Roster
+      const entities: Record<string, ActiveEntity> = {};
+      const entityVisuals: Record<string, string> = {};
+
+      // A. Player Entity
+      let playerId = 'player_main';
+      if (playerCharacter) {
+        playerId = playerCharacter.id;
+        entities[playerId] = {
+          id: playerId,
+          type: 'PLAYER',
+          status: 'active',
+          properties: {
+            name: playerCharacter.name,
+            is_known: true,
+            visual_name: playerCharacter.name,
+            visual_tags: ['Hero'], // Basic tag
+            ...playerCharacter.attributes, // Spread existing attributes
+            location_id: startingSceneId // [Refinement] Assign to Start Scene
+          }
+        };
+        entityVisuals[playerId] = playerCharacter.description || 'A mysterious hero.';
+      }
+
+      // B. Hydrate Extras from Genesis Config
+      if (genesis_config?.initial_cast) {
+        for (const extra of genesis_config.initial_cast) {
+          // Generate ID if deterministic one isn't provided, but ideally we use the one from config if versioned
+          const extraId = extra.id || uuidv4();
+
+          entities[extraId] = {
+            id: extraId,
+            type: 'NPC',
+            status: 'active',
+            properties: {
+              name: extra.name || 'Unknown',
+              visual_name: extra.visual_alias || extra.name || 'Unknown',
+              visual_tags: [
+                extra.role || 'Extra',
+                ...(extra.visual_tags || [])
+              ],
+              is_known: false, // Default to unknown
+              location_id: startingSceneId, // [Refinement] Assign to Start Scene
+              ...extra.properties
+            }
+          };
+
+          // Tag as Genesis Extra
+          if (!entities[extraId].properties.tags) entities[extraId].properties.tags = [];
+          (entities[extraId].properties.tags as string[]).push('genesis_extra');
+
+          entityVisuals[extraId] = extra.description || '';
+        }
+      }
+
+      // C. Merge Stars (Snapshot Entities)
+      // These are full entities defined in the story version
+      if (snapshot_entities) {
+        for (const star of snapshot_entities) {
+          // Only add if not already present (Player might override)
+          if (!entities[star.id]) {
+            entities[star.id] = {
+              id: star.id,
+              type: 'NPC', // Assume NPC for stars unless specified
+              status: 'active',
+              properties: {
+                ...star.properties,
+                // Ensure location is set if missing, defaults to start or "off_stage"
+                location_id: star.properties.location_id || 'off_stage'
+              }
+            };
+            entityVisuals[star.id] = (star.properties as any).description || '';
+          }
+        }
+      }
+
+      // 3. Construct Narrative Focus (The Stage)
+      const narrative: NarrativeFocus = {
+        scene_context: {
+          name: genesis_config?.opening_action?.title || 'The Beginning',
+          description: genesis_config?.set_design?.atmosphere || 'A quiet moment before the storm.',
+          atmosphere: genesis_config?.set_design?.atmosphere
+        },
+        entity_visuals: entityVisuals,
+        dialogue_history: [], // Will inject Turn 0 next
+        director_instructions: {
+          tone: genesis_config?.narrative_style?.tone || 'neutral',
+          pacing: genesis_config?.narrative_style?.pacing || 'moderate',
+          perspective: genesis_config?.narrative_style?.perspective || 'third_person_limited' // Default
+        }
+      };
+
+      // [Refinement] 4. Inject Turn 0 System Message
+      if (narrative.director_instructions) {
+        narrative.dialogue_history.push({
+          speaker: 'System',
+          type: 'system',
+          text: `[DIRECTOR INSTRUCTIONS]: Tone=${narrative.director_instructions.tone}, Pacing=${narrative.director_instructions.pacing}.`
+        });
+      }
+
+      // 5. Construct Mechanical State
+      const mechanical: MechanicalState = {
+        globals: {
+          time: 0,
+          danger_level: 0,
+          round_index: 0
+        },
+        entities: entities,
+        index: {
+          player_id: playerId
+        }
+      };
+
+      // 6. Construct Registry
+      const registry: SceneRegistry = {
+        active_scene_id: startingSceneId,
+        entity_locations: Object.values(entities).reduce((acc, entity) => {
+          acc[entity.id] = entity.properties.location_id;
+          return acc;
+        }, {} as Record<string, string>),
+        node_states: {} // Initial node states
+      };
+
+      // 7. Bundle result
+      const bundle: GameStateBundle = {
+        mechanical,
+        narrative,
+        registry,
+        queue: []
+      };
+
+      // 8. Persist (Store as snapshot in games table)
+      // We map the bundle to the legacy 'state_snapshot' JSONB column via saveGameState (adapter needed)
+      // OR we just return the bundle and let the caller handle persistence.
+      // For now, let's just return the bundle.
+
+      console.log(`[GAME_INIT] Initialized V3 Game ${gameId} with ${Object.keys(entities).length} entities.`);
+      return bundle;
+
+    } catch (error) {
+      console.error('[GAME_INIT] Failed to initialize active game:', error);
+      throw error;
     }
   }
 
@@ -246,7 +412,7 @@ export class GameStateService {
     const { validateAction } = await import('./action-validation.service.js');
     const storyId = state.adventure?.name ? undefined : undefined; // TODO: Get story ID from state
     const validation = await validateAction(action, storyId);
-    
+
     if (!validation.valid) {
       // Check if we should reject or allow
       if (validation.reason === 'unknown_action' && process.env.ALLOW_UNKNOWN_ACTIONS !== 'false') {
@@ -261,20 +427,20 @@ export class GameStateService {
     // If action is registered and valid, try to use registry reducer
     const { actionRegistry } = await import('../actions/registry.js');
     const entry = actionRegistry.get(action.t);
-    
+
     if (entry && entry.owner !== 'core') {
       // Use module reducer
       try {
         // Try to get storyId from state (may need to be passed differently in production)
         const storyId = state.gameId ? undefined : undefined; // TODO: Get actual story ID
-        
+
         const result = entry.applyFn(state, action.payload, storyId);
         // Handle both sync and async reducers
         const updatedState = result instanceof Promise ? await result : result;
-        
+
         // Update state in place (reducer returns new state)
         Object.assign(state, updatedState);
-        
+
         return {
           action,
           timestamp: new Date().toISOString(),
@@ -404,7 +570,7 @@ export class GameStateService {
       createdAt: state.createdAt,
       updatedAt: state.updatedAt,
     };
-    
+
     const { error } = await supabaseAdmin
       .from('games')
       .update({
@@ -471,7 +637,7 @@ export class GameStateService {
       // Use ContentService to load world data by slug
       const { ContentService } = await import('./content.service.js');
       const worldData = await ContentService.getWorldBySlug(worldSlug);
-      
+
       if (!worldData) {
         console.error(`World not found: ${worldSlug}`);
         return null;

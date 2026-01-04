@@ -63,12 +63,17 @@ export class ChimeraEntitiesService {
     /**
      * Lists all Player Characters for a user.
      */
-    static async listPlayerCharacters(userId: string) {
-        const { data, error } = await supabaseAdmin
+    static async listPlayerCharacters(userId: string, worldId?: string) {
+        let query = supabaseAdmin
             .from('chimera_player_characters')
             .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false });
+            .eq('user_id', userId);
+
+        if (worldId) {
+            query = query.eq('world_id', worldId);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (error) throw error;
         return data;
