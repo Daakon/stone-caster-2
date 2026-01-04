@@ -45,6 +45,7 @@ export interface ChimeraStoryV2 {
     world_id: string;
     world_display_name?: string;
     active_ruleset_ids?: string[]; // Added active_ruleset_ids (Draft only field)
+    entity_ids?: string[];
     status: string;
     updated_at: string;
     configuration?: Record<string, unknown>;

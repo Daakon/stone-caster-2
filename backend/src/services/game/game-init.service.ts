@@ -1,166 +1,211 @@
-/**
- * Game Initialization Service
- * Phase 5: Character Creator & Game Initialization
- * 
- * Transforms a static CompiledStory into a live GameState by:
- * 1. Deep cloning the initial_state
- * 2. Injecting player input (identity, appearance, world extensions)
- * 3. Persisting to database
- */
 
-import type { CompiledStory } from '@shared/types/chimera-compiled';
-import type { GameState } from '@shared/types/chimera-runtime';
-import { GameStateSchema } from '@shared/types/chimera-runtime';
 import { StoriesRepository } from '../../db/repos/stories.repo.js';
+import { GameStateFactory } from './factory/game-state.factory.js';
+import { RulesetHarvester } from './factory/ruleset.harvester.js';
+import { EntityProjector } from './factory/entity.projector.js';
+import { supabaseAdmin } from '../supabase.js';
+import { IGameStateRepository } from './state.repository.interface.js';
 
 export interface PlayerInputDto {
-  identity: {
-    name: string;
-    pronouns?: string;
-    role?: string;
-    age?: number;
-  };
-  appearance?: Record<string, unknown>;
-  backstory?: string;
-  personality_traits?: string[];
-  drive?: string;
-  flaw?: string;
-  // World-specific extensions (dynamic based on world.character_schema_extensions)
+  // Legacy fields - kept for compatibility but preferred source is DB
   [key: string]: unknown;
 }
 
+import { NarrativeService } from './narrative.service.js';
+
 export class GameInitService {
-  constructor(private storiesRepo: StoriesRepository) {}
+  private factory: GameStateFactory;
+  private narrativeService: NarrativeService;
+
+  constructor(
+    private storiesRepo: StoriesRepository,
+    private stateRepo: IGameStateRepository
+  ) {
+    // Initialize Factory with dependencies
+    this.factory = new GameStateFactory(
+      new RulesetHarvester(),
+      new EntityProjector()
+    );
+    this.narrativeService = new NarrativeService();
+  }
 
   /**
    * Initialize a new game from a compiled story
-   * @param storyId - The ID of the compiled story
-   * @param playerInput - Player character creation data
-   * @param playerId - The player's user ID
+   * @param storyId - The ID of the compiled story (or draft ID)
+   * @param playerInput - (Optional) Overrides
+   * @param playerId - The player's user ID (owner)
    * @returns The ID of the created game state
    */
   async initializeGame(
     storyId: string,
     playerInput: PlayerInputDto,
-    playerId: string
+    playerId: string,
+    explicitCharacterId?: string
   ): Promise<string> {
-    // Step 1: Fetch CompiledStory from DB
-    const compiledStory = await this.storiesRepo.getCompiledStoryById(storyId);
-    if (!compiledStory) {
+    // Step 1: Fetch CompiledStory (for Rulesets)
+    let compiled = await this.storiesRepo.getCompiledStoryById(storyId);
+    if (!compiled) {
+      compiled = await this.storiesRepo.getCompiledStoryByDraftId(storyId);
+    }
+    if (!compiled) {
       throw new Error(`Compiled story not found: ${storyId}`);
     }
 
-    // Step 2: Deep clone initial_state
-    const gameState = this.deepCloneState(compiledStory.initial_state);
+    // Step 2: Fetch Linked Character (Protagonist)
+    // We need to look up the Draft Story to see which character is bound
+    // Use the story_key from the compiled story, which is the Draft ID.
+    const draftId = compiled.story_key || storyId;
 
-    // Step 3: Layer 3 Injection - Merge playerInput into the state
-    this.injectPlayerData(gameState, playerInput);
+    console.log(`[GameInit] Looking up draft story for link. InputStoryId: ${storyId}, CompiledKey: ${compiled.story_key}, UsedDraftId: ${draftId}`);
 
-    // Step 4: Persistence - Insert into chimera_game_states
-    const gameStateId = await this.storiesRepo.createGameState(
+    const { data: draftStory, error: draftError } = await supabaseAdmin
+      .from('chimera_stories')
+      .select('protagonist_id, active_ruleset_ids, genesis_config')
+      .eq('id', draftId)
+      .maybeSingle();
+
+    console.log(`[GameInit] Draft lookup result:`, { draftId, draftStory, draftError, explicitCharacterId });
+
+    // PRIORITY: Use explicit ID if provided (override), otherwise use DB bound ID
+    const protagonistId = explicitCharacterId || draftStory?.protagonist_id;
+
+    if (!protagonistId) {
+      throw new Error(`No linked player character found for this story (DraftID: ${draftId}). Please bind a character first.`);
+    }
+
+    const { data: charTemplate, error: charError } = await supabaseAdmin
+      .from('chimera_player_characters')
+      .select('*')
+      .eq('id', protagonistId)
+      .single();
+
+    if (charError || !charTemplate) {
+      throw new Error('Linked character record not found.');
+    }
+
+    // Step 3: Extract Active Rulesets
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const configEngine = compiled.config_engine as any;
+    const activeRulesets = configEngine?.active_rulesets || [];
+
+    // Step 4: Factory Creation
+    const bundle = this.factory.createBundle(
       storyId,
-      gameState,
-      playerId
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      charTemplate as any,
+      activeRulesets
     );
 
-    return gameStateId;
-  }
+    // [GENESIS] Resolve Stars (Cast Members)
+    // Fetch full entity records for selected Cast Members
+    const starIds = draftStory?.genesis_config?.cast_members || [];
+    let resolvedStars: any[] = [];
 
-  /**
-   * Deep clone the initial state from CompiledStory
-   * Ensures modifications don't affect the original CompiledStory
-   */
-  private deepCloneState(initialState: Record<string, unknown>): GameState {
-    // Use JSON serialization for deep cloning
-    const cloned = JSON.parse(JSON.stringify(initialState)) as Record<string, unknown>;
+    if (starIds.length > 0) {
+      console.log(`[GameInit] Resolving ${starIds.length} stars for genesis.`);
+      const { data: stars, error: starsError } = await supabaseAdmin
+        .from('chimera_entities')
+        .select('*')
+        .in('id', starIds);
 
-    // Ensure it matches GameState structure
-    const gameState: GameState = {
-      tier1_mechanical: (cloned.tier1_mechanical as Record<string, unknown>) || {},
-      tier0_narrative: (cloned.tier0_narrative as Record<string, unknown>) || {},
-    };
-
-    // Validate against schema
-    return GameStateSchema.parse(gameState);
-  }
-
-  /**
-   * Inject player input into the game state
-   * Merges identity, appearance, and world extensions into the player entity
-   */
-  private injectPlayerData(gameState: GameState, playerInput: PlayerInputDto): void {
-    // Ensure entities structure exists in tier1_mechanical
-    if (!gameState.tier1_mechanical.entities) {
-      gameState.tier1_mechanical.entities = {};
-    }
-
-    const entities = gameState.tier1_mechanical.entities as Record<string, unknown>;
-    
-    // Ensure player entity exists
-    if (!entities.player) {
-      entities.player = {};
-    }
-
-    const player = entities.player as Record<string, unknown>;
-
-    // Inject identity
-    if (!player.identity) {
-      player.identity = {};
-    }
-    const identity = player.identity as Record<string, unknown>;
-    identity.name = playerInput.identity.name;
-    if (playerInput.identity.pronouns) {
-      identity.pronouns = playerInput.identity.pronouns;
-    }
-    if (playerInput.identity.role) {
-      identity.role = playerInput.identity.role;
-    }
-    if (playerInput.identity.age !== undefined) {
-      identity.age = playerInput.identity.age;
-    }
-
-    // Inject appearance if provided
-    if (playerInput.appearance) {
-      player.appearance = playerInput.appearance;
-    }
-
-    // Inject narrative profile into tier0_narrative
-    if (!gameState.tier0_narrative.player) {
-      gameState.tier0_narrative.player = {};
-    }
-    const playerNarrative = gameState.tier0_narrative.player as Record<string, unknown>;
-
-    if (playerInput.backstory) {
-      playerNarrative.backstory = playerInput.backstory;
-    }
-    if (playerInput.personality_traits) {
-      playerNarrative.personality_traits = playerInput.personality_traits;
-    }
-    if (playerInput.drive) {
-      playerNarrative.drive = playerInput.drive;
-    }
-    if (playerInput.flaw) {
-      playerNarrative.flaw = playerInput.flaw;
-    }
-
-    // Inject any world-specific extensions (dynamic fields)
-    // These come from playerInput but aren't in the standard schema
-    const standardFields = new Set([
-      'identity',
-      'appearance',
-      'backstory',
-      'personality_traits',
-      'drive',
-      'flaw',
-    ]);
-
-    for (const [key, value] of Object.entries(playerInput)) {
-      if (!standardFields.has(key) && key !== 'identity') {
-        // This is a world-specific extension
-        // Store it in the player entity for easy access
-        player[key] = value;
+      if (!starsError && stars) {
+        resolvedStars = stars;
+      } else {
+        console.warn(`[GameInit] Failed to resolve stars:`, starsError);
       }
     }
+
+    // [GENESIS] Inject Director's Slate into Runtime Globals & Narrative Context
+    const genesisConfig = draftStory?.genesis_config || {};
+
+    // 1. Populate Narrative Context (Director Instructions)
+    if (bundle.narrative) {
+      bundle.narrative.director_instructions = {
+        tone: genesisConfig.narrator_tone || 'Standard',
+        pacing: genesisConfig.pacing || 'Balanced',
+        perspective: genesisConfig.perspective || 'Second Person'
+      };
+
+      // Ensure scene context has the initial set design
+      if (genesisConfig.set_design) {
+        bundle.narrative.scene_context.description = genesisConfig.set_design;
+      }
+    }
+
+    // [GENESIS] Generate Opening Narrative (Server-Side Turn 0)
+    // We call the NarrativeService to generate the prose based on the Director's instructions we just set.
+    console.log('[GameInit] Generating Turn 0 narrative...');
+    const openingText = await this.narrativeService.generateOpeningNarrative(bundle);
+
+    // Apply Genesis Text to Bundle
+    if (bundle.narrative) {
+      bundle.narrative.description = openingText;
+
+      // Initialize History with Turn 0
+      bundle.narrative.dialogue_history = [{
+        speaker: 'Narrator',
+        text: openingText,
+        type: 'system' // or 'action' depending on frontend handling
+      }];
+    }
+
+    // Note: NarrativeGenesisService usage removed in favor of serverside generation above.
+    const genesisEntities = []; // Extras currently not generated by this step, unless we restore that logic later. For now, empty or mapped if needed.
+    // TODO: If extras were generated by the old service, we need to decide if we keep that logic or move it.
+    // For this specific task, we focus on the Text Generation.
+    // Assuming 'cast_extras' in genesis_config might be used by EntityProjector or needs separate handling if strictly required. 
+    // Checking previous code: 'genesisEntities' came from 'genesisService.generateOpening'. 
+    // If we drop that service, we lose extras generation unless we re-implement it. 
+    // For now, defining genesisEntities as empty array to prevent breakages below.
+
+    // Apply Genesis Entities (The Bridge)
+    // We need to merge both generated Extras and resolved Stars (if they need to be spawned)
+    // Stars are already "existing", but they need to be placed in the scene.
+    // Extras are "new" and need to be added to mechanical entities.
+
+    const allGenesisEntities = [...(genesisEntities || [])];
+
+    if (allGenesisEntities.length > 0) {
+      // 1. Add Extras and Stars to mechanical entities
+      if (!bundle.mechanical.entities) {
+        bundle.mechanical.entities = {};
+      }
+
+      const entitiesRecord = bundle.mechanical.entities;
+
+      // Add Extras
+      genesisEntities.forEach(extra => {
+        entitiesRecord[extra.id] = extra;
+      });
+
+      // Add Stars (Clone and Activate)
+      if (resolvedStars.length > 0) {
+        resolvedStars.forEach(star => {
+          // Ensure they are treated as active instances
+          const instance = { ...star, status: 'active' };
+          // Avoid duplicates if star is somehow already in extras (unlikely)
+          if (!entitiesRecord[instance.id]) {
+            entitiesRecord[instance.id] = instance;
+          }
+        });
+      }
+
+      // 2. Add to scene registry (place in start_node)
+      if (bundle.registry && bundle.registry.entity_locations) {
+        genesisEntities.forEach(ent => {
+          bundle.registry.entity_locations[ent.id] = 'start_node';
+        });
+        resolvedStars.forEach(star => {
+          bundle.registry.entity_locations[star.id] = 'start_node';
+        });
+      }
+    }
+
+    // Step 5: Persistence via IGameStateRepository
+    const gameStateId = await this.stateRepo.createState(storyId, bundle, playerId);
+    return gameStateId;
   }
 }
+
+
 

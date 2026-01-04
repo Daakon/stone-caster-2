@@ -5,6 +5,7 @@ interface StoryDraftState {
     storyId: string | null;
     draft: any | null; // Placeholder for full draft type
     isLoading: boolean;
+    fetchingId: string | null; // Deduplication track
     error: string | null;
 
     // Actions
@@ -12,12 +13,14 @@ interface StoryDraftState {
     hydrateDraft: (storyId: string) => Promise<void>;
     setWorld: (worldId: string) => Promise<void>;
     setDraftData: (data: Partial<any>) => void;
+    saveToBackend: () => Promise<void>;
 }
 
 export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
     storyId: null,
     draft: null,
     isLoading: false,
+    fetchingId: null,
     error: null,
 
     initializeDraft: async () => {
@@ -35,13 +38,21 @@ export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
     },
 
     hydrateDraft: async (storyId: string) => {
-        set({ isLoading: true, error: null });
+        const { fetchingId, storyId: currentStoryId } = get();
+
+        // 1. Dedup: If already fetching this request, ignore
+        if (fetchingId === storyId) return;
+
+        // 2. Dedup: If already loaded, ignore (unless we want to support force-refetch param later)
+        if (currentStoryId === storyId) return;
+
+        set({ isLoading: true, error: null, fetchingId: storyId });
         try {
             const story = await fetchDraft(storyId);
-            set({ storyId: story.id, draft: story, isLoading: false });
+            set({ storyId: story.id, draft: story, isLoading: false, fetchingId: null });
         } catch (error) {
             console.error('Failed to hydrate draft:', error);
-            set({ isLoading: false, error: 'Failed to load story draft' });
+            set({ isLoading: false, error: 'Failed to load story draft', fetchingId: null });
             throw error; // Rethrow to let caller handle redirect if 404
         }
     },
@@ -79,5 +90,35 @@ export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
         set(state => ({
             draft: state.draft ? { ...state.draft, ...data } : null
         }));
+    },
+
+    saveToBackend: async () => {
+        const { storyId, draft } = get();
+        if (!storyId || !draft) return;
+
+        set({ isLoading: true }); // Optional: could have a specific isSaving flag
+        try {
+            // Construct payload with explicit entity_ids mapping if needed, 
+            // though setDraftData should keep draft in sync.
+            // We ensure entity_ids is sent if present.
+            const payload = {
+                display_name: draft.title || draft.display_name,
+                description: draft.description,
+                description_short: draft.description_short,
+                opening_text: draft.opening_text,
+                world_id: draft.world_id,
+                active_ruleset_ids: draft.active_ruleset_ids,
+                entity_ids: draft.entity_ids || [], // Ensure this is sent
+                genesis_config: draft.genesis_config || {},
+                status: draft.status
+            };
+
+            await updateStoryDraft(storyId, payload);
+            set({ isLoading: false });
+        } catch (error) {
+            console.error('Failed to save draft:', error);
+            set({ isLoading: false, error: 'Failed to save draft' });
+            throw error;
+        }
     }
 }));

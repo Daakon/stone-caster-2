@@ -10,10 +10,14 @@
 
 import React from 'react';
 import { Check, Sparkles, BookOpen, Users, Scroll, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStoryDraftStore } from '../store/useStoryDraftStore';
+import { updateStoryDraft, bindStory } from '@/services/chimera-api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { ImageUploader } from '@/components/ui/ImageUploader';
 import { toast } from 'sonner';
 
 export function Step5_Compile() {
@@ -21,6 +25,7 @@ export function Step5_Compile() {
   const isLoading = useStoryDraftStore((state) => state.isLoading);
   const error = useStoryDraftStore((state) => state.error);
   const compile = useStoryDraftStore((state) => state.compile);
+  const updateMetadata = useStoryDraftStore((state) => state.updateMetadata);
 
   const metadata = draft?.metadata || {
     title: '',
@@ -28,31 +33,49 @@ export function Step5_Compile() {
     genre_tags: [],
     safety_filters: [],
     ruleset_keys: [],
+    image_url: '',
+  };
+
+  const handleMetadataChange = (field: keyof typeof metadata, value: any) => {
+    updateMetadata({ [field]: value });
   };
 
   const stagedEntityCount = draft?.staged_entity_ids.length || 0;
   const stagedLoreCount = draft?.staged_lore_ids.length || 0;
   const rulesetCount = metadata.ruleset_keys.length;
 
+  const navigate = useNavigate();
+
   const handleCompile = async () => {
     if (!draft) return;
 
     try {
-      // Compile story using store action
-      const compiledStory = await compile();
+      // 1. Ensure latest state is saved including entities and status
+      await updateStoryDraft(draft.draft_id, {
+        display_name: metadata.title,
+        description: metadata.summary,
+        // Ensure entity_ids are synced from staged
+        entity_ids: draft.staged_entity_ids,
+        status: 'bound'
+      });
 
-      // Show success toast
-      toast.success('Story Compiled!', {
-        description: 'Your story has been successfully compiled and is ready to play.',
+      // 2. Trigger compilation (Binding)
+      await bindStory(draft.draft_id);
+
+      // 3. Show success toast
+      toast.success('Story Bound!', {
+        description: 'Your story has been successfully compiled and is now in your library.',
         duration: 5000,
       });
 
-      // In a real app, we'd navigate to the story detail page or dashboard
-      // For now, we'll just show the success state
-      console.log('[Step5_Compile] Compiled story:', compiledStory);
-    } catch (error) {
-      // Error is already set in the store, toast will be handled by error display
-      console.error('[Step5_Compile] Failed to compile story:', error);
+      // 4. Navigate to My Creations
+      navigate('/my-creations');
+
+    } catch (error: any) {
+      console.error('[Step5_Compile] Failed to bind story:', error);
+      toast.error('Failed to bind story', {
+        description: error.message || 'Unknown error occurred'
+      });
     }
   };
 
@@ -67,33 +90,58 @@ export function Step5_Compile() {
         </p>
       </div>
 
-      {/* Summary Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* World Card */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-lg">World</CardTitle>
+      {/* Story Identity (Editable) */}
+      <Card className="border-primary/20">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base">Story Identity</CardTitle>
+          <CardDescription>Finalize how this story will appear in your library</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  placeholder="The Last Light of Aetheria"
+                  value={metadata.title}
+                  onChange={(e) => handleMetadataChange('title', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="summary">Short Description</Label>
+                <Textarea
+                  id="summary"
+                  placeholder="Brief summary..."
+                  className="min-h-[100px] resize-none"
+                  value={metadata.summary}
+                  onChange={(e) => handleMetadataChange('summary', e.target.value)}
+                />
+              </div>
             </div>
-          </CardHeader>
-          <CardContent>
             <div className="space-y-2">
-              <p className="font-semibold text-lg">
-                {metadata.title || 'Untitled Story'}
-              </p>
-              {metadata.genre_tags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {metadata.genre_tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
+              <Label>Cover Image</Label>
+              <ImageUploader
+                folder="stories"
+                onUploadComplete={(url) => handleMetadataChange('image_url', url)}
+                className="w-full"
+              />
+              {metadata.image_url && (
+                <div className="mt-2 relative rounded-md overflow-hidden aspect-video border border-border">
+                  <img
+                    src={metadata.image_url}
+                    alt="Cover Preview"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
         {/* Forces Card */}
         <Card>
@@ -178,7 +226,7 @@ export function Step5_Compile() {
             ) : (
               <>
                 <Check className="h-5 w-5 mr-2" />
-                Compile Story
+                Bind Fate
               </>
             )}
           </Button>

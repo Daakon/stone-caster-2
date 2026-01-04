@@ -1,7 +1,7 @@
 import { ENGINE_FUNCTION_MAP } from '../../../engine/registry.js';
-import { CompiledCartridge, RuntimeConfig, CreationConfig } from '../../../engine/types';
+import { EngineConfig, RuntimeConfig } from '../types';
 import { InterpreterRefiner } from './interpreter.refiner';
-import { RulesetDTO } from '../schemas'; // Assuming types are available here
+import { RulesetDTO } from '../schemas';
 
 /**
  * Engine Refiner
@@ -9,19 +9,14 @@ import { RulesetDTO } from '../schemas'; // Assuming types are available here
  */
 export class EngineRefiner {
     /**
-     * Parse raw rulesets into a strict CompiledCartridge (Creation vs Runtime split)
+     * Parse raw rulesets into a strict EngineConfig (Runtime only, no UI)
      */
-    static refine(rulesets: RulesetDTO[]): CompiledCartridge {
+    static refine(rulesets: RulesetDTO[]): EngineConfig {
         // 1. Initialize Runtime Config
         const runtime: RuntimeConfig = {
-            logic: InterpreterRefiner.extractConfig(rulesets), // Reuse Logic Extraction
+            logic: InterpreterRefiner.extractConfig(rulesets),
             actions: {},
-            schema: {}
-        };
-
-        // 2. Initialize Creation Config
-        const creation: CreationConfig = {
-            fields: []
+            state_defaults: {}
         };
 
         for (const ruleset of rulesets) {
@@ -48,39 +43,28 @@ export class EngineRefiner {
                 }
             }
 
-            // B. Merge State Schema (Runtime)
+            // B. Extract State Defaults (Runtime)
+            // Extract ONLY the 'value' from definitions. Ignore labels, descriptions, target_kind.
             if (definition.state_contributions) {
-                // Convert old state_contributions to strict RuntimeSchema
-                // Assuming state_contributions aligns with RuntimeSchema for now
-                // or needs mapping. For now, strict copy.
-                Object.entries(definition.state_contributions).forEach(([key, value]) => {
-                    // Start simple: assume value matches compatible schema or is a direct object
-                    // In reality, we might need to normalize "defaults" here.
-                    runtime.schema[key] = value as any;
-                });
-            }
+                Object.entries(definition.state_contributions).forEach(([entityKey, contribution]) => {
+                    const definitions = (contribution as any).definitions || {};
 
-            // C. Extract Form Hints (Creation)
-            // Path: definition.ai_instructions.tier1_entity.form_hints
-            const formHints = definition.ai_instructions?.tier1_entity?.form_hints;
-            if (formHints) {
-                Object.entries(formHints).forEach(([key, hint]: [string, any]) => {
-                    creation.fields.push({
-                        key: key,
-                        label: hint.label || key,
-                        control: hint.control || 'text',
-                        options: hint.options,
-                        min: hint.min,
-                        max: hint.max,
-                        description: hint.description
+                    if (!runtime.state_defaults[entityKey]) {
+                        runtime.state_defaults[entityKey] = {};
+                    }
+
+                    Object.entries(definitions).forEach(([fieldKey, fieldDef]: [string, any]) => {
+                        // We only care about the default value at runtime
+                        if (fieldDef.value !== undefined) {
+                            runtime.state_defaults[entityKey][fieldKey] = fieldDef.value;
+                        }
                     });
                 });
             }
         }
 
         return {
-            runtime,
-            creation
+            runtime
         };
     }
 }

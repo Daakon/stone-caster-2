@@ -39,6 +39,7 @@ const CreateStorySchema = z.object({
   pack_ids: z.array(z.string()).default([]),
   entity_ids: z.array(z.string()).default([]),
   image_url: z.string().url().optional().nullable(),
+  genesis_config: z.record(z.unknown()).optional(),
 });
 
 const UpdateStorySchema = CreateStorySchema.partial().extend({
@@ -46,11 +47,12 @@ const UpdateStorySchema = CreateStorySchema.partial().extend({
   story_definition: z.record(z.unknown()).optional(),
   protagonist_id: z.string().uuid().optional().nullable(),
   cast_ids: z.array(z.string().uuid()).optional(),
-  active_ruleset_ids: z.record(z.unknown()).optional(), // JSONB
+  active_ruleset_ids: z.array(z.string()).optional(), // Array of UUIDs
   status: z.enum(['draft', 'compiled', 'bound']).optional(),
   title: z.string().optional(),
   description: z.string().optional().nullable(),
   image_url: z.string().url().optional().nullable(),
+  genesis_config: z.record(z.unknown()).optional(),
 });
 
 const UpdateStoryDefinitionSchema = z.object({
@@ -538,6 +540,8 @@ router.put(
       if (updateData.visibility !== undefined) updatePayload.visibility = updateData.visibility;
       if (updateData.story_definition !== undefined) updatePayload.story_definition = updateData.story_definition;
       if (updateData.status !== undefined) updatePayload.status = updateData.status;
+      if (updateData.entity_ids !== undefined) updatePayload.entity_ids = updateData.entity_ids;
+      if (updateData.genesis_config !== undefined) updatePayload.genesis_config = updateData.genesis_config;
 
       // Handle rulesets - Source of Truth is now the active_ruleset_ids column
       // Priority 1: Direct update via active_ruleset_ids
@@ -580,31 +584,10 @@ router.put(
 
       // ---------------------------------------------------------
       // Configuration JSONB Cleanup
-      // We no longer write worldId or rulesetIds to configuration.
-      // We ONLY write entityIds there for now (or move it too).
-      // For now, let's keep entityIds in config as we didn't migrate that column yet.
+      // We no longer write worldId or rulesetIds keys to configuration.
+      // entityIds are now stored in their own column (chimera_stories.entity_ids).
       // ---------------------------------------------------------
-      if (updateData.entity_ids !== undefined) {
-        const { data: currentStory, error: currentStoryError } = await supabaseAdmin
-          .from('chimera_stories')
-          .select('configuration')
-          .eq('id', id)
-          .single();
-
-        if (!currentStoryError) {
-          const currentConfig = (currentStory?.configuration as any) || {};
-          const updatedConfig = {
-            ...currentConfig,
-            entityIds: updateData.entity_ids
-            // implicit: we stop syncing worldId/rulesetIds here
-          };
-
-          await supabaseAdmin
-            .from('chimera_stories')
-            .update({ configuration: updatedConfig })
-            .eq('id', id);
-        }
-      }
+      // Note: Pack links are still handled via junction table (chimera_story_content_pack_links)
 
       // Note: Pack links are still handled via junction table (chimera_story_content_pack_links)
       // Entity links are now in configuration JSONB (handled above)
@@ -849,7 +832,28 @@ router.post(
       const { id: storyId } = req.params;
 
       // Use the rebuild service to compile the story
-      const result = await rebuildStory(storyId, userId);
+      // Use the V3 Compiler Service
+      // Update story configuration with new entity IDs if provided
+      if (req.body.entity_ids && Array.isArray(req.body.entity_ids)) {
+        // We need to fetch current config first to merge
+        const { data: currentStory } = await supabaseAdmin
+          .from('chimera_stories')
+          .select('configuration')
+          .eq('id', storyId)
+          .single();
+
+        if (currentStory) {
+          const currentConfig = (currentStory.configuration as any) || {};
+          const updatedConfig = { ...currentConfig, entityIds: req.body.entity_ids };
+
+          await supabaseAdmin
+            .from('chimera_stories')
+            .update({ configuration: updatedConfig })
+            .eq('id', storyId);
+        }
+      }
+
+      const result = await StoryCompilerService.compileStory(storyId, userId, req.body.entity_ids);
 
       return sendSuccess(res, result, req);
     } catch (error) {
@@ -1318,7 +1322,7 @@ router.post(
       // Ownership check
       const { data: story, error } = await supabaseAdmin
         .from('chimera_stories')
-        .select('owner_user_id')
+        .select('owner_user_id, configuration')
         .eq('id', id)
         .single();
 
@@ -1329,7 +1333,28 @@ router.post(
         return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
       }
 
-      await StoryCompilerService.compileStory(id, userId);
+      // Update story configuration with new entity IDs if provided
+      if (req.body.entity_ids && Array.isArray(req.body.entity_ids)) {
+        console.log(`[API] Bind Fate: Updating entities to ${req.body.entity_ids.length} IDs`);
+
+        const currentConfig = (story.configuration as any) || {};
+        const updatedConfig = {
+          ...currentConfig,
+          entityIds: req.body.entity_ids
+        };
+
+        const { error: updateError } = await supabaseAdmin
+          .from('chimera_stories')
+          .update({ configuration: updatedConfig })
+          .eq('id', id);
+
+        if (updateError) {
+          console.error('[Chimera Bind] Failed to persist entity IDs:', updateError);
+          throw new Error('Failed to update story configuration');
+        }
+      }
+
+      await StoryCompilerService.compileStory(id, userId, req.body.entity_ids);
       return sendSuccess(res, { success: true }, req);
 
     } catch (error: any) {

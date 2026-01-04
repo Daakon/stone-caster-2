@@ -19,12 +19,12 @@ interface StatsPanelProps {
 
 export function StatsPanel({ tier1Data }: StatsPanelProps) {
   // Extract player entity from tier1_mechanical.entities.player
-  const entities = tier1Data.entities as Record<string, unknown> | undefined;
+  const entities = tier1Data?.entities as Record<string, unknown> | undefined;
   const player = entities?.player as Record<string, unknown> | undefined;
   const playerStats = player?.stats as Record<string, unknown> | undefined;
-  
+
   // Use player data if available, otherwise fall back to top-level data
-  const displayData = playerStats || player || tier1Data;
+  const displayData = playerStats || player || tier1Data || {};
   const renderValue = (key: string, value: unknown, parentData?: Record<string, unknown>): React.ReactNode => {
     // Handle numbers
     if (typeof value === 'number') {
@@ -32,7 +32,7 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
       const maxKey = `max_${key}`;
       const altMaxKey = `${key}_max`;
       const maxValue = parentData?.[maxKey] || parentData?.[altMaxKey];
-      
+
       // HP and MP should be progress bars if max exists
       if ((key === 'hp' || key === 'mp' || key === 'mana') && typeof maxValue === 'number' && maxValue > 0) {
         const percentage = Math.min((value / maxValue) * 100, 100);
@@ -117,13 +117,13 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
   }
 
   // Separate HP/MP from attributes
-  const resourceEntries = entries.filter(([key]) => 
+  const resourceEntries = entries.filter(([key]) =>
     key === 'hp' || key === 'mp' || key === 'mana'
   );
-  const attributeEntries = entries.filter(([key]) => 
+  const attributeEntries = entries.filter(([key]) =>
     key !== 'hp' && key !== 'mp' && key !== 'mana' && typeof displayData[key] === 'number'
   );
-  const otherEntries = entries.filter(([key]) => 
+  const otherEntries = entries.filter(([key]) =>
     key !== 'hp' && key !== 'mp' && key !== 'mana' && typeof displayData[key] !== 'number'
   );
 
@@ -141,7 +141,7 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
                 {resourceEntries.map(([key, value]) => renderValue(key, value, displayData))}
               </div>
             )}
-            
+
             {/* Attributes Grid */}
             {attributeEntries.length > 0 && (
               <div>
@@ -151,7 +151,7 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
                 </div>
               </div>
             )}
-            
+
             {/* Other entries */}
             {otherEntries.map(([key, value]) => renderValue(key, value, displayData))}
           </div>

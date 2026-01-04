@@ -7,19 +7,19 @@ import { API_BASE } from './apiBase';
 // Use centralized API_BASE from apiBase.ts
 const BASE = API_BASE;
 
-export type ApiResponse<T> = 
+export type ApiResponse<T> =
   | {
-      ok: true;
-      data: T;
-      meta?: {
-        etag?: string;
-        lastModified?: string;
-      };
-    }
-  | {
-      ok: false;
-      error: AppError;
+    ok: true;
+    data: T;
+    meta?: {
+      etag?: string;
+      lastModified?: string;
     };
+  }
+  | {
+    ok: false;
+    error: AppError;
+  };
 
 export async function apiFetch<T = unknown>(
   path: string,
@@ -53,7 +53,7 @@ export async function apiFetch<T = unknown>(
   try {
     const resp = await fetch(url, { ...init, headers });
     const text = await resp.text();
-    
+
     // Extract cache headers (PR11-A)
     const etag = resp.headers.get('etag');
     const lastModified = resp.headers.get('last-modified');
@@ -74,7 +74,7 @@ export async function apiFetch<T = unknown>(
         if (json.meta?.traceId) {
           error.traceId = json.meta.traceId;
         }
-        
+
         // Handle EARLY_ACCESS_REQUIRED error code
         if (error.code === 'EARLY_ACCESS_REQUIRED' || json.code === 'EARLY_ACCESS_REQUIRED') {
           // Trigger global early access handler
@@ -86,7 +86,7 @@ export async function apiFetch<T = unknown>(
             );
           }
         }
-        
+
         return { ok: false, error };
       }
 
@@ -144,17 +144,17 @@ export async function apiFetch<T = unknown>(
     if (json && typeof json === 'object' && ('next' in json)) {
       // Handle both shapes: { data: turns[], next } or { data: { turns, next } }
       const data = json.data;
-      const normalizedData = Array.isArray(data) 
+      const normalizedData = Array.isArray(data)
         ? { turns: data, next: json.next }
         : (data && 'turns' in data ? data : { turns: [], next: json.next });
-      
-      return { 
-        ok: true, 
+
+      return {
+        ok: true,
         data: normalizedData as T,
         meta,
       };
     }
-    
+
     // For other paginated responses (have count/hasMore), return the full response object
     if (json && typeof json === 'object' && ('count' in json || 'hasMore' in json)) {
       // Success response with cache metadata (PR11-A)
@@ -322,7 +322,7 @@ export async function submitTurn<T = unknown>(
 ): Promise<{ ok: true; data: T } | { ok: false; error: AppError }> {
   return apiFetch<T>(`/api/games/${gameId}/turn`, {
     method: 'POST',
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       optionId,
       userInput,
       userInputType,
@@ -346,7 +346,7 @@ export async function sendTurn(
   }
 ): Promise<{ ok: true; data: { turn: { turn_number: number; role: string; content: string; meta: any; created_at: string }; debug?: any } } | { ok: false; error: AppError }> {
   const headers: Record<string, string> = {};
-  
+
   if (options?.idempotencyKey) {
     headers['Idempotency-Key'] = options.idempotencyKey;
   }
@@ -472,7 +472,7 @@ function normalizeTurnsResponse(
   }
 
   const data = response.data;
-  
+
   // If data is already an array, normalize to { turns, next }
   if (Array.isArray(data)) {
     return {
@@ -483,7 +483,7 @@ function normalizeTurnsResponse(
       },
     };
   }
-  
+
   // If data is an object with turns, use it directly
   if (data && typeof data === 'object' && 'turns' in data) {
     return {
@@ -494,7 +494,7 @@ function normalizeTurnsResponse(
       },
     };
   }
-  
+
   // Fallback: assume empty array
   return {
     ok: true,
@@ -541,11 +541,11 @@ export async function postCreateGame(
   }
 ): Promise<{ ok: true; data: { game_id: string; first_turn: any; debug?: any } } | { ok: false; error: AppError }> {
   const headers: Record<string, string> = {};
-  
+
   if (opts?.idempotencyKey) {
     headers['Idempotency-Key'] = opts.idempotencyKey;
   }
-  
+
   if (opts?.testRollback && import.meta.env.VITE_TEST_TX_HEADER_ENABLED === 'true') {
     headers['X-Test-Rollback'] = '1';
   }
@@ -561,7 +561,7 @@ export async function postCreateGame(
       headers['X-Debug-Response'] = '0';
     }
   }
-  
+
   return apiFetch(url, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -681,23 +681,23 @@ export const getRuleset = (id: ID) => httpGet<Ruleset>(`/api/catalog/rulesets/${
 import type { Character, Session } from '@/types/domain';
 
 // Characters
-export const listCharacters = () => httpGet<Character[]>('/api/characters');
+export const listCharacters = () => httpGet<Character[]>('/api/v2/chimera/player-characters');
 
 export const createCharacter = (body: { name: string; portrait_seed?: string }) =>
-  httpPost<Character>('/api/characters', body);
+  httpPost<Character>('/api/v2/chimera/player-characters', body);
 
 // Sessions
 export const findExistingSession = (storyId: ID, characterId: ID) =>
-	httpGet<{ id: ID } | null>(`/api/sessions`, { params: { story_id: storyId, character_id: characterId } as any });
+  httpGet<{ id: ID } | null>(`/api/sessions`, { params: { story_id: storyId, character_id: characterId } as any });
 
 export const getSession = (sessionId: ID) => httpGet<Session>(`/api/sessions/${sessionId}`);
 
 export const getSessionMessages = (sessionId: ID, limit: number = 20) =>
-	httpGet<{ id: string; content: string; role: 'user'|'assistant'; created_at: string }[]>(`/api/sessions/${sessionId}/messages`, { params: { limit } as any });
+  httpGet<{ id: string; content: string; role: 'user' | 'assistant'; created_at: string }[]>(`/api/sessions/${sessionId}/messages`, { params: { limit } as any });
 
 export const createSession = (
-	body: { story_id: ID; character_id: ID },
-	opts?: { headers?: Record<string, string> }
+  body: { story_id: ID; character_id: ID },
+  opts?: { headers?: Record<string, string> }
 ) => httpPost<Session>('/api/sessions', body, opts);
 
 // Guest authentication

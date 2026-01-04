@@ -8,8 +8,8 @@ import { listWorlds, listNPCs, listMyNPCs, listRulesets, listStories, getStory, 
 import type { ID, StoryKind } from '@/types/domain';
 
 export const useWorldsQuery = (q?: string, options?: { enabled?: boolean }) =>
-  useQuery({ 
-    queryKey: ['worlds', { q }], 
+  useQuery({
+    queryKey: ['worlds', { q }],
     queryFn: () => listWorlds({ q }),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,   // 10 minutes (formerly cacheTime)
@@ -17,8 +17,8 @@ export const useWorldsQuery = (q?: string, options?: { enabled?: boolean }) =>
   });
 
 export const useNPCsQuery = (p: { q?: string; world?: ID }) =>
-  useQuery({ 
-    queryKey: ['npcs', 'public', p], 
+  useQuery({
+    queryKey: ['npcs', 'public', p],
     queryFn: () => listNPCs(p),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -29,8 +29,8 @@ export const useMyNPCsQuery = (
   p: { q?: string; world?: ID; status?: 'draft' | 'active' | 'archived' },
   enabled: boolean = false
 ) =>
-  useQuery({ 
-    queryKey: ['npcs', 'my', p], 
+  useQuery({
+    queryKey: ['npcs', 'my', p],
     queryFn: async () => {
       const result = await listMyNPCs(p);
       if (!result.ok) {
@@ -44,53 +44,53 @@ export const useMyNPCsQuery = (
   });
 
 export const useRulesetsQuery = (q?: string) =>
-  useQuery({ 
-    queryKey: ['rulesets', { q }], 
+  useQuery({
+    queryKey: ['rulesets', { q }],
     queryFn: () => listRulesets({ q }),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
 export const useStoriesQuery = (p: { q?: string; world?: ID; kind?: StoryKind; ruleset?: ID; tags?: string[]; limit?: number }) =>
-  useQuery({ 
-    queryKey: ['stories', p], 
+  useQuery({
+    queryKey: ['stories', p],
     queryFn: () => listStories(p),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
-export const useStoryQuery = (idOrSlug: ID | string) =>
-  useQuery({ 
-    queryKey: ['story', idOrSlug], 
-    queryFn: () => getStory(idOrSlug), 
-    enabled: !!idOrSlug,
+export const useStoryQuery = (idOrSlug: ID | string, options?: { enabled?: boolean }) =>
+  useQuery({
+    queryKey: ['story', idOrSlug],
+    queryFn: () => getStory(idOrSlug),
+    enabled: !!idOrSlug && (options?.enabled !== false),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
 // Individual detail hooks
 export const useWorldQuery = (idOrSlug: ID | string) =>
-  useQuery({ 
-    queryKey: ['world', idOrSlug], 
-    queryFn: () => getWorld(idOrSlug), 
+  useQuery({
+    queryKey: ['world', idOrSlug],
+    queryFn: () => getWorld(idOrSlug),
     enabled: !!idOrSlug,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
 export const useNPCQuery = (id: ID) =>
-  useQuery({ 
-    queryKey: ['npc', id], 
-    queryFn: () => getNPC(id), 
+  useQuery({
+    queryKey: ['npc', id],
+    queryFn: () => getNPC(id),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
 export const useRulesetQuery = (id: ID) =>
-  useQuery({ 
-    queryKey: ['ruleset', id], 
-    queryFn: () => getRuleset(id), 
+  useQuery({
+    queryKey: ['ruleset', id],
+    queryFn: () => getRuleset(id),
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -101,34 +101,33 @@ export const useRulesetQuery = (id: ID) =>
 // ============================================================================
 
 export const useCharactersQuery = () =>
-  useQuery({ 
-    queryKey: ['characters'], 
+  useQuery({
+    queryKey: ['characters', 'v2'],
     queryFn: () => listCharacters(),
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: 10 * 1000,
   });
 
 export const useCreateCharacter = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: createCharacter,
     onSuccess: () => {
       // Invalidate and refetch characters list
-      queryClient.invalidateQueries({ queryKey: ['characters'] });
+      queryClient.invalidateQueries({ queryKey: ['characters', 'v2'] });
     },
   });
 };
 
 export const useCreateSession = () => {
-	return useMutation({
-		mutationFn: (input: any) => {
-			if (input && typeof input === 'object' && 'body' in input) {
-				return createSession((input as any).body, (input as any).opts);
-			}
-			return createSession(input);
-		},
-	});
+  return useMutation({
+    mutationFn: (input: any) => {
+      if (input && typeof input === 'object' && 'body' in input) {
+        return createSession((input as any).body, (input as any).opts);
+      }
+      return createSession(input);
+    },
+  });
 };
 
 export const useCreateGuestToken = () => {
@@ -146,18 +145,18 @@ export const useCreateGuestToken = () => {
 export const useEntryQuery = useStoryQuery;
 
 export const usePrefetchSessionBundle = () => {
-	const qc = useQueryClient();
-	return async (sessionId: string) => {
-		const prefetch = [
-			qc.prefetchQuery({ queryKey: ['session', sessionId], queryFn: () => getSession(sessionId), staleTime: 5_000 }),
-			qc.prefetchQuery({ queryKey: ['session', sessionId, 'messages', { limit: 20 }], queryFn: () => getSessionMessages(sessionId, 20), staleTime: 1_000, gcTime: 10 * 60_000 }),
-		];
-		await Promise.allSettled(prefetch);
-	};
+  const qc = useQueryClient();
+  return async (sessionId: string) => {
+    const prefetch = [
+      qc.prefetchQuery({ queryKey: ['session', sessionId], queryFn: () => getSession(sessionId), staleTime: 5_000 }),
+      qc.prefetchQuery({ queryKey: ['session', sessionId, 'messages', { limit: 20 }], queryFn: () => getSessionMessages(sessionId, 20), staleTime: 1_000, gcTime: 10 * 60_000 }),
+    ];
+    await Promise.allSettled(prefetch);
+  };
 };
 
 export const useFindExistingSession = () => {
-	return {
-		lookup: (storyId: string, characterId: string) => findExistingSession(storyId, characterId),
-	};
+  return {
+    lookup: (storyId: string, characterId: string) => findExistingSession(storyId, characterId),
+  };
 };

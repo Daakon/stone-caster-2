@@ -7,6 +7,7 @@ import { WorldStone } from './steps/WorldStone';
 import { ForcesStone } from './steps/ForcesStone';
 import { ElementsStone } from './steps/ElementsStone';
 import { LoreStone } from './steps/LoreStone';
+import { NarrativeStone } from './steps/NarrativeStone';
 import { BindStone } from './steps/BindStone';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Loader2 } from 'lucide-react';
@@ -34,25 +35,19 @@ export function CastingCircleWizard() {
     const storyId = useStoryDraftStore((state) => state.storyId);
     const draft = useStoryDraftStore((state) => state.draft);
 
+    const saveToBackend = useStoryDraftStore((state) => state.saveToBackend);
+
     const handleFinalize = async () => {
         if (!draft || !draft.id) return;
 
         setIsFinalizing(true);
         try {
-            // Extract primary image URL if available
-            // Image URL saving tentatively removed as ChimeraStoryV2 does not strictly type it yet. 
-            // TODO: Add 'images' or 'primary_image_url' to ChimeraStoryV2 when backend supports it.
-
+            // Ensure latest state is saved including entities
             await updateStoryDraft(draft.id, {
                 display_name: draft.title,
-                // description: draft.description, // ChimeraStoryV2 might not have description either? Let's check.
-                // It does NOT have description in the interface I saw!
-                // Wait, let's omit description if not in type.
-                // Checking ChimeraStoryV2 again... 
-                // It has configuration, world_id, status. No description.
-                // So I should put description in configuration or metadata? 
-                // Or maybe the type definition needs update? 
-                // For now, map title to display_name.
+                description: draft.description, // Pass description if available
+                entity_ids: draft.entity_ids, // CRITICAL: Persist entities
+                genesis_config: draft.genesis_config || {},
                 status: 'bound'
             });
 
@@ -73,20 +68,9 @@ export function CastingCircleWizard() {
     const handleSave = async () => {
         if (!draft || !draft.id) return;
 
-        setIsFinalizing(true); // Re-using loading state or create a new one?
-        // Using isFinalizing might confuse "Binding" with "Saving".
-        // But for now it blocks the UI which is good.
-
+        setIsFinalizing(true);
         try {
-            await updateStoryDraft(draft.id, {
-                display_name: draft.title,
-                description: draft.description,
-                description_short: draft.description_short,
-                opening_text: draft.opening_text,
-                world_id: draft.world_id,
-                active_ruleset_ids: draft.active_ruleset_ids,
-                // Add other fields as they become relevant
-            });
+            await saveToBackend();
             toast.success("Draft saved successfully");
         } catch (err: any) {
             console.error(err);
@@ -167,15 +151,16 @@ export function CastingCircleWizard() {
             </div>
 
             <Tabs value={activeStep} onValueChange={handleTabChange} className="flex-1 flex flex-col">
-                <TabsList className="grid w-full grid-cols-5 mb-8">
+                <TabsList className="grid w-full grid-cols-6 mb-8 bg-stone-950/50 border border-stone-800 p-1">
                     <TabsTrigger value="world">World</TabsTrigger>
                     <TabsTrigger value="forces" disabled={!draft?.world_id}>Forces</TabsTrigger>
                     <TabsTrigger value="elements" disabled={!draft?.world_id}>Elements</TabsTrigger>
                     <TabsTrigger value="lore" disabled={!draft?.world_id}>Lore</TabsTrigger>
+                    <TabsTrigger value="narrative" disabled={!draft?.world_id}>Narrative</TabsTrigger>
                     <TabsTrigger value="bind" disabled={!draft?.title || draft.title.length === 0}>Bind</TabsTrigger>
                 </TabsList>
 
-                <div className="flex-1 min-h-0 bg-card rounded-xl border p-6 overflow-y-auto">
+                <div className="flex-1 min-h-0 bg-card rounded-xl border border-stone-800 p-6 overflow-y-auto">
                     <TabsContent value="world" className="mt-0 h-full">
                         <WorldStone />
                     </TabsContent>
@@ -188,6 +173,9 @@ export function CastingCircleWizard() {
                     <TabsContent value="lore" className="mt-0 h-full">
                         <LoreStone />
                     </TabsContent>
+                    <TabsContent value="narrative" className="mt-0 h-full">
+                        <NarrativeStone />
+                    </TabsContent>
                     <TabsContent value="bind" className="mt-0 h-full">
                         <BindStone />
                     </TabsContent>
@@ -195,12 +183,12 @@ export function CastingCircleWizard() {
             </Tabs>
 
             {/* Sticky Footer */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 border-t bg-stone-950/80 backdrop-blur-md flex justify-between items-center z-50 animate-in slide-in-from-bottom-5">
+            <div className="fixed bottom-0 left-0 right-0 p-4 border-t border-stone-800 bg-stone-950/80 backdrop-blur-md flex justify-between items-center z-50 animate-in slide-in-from-bottom-5">
                 <div className="flex items-center gap-4">
                     <Button
                         variant="outline"
                         onClick={() => {
-                            const steps = ['world', 'forces', 'elements', 'lore', 'bind'];
+                            const steps = ['world', 'forces', 'elements', 'lore', 'narrative', 'bind'];
                             const currentIndex = steps.indexOf(activeStep);
                             if (currentIndex > 0) handleTabChange(steps[currentIndex - 1]);
                         }}
@@ -215,7 +203,7 @@ export function CastingCircleWizard() {
                     <Button variant="ghost" className="text-stone-500 hover:text-stone-300" onClick={handleSave} disabled={isFinalizing}>Save Draft</Button> {/* Auto-save handles most, manual save for peace of mind */}
 
                     {(() => {
-                        const steps = ['world', 'forces', 'elements', 'lore', 'bind'];
+                        const steps = ['world', 'forces', 'elements', 'lore', 'narrative', 'bind'];
                         const currentIndex = steps.indexOf(activeStep);
                         const isLastStep = currentIndex === steps.length - 1;
                         const nextStep = steps[currentIndex + 1];
@@ -230,6 +218,8 @@ export function CastingCircleWizard() {
                         } else if (activeStep === 'elements') {
                             canProceed = true;
                         } else if (activeStep === 'lore') {
+                            canProceed = true;
+                        } else if (activeStep === 'narrative') {
                             canProceed = true;
                         } else if (activeStep === 'bind') {
                             canProceed = !!draft?.title && draft.title.length > 0;
@@ -253,7 +243,7 @@ export function CastingCircleWizard() {
                                 )}
                             >
                                 {isFinalizing ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                                    isLastStep ? "Bind Fate" : <span className="flex items-center">Next: {nextStep.charAt(0).toUpperCase() + nextStep.slice(1)} <ArrowRight className="ml-2 h-4 w-4" /></span>}
+                                    isLastStep ? "Bind Fate" : <span className="flex items-center">Next: {nextStep?.charAt(0).toUpperCase() + nextStep?.slice(1)} <ArrowRight className="ml-2 h-4 w-4" /></span>}
                             </Button>
                         );
                     })()}

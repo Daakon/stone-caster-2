@@ -1,4 +1,5 @@
 /**
+ * @deprecated Incomplete refactor. Use CastingCircleWizard instead.
  * Create Story Page
  * Route entry point for the Story Creation (Casting Circle) wizard
  * 
@@ -6,39 +7,52 @@
  */
 
 import React, { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useStoryDraftStore } from '../store/useStoryDraftStore';
 import { StoryWizardLayout } from './StoryWizardLayout';
 import { Step1_World } from './Step1_World';
+import { NarrativeStep } from './NarrativeStep';
 import { Step2_Forces } from './Step2_Forces';
 import { Step3_Elements } from './Step3_Elements';
 import { Step4_Lore } from './Step4_Lore';
 import { Step5_Compile } from './Step5_Compile';
 
 export function CreateStoryPage() {
-  const [searchParams] = useSearchParams();
+  const { id, step } = useParams<{ id: string; step?: string }>();
+  const navigate = useNavigate();
   const draft = useStoryDraftStore((state) => state.draft);
   const isLoading = useStoryDraftStore((state) => state.isLoading);
   const error = useStoryDraftStore((state) => state.error);
   const initializeDraft = useStoryDraftStore((state) => state.initializeDraft);
   const loadDraft = useStoryDraftStore((state) => state.loadDraft);
+  const setStep = useStoryDraftStore((state) => state.setStep);
 
-  // Initialize or load draft on mount
+  // Ref to track initialization status
+  const initialized = React.useRef(false);
+
+  // Step mapping
+  const STEP_SLUGS = ['world', 'forces', 'elements', 'lore', 'narrative', 'bind'];
+
+  // 1. Initialize or Load Draft
   useEffect(() => {
-    const draftIdFromUrl = searchParams.get('draftId');
-    
+    if (initialized.current) return;
+
+    // Use ID from route
+    const draftIdFromUrl = id;
+
     if (draftIdFromUrl) {
-      // Check if draft is already loaded with matching ID
       if (draft?.draft_id === draftIdFromUrl) {
-        // Draft already loaded, no action needed
+        // Already loaded
         return;
       }
-      
-      // Load draft from backend
+
+      console.log('[CreateStoryPage] Loading draft:', draftIdFromUrl);
       loadDraft(draftIdFromUrl);
+      initialized.current = true;
     } else if (!draft) {
-      // Generate a new draft ID if no draft exists
+      // New draft (Fallback, should ideally have an ID routed to it)
+      console.log('[CreateStoryPage] Initializing new draft');
       const draftId = `draft-${Date.now()}`;
       initializeDraft(draftId, {
         title: '',
@@ -47,8 +61,37 @@ export function CreateStoryPage() {
         safety_filters: ['pg'],
         ruleset_keys: [],
       });
+      initialized.current = true;
+      // Navigate to the proper URL structure for the new draft
+      navigate(`/stories/${draftId}/compose/world`, { replace: true });
     }
-  }, [draft, initializeDraft, loadDraft, searchParams]);
+  }, [loadDraft, initializeDraft, id, draft, navigate]);
+
+  // 2. Sync URL Step -> Store Step
+  useEffect(() => {
+    if (!draft) return;
+
+    const stepSlug = step || 'world';
+    const stepIndex = STEP_SLUGS.indexOf(stepSlug);
+    const validStepIndex = stepIndex === -1 ? 0 : stepIndex;
+
+    // Only update store if it's different to prevent loops
+    if (draft.current_step !== validStepIndex) {
+      setStep(validStepIndex);
+    }
+  }, [step, draft?.draft_id, setStep]); // Depend on step and draft_id uniqueness, not full draft object
+
+  // 3. Sync Store Step -> URL (Optional, mostly for completion redirect or internal logic)
+  useEffect(() => {
+    if (!draft) return;
+
+    // If the store's step changes (e.g. from internal logic), ensure URL matches
+    // This is less critical now that tabs drive the URL directly, but good for safety
+    const currentSlug = STEP_SLUGS[draft.current_step] || 'world';
+    if (step !== currentSlug) {
+      navigate(`/stories/${id}/compose/${currentSlug}`, { replace: true });
+    }
+  }, [draft?.current_step, navigate, id, step]);
 
   // Show loading skeleton while loading draft
   if (isLoading) {
@@ -96,6 +139,8 @@ export function CreateStoryPage() {
       case 3:
         return <Step4_Lore />;
       case 4:
+        return <NarrativeStep />;
+      case 5:
         return <Step5_Compile />;
       default:
         return (

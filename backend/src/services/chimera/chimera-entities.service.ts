@@ -5,7 +5,7 @@ export interface CreateEntityDto {
     display_name: string;
     description_short?: string | null;
     description_long?: string | null;
-    entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
+    entity_type: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION' | 'PLAYER';
     archetype_handle?: string | null;
     base_state_json?: Record<string, unknown>;
     raw_data?: Record<string, unknown>;
@@ -20,7 +20,7 @@ export interface UpdateEntityDto {
     display_name?: string;
     description_short?: string | null;
     description_long?: string | null;
-    entity_type?: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION';
+    entity_type?: 'NPC' | 'ITEM' | 'FACTION' | 'LOCATION' | 'PLAYER';
     archetype_handle?: string | null;
     base_state_json?: Record<string, unknown>;
     raw_data?: Record<string, unknown>;
@@ -32,7 +32,54 @@ export interface UpdateEntityDto {
     is_official?: boolean;
 }
 
+export interface CreatePlayerCharacterDto {
+    userId: string;
+    name: string;
+    state_snapshot: Record<string, unknown>;
+    world_id: string;
+}
+
 export class ChimeraEntitiesService {
+    /**
+     * Creates a new Player Character Template in the chimera_player_characters table.
+     */
+    static async createPlayerCharacter(dto: CreatePlayerCharacterDto) {
+        const { userId, name, state_snapshot, world_id } = dto;
+
+        const { data, error } = await supabaseAdmin
+            .from('chimera_player_characters')
+            .insert({
+                user_id: userId,
+                world_id,
+                name,
+                state_snapshot
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+    }
+
+    /**
+     * Lists all Player Characters for a user.
+     */
+    static async listPlayerCharacters(userId: string, worldId?: string) {
+        let query = supabaseAdmin
+            .from('chimera_player_characters')
+            .select('*')
+            .eq('user_id', userId);
+
+        if (worldId) {
+            query = query.eq('world_id', worldId);
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data;
+    }
+
+
 
     /**
      * Helper to normalize tags

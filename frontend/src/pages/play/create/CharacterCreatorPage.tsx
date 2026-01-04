@@ -1,403 +1,358 @@
 /**
- * Character Creator Page
- * Phase 5: Character Creator & Game Initialization
+ * Character Creator Page v2 ("Character Forge")
+ * Phase: Schema & Layout & Form Renderer & Persistence
  * 
- * Route: /play/create/:storyId
- * 
- * Allows players to create their character based on the CompiledStory's schema
+ * Uses the data-driven schema engine and local storage persistence.
  */
 
-import { useQuery, useMutation } from '@tanstack/react-query';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getCreationManifest } from '@/services/chimera-api';
+import { useEntitySchema } from '@/hooks/chimera/useEntitySchema';
+import { useCharacterDraftStore } from '@/stores/useCharacterDraftStore';
+import { useDebounce } from '@/hooks/useDebounce';
+import { CharacterForgeLayout } from '@/components/layout/CharacterForgeLayout';
+import { EntityAttributesForm } from '@/components/chimera/EntityAttributesForm';
+import { CharacterReviewSheet } from '@/components/chimera/CharacterReviewSheet';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, User, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCompiledStory, initializeGame, getWorld } from '@/services/chimera-api';
-import type { CompiledStory } from '@shared/types/chimera-compiled';
-import type { WorldDefinition } from '@shared/types/chimera-authoring';
-
-// Base character form schema
-const baseCharacterSchema = z.object({
-  identity: z.object({
-    name: z.string().min(1, 'Name is required'),
-    pronouns: z.string().optional(),
-    role: z.string().optional(),
-    age: z.number().optional(),
-  }),
-  appearance: z.string().optional(),
-  backstory: z.string().optional(),
-  personality_traits: z.string().optional(), // Comma-separated
-  drive: z.string().optional(),
-  flaw: z.string().optional(),
-});
-
-type BaseCharacterForm = z.infer<typeof baseCharacterSchema>;
+import { apiPost } from '@/lib/api';
 
 export default function CharacterCreatorPage() {
   const { storyId } = useParams<{ storyId: string }>();
   const navigate = useNavigate();
 
-  // Fetch compiled story
-  const { data: compiledStory, isLoading: isLoadingStory } = useQuery({
-    queryKey: ['compiled-story', storyId],
-    queryFn: () => getCompiledStory(storyId!),
+  // 1. Data Fetching - Microservice style
+  const { data: manifestData, isLoading: isLoadingStory, error: storyError } = useQuery({
+    queryKey: ['creation-manifest', storyId],
+    queryFn: () => getCreationManifest(storyId!),
     enabled: !!storyId,
   });
 
-  // Extract world ID from compiled story and fetch world for schema extensions
-  const worldId = compiledStory?.meta.source_ids.find((id) => {
-    // World IDs are UUIDs, ruleset IDs might not be
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  // Debug logging
+  useEffect(() => {
+    if (manifestData) {
+      console.log('[Forge] Manifest Data:', manifestData);
+      console.log('[Forge] Creation Manifest:', manifestData.creation_manifest);
+      console.log('[Forge] Active Rulesets:', manifestData.snapshot_story?.config_engine?.active_rulesets);
+    }
+  }, [manifestData]);
+
+  // 2. Schema Engine
+  // We now pass the manifest data directly.
+  const baseSteps = useEntitySchema(manifestData);
+
+  // Inject Virtual Review Step
+  const steps = useMemo(() => {
+    if (baseSteps.length === 0) return [];
+    return [
+      ...baseSteps,
+      {
+        id: 'review',
+        label: 'Review',
+        priority: 999,
+        groups: []
+      }
+    ];
+  }, [baseSteps]);
+
+  // 3. Store Persistence
+  const { getDraft, saveDraft, clearDraft } = useCharacterDraftStore();
+
+  const existingDraft = storyId ? getDraft(storyId) : undefined;
+
+  // 4. Form Management
+  const form = useForm({
+    mode: "onChange",
+    defaultValues: existingDraft?.formData || {} as Record<string, any>
   });
 
-  const { data: world, isLoading: isLoadingWorld } = useQuery({
-    queryKey: ['world', worldId],
-    queryFn: () => getWorld(worldId!),
-    enabled: !!worldId,
-  });
+  // State for tracking if we've initialized the form with defaults
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Build dynamic schema based on world extensions
-  const dynamicSchema = world?.character_schema_extensions
-    ? baseCharacterSchema.extend(
-        Object.keys(world.character_schema_extensions).reduce(
-          (acc, key) => {
-            acc[key] = z.unknown().optional();
-            return acc;
-          },
-          {} as Record<string, z.ZodTypeAny>
-        )
-      )
-    : baseCharacterSchema;
+  // Populate defaults when steps load (merging with draft if needed)
+  useEffect(() => {
+    if (baseSteps.length > 0 && !hasInitialized) {
+      const draftData = existingDraft?.formData || {};
+      const defaults: Record<string, any> = { ...draftData };
 
-  const form = useForm<BaseCharacterForm & Record<string, unknown>>({
-    resolver: zodResolver(dynamicSchema),
-    defaultValues: {
-      identity: {
-        name: '',
-        pronouns: '',
-        role: '',
-      },
-      appearance: '',
-      backstory: '',
-      personality_traits: '',
-      drive: '',
-      flaw: '',
-    },
-  });
+      baseSteps.forEach(step => {
+        step.groups.forEach(group => {
+          group.fields.forEach(field => {
+            // Only set default if not already present in draft
+            if (defaults[field.key] === undefined) {
+              if (field.default !== undefined) {
+                defaults[field.key] = field.default;
+              } else if (field.control === 'slider' || field.control === 'number') {
+                defaults[field.key] = field.min ?? 0;
+              } else if (field.control === 'tag_list') {
+                defaults[field.key] = '';
+              } else {
+                defaults[field.key] = '';
+              }
+            }
+          });
+        });
+      });
 
-  // Initialize game mutation
-  const initializeMutation = useMutation({
-    mutationFn: initializeGame,
-    onSuccess: (data) => {
-      toast.success('Character created! Starting game...');
-      navigate(`/play/${data.gameStateId}`);
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Failed to create character');
-    },
-  });
+      form.reset(defaults);
+      setHasInitialized(true);
+    }
+  }, [baseSteps, hasInitialized, existingDraft, form]);
 
-  const onSubmit = (data: BaseCharacterForm & Record<string, unknown>) => {
-    if (!storyId) {
-      toast.error('Story ID is missing');
+  // 5. Navigation State
+  const [currentStepId, setCurrentStepId] = useState<string>('');
+
+  // Set initial step
+  useEffect(() => {
+    if (steps.length > 0 && !currentStepId) {
+      const draftStep = existingDraft?.stepId;
+      // If draft step exists and is valid (or is 'review'), use it. Else first step.
+      const isValidStep = draftStep && steps.some(s => s.id === draftStep);
+      setCurrentStepId((isValidStep ? draftStep : steps[0].id) as string);
+    }
+  }, [steps, currentStepId, existingDraft]);
+
+  const activeStep = useMemo(() =>
+    steps.find(s => s.id === currentStepId),
+    [steps, currentStepId]
+  );
+
+  // 6. Autosave Logic
+  const [isSaving, setIsSaving] = useState(false);
+  const formValues = form.watch();
+  // Increased debounce to 2000ms to reduce save frequency
+  const debouncedValues = useDebounce(formValues, 2000);
+
+  // Track last saved string to avoid redundant saves on navigation or re-render
+  const lastSavedJson = React.useRef<string>('');
+
+  useEffect(() => {
+    // 1. Basic gating
+    if (Object.keys(debouncedValues).length === 0) return;
+    if (!form.formState.isDirty) return;
+    if (!storyId || !currentStepId) return;
+
+    // 2. Diff against last successful save
+    const currentJson = JSON.stringify(debouncedValues);
+    if (currentJson === lastSavedJson.current) {
       return;
     }
 
-    // Transform form data to PlayerInputDto format
-    const playerInput = {
-      identity: {
-        name: data.identity.name,
-        pronouns: data.identity.pronouns,
-        role: data.identity.role,
-        age: data.identity.age,
-      },
-      appearance: data.appearance ? { summary: data.appearance } : undefined,
-      backstory: data.backstory,
-      personality_traits: data.personality_traits
-        ? data.personality_traits.split(',').map((t) => t.trim()).filter(Boolean)
-        : undefined,
-      drive: data.drive,
-      flaw: data.flaw,
-      // Include any world-specific extensions
-      ...Object.keys(data).reduce((acc, key) => {
-        if (
-          !['identity', 'appearance', 'backstory', 'personality_traits', 'drive', 'flaw'].includes(
-            key
-          )
-        ) {
-          acc[key] = data[key];
-        }
-        return acc;
-      }, {} as Record<string, unknown>),
+    const performSave = async () => {
+      setIsSaving(true);
+      // Save to local store
+      saveDraft(storyId, currentStepId, debouncedValues);
+      console.log("[Autosave] Draft saved to local storage");
+
+      // Update ref to current state
+      lastSavedJson.current = currentJson;
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setIsSaving(false);
     };
 
-    initializeMutation.mutate({
-      storyId,
-      playerInput,
-    });
+    performSave();
+  }, [debouncedValues, storyId, currentStepId, saveDraft, form.formState.isDirty]);
+
+  // 7. Handlers
+  const handleManualSave = (exit = false) => {
+    if (!storyId || !currentStepId) return;
+    const values = form.getValues();
+    saveDraft(storyId, currentStepId, values);
+    toast.success('Draft saved');
+    if (exit) {
+      navigate(`/stories/${storyId}`);
+    }
   };
 
-  const isLoading = isLoadingStory || isLoadingWorld;
+  const handleSaveAndExit = () => handleManualSave(true);
 
-  if (isLoading) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFinish = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setIsSaving(true);
+
+    const toastId = toast.loading("Forging character...");
+
+    try {
+      const formData = form.getValues();
+      const story = manifestData?.snapshot_story;
+
+      // FIX: Robust Parsing of config_engine and manifests
+      let manifest = story?.creation_manifest; // Try top-level first
+
+      if (!manifest && story?.config_engine) {
+        if (typeof story.config_engine === 'string') {
+          try {
+            const parsedConfig = JSON.parse(story.config_engine);
+            manifest = parsedConfig.creation_manifest;
+          } catch (e) {
+            console.warn("Could not parse config_engine string", e);
+          }
+        } else {
+          // It's already an object
+          manifest = story.config_engine.creation_manifest;
+        }
+      }
+
+      // FIX 1 & 2: Data Transformation Loop with Explicit Safety Net
+      const processedFormData: any = { ...formData };
+
+      // A. Explicit Safety Net (Run this regardless of manifest)
+      const knownArrayKeys = ['core_traits', 'occupation_tags', 'aversion_triggers', 'interest_triggers', 'essence_alignment'];
+      knownArrayKeys.forEach(key => {
+        if (typeof processedFormData[key] === 'string') {
+          processedFormData[key] = processedFormData[key]
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter((s: string) => s.length > 0);
+        }
+      });
+
+      // B. Dynamic Manifest Crawl (for other list fields)
+      if (manifest && manifest.steps) {
+        manifest.steps.forEach((step: any) => {
+          step.groups.forEach((group: any) => {
+            group.fields.forEach((field: any) => {
+              // Tag Lists -> Arrays
+              if ((field.control === 'tag_list' || field.control === 'complex_list') && typeof processedFormData[field.key] === 'string') {
+                processedFormData[field.key] = processedFormData[field.key]
+                  .split(',')
+                  .map((s: string) => s.trim())
+                  .filter((s: string) => s.length > 0);
+              }
+              // Sliders -> Numbers
+              if ((field.control === 'slider' || field.control === 'number') && processedFormData[field.key] !== undefined) {
+                processedFormData[field.key] = Number(processedFormData[field.key]);
+              }
+            });
+          });
+        });
+      }
+
+      // FIX 3: Ensure applied_rulesets is correct and robust
+      let appliedRulesetIds: string[] = [];
+      if (story?.active_rulesets && Array.isArray(story.active_rulesets)) {
+        appliedRulesetIds = story.active_rulesets.map((r: any) => r.id);
+      } else if (story?.config_engine?.active_rulesets && Array.isArray(story.config_engine.active_rulesets)) {
+        appliedRulesetIds = story.config_engine.active_rulesets.map((r: any) => r.id);
+      } else {
+        // Fallback to manifest data if available
+        appliedRulesetIds = manifestData?.snapshot_story?.config_engine?.active_rulesets?.map((r: any) => r.id) || [];
+      }
+
+      // FIX 4: Ensure world_id is passed
+      const worldId = manifestData?.snapshot_world?.id || storyId;
+      if (!worldId) throw new Error("Missing World Scope - cannot create character without a world context.");
+
+      // Prepare Data
+      // Wrap flat data into Engine Structure (tier1_entity)
+      const statePayload = {
+        tier1_entity: {
+          ...processedFormData
+        }
+      };
+
+      // 3. Save Template (The Player Character) via Backend API
+      console.log("[Forge] Creating Player Character Template via API...", { name: processedFormData.name, worldId });
+
+      const templatePayload = {
+        name: processedFormData.name || 'Unnamed',
+        state_snapshot: statePayload,
+        world_id: worldId
+      };
+
+      const pcResult = await apiPost('/api/v2/chimera/player-characters', templatePayload);
+
+      if (!pcResult.ok) {
+        throw new Error(pcResult.error.message || 'Failed to save character template');
+      }
+
+      const pc = pcResult.data;
+      console.log("[Forge] Template Created:", pc.id);
+
+      // NOTE: We do NOT instantiate an entity in chimera_entities for Players.
+      // The Engine loads them directly from chimera_player_characters.
+
+      // Success!
+      if (storyId) clearDraft(storyId);
+      toast.dismiss(toastId);
+      toast.success(`Welcome to ${story?.title || 'the story'}`);
+
+      // Redirect to story play view
+      navigate(`/play/story/${storyId}`, { replace: true });
+
+    } catch (error) {
+      console.error("Submission failed:", error);
+      toast.dismiss(toastId);
+      toast.error(error instanceof Error ? error.message : "Failed to submit character");
+    } finally {
+      setIsSubmitting(false);
+      setIsSaving(false);
+    }
+  };
+
+  // 8. Render Loading / Error
+  if (isLoadingStory) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Loading Forge...</span>
       </div>
     );
   }
 
-  if (!compiledStory) {
+  if (storyError || (!manifestData && !isLoadingStory)) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <Card>
-          <CardContent className="py-12">
-            <p className="text-center text-muted-foreground">Story not found</p>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col h-screen items-center justify-center p-8 text-center">
+        <AlertTriangle className="h-10 w-10 text-destructive mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Failed to load story</h1>
+        <p className="text-muted-foreground mb-4">The story context is missing or invalid.</p>
+        <Button onClick={() => navigate('/stories')}>Back to Stories</Button>
       </div>
     );
   }
 
-  const worldName = world?.name || 'Unknown World';
-  const schemaExtensions = world?.character_schema_extensions || {};
+  if (baseSteps.length === 0) {
+    return (
+      <div className="flex flex-col h-screen items-center justify-center">
+        <p className="text-muted-foreground">No character creation steps found for this story.</p>
+        <Button variant="link" onClick={() => navigate('/stories')}>Go Back</Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <User className="h-6 w-6 text-purple-500" />
-          <h1 className="text-3xl font-bold">Create Your Character</h1>
+    <CharacterForgeLayout
+      steps={steps}
+      currentStepId={currentStepId}
+      onStepChange={setCurrentStepId}
+      onSave={() => handleManualSave(false)}
+      onSaveAndExit={handleSaveAndExit}
+      onFinish={handleFinish}
+      isSaving={isSaving || isSubmitting}
+    >
+      {currentStepId === 'review' ? (
+        <CharacterReviewSheet
+          manifest={manifestData?.creation_manifest}
+          data={form.watch()}
+        />
+      ) : activeStep ? (
+        <EntityAttributesForm
+          step={activeStep}
+          control={form.control}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-muted-foreground">
+          Select a step to begin...
         </div>
-        <p className="text-muted-foreground">
-          Welcome to <strong>{worldName}</strong>. Define your character to begin your adventure.
-        </p>
-      </div>
-
-      <form onSubmit={form.handleSubmit(onSubmit)}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Identity</CardTitle>
-            <CardDescription>Basic information about your character</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                {...form.register('identity.name')}
-                placeholder="Enter your character's name"
-              />
-              {form.formState.errors.identity?.name && (
-                <p className="text-sm text-destructive mt-1">
-                  {form.formState.errors.identity.name.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="pronouns">Pronouns</Label>
-              <Input
-                id="pronouns"
-                {...form.register('identity.pronouns')}
-                placeholder="e.g., they/them, he/him, she/her"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="role">Role / Occupation</Label>
-              <Input
-                id="role"
-                {...form.register('identity.role')}
-                placeholder="e.g., Hedge Knight, Starship Pilot, Detective"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="age">Age</Label>
-              <Input
-                id="age"
-                type="number"
-                {...form.register('identity.age', { valueAsNumber: true })}
-                placeholder="Enter age"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription>Describe your character's appearance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Textarea
-              {...form.register('appearance')}
-              placeholder="Describe your character's appearance, style, and first impressions..."
-              rows={4}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Backstory</CardTitle>
-            <CardDescription>Your character's origin and history</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Textarea
-              {...form.register('backstory')}
-              placeholder="Where they came from and what drives them..."
-              rows={4}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Personality</CardTitle>
-            <CardDescription>Define your character's traits and motivations</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="personality_traits">Personality Traits</Label>
-              <Input
-                id="personality_traits"
-                {...form.register('personality_traits')}
-                placeholder="Comma-separated: Brave, Stubborn, Curious"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Enter traits separated by commas
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="drive">Primary Goal / Ideal</Label>
-              <Input
-                id="drive"
-                {...form.register('drive')}
-                placeholder="What drives your character?"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="flaw">Major Flaw / Weakness</Label>
-              <Input
-                id="flaw"
-                {...form.register('flaw')}
-                placeholder="What is your character's greatest weakness?"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* World-specific extensions */}
-        {Object.keys(schemaExtensions).length > 0 && (
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle>World-Specific Attributes</CardTitle>
-              <CardDescription>
-                Additional attributes specific to {worldName}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Object.entries(schemaExtensions).map(([key, extension]) => {
-                const ext = extension as Record<string, unknown>;
-                const label = (ext.label as string) || key;
-                const type = (ext.type as string) || 'text';
-                const options = ext.options as string[] | undefined;
-                const required = (ext.required as boolean) || false;
-
-                return (
-                  <div key={key}>
-                    <Label htmlFor={key}>
-                      {label}
-                      {required && ' *'}
-                    </Label>
-                    {type === 'dropdown' || type === 'radio' ? (
-                      <Select
-                        onValueChange={(value) => form.setValue(key, value)}
-                        defaultValue={form.watch(key) as string}
-                      >
-                        <SelectTrigger id={key}>
-                          <SelectValue placeholder={`Select ${label}`} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options?.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : type === 'textarea' ? (
-                      <Textarea
-                        id={key}
-                        {...form.register(key)}
-                        placeholder={(ext.placeholder as string) || `Enter ${label}`}
-                        rows={3}
-                      />
-                    ) : (
-                      <Input
-                        id={key}
-                        type={type === 'number' ? 'number' : 'text'}
-                        {...form.register(key)}
-                        placeholder={(ext.placeholder as string) || `Enter ${label}`}
-                      />
-                    )}
-                    {ext.description && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {ext.description as string}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="flex justify-end gap-4 mt-6">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate(-1)}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            disabled={initializeMutation.isPending}
-          >
-            {initializeMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Create Character & Start Game
-              </>
-            )}
-          </Button>
-        </div>
-      </form>
-    </div>
+      )}
+    </CharacterForgeLayout>
   );
 }
-

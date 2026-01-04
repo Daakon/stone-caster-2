@@ -14,11 +14,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useStoryQuery } from '@/lib/queries';
 import { track } from '@/lib/analytics';
 import { buildImageUrl } from '@shared/media/url';
-import { 
-  Gem, 
-  Users, 
-  Zap, 
-  ExternalLink, 
+import {
+  Gem,
+  Users,
+  Zap,
+  ExternalLink,
   Star,
   Clock,
   Shield,
@@ -37,10 +37,10 @@ export default function StoryDetailPage() {
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
   const { user } = useAuthStore();
-  
+
   // Conditionally use Chimera API or legacy API
-  const legacyStoryQuery = useStoryQuery(id || '');
-  
+  const legacyStoryQuery = useStoryQuery(id || '', { enabled: !isChimeraEnabled });
+
   const chimeraStoryQuery = useQuery({
     queryKey: ['chimera-story', id],
     queryFn: async () => {
@@ -59,10 +59,10 @@ export default function StoryDetailPage() {
           type: 'adventure' as const,
           world: chimeraStory.world
             ? {
-                id: chimeraStory.world.id,
-                name: chimeraStory.world.display_name,
-                slug: chimeraStory.world.id,
-              }
+              id: chimeraStory.world.id,
+              name: chimeraStory.world.display_name,
+              slug: chimeraStory.world.id,
+            }
             : null,
           world_name: chimeraStory.world?.display_name || null,
           world_id: chimeraStory.world_id,
@@ -73,6 +73,7 @@ export default function StoryDetailPage() {
           content_rating: chimeraStory.content_rating,
           created_at: chimeraStory.created_at,
           updated_at: chimeraStory.updated_at,
+          status: chimeraStory.status,
         },
       };
     },
@@ -86,7 +87,7 @@ export default function StoryDetailPage() {
   const story = storyData?.ok ? storyData.data : undefined;
   const isLoading = storyQuery.isLoading;
   const error = storyQuery.error;
-  
+
   // Check if story is a Chimera story (has owner_user_id or is from Chimera API)
   // For now, we'll show the Studio button for all stories when Chimera is enabled
   // In the future, we can check ownership more precisely
@@ -95,7 +96,7 @@ export default function StoryDetailPage() {
   // Build image URL from cover_media or fallback to hero_url
   const deliveryUrl = import.meta.env.VITE_CF_IMAGES_DELIVERY_URL;
   const hasDeliveryUrl = !!deliveryUrl && deliveryUrl.trim() !== '';
-  
+
   const heroImageUrl = story?.cover_media && hasDeliveryUrl
     ? buildImageUrl(story.cover_media.provider_key, 'public')
     : story?.hero_url || null;
@@ -134,7 +135,7 @@ export default function StoryDetailPage() {
       url,
     });
   }, [storyData]);
-  
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -162,15 +163,15 @@ export default function StoryDetailPage() {
 
   const handleStartStory = async () => {
     track('begin_story_click', { story_id: story.id });
-    
-    // Always route to Player Gateway for character selection/creation
-    // The gateway will handle checking for existing characters and starting the game
+
+    // Check if it's a V3 Compiled Story
     if (isChimeraEnabled) {
-      navigate(`/player-gateway/${story.id}`);
-    } else {
-      // Legacy flow
-      navigate(`/stories/${story.id}/characters`);
+      navigate(`/play/start/${story.id}`);
+      return;
     }
+
+    // Legacy flow
+    navigate(`/stories/${story.id}/characters`);
   };
 
   const handleLearnAboutWorld = () => {
@@ -231,7 +232,7 @@ export default function StoryDetailPage() {
                 )}
               </div>
             </CardHeader>
-            
+
             <CardContent className="p-6">
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex items-center gap-2">
@@ -252,8 +253,8 @@ export default function StoryDetailPage() {
                 {/* World and Ruleset Chips */}
                 <div className="flex flex-wrap gap-2">
                   {story.world && (
-                    <Badge 
-                      variant="secondary" 
+                    <Badge
+                      variant="secondary"
                       className="cursor-pointer hover:bg-secondary/80 transition-colors"
                       onClick={() => navigate(`/worlds/${story.world.slug || story.world.id}`)}
                       aria-label={`View world ${story.world.name}`}
@@ -262,9 +263,9 @@ export default function StoryDetailPage() {
                     </Badge>
                   )}
                   {story.rulesets?.map((ruleset) => (
-                    <Badge 
+                    <Badge
                       key={ruleset.id}
-                      variant="outline" 
+                      variant="outline"
                       className="cursor-pointer hover:bg-muted transition-colors"
                       onClick={() => navigate(`/rulesets/${ruleset.id}`)}
                       aria-label={`View ruleset ${ruleset.name}`}
@@ -273,7 +274,7 @@ export default function StoryDetailPage() {
                     </Badge>
                   ))}
                 </div>
-                
+
                 {/* Tags */}
                 {story.tags && story.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">

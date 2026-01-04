@@ -143,8 +143,11 @@ export async function getEntities(): Promise<EntityTemplate[]> {
 /**
  * Get a single entity by ID
  */
+/**
+ * Get a single entity by ID
+ */
 export async function getEntity(id: string): Promise<EntityTemplate> {
-  const result = await apiFetch<EntityTemplate>(`/api/chimera/entities/${id}`);
+  const result = await apiFetch<EntityTemplate>(`/api/v2/chimera/entities/${id}`);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to fetch entity');
   }
@@ -382,9 +385,20 @@ export async function compileStory(
  * Get a compiled story by ID
  */
 export async function getCompiledStory(id: string): Promise<import('@shared/types/chimera-compiled').CompiledStory> {
-  const result = await apiFetch<import('@shared/types/chimera-compiled').CompiledStory>(`/api/chimera/stories/${id}`);
+  const result = await apiFetch<import('@shared/types/chimera-compiled').CompiledStory>(`/api/chimera/compile/${id}`);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to fetch compiled story');
+  }
+  return result.data!;
+}
+
+/**
+ * Get just the creation manifest for a story
+ */
+export async function getCreationManifest(id: string): Promise<{ creation_manifest: any; snapshot_world: any }> {
+  const result = await apiFetch<{ creation_manifest: any; snapshot_world: any }>(`/api/chimera/compile/${id}/manifest`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to fetch creation manifest');
   }
   return result.data!;
 }
@@ -596,6 +610,30 @@ export async function fetchMyStories(): Promise<ChimeraStoryV2[]> {
     throw new Error(result.error.message || 'Failed to fetch my stories');
   }
   return result.data || [];
+}
+
+/**
+ * Delete a story
+ * Route: DELETE /api/v2/chimera/stories/:id
+ */
+export async function deleteStory(id: string): Promise<void> {
+  const result = await apiDelete(`/api/v2/chimera/stories/${id}`);
+  if (!result.ok) {
+    throw new Error(result.error.message || 'Failed to delete story');
+  }
+}
+
+/**
+ * Hook to delete a story
+ */
+export function useDeleteStory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteStory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-stories'] });
+    },
+  });
 }
 
 // ============================================================================

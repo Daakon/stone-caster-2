@@ -9,7 +9,7 @@ import type { Database } from '../supabase-client.js';
 import type { CompiledStory } from '../../services/compile/compiler.service.js';
 
 export class CompiledStoriesRepository {
-  constructor(private supabase: SupabaseClient<Database>) {}
+  constructor(private supabase: SupabaseClient<Database>) { }
 
   /**
    * Create a new compiled story
@@ -46,15 +46,17 @@ export class CompiledStoriesRepository {
   }
 
   /**
-   * Get a compiled story by key
-   * @param storyKey - The story key
+   * Get a compiled story by key (Story ID)
+   * @param storyKey - The story ID
    * @returns CompiledStory or null if not found
    */
   async findByKey(storyKey: string): Promise<CompiledStory | null> {
     const { data, error } = await (this.supabase
-      .from('compiled_stories') as any)
-      .select('compiled')
-      .eq('story_key', storyKey)
+      .from('chimera_compiled_stories') as any)
+      .select('id, story_id, version, config_engine, creation_manifest, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, genesis_config, created_at')
+      .eq('story_id', storyKey)
+      .order('version', { ascending: false })
+      .limit(1)
       .single();
 
     if (error) {
@@ -68,24 +70,32 @@ export class CompiledStoriesRepository {
       return null;
     }
 
-    // Convert Arrays back to Sets
-    const compiled = data.compiled as any;
+    // Assemble unified object from split columns
     return {
-      ...compiled,
-      tier1_allowlist: new Set(compiled.tier1_allowlist || []),
-      tier0_allowlist: new Set(compiled.tier0_allowlist || []),
-    };
+      id: data.id,
+      story_key: data.story_id,
+      config_engine: data.config_engine,
+      creation_manifest: data.creation_manifest,
+      prompt_interpreter_logic: data.prompt_interpreter_logic,
+      prompt_narrator_style: data.prompt_narrator_style,
+      snapshot_world: data.snapshot_world,
+      snapshot_entities: data.snapshot_entities,
+      tier1_allowlist: new Set([]), // Legacy/Unused
+      tier0_allowlist: new Set([]), // Legacy/Unused
+      version: data.version,
+      updated_at: data.created_at // Use created_at as updated_at fallback
+    } as any;
   }
 
   /**
-   * Get a compiled story by ID
+   * Get a compiled story by ID (Cartridge ID)
    * @param id - The compiled story UUID
    * @returns CompiledStory or null if not found
    */
   async findById(id: string): Promise<CompiledStory | null> {
     const { data, error } = await (this.supabase
-      .from('compiled_stories') as any)
-      .select('compiled')
+      .from('chimera_compiled_stories') as any)
+      .select('id, story_id, version, config_engine, creation_manifest, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
       .eq('id', id)
       .single();
 
@@ -100,13 +110,41 @@ export class CompiledStoriesRepository {
       return null;
     }
 
-    // Convert Arrays back to Sets
-    const compiled = data.compiled as any;
+    // Assemble unified object from split columns
     return {
-      ...compiled,
-      tier1_allowlist: new Set(compiled.tier1_allowlist || []),
-      tier0_allowlist: new Set(compiled.tier0_allowlist || []),
+      id: data.id,
+      story_key: data.story_id,
+      config_engine: data.config_engine,
+      creation_manifest: data.creation_manifest,
+      prompt_interpreter_logic: data.prompt_interpreter_logic,
+      prompt_narrator_style: data.prompt_narrator_style,
+      snapshot_world: data.snapshot_world,
+      snapshot_entities: data.snapshot_entities,
+      tier1_allowlist: new Set([]), // Legacy/Unused
+      tier0_allowlist: new Set([]), // Legacy/Unused
+      version: data.version,
+      updated_at: data.created_at // Use created_at as updated_at fallback
+    } as any;
+  }
+
+  /**
+   * Get just the creation manifest and world snapshot for a story
+   * Optimized for Character Forge loading
+   */
+  async getManifestByKey(storyKey: string): Promise<{ creation_manifest: any, snapshot_world: any } | null> {
+    const { data, error } = await (this.supabase
+      .from('chimera_compiled_stories') as any)
+      .select('creation_manifest, snapshot_world')
+      .eq('story_id', storyKey)
+      .order('version', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) return null;
+
+    return {
+      creation_manifest: data.creation_manifest,
+      snapshot_world: data.snapshot_world
     };
   }
 }
-

@@ -15,7 +15,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
     const userId = req.ctx?.userId;
     const isGuest = req.ctx?.isGuest;
     const user = req.ctx?.user;
-    
+
     // Layer M0: Return guest identity when no user context is available
     if (!userId) {
       const guestIdentity = {
@@ -38,7 +38,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
           .select('role, role_version')
           .eq('id', userId)
           .single();
-        
+
         role = (profile?.role || 'pending') as AppRole;
         roleVersion = profile?.role_version || 1;
       } catch (error) {
@@ -81,5 +81,40 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 });
 
 
+
+// Get user's characters
+router.get('/characters', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.ctx?.userId;
+    if (!userId) {
+      return sendSuccess(res, [], req);
+    }
+
+    const { data: characters, error } = await supabaseAdmin
+      .from('chimera_entities')
+      .select('*')
+      .eq('owner_user_id', userId)
+      .eq('entity_type', 'CHARACTER')
+      // Apply safe world filtering if provided
+      .match(
+        // Check if world query param is a valid UUID before filtering
+        req.query.world &&
+          typeof req.query.world === 'string' &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.query.world)
+          ? { world_id: req.query.world }
+          : {}
+      )
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return sendSuccess(res, characters, req);
+  } catch (error) {
+    console.error('Error fetching user characters:', error);
+    return sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch characters', req);
+  }
+});
 
 export default router;

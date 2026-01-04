@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { useAuthStore } from './store/auth';
@@ -19,7 +19,7 @@ import { useAuth } from './hooks/useAuth';
 import LandingPage from './pages/LandingPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import StoryDetailPage from './pages/stories/StoryDetailPage';
-import StartStoryPage from './pages/play/StartStoryPage';
+import StartStoryPage from './features/play/start/StartStoryPage';
 import CharacterCreationPage from './pages/play/CharacterCreationPage';
 import CharacterCreatorPageV2 from './pages/play/create/CharacterCreatorPage';
 import PlayerGatewayPage from './pages/play/PlayerGatewayPage';
@@ -30,10 +30,12 @@ import WorldDetailPage from './pages/worlds/WorldDetailPage';
 import NPCDetailPage from './pages/npcs/NPCDetailPage';
 import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
 import ProfilePage from './pages/ProfilePage';
-import MyCreationsDashboard from './pages/dashboard/creations/index';
+// import MyCreationsDashboard from './pages/dashboard/creations/index';
 import { MyCreationsPage } from './features/dashboard/MyCreationsPage';
-import { CastingCircleWizard } from './features/casting-circle/CastingCircleWizard';
+
 import { CreateStoryPage } from './features/create-story';
+import { CastingCircleWizard } from './features/casting-circle/CastingCircleWizard';
+import NewGameWizard from './features/game-v3/NewGameWizard';
 import WorldEditor from './pages/dashboard/worlds/Editor';
 import WorldManage from './pages/dashboard/worlds/Manage';
 import EntityEditor from './pages/dashboard/entities/Editor';
@@ -111,9 +113,10 @@ function AppContent() {
           } />
           <Route path="/stories/compose" element={
             <ProtectedRoute>
-              <CastingCircleWizard />
+              <CreateStoryPage />
             </ProtectedRoute>
           } />
+
           <Route path="/stories/:id/compose" element={
             <ProtectedRoute>
               <CastingCircleWizard />
@@ -129,7 +132,7 @@ function AppContent() {
               <StoryDetailPage />
             </EarlyAccessRoute>
           } />
-          <Route path="/play/start" element={
+          <Route path="/play/start/:storyId" element={
             <EarlyAccessRoute>
               <StartStoryPage />
             </EarlyAccessRoute>
@@ -143,6 +146,11 @@ function AppContent() {
             <EarlyAccessRoute>
               <CharacterCreatorPageV2 />
             </EarlyAccessRoute>
+          } />
+          <Route path="/story/:id/new" element={
+            <ProtectedRoute>
+              <NewGameWizard />
+            </ProtectedRoute>
           } />
           <Route path="/create-character/:storyId" element={
             <EarlyAccessRoute>
@@ -196,14 +204,14 @@ function AppContent() {
           <Route path="/dashboard/creations" element={
             <ProtectedRoute>
               <EarlyAccessRoute>
-                <Navigate to="/dashboard/creations/worlds" replace />
+                <Navigate to="/my-creations" replace />
               </EarlyAccessRoute>
             </ProtectedRoute>
           } />
           <Route path="/dashboard/creations/:tab" element={
             <ProtectedRoute>
               <EarlyAccessRoute>
-                <MyCreationsDashboard />
+                <LegacyCreationsRedirect />
               </EarlyAccessRoute>
             </ProtectedRoute>
           } />
@@ -415,6 +423,11 @@ function App() {
       </ThemeProvider>
     </ErrorBoundary>
   );
+}
+
+function LegacyCreationsRedirect() {
+  const { tab } = useParams<{ tab: string }>();
+  return <Navigate to={`/my-creations${tab ? `?tab=${tab}` : ''}`} replace />;
 }
 
 export default App;

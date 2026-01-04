@@ -13,6 +13,7 @@ export interface ChimeraStory {
   description_short: string | null;
   content_rating: 'safe' | 'mature' | 'explicit';
   world_id: string | null;
+  status: 'draft' | 'compiled' | 'bound';
   story_definition?: Record<string, unknown> | null;
   configuration?: {
     worldId: string;

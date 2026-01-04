@@ -14,6 +14,7 @@ export interface CompileSelection {
   worldId: string;
   rulesetIds: string[];
   entityIds: string[];
+  genesis_config?: Record<string, unknown>;
 }
 
 export interface CompiledStory {
@@ -23,6 +24,7 @@ export interface CompiledStory {
   actions_map: Record<string, unknown>;
   entities: Array<{ id: string; kind: string; raw_data: Record<string, unknown> }>;
   narrative_index: string[]; // Lore fragment IDs
+  genesis_config?: Record<string, unknown>; // Preserved Director's Slate
 }
 
 export class CompilerService {
@@ -31,7 +33,7 @@ export class CompilerService {
     private worldsRepo: WorldsRepository,
     private entitiesRepo: EntitiesRepository,
     private compiledStoriesRepo: CompiledStoriesRepository
-  ) {}
+  ) { }
 
   /**
    * Compile a story from a selection of world, rulesets, and entities

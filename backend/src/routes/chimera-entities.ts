@@ -26,7 +26,7 @@ const EntityIdParamSchema = z.object({
 router.use(requireAuth);
 
 // Zod schemas for validation
-const EntityTypeSchema = z.enum(['NPC', 'ITEM', 'FACTION', 'LOCATION']);
+const EntityTypeSchema = z.enum(['NPC', 'ITEM', 'FACTION', 'LOCATION', 'PLAYER']);
 const VisibilitySchema = z.enum(['private', 'pending_approval', 'public']);
 
 const CreateEntitySchema = z.object({
