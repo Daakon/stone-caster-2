@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { GameLog } from '@/components/game/NarrativeFeed';
 
 interface ActiveGameInterfaceProps {
     gameStateId: string;
@@ -39,45 +40,52 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         );
     }
 
-    // Extract Description from Tier 1 or use Genesis output
-    // The Genesis Service places the text into `bundle.narrative.description`.
-    // In the runtime `GameState`, this might be in `narrative` or `tier1_mechanical`?
-    // Let's inspect GameState type if possible, but assuming `narrative.description` based on GameInitService logic.
-    // If not found, fallback to safely inspect object.
-    const narrativeText = (gameState as any)?.narrative?.description ||
-        (gameState as any)?.tier1_mechanical?.narrative?.description ||
-        "The story begins in silence...";
+    // Extract History
+    const history = (gameState as any)?.narrative?.dialogue_history ||
+        (gameState as any)?.narrative?.history ||
+        [];
+
+    // Map to LogEntry[]
+    const logEntries = history.map((entry: any, index: number) => ({
+        id: `history-${index}`,
+        role: entry.speaker === 'Narrator' ? 'narrator' : 'player',
+        text: entry.text || entry.content || '',
+        timestamp: new Date(entry.timestamp || Date.now())
+    }));
+
+    // Generate Turn 0 text for fallback if empty
+    if (logEntries.length === 0) {
+        const narrativeText = (gameState as any)?.narrative?.description ||
+            (gameState as any)?.tier1_mechanical?.narrative?.description ||
+            "The story begins...";
+
+        logEntries.push({
+            id: 'init-0',
+            role: 'narrator',
+            text: narrativeText,
+            timestamp: new Date()
+        });
+    }
 
     return (
-        <div className="min-h-screen bg-background p-4 flex flex-col items-center justify-center">
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center">
             {/* Header */}
-            <div className="w-full max-w-2xl mb-4 flex justify-between items-center">
+            <div className="w-full max-w-2xl p-4 border-b flex justify-between items-center bg-background/95 backdrop-blur z-10 sticky top-0">
                 <Button variant="ghost" size="sm" onClick={() => navigate('/casting-circle')}>
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Exit
                 </Button>
             </div>
 
-            <Card className="p-8 max-w-2xl w-full space-y-6 shadow-lg border-primary/20">
-                <div className="prose prose-invert max-w-none">
-                    <ReactMarkdown
-                        components={{
-                            // Styling: Italics -> text-purple-300 italic
-                            em: ({ node, ...props }) => <span className="text-purple-300 italic" {...props} />,
-                            // Styling: Bold -> text-white font-bold
-                            strong: ({ node, ...props }) => <span className="text-white font-bold tracking-wide" {...props} />,
-                            // Styling: Blockquote -> border-l-2 border-primary pl-4
-                            blockquote: ({ node, ...props }) => <div className="border-l-2 border-primary pl-4 text-muted-foreground italic my-4" {...props} />
-                        }}
-                    >
-                        {narrativeText}
-                    </ReactMarkdown>
-                </div>
+            {/* Game Log */}
+            <div className="flex-1 w-full max-w-2xl overflow-hidden relative">
+                <GameLog entries={logEntries} />
+            </div>
 
-                <div className="pt-8 border-t border-border/50 text-center text-sm text-muted-foreground animate-pulse">
-                    Waiting for player action...
-                </div>
-            </Card>
+            {/* Hint Footer */}
+            <div className="p-4 w-full max-w-2xl border-t text-center text-sm text-muted-foreground animate-pulse">
+                Waiting for player action...
+            </div>
         </div>
     );
 }

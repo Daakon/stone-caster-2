@@ -4,7 +4,7 @@
  * Main gameplay interface at /play/:gameStateId
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
@@ -19,7 +19,6 @@ import type { GameState } from '@shared/types/chimera-runtime';
 import { useGameSession } from '@/hooks/game/useGameSession';
 import { GameGenesisLoader } from '@/components/game/GameGenesisLoader';
 import { ActiveGameInterface } from '@/components/game/ActiveGameInterface';
-import { supabase } from '@/lib/supabase';
 
 export default function GamePage() {
   const { gameStateId } = useParams<{ gameStateId: string }>();
@@ -28,52 +27,66 @@ export default function GamePage() {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 1. Resolve Story ID from Game State ID (for Validator)
-  const { data: sessionMeta } = useQuery({
-    queryKey: ['session-meta', gameStateId],
-    queryFn: async () => {
-      if (!gameStateId) return null;
-      const { data, error } = await supabase
-        .from('chimera_game_states')
-        .select('story_id')
-        .eq('id', gameStateId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!gameStateId
-  });
-
-  // 2. Validate Session Integrity
-  const { status, refresh } = useGameSession(sessionMeta?.story_id || null);
-
-  // 3. Gate UI based on Status
-  if (status === 'needs_genesis') {
-    return <GameGenesisLoader />;
-  }
-
-  // Debug/Placeholder override as requested
-  if (status === 'ready') {
-    // We can return ActiveGameInterface here if we want to bypass the old UI entirely as requested
-    // "If status === 'ready' -> Render <ActiveGameInterface />."
-    // But the user also wants to "Manage the entry".
-    // If I return ActiveGameInterface here, the useQuery below for 'game-state' might not have finished?
-    // Actually user logic said: "Render <ActiveGameInterface />"
-    return <ActiveGameInterface gameStateId={gameStateId!} />;
-  }
-
-  // Load initial game state
-  const { data: initialState, isLoading, error } = useQuery({
+  // 1. Load Game State (includes story_id for validation)
+  const { data: initialGameState, isLoading, error } = useQuery({
     queryKey: ['game-state', gameStateId],
     queryFn: async () => {
       if (!gameStateId) throw new Error('Game state ID is required');
       return await loadState(gameStateId);
     },
     enabled: !!gameStateId,
-    onSuccess: (data) => {
-      setGameState(data);
-    },
+    // onSuccess is removed in v5, using useEffect instead
   });
+
+  // 2. Validate Session Integrity checks
+  const { status, refresh } = useGameSession(initialGameState?.story_id || null);
+
+  // 3. Hydrate Local State when Data Loads
+  useEffect(() => {
+    if (initialGameState) {
+      setGameState(initialGameState);
+
+      // Populate Log Entries from History
+      const history = initialGameState.narrative?.dialogue_history || initialGameState.narrative?.history || [];
+      const historyEntries: LogEntry[] = history.map((h: any, i: number) => ({
+        id: `history-${i}`,
+        role: h.speaker === 'Narrator' ? 'narrator' : 'player',
+        text: h.text || h.content || '',
+        timestamp: new Date(h.timestamp || Date.now())
+      }));
+
+      // Turn 0 Fallback
+      if (historyEntries.length === 0) {
+        const intro = initialGameState.narrative?.description || initialGameState.tier1_mechanical?.narrative?.description || "The story begins...";
+        historyEntries.push({
+          id: 'init-0',
+          role: 'narrator',
+          text: intro,
+          timestamp: new Date()
+        });
+      }
+
+      setLogEntries(historyEntries);
+    }
+  }, [initialGameState]);
+
+  // 3. Gate UI based on Status & Loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (status === 'needs_genesis') {
+    return <GameGenesisLoader />;
+  }
+
+  // Debug/Placeholder override as requested
+  if (status === 'ready') {
+    return <ActiveGameInterface gameStateId={gameStateId!} />;
+  }
 
   const handleCast = async (text: string) => {
     if (!gameStateId) {

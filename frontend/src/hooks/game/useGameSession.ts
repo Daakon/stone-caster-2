@@ -1,6 +1,5 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
 import { validateSessionIntegrity } from '@/engine/game/sessionValidator';
 import type { SessionStatus, GameContext } from '@/engine/game/sessionValidator';
 import { toast } from 'sonner';
@@ -20,7 +19,7 @@ export function useGameSession(storyId: string | null) {
         setStatus('loading');
         setError(null);
 
-        const result = await validateSessionIntegrity(supabase, storyId);
+        const result = await validateSessionIntegrity(storyId);
 
         if (result.status === 'error') {
             setStatus('error');

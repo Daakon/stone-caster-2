@@ -1,8 +1,4 @@
 
-import { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/supabase'; // Assuming strict supabase types exist, if not I'll fall back to any or define partial
-// If @/types/supabase doesn't exist, I'll use generic any for now and refine later, or better, define the expected shape.
-// To be safe and "Strict", I will define the DB shapes locally if needed or use 'any' with a cast to a strong return type.
 
 export type SessionStatus = 'loading' | 'ready' | 'needs_genesis' | 'error';
 
@@ -46,82 +42,32 @@ export interface GameContext {
  * Returns 'ready' only if all data artifacts exist.
  * Returns 'needs_genesis' if valid context exists but game hasn't started.
  */
+import { apiFetch } from '@/lib/api';
+
+/**
+ * Rigorously checks if the game is ready to play via backend validation.
+ * Returns 'ready' only if all data artifacts exist.
+ * Returns 'needs_genesis' if valid context exists but game hasn't started.
+ */
 export async function validateSessionIntegrity(
-    supabase: SupabaseClient,
     storyId: string
 ): Promise<{ status: SessionStatus; context?: GameContext; error?: string }> {
     try {
-        // 1. Load Context (The "Stage")
-        const { data: storyData, error: sErr } = await supabase
-            .from('chimera_stories')
-            .select('*, world:chimera_worlds(*)')
-            .eq('id', storyId)
-            .single();
+        const response = await apiFetch<any>(`/api/chimera/game/validate?storyId=${storyId}`);
 
-        if (sErr || !storyData) {
-            return { status: 'error', error: sErr?.message || 'Story not found.' };
+        if (!response.ok) {
+            return { status: 'error', error: response.error?.message || 'Verification request failed' };
         }
 
-        // Cast response to expected shape
-        const story = storyData as any; // Safe cast for now, assuming DB structure
-        const world = story.world;
+        const data = response.data;
+        if (!data) return { status: 'error', error: 'No data returned from validation' };
 
-        if (!world) {
-            return { status: 'error', error: 'Linked World not found for this Story.' };
+        // Handle error status returned in success envelope
+        if (data.status === 'error') {
+            return { status: 'error', error: data.error };
         }
 
-        // 2. Load Actor (The "Player")
-        // 2. Load Actor (The "Player")
-        const protagonistId = story.protagonist_id;
-
-        if (!protagonistId) {
-            return { status: 'error', error: 'Player Character missing (No protagonist_id linked). Please create or bind your character.' };
-        }
-
-        const { data: playerData, error: pErr } = await supabase
-            .from('chimera_player_characters')
-            .select('*')
-            .eq('id', protagonistId)
-            .single();
-
-        if (pErr) return { status: 'error', error: 'Failed to load Character: ' + pErr.message };
-        if (!playerData) return { status: 'error', error: 'Player Character record not found.' };
-
-        const player = playerData as any;
-
-        // 3. Check Engine Artifacts (The "State")
-        // We check for the existence of the HEAD turn.
-        const { count, error: tErr } = await supabase
-            .from('chimera_turns')
-            .select('*', { count: 'exact', head: true })
-            .eq('story_id', storyId);
-
-        if (tErr) return { status: 'error', error: tErr.message };
-
-        const context: GameContext = {
-            story: {
-                id: story.id,
-                title: story.title,
-                world_id: story.world_id,
-            },
-            world: {
-                id: world.id,
-                name: world.name || world.title, // Handle potential schema diffs
-            },
-            player: {
-                id: player.id,
-                name: player.name,
-            }
-        };
-
-        // Decision Matrix
-        // If we have context but no turns, we need Genesis.
-        if (count === 0) {
-            return { status: 'needs_genesis', context };
-        }
-
-        // If we have turns, we are active.
-        return { status: 'ready', context };
+        return data as { status: SessionStatus; context?: GameContext };
 
     } catch (err: any) {
         return { status: 'error', error: err.message };

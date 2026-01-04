@@ -104,7 +104,7 @@ export class StoriesRepository {
   async loadGameState(id: string): Promise<any | null> {
     const { data, error } = await this.supabase
       .from('chimera_game_states')
-      .select('mechanical_state, narrative_focus, scene_registry, action_queue')
+      .select('story_id, mechanical_state, narrative_focus, scene_registry, action_queue')
       .eq('id', id)
       .single();
 
@@ -116,7 +116,9 @@ export class StoriesRepository {
     if (!data) return null;
 
     return {
-      mechanical: data.mechanical_state,
+      id: data.id,
+      story_id: data.story_id,
+      tier1_mechanical: data.mechanical_state, // Mapped to expected frontend key
       narrative: data.narrative_focus,
       registry: data.scene_registry,
       queue: data.action_queue

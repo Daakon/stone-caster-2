@@ -16,7 +16,112 @@ import { SupabaseGameStateRepository } from '../services/game/supabase-state.rep
 
 const router = Router();
 
-// Request body validation schema
+// Validation schema for GET /validate
+const ValidateSessionSchema = z.object({
+  storyId: z.string().uuid('Invalid story ID'),
+});
+
+/**
+ * GET /api/chimera/game/init/validate
+ * Validate session integrity and determine status (ready vs needs_genesis)
+ */
+router.get(
+  '/validate',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const storyId = req.query.storyId as string;
+
+      // Manual validation since it's a query param
+      if (!storyId || !z.string().uuid().safeParse(storyId).success) {
+        return sendErrorWithStatus(res, ApiErrorCode.VALIDATION_FAILED, 'Invalid story ID', req);
+      }
+
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'User ID missing', req);
+      }
+
+      const supabase = getChimeraSupabaseClient(req);
+
+      // 1. Load Context (Story + World)
+      const { data: story, error: sErr } = await supabase
+        .from('chimera_stories')
+        .select('*, world:chimera_worlds(*)')
+        .eq('id', storyId)
+        .single();
+
+      if (sErr || !story) {
+        return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, sErr?.message || 'Story not found', req);
+      }
+
+      const world = (story as any).world;
+      if (!world) {
+        return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Linked World not found', req);
+      }
+
+      // 2. Load Actor (Player Character)
+      const protagonistId = story.protagonist_id;
+      if (!protagonistId) {
+        // Return explicit error status via JSON, or HTTP 400?
+        // User validator returned { status: 'error', error: ... }
+        // We'll return 200 OK with status: 'error' to match expected logic, or stricter 400.
+        // Let's stick to standard API response: Success=true, Data={ status: 'error', error: ...}
+        return sendSuccess(res, {
+          status: 'error',
+          error: 'Player Character missing. Please create one.',
+          context: { story: { id: story.id, title: story.title }, world: { id: world.id, name: world.name } }
+        }, req);
+      }
+
+      const { data: player, error: pErr } = await supabase
+        .from('chimera_player_characters')
+        .select('*')
+        .eq('id', protagonistId)
+        .single();
+
+      if (pErr || !player) {
+        return sendSuccess(res, {
+          status: 'error',
+          error: 'Player Character record not found.',
+          context: { story: { id: story.id, title: story.title }, world: { id: world.id, name: world.name } }
+        }, req);
+      }
+
+      // 3. Check for Active Game State (instead of chimera_turns)
+      // If we have an active game state, we are "ready".
+      const { count } = await supabase
+        .from('chimera_active_games') // or chimera_game_states if legacy
+        .select('*', { count: 'exact', head: true })
+        .eq('story_id', storyId)
+        .eq('player_id', userId); // Ensure it's THEIR game
+
+      // If count > 0, we are ready.
+      // If count == 0, check chimera_game_states (backend persistence table) just in case
+      // Note: `supabase-state.repository` writes to `chimera_game_states`.
+      // Let's check `chimera_game_states` as primary.
+      const { count: stateCount } = await supabase
+        .from('chimera_game_states')
+        .select('*', { count: 'exact', head: true })
+        .eq('story_id', storyId)
+        .eq('player_id', userId);
+
+      const status = (stateCount && stateCount > 0) ? 'ready' : 'needs_genesis';
+
+      const context = {
+        story: { id: story.id, title: story.title, world_id: story.world_id },
+        world: { id: world.id, name: world.name || world.title },
+        player: { id: player.id, name: player.name }
+      };
+
+      return sendSuccess(res, { status, context }, req);
+
+    } catch (error) {
+      console.error('[Session Verify] Error:', error);
+      return sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Validation failed', req);
+    }
+  }
+);
 const InitializeGameRequestSchema = z.object({
   storyId: z.string().uuid('Invalid story ID'),
   characterId: z.string().uuid().optional(), // Allow passing explicit character ID
