@@ -53,7 +53,7 @@ export class CompiledStoriesRepository {
   async findByKey(storyKey: string): Promise<CompiledStory | null> {
     const { data, error } = await (this.supabase
       .from('chimera_compiled_stories') as any)
-      .select('id, story_id, version, config_engine, creation_manifest, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, config_engine, creation_manifest, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, genesis_config, created_at')
       .eq('story_id', storyKey)
       .order('version', { ascending: false })
       .limit(1)

@@ -39,6 +39,7 @@ const CreateStorySchema = z.object({
   pack_ids: z.array(z.string()).default([]),
   entity_ids: z.array(z.string()).default([]),
   image_url: z.string().url().optional().nullable(),
+  genesis_config: z.record(z.unknown()).optional(),
 });
 
 const UpdateStorySchema = CreateStorySchema.partial().extend({
@@ -51,6 +52,7 @@ const UpdateStorySchema = CreateStorySchema.partial().extend({
   title: z.string().optional(),
   description: z.string().optional().nullable(),
   image_url: z.string().url().optional().nullable(),
+  genesis_config: z.record(z.unknown()).optional(),
 });
 
 const UpdateStoryDefinitionSchema = z.object({
@@ -539,6 +541,7 @@ router.put(
       if (updateData.story_definition !== undefined) updatePayload.story_definition = updateData.story_definition;
       if (updateData.status !== undefined) updatePayload.status = updateData.status;
       if (updateData.entity_ids !== undefined) updatePayload.entity_ids = updateData.entity_ids;
+      if (updateData.genesis_config !== undefined) updatePayload.genesis_config = updateData.genesis_config;
 
       // Handle rulesets - Source of Truth is now the active_ruleset_ids column
       // Priority 1: Direct update via active_ruleset_ids

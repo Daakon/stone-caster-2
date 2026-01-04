@@ -32,8 +32,9 @@ import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
 import ProfilePage from './pages/ProfilePage';
 // import MyCreationsDashboard from './pages/dashboard/creations/index';
 import { MyCreationsPage } from './features/dashboard/MyCreationsPage';
-import { CastingCircleWizard } from './features/casting-circle/CastingCircleWizard';
+
 import { CreateStoryPage } from './features/create-story';
+import { CastingCircleWizard } from './features/casting-circle/CastingCircleWizard';
 import NewGameWizard from './features/game-v3/NewGameWizard';
 import WorldEditor from './pages/dashboard/worlds/Editor';
 import WorldManage from './pages/dashboard/worlds/Manage';
@@ -112,9 +113,10 @@ function AppContent() {
           } />
           <Route path="/stories/compose" element={
             <ProtectedRoute>
-              <CastingCircleWizard />
+              <CreateStoryPage />
             </ProtectedRoute>
           } />
+
           <Route path="/stories/:id/compose" element={
             <ProtectedRoute>
               <CastingCircleWizard />

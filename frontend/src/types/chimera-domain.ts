@@ -56,6 +56,12 @@ export interface WorldDefinition {
    * Selected world preset ID (if using preset)
    */
   world_preset_id?: string;
+
+  /**
+   * Cover image URL
+   * Matches chimera_stories.image_url
+   */
+  image_url?: string;
 }
 
 // ============================================================================
@@ -190,5 +196,40 @@ export interface StoryDraft {
   /**
    * Whether the draft has unsaved changes
    */
+  /**
+   * Whether the draft has unsaved changes
+   */
   is_dirty: boolean;
+
+  /**
+   * Genesis Configuration for the Director's Slate
+   */
+  genesis_config?: GenesisConfig;
+}
+
+export interface CastExtra {
+  id: string; // uuidv4 or random string for keying
+  name: string;          // Hidden Identity (e.g. "Garrick")
+  visual_alias: string;  // First Impression (e.g. "A Slumped Guard")
+  archetype: string;     // Behavior (e.g. "Guard")
+
+  // The Visual Tokens
+  race: string;          // e.g. "Human", "Drow", "Construct"
+  attire: string;        // e.g. "Rusted Chainmail", "Velvet Doublet"
+  quirk: string;         // e.g. "Smells of gin", "Twitching eye"
+}
+
+export interface GenesisConfig {
+  // Narrator Controls (The Lens)
+  pacing: 'concise' | 'balanced' | 'descriptive';
+  narrator_tone: string; // e.g. 'Gritty', 'High Fantasy', 'Mystery'
+  perspective: 'second_person' | 'third_person'; // "You do" vs "Kael does"
+
+  // Scene Setup (The Stage)
+  set_design: string;
+  opening_action: string;
+
+  // The Cast (The Actors)
+  cast_members: string[];       // IDs of existing "Star" NPCs
+  cast_extras: CastExtra[];     // List of defined "Extras"
 }

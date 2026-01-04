@@ -16,6 +16,16 @@ import { fetchDraft, saveDraft, compileStoryFromDraft } from '@/services/chimera
 import type { CompiledStory } from '@shared/types/chimera-compiled';
 
 /**
+ * Genesis Configuration for the Director's Slate
+ */
+export interface GenesisConfig {
+  narrative_style: string;
+  set_design: string;
+  initial_cast: string;
+  opening_action: string;
+}
+
+/**
  * Storage key for localStorage
  */
 const STORAGE_KEY = 'stone-caster-story-draft';
@@ -32,7 +42,7 @@ interface StoryDraftState {
   /**
    * Current draft state
    */
-  draft: StoryDraft | null;
+  draft: StoryDraft & { genesis_config?: GenesisConfig } | null;
 
   /**
    * Debounce timer for backend sync
@@ -59,6 +69,14 @@ interface StoryDraftState {
    * Update draft metadata (WorldDefinition)
    */
   updateMetadata: (updates: Partial<WorldDefinition>) => void;
+
+  /**
+   * Update Genesis Configuration
+   */
+  /**
+   * Update Genesis Configuration
+   */
+  setGenesisConfig: (config: Partial<GenesisConfig>) => void;
 
   /**
    * Set current wizard step (0-4)
@@ -141,6 +159,12 @@ function createInitialDraft(draftId: string, metadata?: Partial<WorldDefinition>
     staged_lore_ids: [],
     is_saving: false,
     is_dirty: false,
+    genesis_config: {
+      narrative_style: '',
+      set_design: '',
+      initial_cast: '',
+      opening_action: '',
+    },
   };
 }
 
@@ -195,14 +219,36 @@ export const useStoryDraftStore = create<StoryDraftState>()(
       },
 
       /**
+       * Set Genesis Config
+       */
+      setGenesisConfig: (config) => {
+        const draft = get().draft;
+        if (!draft) return;
+
+        set({
+          draft: {
+            ...draft,
+            genesis_config: {
+              ...(draft.genesis_config || {}),
+              ...config,
+            },
+            last_modified: Date.now(),
+            is_dirty: true,
+          },
+        });
+
+        get().debouncedSave();
+      },
+
+      /**
        * Set current wizard step
        */
       setStep: (step) => {
         const draft = get().draft;
         if (!draft) return;
 
-        // Validate step range (0-4)
-        const validStep = Math.max(0, Math.min(4, step));
+        // Validate step range (0-5)
+        const validStep = Math.max(0, Math.min(5, step));
 
         set({
           draft: {
@@ -346,6 +392,8 @@ export const useStoryDraftStore = create<StoryDraftState>()(
             ...draft,
             // Explicitly map staged_entity_ids to entity_ids for backend
             entity_ids: [...(staged_entity_ids || [])],
+            // Force Save Config
+            genesis_config: draft.genesis_config || {},
 
             // Clean up internal flags
             is_saving: undefined,
@@ -457,7 +505,18 @@ export const useStoryDraftStore = create<StoryDraftState>()(
             staged_lore_ids: [], // TODO: Map lore IDs if backend supports it
             is_saving: false,
             is_dirty: false,
+            genesis_config: (loadedDraft as any).genesis_config || {}, // Map from backend
           };
+
+          // Ensure defaults for genesis_config are set if empty
+          if (!mappedDraft.genesis_config || Object.keys(mappedDraft.genesis_config).length === 0) {
+            mappedDraft.genesis_config = {
+              narrative_style: '',
+              set_design: '',
+              initial_cast: '',
+              opening_action: '',
+            };
+          }
 
           // Update store with loaded draft
           set({

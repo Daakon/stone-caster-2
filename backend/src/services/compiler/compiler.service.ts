@@ -60,7 +60,7 @@ export class StoryCompilerService {
             // 2. Fetch Story Data & Ownership Verification
             const { data: story, error: storyError } = await supabase
                 .from('chimera_stories')
-                .select('*')
+                .select('*') // Select all fields including genesis_config
                 .eq('id', storyId)
                 .single();
 
@@ -221,6 +221,7 @@ export class StoryCompilerService {
                     creation_manifest: creationManifest,
                     snapshot_world: worldSnapshot,
                     snapshot_entities: snapshotEntities,
+                    genesis_config: story.genesis_config || {} // <-- Added Persistence Here
                 })
                 .select('id')
                 .single();

@@ -143,8 +143,11 @@ export async function getEntities(): Promise<EntityTemplate[]> {
 /**
  * Get a single entity by ID
  */
+/**
+ * Get a single entity by ID
+ */
 export async function getEntity(id: string): Promise<EntityTemplate> {
-  const result = await apiFetch<EntityTemplate>(`/api/chimera/entities/${id}`);
+  const result = await apiFetch<EntityTemplate>(`/api/v2/chimera/entities/${id}`);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to fetch entity');
   }

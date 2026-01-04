@@ -5,6 +5,7 @@ interface StoryDraftState {
     storyId: string | null;
     draft: any | null; // Placeholder for full draft type
     isLoading: boolean;
+    fetchingId: string | null; // Deduplication track
     error: string | null;
 
     // Actions
@@ -19,6 +20,7 @@ export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
     storyId: null,
     draft: null,
     isLoading: false,
+    fetchingId: null,
     error: null,
 
     initializeDraft: async () => {
@@ -36,13 +38,21 @@ export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
     },
 
     hydrateDraft: async (storyId: string) => {
-        set({ isLoading: true, error: null });
+        const { fetchingId, storyId: currentStoryId } = get();
+
+        // 1. Dedup: If already fetching this request, ignore
+        if (fetchingId === storyId) return;
+
+        // 2. Dedup: If already loaded, ignore (unless we want to support force-refetch param later)
+        if (currentStoryId === storyId) return;
+
+        set({ isLoading: true, error: null, fetchingId: storyId });
         try {
             const story = await fetchDraft(storyId);
-            set({ storyId: story.id, draft: story, isLoading: false });
+            set({ storyId: story.id, draft: story, isLoading: false, fetchingId: null });
         } catch (error) {
             console.error('Failed to hydrate draft:', error);
-            set({ isLoading: false, error: 'Failed to load story draft' });
+            set({ isLoading: false, error: 'Failed to load story draft', fetchingId: null });
             throw error; // Rethrow to let caller handle redirect if 404
         }
     },
@@ -99,6 +109,7 @@ export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
                 world_id: draft.world_id,
                 active_ruleset_ids: draft.active_ruleset_ids,
                 entity_ids: draft.entity_ids || [], // Ensure this is sent
+                genesis_config: draft.genesis_config || {},
                 status: draft.status
             };
 
