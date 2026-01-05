@@ -93,8 +93,8 @@ export function SensoryObserver({ gameState }: SensoryObserverProps) {
 }
 
 function triggerShake() {
-    // We shake the root app container or body
-    const root = document.getElementById('root') || document.body;
+    // We shake the narrative container only (stabilize HUD)
+    const root = document.getElementById('game-narrative-container') || document.body;
     root.classList.remove('animate-shake');
     // Force reflow
     void root.offsetWidth;

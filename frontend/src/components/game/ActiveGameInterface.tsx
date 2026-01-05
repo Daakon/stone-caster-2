@@ -28,6 +28,17 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         setActiveGameId, setDraft, commitInput
     } = useActiveGameStore();
 
+    // Extract History from Store (The Handshake ensures this is populated)
+    // Must be called at top level to respect Rules of Hooks
+    const history = useActiveGameStore(state => {
+        const gs = state.gameState as any;
+        return gs?.tier0_narrative?.dialogue_history ||
+            gs?.narrative_focus?.dialogue_history ||
+            gs?.narrative?.dialogue_history ||
+            gs?.narrative?.history ||
+            [];
+    });
+
     const { data: gameState, isLoading, error } = useQuery({
         queryKey: ['game-state', gameStateId],
         queryFn: async () => {
@@ -88,28 +99,21 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         );
     }
 
-    // Extract History & Map to Logs
-    const history = (gameState as any)?.narrative?.dialogue_history ||
-        (gameState as any)?.narrative?.history ||
-        [];
-
-    // Fallback for Turn 0
-    if (history.length === 0) {
-        const intro = (gameState as any)?.narrative?.description || "The story begins...";
-        history.push({
-            speaker: 'Narrator',
-            text: intro,
-            timestamp: new Date()
-        });
-    }
-
-    const logs = history.map((entry: any, i: number) => ({
+    // Fallback for Turn 0 (or empty history)
+    const logs = history.length > 0 ? history.map((entry: any, i: number) => ({
         id: `log-${i}`,
         role: entry.speaker === 'Narrator' ? 'narrator' : (entry.speaker === 'System' ? 'system' : 'player'),
         text: entry.text || entry.content,
         timestamp: new Date(entry.timestamp || Date.now()),
         metadata: entry.metadata
-    }));
+    })) : [{
+        id: 'intro',
+        role: 'narrator',
+        text: (gameState as any)?.tier0_narrative?.description ||
+            (gameState as any)?.narrative?.description ||
+            "The story begins...",
+        timestamp: new Date()
+    }];
 
     // Construct Layers
     const narrativeLayer = <NarrativeStream logs={logs} />;

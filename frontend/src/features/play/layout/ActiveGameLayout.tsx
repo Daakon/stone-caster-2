@@ -18,7 +18,7 @@ export function ActiveGameLayout({ narrativeStream, inputDeck, hud, className }:
 
             {/* Layer 1 (Base): Narrative Stream */}
             {/* Uses flex-col-reverse to anchor content to bottom for mobile keyboard defense */}
-            <main className="flex-1 relative z-10 overflow-hidden flex flex-col-reverse">
+            <main id="game-narrative-container" className="flex-1 relative z-10 overflow-hidden flex flex-col-reverse">
                 {narrativeStream}
             </main>
 

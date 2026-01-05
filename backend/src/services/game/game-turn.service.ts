@@ -145,13 +145,13 @@ export class GameTurnService {
                 return {
                     text: `You strike true! The ${intent.target} snarls in pain as your blow connects definedly.`,
                     tags: ['HOSTILE_TRIGGER'],
-                    systemLogs: [...action.logs, 'Opponent Staggered']
+                    systemLogs: ['Opponent Staggered']
                 };
             } else {
                 return {
                     text: `You stumble forward, swinging wildly. The ${intent.target} easily sidesteps, leaving you exposed.`,
                     tags: [],
-                    systemLogs: [...action.logs, 'Balance Lost']
+                    systemLogs: ['Balance Lost']
                 };
             }
         }
