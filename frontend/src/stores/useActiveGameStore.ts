@@ -24,7 +24,7 @@ interface ActiveGameState {
 
     // Derived/Buffered Utils (Hydrated from GameState)
     vitals: Vitals;
-    entities: Record<string, { name: string; type: 'npc' | 'enemy' | 'item' | 'other' }>;
+    entities: Record<string, any>;
     suggested_actions: string[];
 
     // Actions
@@ -39,6 +39,10 @@ interface ActiveGameState {
     lockInput: () => void;
     unlockInput: () => void;
     clearDraft: () => void;
+
+    // UI State
+    selectedEntityId: string | null;
+    setSelectedEntity: (id: string | null) => void;
 }
 
 export const useActiveGameStore = create<ActiveGameState>()(
@@ -86,7 +90,7 @@ export const useActiveGameStore = create<ActiveGameState>()(
                 const narrative = anyState.tier0_narrative || anyState.narrative_focus || anyState.narrative || {};
                 const ctx = narrative.scene_context || {};
                 const newSuggestions = ctx.available_actions || [];
-                const newEntities = ctx.visible_entities || {};
+                const newEntities = mech.entities || {};
 
                 // 4. Update Store
                 set({
@@ -125,6 +129,9 @@ export const useActiveGameStore = create<ActiveGameState>()(
             lockInput: () => set({ inputMode: 'locked' }),
             unlockInput: () => set({ inputMode: 'idle' }),
             clearDraft: () => set({ draftText: '', inputMode: 'idle' }),
+
+            selectedEntityId: null,
+            setSelectedEntity: (id) => set({ selectedEntityId: id }),
         }),
         { name: 'ActiveGameStore' }
     )

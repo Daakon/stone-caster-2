@@ -11,6 +11,7 @@ import { NarrativeStream } from '@/features/play/components/Narrative/NarrativeS
 import { InputDeck } from '@/features/play/components/Deck/InputDeck';
 import { SuggestionRail } from '@/features/play/components/Deck/SuggestionRail';
 import { HUDManager } from '@/features/play/components/HUD/HUDManager';
+import { SceneHeader } from '@/features/play/components/HUD/SceneHeader';
 import { InspectorPanel } from '@/features/play/components/Inspector/InspectorPanel';
 
 // Store
@@ -116,7 +117,12 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     }];
 
     // Construct Layers
-    const narrativeLayer = <NarrativeStream logs={logs} />;
+    const narrativeLayer = (
+        <>
+            <SceneHeader />
+            <NarrativeStream logs={logs} />
+        </>
+    );
 
     const deckLayer = (
         <div className="w-full flex flex-col bg-background border-t">

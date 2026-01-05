@@ -1,5 +1,6 @@
 import { useActiveGameStore } from '@/stores/useActiveGameStore';
 import { VitalGauge } from './VitalGauge';
+import { EntitySidebar } from './EntitySidebar';
 
 export function HUDManager() {
     const { vitals } = useActiveGameStore();
@@ -25,6 +26,8 @@ export function HUDManager() {
                 <VitalGauge type="stamina" value={vitals.stamina} max={100} color="bg-yellow-500" />
                 {/* Saturation could be hidden unless critical? For now, render all. */}
                 <VitalGauge type="saturation" value={vitals.saturation} max={100} color="bg-blue-500" threshold={20} />
+
+                <EntitySidebar />
             </div>
 
             {/* Mobile Header Version (Simple) */}
