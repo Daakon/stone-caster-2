@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { activeGameApi } from '@/features/active-game/services/activeGameApi';
+import type { GameState } from '@shared/types/chimera-runtime';
 
 export type InputMode = 'idle' | 'drafting' | 'thinking' | 'locked';
 
@@ -12,38 +13,30 @@ export interface Vitals {
     inCombat: boolean;
 }
 
-interface InputState {
-    draftText: string;
-    inputMode: InputMode;
-    suggestionBuffer: string[];
-}
-
-interface ActiveGameState extends InputState {
+interface ActiveGameState {
     // Session State
     activeGameId: string | null;
+    gameState: GameState | null; // The Session Truth
 
-    // HUD State
-    selectedEntityId: string | null;
+    // Input State
+    draftText: string;
+    inputMode: InputMode;
+
+    // Derived/Buffered Utils (Hydrated from GameState)
     vitals: Vitals;
-
-    // Knowledge & Suggestions
     entities: Record<string, { name: string; type: 'npc' | 'enemy' | 'item' | 'other' }>;
     suggested_actions: string[];
 
     // Actions
     setActiveGameId: (id: string) => void;
     setDraft: (text: string) => void;
-    setInputMode: (mode: InputMode) => void;
-    setSuggestions: (suggestions: string[]) => void;
 
-    setSelectedEntity: (id: string | null) => void;
-    updateVitals: (vitals: Partial<Vitals>) => void;
-
-    updateEntities: (entities: Record<string, { name: string; type: 'npc' | 'enemy' | 'item' | 'other' }>) => void;
-    setSuggestedActions: (actions: string[]) => void;
-
-    // Logic
+    // Hybrid Sync Pattern
+    syncState: (serverState: GameState) => void;
     commitInput: () => Promise<void>;
+
+    // Utils
+    lockInput: () => void;
     unlockInput: () => void;
     clearDraft: () => void;
 }
@@ -53,65 +46,79 @@ export const useActiveGameStore = create<ActiveGameState>()(
         (set, get) => ({
             // Initial State
             activeGameId: null,
+            gameState: null,
             draftText: '',
             inputMode: 'idle',
-            suggestionBuffer: [],
-            selectedEntityId: null,
+
+            // Default Derived
             vitals: { hp: 100, maxHp: 100, stamina: 100, saturation: 100, inCombat: false },
             entities: {},
             suggested_actions: [],
 
             // Actions
             setActiveGameId: (id) => set({ activeGameId: id }),
+
             setDraft: (text) => set((state) => ({
                 draftText: text,
                 inputMode: state.inputMode === 'thinking' || state.inputMode === 'locked' ? state.inputMode : 'drafting'
             })),
-            setInputMode: (mode) => set({ inputMode: mode }),
-            setSuggestions: (suggestions) => set({ suggestionBuffer: suggestions }),
 
-            setSelectedEntity: (id) => set({ selectedEntityId: id }),
-            updateVitals: (vitals) => set((state) => ({ vitals: { ...state.vitals, ...vitals } })),
+            // core sync logic
+            syncState: (serverState: GameState) => {
+                // 1. Update Truth
+                const anyState = serverState as any;
 
-            updateEntities: (entities) => set((state) => ({ entities: { ...state.entities, ...entities } })),
-            setSuggestedActions: (actions) => set({ suggested_actions: actions }),
+                // 2. Extract Vitals
+                const mech = anyState.tier1_mechanical || anyState.mechanical_state || anyState.state?.tier1_mechanical;
+                let newVitals = get().vitals;
 
-            // Helpers
+                if (mech) {
+                    newVitals = {
+                        hp: mech.health?.current ?? 100,
+                        maxHp: mech.health?.max ?? 100,
+                        stamina: mech.stamina?.current ?? 100,
+                        saturation: 100, // Not yet in mock
+                        inCombat: mech.in_combat ?? false
+                    };
+                }
+
+                // 3. Extract Context
+                const narrative = anyState.tier0_narrative || anyState.narrative_focus || anyState.narrative || {};
+                const ctx = narrative.scene_context || {};
+                const newSuggestions = ctx.available_actions || [];
+                const newEntities = ctx.visible_entities || {};
+
+                // 4. Update Store
+                set({
+                    gameState: serverState,
+                    vitals: newVitals,
+                    suggested_actions: newSuggestions,
+                    entities: newEntities
+                });
+            },
+
             commitInput: async () => {
                 const { draftText, activeGameId, inputMode } = get();
 
                 if (!draftText.trim() || !activeGameId || inputMode === 'locked' || inputMode === 'thinking') return;
 
+                // 1. Lock UI
                 set({ inputMode: 'thinking' });
 
                 try {
+                    // 2. Call API
                     const newState = await activeGameApi.submitTurn(activeGameId, { input: draftText });
 
-                    // Merge State Logic
-                    const anyState = newState as any;
-                    const mech = anyState.tier1_mechanical || anyState.mechanical_state;
+                    // 3. Direct/Optimistic Update (The "Hybrid" part - we trust the return mostly)
+                    get().syncState(newState);
 
-                    if (mech) {
-                        get().updateVitals({
-                            hp: mech.health?.current ?? 100,
-                            maxHp: mech.health?.max ?? 100,
-                            stamina: mech.stamina?.current ?? 100,
-                            inCombat: mech.in_combat ?? false
-                        });
-                    }
-
-                    // Update Suggestions & Entities
-                    const narrative = anyState.narrative || {};
-                    const ctx = narrative.scene_context || {};
-                    if (ctx.available_actions) get().setSuggestedActions(ctx.available_actions);
-                    if (ctx.visible_entities) get().updateEntities(ctx.visible_entities);
-
-                    // Success Unlock active
+                    // 4. Reset UI
                     set({ inputMode: 'idle', draftText: '' });
+
                 } catch (error) {
                     console.error("Turn failed:", error);
                     set({ inputMode: 'idle' });
-                    // TODO: Trigger sensory FX
+                    // TODO: Toast or Error State
                 }
             },
 

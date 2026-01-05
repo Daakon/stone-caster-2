@@ -5,28 +5,31 @@ import { Send, Loader2 } from 'lucide-react';
 import { useActiveGameStore } from '@/stores/useActiveGameStore';
 import { cn } from '@/lib/utils'; // Assuming utils exists
 
-interface InputDeckProps {
-    onCommit: (text: string) => void;
-}
 
-export function InputDeck({ onCommit }: InputDeckProps) {
-    const { draftText, setDraft, inputMode, lockInput } = useActiveGameStore();
+
+export function InputDeck() {
+    const { draftText, setDraft, inputMode, commitInput } = useActiveGameStore();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const isLocked = inputMode === 'locked';
+    const isLocked = inputMode !== 'idle' && inputMode !== 'drafting'; // thinking or locked
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleCommit();
+            handleSubmit(e);
         }
     };
 
-    const handleCommit = () => {
+    const handleSubmit = async (e: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+        e.preventDefault();
+
         if (!draftText.trim() || isLocked) return;
 
-        lockInput();
-        onCommit(draftText);
+        // The store handles the logic (locking, api call, syncing, unlocking)
+        await commitInput();
+
+        // Focus back on textarea after commit (optional, but good UX)
+        // setTimeout(() => textareaRef.current?.focus(), 100);
     };
 
     useEffect(() => {
@@ -50,13 +53,10 @@ export function InputDeck({ onCommit }: InputDeckProps) {
                         isLocked && "opacity-50 cursor-wait"
                     )}
                 />
-                <div className="absolute right-2 bottom-2 text-xs text-muted-foreground">
-                    {/* Optional character count or indicators */}
-                </div>
             </div>
 
             <Button
-                onClick={handleCommit}
+                onClick={handleSubmit}
                 disabled={!draftText.trim() || isLocked}
                 className={cn(
                     "h-[60px] w-[60px] rounded-lg transition-all",

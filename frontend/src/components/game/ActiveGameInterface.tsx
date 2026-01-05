@@ -46,49 +46,15 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         return () => unlockInput();
     }, [unlockInput]);
 
-    // Sync State (Vitals, Entities, Suggestions)
+    // Sync State (Hybrid Sync Pattern)
     useEffect(() => {
         if (gameState) {
-            const anyState = gameState as any;
-            const mech = anyState.tier1_mechanical || anyState.mechanical_state;
-
-            // 1. Vitals
-            if (mech) {
-                updateVitals({
-                    hp: mech.health?.current ?? 100,
-                    maxHp: mech.health?.max ?? 100,
-                    stamina: mech.stamina?.current ?? 100,
-                    inCombat: mech.in_combat ?? false
-                });
-            }
-
-            // 2. Suggestions (from scene_context or context_window)
-            // Check scene_context.available_actions
-            const actions = anyState.narrative?.scene_context?.available_actions || [];
-            if (actions.length > 0) {
-                setSuggestedActions(actions);
-            }
-
-            // 3. Entities (from scene_context.entities or visible_entities)
-            // Mocking for Phase 3 Verification until Backend sends explicit list
-            // Ideally this comes from `active_context.entities`
-            // Let's look for `entities` in tier1 or narrative.
-            // For now, inject some hardcoded ones for testing the parser if empty.
-            const apiEntities = anyState.narrative?.scene_context?.visible_entities || {};
-
-            // Fallback Mock for testing
-            if (Object.keys(apiEntities).length === 0) {
-                // Self-correction: Don't overwrite if empty unless we want to force test.
-                // Let's inject a standard test entity "Garret" if not present
-                updateEntities({
-                    'test-garret': { name: 'Garret', type: 'npc' },
-                    'test-sword': { name: 'Rusty Shortsword', type: 'item' }
-                });
-            } else {
-                updateEntities(apiEntities);
-            }
+            // "The Handshake"
+            // We pass the fresh server state directly to the store
+            // The store handles parsing vitals, entities, logs, etc.
+            useActiveGameStore.getState().syncState(gameState as any);
         }
-    }, [gameState, updateVitals, setSuggestedActions, updateEntities]);
+    }, [gameState]);
 
     const handleCommit = async (text: string) => {
         try {
@@ -151,7 +117,7 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     const deckLayer = (
         <div className="w-full flex flex-col bg-background border-t">
             <SuggestionRail onCommit={handleCommit} />
-            <InputDeck onCommit={handleCommit} />
+            <InputDeck />
         </div>
     );
 

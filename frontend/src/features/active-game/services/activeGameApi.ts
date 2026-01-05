@@ -13,7 +13,9 @@ export const activeGameApi = {
      * @param payload Input text and optional entity ID
      */
     submitTurn: async (gameId: string, payload: SubmitTurnPayload): Promise<GameState> => {
+        console.log('[activeGameApi] submitTurn called', { gameId, payload });
         const result = await apiPost<GameState>(`/api/games/${gameId}/turn`, payload);
+        console.log('[activeGameApi] submitTurn result', result);
 
         if (!result.ok) {
             throw new Error(result.error.message || 'Failed to submit turn');
