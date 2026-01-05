@@ -30,8 +30,16 @@ export function PlayShell({ children }: PlayShellProps) {
   };
 
   // Use MobileDrawerNav for the new unified game page
-  if (location.pathname.startsWith('/play/')) {
+  // EXCEPTION: Active Game Loop (/play/:gameStateId) manages its own layout (Immersive Mode).
+  // We only wrap sub-pages like /play/start/ or /play/create/ or if it's not a UUID.
+  const isImmersiveGame = location.pathname.match(/^\/play\/[0-9a-fA-F-]{36}$/);
+
+  if (location.pathname.startsWith('/play/') && !isImmersiveGame) {
     return <MobileDrawerNav>{children}</MobileDrawerNav>;
+  }
+
+  if (isImmersiveGame) {
+    return <>{children}</>;
   }
 
   // Use the original layout for other play routes
@@ -41,7 +49,7 @@ export function PlayShell({ children }: PlayShellProps) {
       <main id="main-content" className="flex-1 pb-16">
         {children}
       </main>
-      <PlayBottomNav 
+      <PlayBottomNav
         activeTab={activeTab}
         onTabSelect={handleTabSelect}
       />

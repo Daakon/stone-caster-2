@@ -143,9 +143,9 @@ export class GameInitService {
 
       // Initialize History with Turn 0
       bundle.narrative.dialogue_history = [{
-        speaker: 'Narrator',
-        text: openingText,
-        type: 'system' // or 'action' depending on frontend handling
+        role: 'narrator',
+        content: openingText,
+        timestamp: new Date().toISOString()
       }];
     }
 

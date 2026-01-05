@@ -84,8 +84,15 @@ export const chimeraPlayService = {
   /**
    * Start a new game session (Story Space) for a story
    */
+  /**
+   * Start a new game session (Story Space) for a story
+   */
   async startGame(storyId: string): Promise<ChimeraGameState> {
-    const result = await apiPost<ChimeraGameState>(`/api/v2/play/${storyId}/start`, {});
+    // Backend expects POST /api/chimera/play/start with body { compiledStoryId: ... }
+    const result = await apiPost<ChimeraGameState>('/api/chimera/play/start', {
+      compiledStoryId: storyId
+    });
+
     if (!result.ok) {
       // Check if this is a 403 FORBIDDEN error (player entity required)
       // The error.http property contains the HTTP status code
@@ -104,7 +111,7 @@ export const chimeraPlayService = {
    * Get character creation schema for a story
    */
   async getCharacterSchema(storyId: string): Promise<CharacterSchema> {
-    const result = await apiFetch<CharacterSchema>(`/api/v2/play/${storyId}/character/schema`);
+    const result = await apiFetch<CharacterSchema>(`/api/chimera/play/${storyId}/character/schema`);
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to fetch character schema');
     }
@@ -115,7 +122,7 @@ export const chimeraPlayService = {
    * Finalize character creation
    */
   async finalizeCharacter(storyId: string, request: FinalizeCharacterRequest): Promise<FinalizeCharacterResponse> {
-    const result = await apiPost<FinalizeCharacterResponse>(`/api/v2/play/${storyId}/character/finalize`, request);
+    const result = await apiPost<FinalizeCharacterResponse>(`/api/chimera/play/${storyId}/character/finalize`, request);
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to finalize character');
     }
@@ -126,7 +133,7 @@ export const chimeraPlayService = {
    * Quick start - create default character and start game
    */
   async quickStart(storyId: string, characterName?: string): Promise<FinalizeCharacterResponse> {
-    const result = await apiPost<FinalizeCharacterResponse>(`/api/v2/play/${storyId}/quick-start`, {
+    const result = await apiPost<FinalizeCharacterResponse>(`/api/chimera/play/${storyId}/quick-start`, {
       character_name: characterName,
     });
     if (!result.ok) {
@@ -139,7 +146,7 @@ export const chimeraPlayService = {
    * Start game with an existing player entity
    */
   async startWithEntity(storyId: string, entityId: string): Promise<ChimeraGameState> {
-    const result = await apiPost<ChimeraGameState>(`/api/v2/play/${storyId}/start-with-entity/${entityId}`, {});
+    const result = await apiPost<ChimeraGameState>(`/api/chimera/play/${storyId}/start-with-entity/${entityId}`, {});
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to start game with entity');
     }
@@ -150,7 +157,7 @@ export const chimeraPlayService = {
    * Get a game state by ID
    */
   async getGameState(gameStateId: string): Promise<ChimeraGameState> {
-    const result = await apiFetch<ChimeraGameState>(`/api/v2/play/${gameStateId}`);
+    const result = await apiFetch<ChimeraGameState>(`/api/chimera/play/${gameStateId}`);
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to fetch game state');
     }
@@ -165,8 +172,10 @@ export const chimeraPlayService = {
     request: CastStoneRequest,
     debug?: boolean
   ): Promise<CastStoneResponse> {
-    const url = `/api/v2/play/${gameStateId}/cast-stone${debug ? '?debug=true' : ''}`;
+    const url = `/api/chimera/play/${gameStateId}/cast-stone${debug ? '?debug=true' : ''}`;
+    console.log('[ChimeraService] Casting Stone:', { url, request });
     const result = await apiPost<CastStoneResponse>(url, request);
+    console.log('[ChimeraService] Cast Result:', result);
     if (!result.ok) {
       throw new Error(result.error.message || 'Failed to cast stone');
     }

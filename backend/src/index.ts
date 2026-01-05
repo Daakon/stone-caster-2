@@ -159,6 +159,10 @@ app.use('/api/chimera/v3/game', gameV3Router);
 import compilerRouter from './routes/compiler.routes.js';
 app.use(compilerRouter);
 
+// Phase 4: Active Game Controller (The Vital Spark)
+import activeGameRouter from './controllers/active-game.controller.js';
+app.use('/api/games', activeGameRouter);
+
 // OpenAPI documentation (Phase A5)
 app.use('/api', openapiRouter);
 

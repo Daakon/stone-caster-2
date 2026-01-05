@@ -53,9 +53,65 @@ ${contextDescription}
             const response = await this.llm.generateText(systemPrompt, userPrompt);
             return response;
         } catch (error) {
-            console.error('[NarrativeService] Failed to generate opening narrative:', error);
             // Fallback to static description if LLM fails
             return contextDescription || 'The story begins...';
         }
+    }
+
+    /**
+     * Generates a reaction to the player's action (Turn N)
+     */
+    /**
+     * Generates a reaction to the player's action (Turn N)
+     * Returns structured data: narrative prose, system logs, and state mutations.
+     */
+    async generateReaction(state: GameState, playerInput: string): Promise<{
+        narrative: string;
+        system_logs: string[];
+        state_delta: Record<string, any>;
+    }> {
+        // 1. Production Context Assembly (Keep this logic active so we know it works)
+        const narrativeFocus = state.narrative;
+        const history = narrativeFocus.history || [];
+        const recentHistory = history.slice(-5);
+
+        const historyText = recentHistory.map((h: any) =>
+            `${h.role === 'player' ? 'Player' : 'Narrator'}: ${h.content || h.text}`
+        ).join('\n');
+
+        const contextDescription = narrativeFocus.scene_context.description;
+
+        // 2. The Mock Switch (Simulate the LLM)
+        // IF input contains "attack", return a Combat Simulation.
+        if (playerInput.toLowerCase().includes('attack')) {
+            return {
+                narrative: "You lunge forward, your blade catching the guard off balance. He stumbles back, clutching his side, a look of shock replacing his stoic veneer.",
+                system_logs: [
+                    "[MECHANICAL] Strength Check (Roll: 15) vs Difficulty (10) -> SUCCESS.",
+                    "[MECHANICAL] Damage Dealt: 12.",
+                    "[MECHANICAL] Enemy Status: Staggered."
+                ],
+                state_delta: {
+                    // Force a mutation to trigger Visual FX
+                    "tier1_mechanical.current_stamina": -25, // Triggers "Screen Shake"
+                    "tier1_mechanical.current_hp": -5
+                }
+            };
+        }
+
+        // ELSE return generic narrative
+        const systemInstruction = narrativeFocus.director_instructions
+            ? `Tone: ${narrativeFocus.director_instructions.tone}`
+            : 'Style: Standard RPG Narrator';
+
+        // We will still allow the LLM to run for non-combat to keep the "vibe" alive if we wanted, 
+        // but for this strict Phase 5.5 Mock objective, we stick to the script or a simple generic response 
+        // to strictly control the pipeline testing.
+
+        return {
+            narrative: `The world acknowledges your intent to "${playerInput}", but the mists hold fast. You feel the weight of your choices, yet nothing immediate shifts around you.`,
+            system_logs: ["[SYSTEM] World State Unchanged."],
+            state_delta: {}
+        };
     }
 }

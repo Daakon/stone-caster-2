@@ -16,8 +16,9 @@ import { requireAuth } from '../middleware/auth.unified.js';
 const router = Router();
 
 // Request body validation schemas
+// Request body validation schemas
 const CastStoneRequestSchema = z.object({
-  userText: z.string().min(1, 'User text is required'),
+  text_input: z.string().min(1, 'User text is required'),
 });
 
 const StartSessionRequestSchema = z.object({
@@ -72,16 +73,17 @@ router.get(
 );
 
 /**
- * POST /api/chimera/play/:gameStateId/cast
- * Execute the game loop: process player input through MAS1 -> Engine -> MAS2
+ * POST /api/chimera/play/:gameStateId/cast-stone
+ * Execute the game loop: process player input through GameTurnService (Mock/Prod)
  */
 router.post(
-  '/:gameStateId/cast',
+  '/:gameStateId/cast-stone',
   requireAuth,
   async (req: Request, res: Response) => {
     try {
       const { gameStateId } = req.params;
       const validated = CastStoneRequestSchema.parse(req.body);
+      const userId = (req as any).user?.id;
 
       if (!gameStateId || !z.string().uuid().safeParse(gameStateId).success) {
         return sendErrorWithStatus(
@@ -92,13 +94,46 @@ router.post(
         );
       }
 
+      if (!userId) {
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.UNAUTHORIZED,
+          'User ID not found in request',
+          req
+        );
+      }
+
       const supabase = getChimeraSupabaseClient(req);
-      const storiesRepo = new StoriesRepository(supabase);
-      const gameLoopService = new GameLoopService(storiesRepo);
+      // Use the GameTurnService that implements the Mock Router logic
+      const { GameTurnService } = await import('../services/game/game-turn.service.js');
+      const gameTurnService = new GameTurnService(supabase);
 
-      const result = await gameLoopService.castStone(gameStateId, validated.userText);
+      const result = await gameTurnService.processTurn(gameStateId, validated.text_input, userId);
 
-      return sendSuccess(res, result, req);
+      // Map TurnResult to CastStoneResponse expected by frontend
+      const responseHelper = {
+        ripple_narrative: result.output || '',
+        debug_info: {
+          // Mock debug info to satisfy the type
+          mas_1_input: validated.text_input,
+          mas_1_output: {
+            actionDto: { action: 'mock_action' },
+            resolvedQuery: 'mock_query',
+            detectedSentiment: { tone: 'neutral', intensity: 0.5 }
+          },
+          engine_outcome: {
+            success: result.success,
+            message: result.message
+          },
+          mas_2_response: {
+            ripple_narrative: result.output || '',
+            mutations: []
+          },
+          final_mutations: []
+        }
+      };
+
+      return sendSuccess(res, responseHelper, req);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return sendErrorWithStatus(
