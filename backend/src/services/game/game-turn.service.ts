@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../db/supabase-client.js';
 import { NarrativeService } from './narrative.service.js';
+import { ResolutionService } from './resolution.service.js';
 import { CompiledStoriesRepository } from '../../db/repos/compiled-stories.repo.js';
 
 interface TurnResult {
@@ -10,33 +11,10 @@ interface TurnResult {
     message?: string;
 }
 
-// PIPELINE INTERFACES
-interface Mas1Intent {
-    type: 'COMBAT' | 'NARRATIVE';
-    target?: string;
-    rawInput: string;
-}
-
-interface ActionDelta {
-    success: boolean;
-    logs: string[];
-    mechanicalDelta: Record<string, any>; // tier1 updates
-    meta?: any;
-}
-
-interface Mas2Narrative {
-    text: string;
-    tags: string[]; // e.g., "HOSTILE_TRIGGER"
-    systemLogs?: string[];
-}
-
-interface ConsequenceDelta {
-    tier0Delta: Record<string, any>; // Narrative state updates (relationships, etc)
-}
-
 export class GameTurnService {
     private compiledStoriesRepo: CompiledStoriesRepository;
     private narrativeService: NarrativeService;
+    private resolutionService: ResolutionService;
 
     constructor(
         private supabase: SupabaseClient<Database>,
@@ -44,6 +22,7 @@ export class GameTurnService {
     ) {
         this.compiledStoriesRepo = new CompiledStoriesRepository(supabase);
         this.narrativeService = narrativeService || new NarrativeService();
+        this.resolutionService = new ResolutionService();
     }
 
     /**
@@ -53,36 +32,107 @@ export class GameTurnService {
      * Step 3: MAS2 Narrative Generation
      * Step 4: Engine Pass 2 (Consequence Resolution)
      */
+    /**
+     * The Standard Turn Loop (Phase 7.1)
+     * Step 1: Load State & Context
+     * Step 2: Mechanical Resolution (The Engine)
+     * Step 3: Narrative Generation (The Brain)
+     * Step 4: Merge & Persist
+     */
     async processTurn(gameStateId: string, playerInput: string, userId: string): Promise<TurnResult> {
         console.log(`[Turn Start] Game: ${gameStateId}, Input: "${playerInput}"`);
 
-        // Load State & Verify Ownership
+        // Step 1: Load State
         const state = await this.loadState(gameStateId, userId);
+        const compiledPrompt = state.compiled_system_prompt;
 
-        // Step 1: MAS1 (Mock Intent)
-        const intent = await this.mockMas1_Intent(playerInput);
-        console.log('[Step 1] MAS1 Intent:', intent);
+        // Step 2: Resolution (The Engine)
+        // We use the ResolutionService to determine the "Physics" result before the "Narrator" speaks.
+        const resolution = await this.resolutionService.resolve(playerInput, state);
+        console.log('[Turn] Resolution:', resolution);
 
-        // Step 2: Engine Pass 1 (Action Resolution)
-        const actionResult = await this.mockEngine_Pass1(intent);
-        console.log('[Step 2] Engine Pass 1:', actionResult);
+        // Step 3: Narrative (The Brain)
+        // We inject the mechanical result into the prompt so the AI knows what happened.
+        const mechanicalContext = resolution.logs.join(' | ');
+        const augmentedInput = `PLAYER ACTION: "${playerInput}"\nMECHANICAL RESULT: [${mechanicalContext}]`;
 
-        // Step 3: MAS2 (Mock Narrative)
-        const narrativeResult = await this.mockMas2_Narrative(actionResult, intent);
-        console.log('[Step 3] MAS2 Narrative:', narrativeResult);
+        console.log('[Turn] Invoking Narrative Service...');
+        const turnResult = await this.narrativeService.generateReaction(state, augmentedInput, compiledPrompt || undefined);
 
-        // Step 4: Engine Pass 2 (Consequence Resolution)
-        const consequenceResult = await this.mockEngine_Pass2(narrativeResult);
-        console.log('[Step 4] Engine Pass 2:', consequenceResult);
+        // Step 4: Merge & Persist
+        // We merge both the Mechanical Delta (from Resolution) and Narrative Delta (from AI)
 
-        // Merge & Apply
-        const updatedState = await this.applyAndSaveState(state, intent, actionResult, narrativeResult, consequenceResult);
+        // Merge Mechanical Delta first (engine truth)
+        if (resolution.mechanicalDelta) {
+            const mech = state.mechanical;
+            if (resolution.mechanicalDelta.damage_dealt) {
+                // Hacky mock application for demo 'damage_dealt' -> reduce generic enemy health?
+                // For now, let's just let the AI handle "state_updates" for visual HP/Stamina based on the prompt.
+                // But wait, ResolutionService returned `mechanicalDelta`.
+                // We should ideally apply it.
+                // For the "Mock d100", it returned { damage_dealt: X }.
+                // We will trust the AI's `state_updates` to be the "Final Commit" to the DB for now,
+                // assuming the AI reads "MECHANICAL RESULT: Deal 10 damage" and puts "enemy_hp_change: -10" in the JSON.
+                // This keeps the "Single Source of Truth for State Write" in the AI JSON for Phase 7 simplicity.
+            }
+        }
+
+        await this.applyTurnResult(state, turnResult);
 
         return {
             success: true,
-            state: updatedState,
-            output: narrativeResult.text
+            state: state,
+            output: turnResult.narrative
         };
+    }
+
+    /**
+     * Applies the AI's deterministic output to the DB state
+     */
+    private async applyTurnResult(state: any, result: any): Promise<void> {
+        // 1. Log Thought Chain
+        console.log('[AI Thought Chain]', result.thought_chain);
+
+        // Append to history so frontend can see it (but we will hide it in UI)
+        if (result.thought_chain && state.narrative.dialogue_history) {
+            state.narrative.dialogue_history.push({
+                id: crypto.randomUUID(),
+                role: 'system',
+                content: `[THOUGHT] ${result.thought_chain}`,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // 2. Apply Mechanical Changes
+        if (result.state_updates) {
+            const mech = state.mechanical;
+            const updates = result.state_updates;
+
+            // HP
+            if (updates.player_hp_change && mech.entities[state.index.player_id]) {
+                mech.entities[state.index.player_id].properties.hp =
+                    (mech.entities[state.index.player_id].properties.hp || 100) + updates.player_hp_change;
+            }
+
+            // Stamina
+            if (updates.player_stamina_change && mech.entities[state.index.player_id]) {
+                mech.entities[state.index.player_id].properties.stamina =
+                    (mech.entities[state.index.player_id].properties.stamina || 100) + updates.player_stamina_change;
+            }
+        }
+
+        // 3. Persist
+        const { error } = await this.supabase
+            .from('chimera_game_states')
+            .update({
+                mechanical_state: state.mechanical,
+                narrative_focus: state.narrative,
+                current_turn_index: (state.current_turn_index || 0) + 1,
+                action_queue: [] // Clear queue
+            })
+            .eq('id', state.id);
+
+        if (error) throw error;
     }
 
     // ============================================================================

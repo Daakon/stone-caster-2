@@ -11,22 +11,6 @@ export function HUDManager() {
         <div className="pointer-events-none">
             {/* Docked Area (Top Left or Sidebar) - Mobile: Top Bar */}
             <div className="absolute top-4 left-4 z-20 pointer-events-auto flex flex-col gap-1 w-64 flex-shrink-0 hidden md:flex">
-                <div className="flex items-center gap-3 mb-2 p-2 bg-background/50 backdrop-blur rounded-lg border shadow-sm">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/50 overflow-hidden flex items-center justify-center">
-                        {/* Placeholder Avatar */}
-                        <span className="text-xs font-bold text-primary">YOU</span>
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="text-sm font-bold text-foreground leading-none">Player</span>
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Lvl 1 Traveler</span>
-                    </div>
-                </div>
-
-                <VitalGauge type="hp" value={vitals.hp} max={vitals.maxHp} color="bg-red-500" />
-                <VitalGauge type="stamina" value={vitals.stamina} max={100} color="bg-yellow-500" />
-                {/* Saturation could be hidden unless critical? For now, render all. */}
-                <VitalGauge type="saturation" value={vitals.saturation} max={100} color="bg-blue-500" threshold={20} />
-
                 <EntitySidebar />
             </div>
 

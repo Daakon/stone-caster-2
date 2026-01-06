@@ -37,6 +37,13 @@ export function NarrativeStream({ logs }: NarrativeStreamProps) {
                 });
                 txt = cleanLines.join('\n').trim();
             }
+
+            // [DEBUG] Check for Thought Chains and log to console
+            if (txt.includes('[THOUGHT]')) {
+                console.debug('%c[AI Thought Chain]', 'color: cyan; font-weight: bold;', txt.replace('[THOUGHT]', '').trim());
+                return; // Do not render
+            }
+
             if (!txt) return;
 
             const cleanLog = { ...log, text: txt };

@@ -13,10 +13,12 @@ export interface PlayerInputDto {
 }
 
 import { NarrativeService } from './narrative.service.js';
+import { PromptAssemblyService } from '../ai/prompt-assembly.service.js';
 
 export class GameInitService {
   private factory: GameStateFactory;
   private narrativeService: NarrativeService;
+  private promptAssemblyService: PromptAssemblyService;
 
   constructor(
     private storiesRepo: StoriesRepository,
@@ -28,6 +30,7 @@ export class GameInitService {
       new EntityProjector()
     );
     this.narrativeService = new NarrativeService();
+    this.promptAssemblyService = new PromptAssemblyService();
   }
 
   /**
@@ -61,7 +64,7 @@ export class GameInitService {
 
     const { data: draftStory, error: draftError } = await supabaseAdmin
       .from('chimera_stories')
-      .select('protagonist_id, active_ruleset_ids, genesis_config')
+      .select('title, protagonist_id, active_ruleset_ids, genesis_config')
       .eq('id', draftId)
       .maybeSingle();
 
@@ -85,9 +88,13 @@ export class GameInitService {
     }
 
     // Step 3: Extract Active Rulesets
+    // Step 3: Extract Active Rulesets
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const configEngine = compiled.config_engine as any;
-    const activeRulesets = configEngine?.active_rulesets || [];
+    const rawRulesets = configEngine?.active_rulesets || [];
+    // Ensure we have strings (IDs)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const activeRulesets = rawRulesets.map((r: any) => (typeof r === 'string' ? r : r.id));
 
     // Step 4: Factory Creation
     const bundle = this.factory.createBundle(
@@ -127,11 +134,65 @@ export class GameInitService {
         perspective: genesisConfig.perspective || 'Second Person'
       };
 
-      // Ensure scene context has the initial set design
+      // Ensure scene context has the initial set design and metadata
+      bundle.narrative.scene_context.name = draftStory?.title || "Untitled Story";
+      bundle.narrative.scene_context.atmosphere = genesisConfig.narrator_tone || "Anticipation";
+      bundle.narrative.scene_context.time = "Night"; // Default start time
+
+      // Heuristic: Use location field if exists, else first line of set_design, else default
+      bundle.narrative.scene_context.location = genesisConfig.location ||
+        (genesisConfig.set_design ? genesisConfig.set_design.split('.')[0].substring(0, 30) : "The Beginning");
+
       if (genesisConfig.set_design) {
         bundle.narrative.scene_context.description = genesisConfig.set_design;
       }
     }
+
+    // [GENESIS] PHASE 7: Compile The Master Prompt (Snapshot)
+    // We aggregate Rules, Tone, and Schema into a single instruction block.
+    console.log('[GameInit] Compiling Master System Prompt...');
+
+    // [PROMPT ASSEMBLY] Hydrate Rulesets & Split Contexts
+    const rulesData = await this.promptAssemblyService.getCompiledRules(activeRulesets);
+
+    const toneText = genesisConfig.narrator_tone || 'Standard';
+    const pacingText = genesisConfig.pacing || 'Balanced';
+
+    // Hardcode the schema for now to avoid extensive import chains/runtime schema generation dependencies,
+    // ensuring self-contained reliability.
+    const schemaDefinition = `{
+  "narrative": "string (The prose)",
+  "thought_chain": "string (Reasoning)",
+  "scene_context": { "location": "string?", "time": "string?", "atmosphere": "string?" },
+  "state_updates": {
+    "player_hp_change": "number?",
+    "player_stamina_change": "number?",
+    "entity_updates": [ { "id": "string", "status_effect": "string?", "relationship_delta": "number?" } ]
+  }
+}`;
+
+    const compiledPrompt = `
+[PRIME DIRECTIVE]
+You are the Game Master. You output strictly structured JSON.
+
+[OUTPUT SCHEMA]
+${schemaDefinition}
+
+[NARRATIVE STYLE]
+Tone: ${toneText}
+Pacing: ${pacingText}
+
+[MAS-1: ACTION DISCERNMENT]
+(Applies to Intent Analysis)
+${rulesData.mas1}
+
+[MAS-2: NARRATIVE ENGINE]
+(Applies to World Simulation & Prose)
+${rulesData.mas2}
+`.trim();
+
+    // Store in bundle for persistence
+    bundle.compiled_system_prompt = compiledPrompt;
 
     // [GENESIS] Apply Genesis Entities (The Bridge)
     // We execute this BEFORE narrative generation so the Narrative Service can see the cast.
@@ -200,10 +261,23 @@ export class GameInitService {
       }
     }
 
+    // Step 5: Persistence - PHASE A (Initial Save)
+    // We save BEFORE generating narrative so we have a valid Game ID for the Audit Logs.
+    console.log('[GameInit] Creating initial game state (Pre-Genesis)...');
+
+    // Create state without narrative description first
+    const gameStateId = await this.stateRepo.createState(storyId, bundle, playerId);
+
+    // Inject ID into bundle for downstream services (Narrative/Audit)
+    bundle.id = gameStateId;
+
     // [GENESIS] Generate Opening Narrative (Server-Side Turn 0)
-    // We call the NarrativeService to generate the prose based on the Director's instructions we just set.
+    // We call the NarrativeService to generate the prose based on the Director's instructions.
     console.log('[GameInit] Generating Turn 0 narrative...');
-    const openingText = await this.narrativeService.generateOpeningNarrative(bundle);
+
+    // Now this call can safely log to ai_audit_logs because bundle.id is set and row exists
+    // Phase 7: Pass the newly compiled system prompt
+    const openingText = await this.narrativeService.generateOpeningNarrative(bundle, bundle.compiled_system_prompt);
 
     // Apply Genesis Text to Bundle
     if (bundle.narrative) {
@@ -217,8 +291,10 @@ export class GameInitService {
       }];
     }
 
-    // Step 5: Persistence via IGameStateRepository
-    const gameStateId = await this.stateRepo.createState(storyId, bundle, playerId);
+    // Step 5: Persistence - PHASE B (Update with Narrative)
+    console.log('[GameInit] Updating game state with Genesis narrative...', bundle.narrative.scene_context);
+    await this.stateRepo.updateState(gameStateId, bundle);
+
     return gameStateId;
   }
 }

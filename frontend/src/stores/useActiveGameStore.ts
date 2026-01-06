@@ -89,10 +89,17 @@ export const useActiveGameStore = create<ActiveGameState>()(
                 // 3. Extract Context
                 const narrative = anyState.tier0_narrative || anyState.narrative_focus || anyState.narrative || {};
                 const ctx = narrative.scene_context || {};
+
+                // [CLIENT-SIDE MIGRATION] Patch legacy states missing location/time
+                if (!ctx.location) ctx.location = ctx.name || "The Wobbly Goblin Tavern";
+                if (!ctx.time) ctx.time = "Night";
+                if (!ctx.atmosphere && !ctx.description) ctx.atmosphere = "Anticipation";
+
                 const newSuggestions = ctx.available_actions || [];
                 const newEntities = mech.entities || {};
 
                 // 4. Update Store
+                console.log('[ActiveGameStore] Synced State:', { newVitals, ctx, narrative });
                 set({
                     gameState: serverState,
                     vitals: newVitals,

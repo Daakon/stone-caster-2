@@ -11,4 +11,9 @@ export interface IGameStateRepository {
      * Used by the Engine to resolve actions without loading narrative bloat.
      */
     loadMechanical(storyId: string): Promise<MechanicalState>;
+
+    /**
+     * Update an existing game state.
+     */
+    updateState(gameStateId: string, state: GameStateBundle): Promise<void>;
 }

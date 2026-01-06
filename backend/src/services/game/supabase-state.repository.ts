@@ -19,7 +19,8 @@ export class SupabaseGameStateRepository implements IGameStateRepository {
                 mechanical_state: bundle.mechanical,
                 narrative_focus: bundle.narrative,
                 scene_registry: bundle.registry,
-                action_queue: bundle.queue || []
+                action_queue: bundle.queue || [],
+                compiled_system_prompt: bundle.compiled_system_prompt || null
             })
             .select('id')
             .single();
@@ -44,5 +45,24 @@ export class SupabaseGameStateRepository implements IGameStateRepository {
         if (!data) throw new Error('Game state not found');
 
         return data.mechanical_state as MechanicalState;
+    }
+
+    /**
+     * Update an existing game state.
+     */
+    async updateState(gameStateId: string, bundle: GameStateBundle): Promise<void> {
+        const { error } = await this.supabase
+            .from('chimera_game_states')
+            .update({
+                mechanical_state: bundle.mechanical,
+                narrative_focus: bundle.narrative,
+                scene_registry: bundle.registry,
+                action_queue: bundle.queue || [],
+                compiled_system_prompt: bundle.compiled_system_prompt || null,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', gameStateId);
+
+        if (error) throw new Error(`Failed to update game state: ${error.message}`);
     }
 }
