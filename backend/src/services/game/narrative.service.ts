@@ -37,6 +37,25 @@ Perspective: ${narrativeFocus.director_instructions.perspective}
 
         const contextDescription = narrativeFocus.scene_context.description;
 
+        // [GENESIS] Build Cast Manifest
+        // Filter out PLAYER entities, only keep NPCs/Extras
+        const entities = state.mechanical.entities || {};
+        const castList = Object.values(entities)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .filter((e: any) => e.type !== 'PLAYER')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((e: any) => {
+                const props = e.properties || {};
+                const name = props.display_name || props.name || 'Unknown Figure';
+                const desc = props.description || 'A mysterious figure.';
+                const role = props.archetype ? ` (${props.archetype})` : '';
+                return `- ${name}${role}: ${desc}`;
+            });
+
+        const manifestString = castList.length > 0
+            ? `\nSCENE CAST (Use these visual descriptions, do NOT use proper names unless they are Stars):\n${castList.join('\n')}\n\nINSTRUCTION: Focus on the sensory details of the scene and these specific characters.`
+            : '';
+
         // 2. Construct Prompt
         const systemPrompt = `
 You are the Narrator of an interactive story.
@@ -44,6 +63,7 @@ ${systemInstruction}
 
 Setting Context:
 ${contextDescription}
+${manifestString}
     `.trim();
 
         const userPrompt = "Generate the opening scene narrative based on the Director's Instructions. Do not output system logs, just the story prose.";
@@ -51,11 +71,25 @@ ${contextDescription}
         // 3. Call LLM
         try {
             const response = await this.llm.generateText(systemPrompt, userPrompt);
+
+            // [AI AUDIT] Log the transaction
+            this.logAiTransaction('GENESIS', systemPrompt + '\n---\n' + userPrompt, response);
+
             return response;
         } catch (error) {
+            console.error('[NarrativeService] Genesis Generation Failed:', error);
             // Fallback to static description if LLM fails
             return contextDescription || 'The story begins...';
         }
+    }
+
+    /**
+     * Private Audit Logger
+     */
+    private logAiTransaction(step: string, prompt: string, rawResult: string): void {
+        console.log(`\n[AI_AUDIT] STEP: ${step}`);
+        console.log(`[AI_AUDIT] PROMPT:\n${prompt}`);
+        console.log(`[AI_AUDIT] RESULT:\n${rawResult}\n`);
     }
 
     /**

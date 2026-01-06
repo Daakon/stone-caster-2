@@ -49,6 +49,7 @@ export function StoryBlock({ text, role, className, timestamp }: StoryBlockProps
         <div
             className={cn(
                 "py-4 max-w-none animate-in fade-in duration-500 prose dark:prose-invert leading-relaxed text-lg",
+                "prose-p:my-2 prose-strong:font-bold prose-em:italic",
                 isPlayer ? "text-right italic text-muted-foreground" : "font-serif text-foreground/90",
                 className
             )}
@@ -56,13 +57,14 @@ export function StoryBlock({ text, role, className, timestamp }: StoryBlockProps
             {/* Rich Text Rendering */}
             <ReactMarkdown
                 components={{
+                    p: ({ children }) => <p className="mb-4 last:mb-0 leading-loose">{children}</p>,
                     a: ({ node, href, children, ...props }) => {
                         if (href?.startsWith('entity:')) {
                             const id = href.split(':')[1];
                             return (
                                 <span
                                     onClick={() => setSelectedEntity(id)}
-                                    className="cursor-pointer text-primary font-medium hover:underline decoration-primary/50 underline-offset-4 transition-all"
+                                    className="cursor-pointer text-primary font-bold hover:text-primary/80 hover:underline decoration-primary/30 underline-offset-4 transition-all"
                                     title="View details"
                                 >
                                     {children}

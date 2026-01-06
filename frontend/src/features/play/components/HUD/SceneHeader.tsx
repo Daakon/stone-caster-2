@@ -9,16 +9,16 @@ export function SceneHeader() {
     const context = narrative.scene_context || {};
 
     const title = context.name || "Unknown Location";
-    const atmosphere = context.atmosphere || "Mysterious";
+    const atmosphere = context.atmosphere || (context.description ? context.description.slice(0, 50) + "..." : "Mysterious");
 
     if (!gameState) return null;
 
     return (
-        <div className="w-full text-center py-6 border-b bg-background/50 backdrop-blur-sm z-10">
-            <h2 className="text-2xl font-serif font-bold text-foreground tracking-wide">
+        <div className="sticky top-0 w-full text-center py-4 border-b bg-background/80 backdrop-blur-md z-30 shadow-sm">
+            <h2 className="text-xl font-serif font-bold text-foreground tracking-wide">
                 {title}
             </h2>
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest mt-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mt-1">
                 {atmosphere}
             </p>
         </div>

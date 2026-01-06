@@ -119,8 +119,8 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     // Construct Layers
     const narrativeLayer = (
         <>
-            <SceneHeader />
             <NarrativeStream logs={logs} />
+            <SceneHeader />
         </>
     );
 
