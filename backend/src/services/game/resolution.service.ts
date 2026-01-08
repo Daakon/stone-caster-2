@@ -57,35 +57,65 @@ export class ResolutionService {
             return { success: false, logs, mechanicalDelta: {}, intent: mas1 };
         }
 
-        // Define Mock Delta (Entity-Keyed)
-        // Use "current_stamina" vs "stamina" based on verified schema. 
-        // User requested "current_stamina". 
-        const deltaValues = mas1.type === 'COMBAT'
-            ? { current_stamina: -5, satiety: -1 }
-            : { current_stamina: -1, satiety: -1 };
+        // 3. Lookup: Retrieve the current entity
+        const entity = mech.entities[playerId];
+        
+        // Initialize properties if missing
+        if (!entity.properties) {
+            entity.properties = {};
+        }
 
-        const keyedDelta = {
-            [playerId]: deltaValues
-        };
+        // 4. Calculate: Perform Real Math on the correct Path
+        const currentStamina = (entity.properties.current_stamina ?? 100) as number;
+        const currentSatiety = (entity.properties.satiety ?? 100) as number;
 
-        // 3. Apply Delta to create New State
-        // Use structuredClone for deep copy
+        // Define delta values (negative for reduction)
+        const staminaDelta = mas1.type === 'COMBAT' ? -5 : -1;
+        const satietyDelta = -1;
+
+        // Calculate new values with Math.max to prevent negatives
+        const newStamina = Math.max(0, currentStamina + staminaDelta);
+        const newSatiety = Math.max(0, currentSatiety + satietyDelta);
+
+        // --- DEBUG STATE UPDATE ---
+        console.log('--- DEBUG STATE UPDATE ---');
+        console.log('Player ID:', playerId);
+        console.log('Old Stamina:', currentStamina);
+        console.log('Old Satiety:', currentSatiety);
+
+        // 5. Mutate State: Update entity.properties with calculated values
+        // CRITICAL: Use structuredClone to avoid mutating the original state
         const newState = structuredClone(state);
         const targetEntity = newState.mechanical.entities[playerId];
+        
+        if (!targetEntity.properties) {
+            targetEntity.properties = {};
+        }
 
-        // Initialize properties if missing to avoid crashes
-        if (!targetEntity.properties) targetEntity.properties = {};
+        // Explicitly assign the calculated values
+        targetEntity.properties.current_stamina = newStamina;
+        targetEntity.properties.satiety = newSatiety;
 
-        // Apply changes
-        Object.entries(deltaValues).forEach(([key, val]) => {
-            const current = targetEntity.properties[key] || 0; // Default to 0? Or 100?
-            // If value is missing in DB, we should probably default to something safe or handle gracefully.
-            // Using existing val or 100 if we assume max is 100?
-            // Let's use `current || 0` and assume it handles initialized state properly.
-            targetEntity.properties[key] = (current as number) + (val as number);
-        });
+        // Verify the mutation
+        const verifiedStamina = newState.mechanical.entities[playerId].properties.current_stamina;
+        const verifiedSatiety = newState.mechanical.entities[playerId].properties.satiety;
 
-        logs.push(`[ENGINE] Applied Delta to ${playerId}: ${JSON.stringify(deltaValues)}`);
+        // 6. Construct Delta: Return delta that reflects the schema (with properties nesting)
+        const keyedDelta = {
+            [playerId]: {
+                properties: {
+                    current_stamina: staminaDelta,
+                    satiety: satietyDelta
+                }
+            }
+        };
+
+        console.log('Generated Delta:', JSON.stringify(keyedDelta, null, 2));
+        console.log('New Stamina (InMemory):', verifiedStamina);
+        console.log('New Satiety (InMemory):', verifiedSatiety);
+        console.log('--- END DEBUG STATE UPDATE ---');
+
+        logs.push(`[ENGINE] Applied Delta to ${playerId}: stamina ${currentStamina} -> ${newStamina} (${staminaDelta}), satiety ${currentSatiety} -> ${newSatiety} (${satietyDelta})`);
 
         return {
             success: true,

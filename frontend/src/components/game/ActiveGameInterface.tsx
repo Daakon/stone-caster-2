@@ -122,19 +122,38 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         timestamp: new Date()
     }];
 
-    // State Extraction
+    // State Extraction - Read from store for optimistic updates, fallback to React Query
+    const storeState = useActiveGameStore(state => state.gameState);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const anyState = gameState as any;
-    const mechanical = anyState?.mechanical_state || anyState?.tier1_mechanical || {};
+    const anyState = (storeState || gameState) as any;
+    const mechanical = anyState?.mechanical_state || anyState?.tier1_mechanical || anyState?.mechanical || {};
     const narrative = anyState?.tier0_narrative || anyState?.narrative_focus || {};
     const registry = anyState?.scene_registry || anyState?.tier2_spatial || {};
 
     const sceneContext = narrative?.scene_context || {};
 
-    // Entities & Player
-    const entities = mechanical?.entities || {};
+    // Entities & Player - Use store entities for reactivity
+    const storeEntities = useActiveGameStore(state => state.entities);
+    const storeVitals = useActiveGameStore(state => state.vitals);
+    const entities = storeEntities && Object.keys(storeEntities).length > 0 
+        ? storeEntities 
+        : (mechanical?.entities || {});
     const statePlayerId = mechanical?.index?.player_id;
     const playerEntity = entities[statePlayerId] || {};
+    
+    // Debug logging for initial load issue
+    if (playerEntity?.properties) {
+        console.log('[ActiveGameInterface] Player Entity Debug:', {
+            statePlayerId,
+            hasPlayerEntity: !!playerEntity,
+            current_stamina: playerEntity.properties.current_stamina,
+            satiety: playerEntity.properties.satiety,
+            stamina: playerEntity.properties.stamina,
+            storeVitals,
+            entityKeys: Object.keys(entities),
+            usingStoreEntities: storeEntities && Object.keys(storeEntities).length > 0
+        });
+    }
 
     // Locations
     const locations = registry?.entity_locations || {};

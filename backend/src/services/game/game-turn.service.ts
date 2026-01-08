@@ -44,12 +44,24 @@ export class GameTurnService {
 
         // Step 2: Resolution (The Engine)
         const resolution = await this.resolutionService.resolve(playerInput, state);
-        console.log('[Turn] Resolution:', resolution);
+        console.log('[Turn] Resolution:', resolution?.logs);
 
         // Update state with Engine results for the Narrative to see (e.g. reduced stamina)
         let processedState = state;
         if (resolution.state) {
             processedState = resolution.state;
+            
+            // --- DEBUG PERSISTENCE ---
+            const playerId = processedState.mechanical?.index?.player_id;
+            if (playerId && processedState.mechanical?.entities?.[playerId]) {
+                const entity = processedState.mechanical.entities[playerId];
+                console.log('--- DEBUG PERSISTENCE ---');
+                console.log('ProcessedState Player ID:', playerId);
+                console.log('ProcessedState Stamina:', entity.properties?.current_stamina);
+                console.log('ProcessedState Satiety:', entity.properties?.satiety);
+                console.log('ProcessedState Mechanical State Keys:', Object.keys(processedState.mechanical || {}));
+                console.log('--- END DEBUG PERSISTENCE ---');
+            }
         }
 
         // Step 3: Narrative (The Brain)
@@ -195,12 +207,54 @@ export class GameTurnService {
         // We skip manual application here to avoid double-application if we trust ResolutionService.
 
         // 6. Persist
-        await this.storiesRepo.updateGameState(state.id, {
+        // --- DEBUG BEFORE PERSIST ---
+        const playerId = state.mechanical?.index?.player_id;
+        if (playerId && state.mechanical?.entities?.[playerId]) {
+            const entity = state.mechanical.entities[playerId];
+            console.log('--- DEBUG BEFORE PERSIST ---');
+            console.log('State ID:', state.id);
+            console.log('Player ID:', playerId);
+            console.log('Stamina to persist:', entity.properties?.current_stamina);
+            console.log('Satiety to persist:', entity.properties?.satiety);
+            console.log('Mechanical state structure:', {
+                hasEntities: !!state.mechanical.entities,
+                entityKeys: Object.keys(state.mechanical.entities || {}),
+                playerEntityExists: !!state.mechanical.entities[playerId],
+                playerEntityHasProperties: !!state.mechanical.entities[playerId]?.properties
+            });
+            console.log('--- END DEBUG BEFORE PERSIST ---');
+        }
+
+        const updatePayload = {
             mechanical_state: state.mechanical,
             narrative_focus: state.narrative,
             action_queue: [], // Clear queue
             // turn_index updated by Repo
-        });
+        };
+
+        // --- DEBUG UPDATE PAYLOAD ---
+        console.log('--- DEBUG UPDATE PAYLOAD ---');
+        console.log('Update Payload Keys:', Object.keys(updatePayload));
+        if (updatePayload.mechanical_state?.entities?.[playerId]) {
+            const entity = updatePayload.mechanical_state.entities[playerId];
+            console.log('Update Payload Entity Stamina:', entity.properties?.current_stamina);
+            console.log('Update Payload Entity Satiety:', entity.properties?.satiety);
+        }
+        console.log('--- END DEBUG UPDATE PAYLOAD ---');
+
+        await this.storiesRepo.updateGameState(state.id, updatePayload);
+
+        console.log('[PERSIST] Game state updated in database');
+        
+        // Verify the save by reloading (optional, for debugging)
+        const verifyState = await this.storiesRepo.loadGameState(state.id);
+        if (verifyState && verifyState.mechanical_state?.entities?.[playerId]) {
+            const savedEntity = verifyState.mechanical_state.entities[playerId];
+            console.log('--- VERIFY SAVED STATE ---');
+            console.log('Saved Stamina:', savedEntity.properties?.current_stamina);
+            console.log('Saved Satiety:', savedEntity.properties?.satiety);
+            console.log('--- END VERIFY SAVED STATE ---');
+        }
     }
 
     // ============================================================================

@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { User, Zap, Utensils } from "lucide-react";
 import { VitalsPanel } from "./sidebar/VitalsPanel";
 import { StatusBadges } from "./sidebar/StatusBadges";
+import { useActiveGameStore } from '@/stores/useActiveGameStore';
 
 // Icon Gauge Component
 interface IconGaugeProps {
@@ -46,9 +47,10 @@ export function LeftSidebar({ player, onInspect }: LeftSidebarProps) {
     const name = props.name || "Unknown";
     const role = props.occupation_tags?.[0] || "Adventurer";
 
-    // Vitals Data
-    const stamina = props.current_stamina ?? 100;
-    const satiety = props.satiety ?? 100;
+    // Vitals Data - Read from store for reactivity (store is source of truth)
+    const storeVitals = useActiveGameStore(state => state.vitals);
+    const stamina = storeVitals.stamina ?? props.current_stamina ?? 100;
+    const satiety = storeVitals.saturation ?? props.satiety ?? 100;
 
     return (
         <div className="flex flex-col gap-6 p-4 items-center lg:items-stretch">

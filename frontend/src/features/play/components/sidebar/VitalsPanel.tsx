@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { Zap, Utensils, Apple, Activity, Footprints } from 'lucide-react';
+import { useActiveGameStore } from '@/stores/useActiveGameStore';
 
 interface VitalsPanelProps {
     mechanicalState: any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -8,13 +9,16 @@ interface VitalsPanelProps {
 }
 
 export const VitalsPanel = ({ mechanicalState, playerId }: VitalsPanelProps) => {
-    // Defensive coding
+    // Vitals - Read from store for reactivity (store is source of truth)
+    const storeVitals = useActiveGameStore(state => state.vitals);
+    
+    // Fallback to entity properties if store vitals not available
     const pId = playerId || mechanicalState?.index?.player_id;
     const playerEntity = pId ? mechanicalState?.entities?.[pId] : null;
     const props = playerEntity?.properties || {};
 
-    // Stamina
-    const currentStamina = props.current_stamina ?? props.stamina ?? 100;
+    // Stamina - Use store value first, then fallback to entity properties
+    const currentStamina = storeVitals.stamina ?? props.current_stamina ?? props.stamina ?? 100;
     const maxStamina = 100; // Assumption max is 100 for percentage
     const staminaPct = Math.min(100, Math.max(0, currentStamina));
 
@@ -24,8 +28,8 @@ export const VitalsPanel = ({ mechanicalState, playerId }: VitalsPanelProps) => 
     if (staminaPct < 50) staminaColor = "bg-orange-500";
     if (staminaPct < 20) staminaColor = "bg-red-500";
 
-    // Satiety
-    const currentSatiety = props.current_satiety ?? props.satiety ?? 100;
+    // Satiety - Use store value first, then fallback to entity properties
+    const currentSatiety = storeVitals.saturation ?? props.current_satiety ?? props.satiety ?? 100;
     const satietyPct = Math.min(100, Math.max(0, currentSatiety));
 
     return (
