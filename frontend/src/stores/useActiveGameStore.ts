@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { activeGameApi } from '@/features/active-game/services/activeGameApi';
 import type { GameState } from '@shared/types/chimera-runtime';
+import { deepMerge } from '@/utils/deepMerge';
 
 export type InputMode = 'idle' | 'drafting' | 'thinking' | 'locked';
 
@@ -70,24 +71,48 @@ export const useActiveGameStore = create<ActiveGameState>()(
             // core sync logic
             syncState: (serverState: GameState) => {
                 // 1. Update Truth
-                const anyState = serverState as any;
+                const anyState = serverState as any; // Cast for loose access to shards
 
-                // 2. Extract Vitals
-                const mech = anyState.tier1_mechanical || anyState.mechanical_state || anyState.state?.tier1_mechanical;
+                // 2. Extract Shards
+                const mech = anyState.mechanical_state || anyState.tier1_mechanical || anyState.state?.tier1_mechanical || {};
+                const narrative = anyState.narrative_focus || anyState.tier0_narrative || anyState.narrative || {};
+                const registry = anyState.scene_registry || anyState.tier2_spatial || {};
+                const queue = anyState.action_queue || [];
+
+                // 3. Locate Player Entity
+                // Try root player_id, then mechanical index, then fallback search
+                const playerId = anyState.player_id || mech.index?.player_id;
+                const allEntities = mech.entities || {};
+
+                let playerEntity = allEntities[playerId];
+                if (!playerEntity) {
+                    // Fallback: search by type if ID lookup fails
+                    playerEntity = Object.values(allEntities).find((e: any) => e.type === 'PLAYER' || e.type === 'player');
+                }
+
+                // 4. Extract Vitals
                 let newVitals = get().vitals;
-
-                if (mech) {
+                if (playerEntity && playerEntity.properties) {
+                    const props = playerEntity.properties;
+                    newVitals = {
+                        hp: props.hp ?? 100,
+                        maxHp: props.maxHp ?? props.max_hp ?? 100,
+                        stamina: props.stamina ?? 100,
+                        saturation: props.saturation ?? 100,
+                        inCombat: mech.in_combat ?? false
+                    };
+                } else if (mech.health) {
+                    // Fallback to legacy global stats if entities missing
                     newVitals = {
                         hp: mech.health?.current ?? 100,
                         maxHp: mech.health?.max ?? 100,
                         stamina: mech.stamina?.current ?? 100,
-                        saturation: 100, // Not yet in mock
+                        saturation: 100,
                         inCombat: mech.in_combat ?? false
                     };
                 }
 
-                // 3. Extract Context
-                const narrative = anyState.tier0_narrative || anyState.narrative_focus || anyState.narrative || {};
+                // 5. Extract Context
                 const ctx = narrative.scene_context || {};
 
                 // [CLIENT-SIDE MIGRATION] Patch legacy states missing location/time
@@ -95,16 +120,16 @@ export const useActiveGameStore = create<ActiveGameState>()(
                 if (!ctx.time) ctx.time = "Night";
                 if (!ctx.atmosphere && !ctx.description) ctx.atmosphere = "Anticipation";
 
-                const newSuggestions = ctx.available_actions || [];
-                const newEntities = mech.entities || {};
+                // Suggestions: Check Queue first, then context
+                const newSuggestions = queue.length > 0 ? queue : (ctx.available_actions || []);
 
-                // 4. Update Store
-                console.log('[ActiveGameStore] Synced State:', { newVitals, ctx, narrative });
+                // 6. Update Store
+                console.log('[ActiveGameStore] Synced State:', { newVitals, ctx, narrative, playerEntity });
                 set({
                     gameState: serverState,
                     vitals: newVitals,
                     suggested_actions: newSuggestions,
-                    entities: newEntities
+                    entities: allEntities
                 });
             },
 
@@ -118,10 +143,58 @@ export const useActiveGameStore = create<ActiveGameState>()(
 
                 try {
                     // 2. Call API
-                    const newState = await activeGameApi.submitTurn(activeGameId, { input: draftText });
+                    const { turn, delta } = await activeGameApi.submitTurn(activeGameId, { input: draftText });
 
-                    // 3. Direct/Optimistic Update (The "Hybrid" part - we trust the return mostly)
-                    get().syncState(newState);
+                    // 3. Merging (Hybrid Sync)
+                    const currentGameState = get().gameState;
+                    if (currentGameState) {
+                        // A. Merge Delta (Mechanical changes)
+                        const nextGameState = deepMerge(currentGameState, delta);
+
+                        // B. Append Logs (Narrative changes)
+                        // Construct Log Entries from Turn Record
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const newLogs: any[] = [];
+
+                        // Thought Chain (System)
+                        if (turn.mas2_narration?.thought_chain) {
+                            newLogs.push({
+                                id: crypto.randomUUID(),
+                                role: 'system',
+                                content: `[THOUGHT] ${turn.mas2_narration.thought_chain}`,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+
+                        // Player Input (Player)
+                        newLogs.push({
+                            id: crypto.randomUUID(),
+                            role: 'player',
+                            content: turn.player_input,
+                            timestamp: new Date().toISOString()
+                        });
+
+                        // Narration (Narrator)
+                        if (turn.mas2_narration?.narration) {
+                            newLogs.push({
+                                id: crypto.randomUUID(),
+                                role: 'narrator', // Frontend uses 'narrator' for AI output
+                                content: turn.mas2_narration.narration,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+
+                        // Push to history
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        if (!nextGameState.narrative_focus) nextGameState.narrative_focus = { dialogue_history: [] } as any;
+                        if (!nextGameState.narrative_focus.dialogue_history) nextGameState.narrative_focus.dialogue_history = [];
+
+                        // We push mutably to the deepMerged copy
+                        nextGameState.narrative_focus.dialogue_history.push(...newLogs);
+
+                        // C. Update Store using syncState to derived vitals
+                        get().syncState(nextGameState);
+                    }
 
                     // 4. Reset UI
                     set({ inputMode: 'idle', draftText: '' });

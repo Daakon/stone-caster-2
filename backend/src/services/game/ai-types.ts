@@ -6,7 +6,7 @@
 
 export interface AiTurnResult {
     // The Story Prose
-    narrative: string;
+    narration: string;
 
     // The World Context (Updates to the Header/Environment)
     scene_context?: {

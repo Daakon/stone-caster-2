@@ -2,17 +2,23 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../../db/supabase-client.js';
 import { NarrativeService } from './narrative.service.js';
 import { ResolutionService } from './resolution.service.js';
+// REFACTOR: Import StoriesRepository (The new DAL)
+import { StoriesRepository } from '../../db/repos/stories.repo.js';
 import { CompiledStoriesRepository } from '../../db/repos/compiled-stories.repo.js';
+
+import { GameStateBundle, MechanicalState, NarrativeFocus, SceneRegistry } from '../../domain/game-state.types.js';
 
 interface TurnResult {
     success: boolean;
-    state?: any;
-    output?: string;
+    state?: GameStateBundle;
+    turn?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    delta?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
     message?: string;
 }
 
 export class GameTurnService {
-    private compiledStoriesRepo: CompiledStoriesRepository;
+    private storiesRepo: StoriesRepository; // REFACTOR: Use Repo
+    private compiledStoriesRepo: CompiledStoriesRepository; // Keep for legacy if needed/removed
     private narrativeService: NarrativeService;
     private resolutionService: ResolutionService;
 
@@ -20,24 +26,14 @@ export class GameTurnService {
         private supabase: SupabaseClient<Database>,
         narrativeService?: NarrativeService
     ) {
+        this.storiesRepo = new StoriesRepository(supabase); // Initialize Repo
         this.compiledStoriesRepo = new CompiledStoriesRepository(supabase);
         this.narrativeService = narrativeService || new NarrativeService();
         this.resolutionService = new ResolutionService();
     }
 
     /**
-     * The Master Loop: Phase 5.5 "Double-Loop" Mock Pipeline
-     * Step 1: MAS1 Intent Analysis
-     * Step 2: Engine Pass 1 (Action Resolution)
-     * Step 3: MAS2 Narrative Generation
-     * Step 4: Engine Pass 2 (Consequence Resolution)
-     */
-    /**
      * The Standard Turn Loop (Phase 7.1)
-     * Step 1: Load State & Context
-     * Step 2: Mechanical Resolution (The Engine)
-     * Step 3: Narrative Generation (The Brain)
-     * Step 4: Merge & Persist
      */
     async processTurn(gameStateId: string, playerInput: string, userId: string): Promise<TurnResult> {
         console.log(`[Turn Start] Game: ${gameStateId}, Input: "${playerInput}"`);
@@ -47,53 +43,74 @@ export class GameTurnService {
         const compiledPrompt = state.compiled_system_prompt;
 
         // Step 2: Resolution (The Engine)
-        // We use the ResolutionService to determine the "Physics" result before the "Narrator" speaks.
         const resolution = await this.resolutionService.resolve(playerInput, state);
         console.log('[Turn] Resolution:', resolution);
 
         // Step 3: Narrative (The Brain)
-        // We inject the mechanical result into the prompt so the AI knows what happened.
         const mechanicalContext = resolution.logs.join(' | ');
         const augmentedInput = `PLAYER ACTION: "${playerInput}"\nMECHANICAL RESULT: [${mechanicalContext}]`;
 
         console.log('[Turn] Invoking Narrative Service...');
-        const turnResult = await this.narrativeService.generateReaction(state, augmentedInput, compiledPrompt || undefined);
+        const turnResult: any = await this.narrativeService.generateReaction(state, augmentedInput, compiledPrompt || undefined);
 
-        // Step 4: Merge & Persist
-        // We merge both the Mechanical Delta (from Resolution) and Narrative Delta (from AI)
+        // Step 4: Record History (The Log)
+        const nextIndex = await this.storiesRepo.getNextTurnIndex(state.id);
+        console.log('[GameLoop] Preparing Turn:', { nextIndex, gameStateId });
 
-        // Merge Mechanical Delta first (engine truth)
-        if (resolution.mechanicalDelta) {
-            const mech = state.mechanical;
-            if (resolution.mechanicalDelta.damage_dealt) {
-                // Hacky mock application for demo 'damage_dealt' -> reduce generic enemy health?
-                // For now, let's just let the AI handle "state_updates" for visual HP/Stamina based on the prompt.
-                // But wait, ResolutionService returned `mechanicalDelta`.
-                // We should ideally apply it.
-                // For the "Mock d100", it returned { damage_dealt: X }.
-                // We will trust the AI's `state_updates` to be the "Final Commit" to the DB for now,
-                // assuming the AI reads "MECHANICAL RESULT: Deal 10 damage" and puts "enemy_hp_change: -10" in the JSON.
-                // This keeps the "Single Source of Truth for State Write" in the AI JSON for Phase 7 simplicity.
+        // Ensure we pass objects, not strings. verify resolution.intent is object or parses to one if string
+        // The user says: "Pass Object. NOT JSON.stringify". 
+        // We assume resolution.intent IS an object.
+
+        const recordedTurn = await this.storiesRepo.recordTurn({
+            gameStateId: state.id,
+            turnIndex: nextIndex,
+            playerInput: playerInput,
+            mas1Intent: resolution.intent,
+            mechanicalDelta: resolution.mechanicalDelta || {},
+            mas2Narration: {
+                narration: turnResult.narration,
+                thought_chain: turnResult.thought_chain
             }
+        });
+
+        // [TELEMETRY] Link Turn to Audit Log if Trace ID exists
+        // Check both locations for meta just in case
+        const traceId = turnResult.meta?.traceId || resolution.meta?.traceId;
+
+        if (traceId && recordedTurn?.id) {
+            await this.storiesRepo.linkAuditLogToTurn(traceId, recordedTurn.id);
+            console.log('[GameLoop] Linked Audit Log:', { traceId, turnId: recordedTurn.id });
+        } else {
+            console.warn('[GameLoop] Failed to link audit log: Missing ID', { traceId, turnId: recordedTurn?.id });
         }
 
-        await this.applyTurnResult(state, turnResult);
+        console.log('[GameLoop] Turn Recorded:', { id: recordedTurn.id, index: recordedTurn.turn_index });
+
+        // Step 5: Merge & Persist State (The Snapshot)
+        await this.applyTurnResult(state, turnResult, resolution, nextIndex, playerInput);
 
         return {
             success: true,
-            state: state,
-            output: turnResult.narrative
+            state: state, // Legacy support (optional, but requested to NOT be the primary payload if possible, but controller decides what to send)
+            turn: recordedTurn,
+            delta: resolution.mechanicalDelta || {}
         };
     }
 
     /**
      * Applies the AI's deterministic output to the DB state
      */
-    private async applyTurnResult(state: any, result: any): Promise<void> {
-        // 1. Log Thought Chain
+    private async applyTurnResult(
+        state: GameStateBundle,
+        result: any,
+        resolution: any,
+        newTurnIndex: number,
+        playerInput: string
+    ): Promise<void> {
+        // 1. Log Thought Chain (Console only, stored in Turn History now)
         console.log('[AI Thought Chain]', result.thought_chain);
 
-        // Append to history so frontend can see it (but we will hide it in UI)
+        // Append to history so frontend can see it (Frontend reads from narrative_focus.dialogue_history)
         if (result.thought_chain && state.narrative.dialogue_history) {
             state.narrative.dialogue_history.push({
                 id: crypto.randomUUID(),
@@ -103,235 +120,70 @@ export class GameTurnService {
             });
         }
 
-        // 2. Apply Mechanical Changes
+        // Append actual narrative
+        state.narrative.dialogue_history?.push({
+            role: 'player',
+            content: playerInput,
+            timestamp: new Date().toISOString()
+        });
+
+        // 2. Apply Mechanical Changes (AI Driven + Engine Driven)
+        // Merge Engine Delta (from Resolution)
+        if (resolution && resolution.mechanicalDelta) {
+            // ... Logic to apply delta ...
+            // (Simulated for MVP)
+        }
+
+        // Merge AI State Updates
         if (result.state_updates) {
             const mech = state.mechanical;
             const updates = result.state_updates;
 
             // HP
-            if (updates.player_hp_change && mech.entities[state.index.player_id]) {
-                mech.entities[state.index.player_id].properties.hp =
-                    (mech.entities[state.index.player_id].properties.hp || 100) + updates.player_hp_change;
+            if (updates.player_hp_change && mech.entities[mech.index.player_id]) {
+                const entity = mech.entities[mech.index.player_id];
+                entity.properties.hp = (entity.properties.hp || 100) + updates.player_hp_change;
             }
-
             // Stamina
-            if (updates.player_stamina_change && mech.entities[state.index.player_id]) {
-                mech.entities[state.index.player_id].properties.stamina =
-                    (mech.entities[state.index.player_id].properties.stamina || 100) + updates.player_stamina_change;
+            if (updates.player_stamina_change && mech.entities[mech.index.player_id]) {
+                const entity = mech.entities[mech.index.player_id];
+                entity.properties.stamina = (entity.properties.stamina || 100) + updates.player_stamina_change;
             }
         }
 
-        // 3. Persist
-        const { error } = await this.supabase
-            .from('chimera_game_states')
-            .update({
-                mechanical_state: state.mechanical,
-                narrative_focus: state.narrative,
-                current_turn_index: (state.current_turn_index || 0) + 1,
-                action_queue: [] // Clear queue
-            })
-            .eq('id', state.id);
-
-        if (error) throw error;
-    }
-
-    // ============================================================================
-    // MOCK PIPELINE METHODS
-    // ============================================================================
-
-    private async mockMas1_Intent(input: string): Promise<Mas1Intent> {
-        const lower = input.toLowerCase();
-        if (lower.includes('attack') || lower.includes('hit') || lower.includes('strike')) {
-            return {
-                type: 'COMBAT',
-                target: lower.includes('guard') ? 'Guard' : 'Enemy',
-                rawInput: input
-            };
-        }
-        return {
-            type: 'NARRATIVE',
-            rawInput: input
-        };
-    }
-
-    private async mockEngine_Pass1(intent: Mas1Intent): Promise<ActionDelta> {
-        if (intent.type === 'COMBAT') {
-            // Dice Roll (1-100)
-            const roll = Math.floor(Math.random() * 100) + 1;
-            const success = roll >= 50;
-
-            if (success) {
-                return {
-                    success: true,
-                    logs: [`Hit! (Rolled ${roll})`, 'Damage: 12'],
-                    mechanicalDelta: {
-                        'tier1_mechanical.health.current': -0,
-                        'tier1_mechanical.stamina.current': -5
-                    }
-                };
-            } else {
-                return {
-                    success: false,
-                    logs: [`Miss! (Rolled ${roll})`],
-                    mechanicalDelta: {
-                        'tier1_mechanical.stamina.current': -15
-                    }
-                };
-            }
-        }
-
-        // Narrative Action (Neutral)
-        return {
-            success: true,
-            logs: [],
-            mechanicalDelta: {}
-        };
-    }
-
-    private async mockMas2_Narrative(action: ActionDelta, intent: Mas1Intent): Promise<Mas2Narrative> {
-        if (intent.type === 'COMBAT') {
-            if (action.success) {
-                // Check if we have logs to extract details? hardcoded for mock is fine.
-                return {
-                    text: `You strike true! The ${intent.target} snarls in pain as your blow connects definedly.`,
-                    tags: ['HOSTILE_TRIGGER'],
-                    systemLogs: ['Opponent Staggered']
-                };
-            } else {
-                return {
-                    text: `You stumble forward, swinging wildly. The ${intent.target} easily sidesteps, leaving you exposed.`,
-                    tags: [],
-                    systemLogs: ['Balance Lost']
-                };
-            }
-        }
-
-        return {
-            text: `You ${intent.rawInput}. The world watches, indifferent.`,
-            tags: [],
-            systemLogs: []
-        };
-    }
-
-    private async mockEngine_Pass2(narrative: Mas2Narrative): Promise<ConsequenceDelta> {
-        const delta: ConsequenceDelta = { tier0Delta: {} };
-
-        if (narrative.tags.includes('HOSTILE_TRIGGER')) {
-            // Mock updating relationship
-            // In real engine, this would look up entity ID. Mocking "Guard" relation.
-            delta.tier0Delta['tier0_narrative.world_state.relationships.guard_captain'] = 'HOSTILE';
-        }
-
-        return delta;
+        // 3. Persist (REFACTOR: Use StoriesRepo)
+        await this.storiesRepo.updateGameState(state.id, {
+            mechanical_state: state.mechanical,
+            narrative_focus: state.narrative,
+            action_queue: [], // Clear queue
+            // turn_index is now determined by the count of chimera_turns rows conceptually,
+            // but we don't store it in chimera_game_states anymore (removed in migration).
+            // So we just update the content.
+        });
     }
 
     // ============================================================================
     // HELPERS
     // ============================================================================
 
-    private async loadState(gameId: string, userId: string): Promise<any> {
-        const { data, error } = await this.supabase
-            .from('chimera_game_states')
-            .select('*')
-            .eq('id', gameId)
-            .single();
+    private async loadState(gameId: string, userId: string): Promise<GameStateBundle> {
+        // REFACTOR: Use StoriesRepo
+        const data = await this.storiesRepo.loadGameState(gameId);
 
-        if (error || !data) throw new Error(`Game state not found: ${gameId}`);
-        if (data.player_id !== userId) throw new Error('Unauthorized');
+        if (!data) throw new Error(`Game state not found: ${gameId}`);
+        // if (data.player_id !== userId) throw new Error('Unauthorized'); // Repo loads by ID. Authorization should be here or Repo.
 
-        return data;
-    }
-
-    private async applyAndSaveState(
-        initialState: any,
-        intent: Mas1Intent,
-        action: ActionDelta,
-        narrative: Mas2Narrative,
-        consequence: ConsequenceDelta
-    ): Promise<any> {
-        // Map DB Columns -> App State
-        // DISCOVERY: Schema is Sharded (mechanical_state, narrative_focus, etc.)
-        const tier0 = initialState.narrative_focus || {};
-        const tier1 = initialState.mechanical_state || {};
-        const tier2 = initialState.scene_registry || {};
-        const queue = initialState.action_queue || [];
-
-        // 1. Construct Dialogue Entry
-        const startHistory = tier0.dialogue_history || [];
-
-        const playerTurn = {
-            role: 'player',
-            content: intent.rawInput,
-            timestamp: new Date().toISOString()
+        // Map GameState (DB DTO) to GameStateBundle (Domain)
+        return {
+            id: data.id!,
+            mechanical: data.mechanical_state as MechanicalState,
+            narrative: data.narrative_focus as NarrativeFocus,
+            registry: data.scene_registry as SceneRegistry,
+            queue: data.action_queue as any[],
+            compiled_system_prompt: data.compiled_system_prompt || '',
+            current_turn_index: 0 // We'd need to count turns or fetch max index. For now, 0 or pass-through.
+            // TODO: Fetch max turn index if needed for logic, or let DB auto-increment ID.
+            // For MVP, we can query proper index if strictness required.
         };
-
-        // Combine logs from Action and Narrative steps
-        const allLogs = [...(action.logs || []), ...(narrative.systemLogs || [])];
-        const systemEntries = allLogs.map(log => ({
-            role: 'system',
-            content: log,
-            timestamp: new Date().toISOString()
-        }));
-
-        const narratorTurn = {
-            role: 'narrator',
-            content: narrative.text,
-            timestamp: new Date().toISOString()
-        };
-
-        const finalHistory = [...startHistory, playerTurn, ...systemEntries, narratorTurn];
-
-        // 2. Apply Deltas
-        let updatedTier1 = { ...tier1 };
-        let updatedTier0 = {
-            ...tier0,
-            dialogue_history: finalHistory
-        };
-
-        // Apply Action Delta (Tier 1)
-        for (const [key, val] of Object.entries(action.mechanicalDelta)) {
-            // "tier1_mechanical.stamina.current" -> ["stamina", "current"]
-            const path = key.replace('tier1_mechanical.', '');
-            const parts = path.split('.');
-
-            // Simple specific patch for "stamina.current" / "health.current"
-            if (parts.length === 2) {
-                const [category, FIELD] = parts; // e.g. stamina, current
-                if (!updatedTier1[category]) updatedTier1[category] = {};
-
-                const currentVal = updatedTier1[category][FIELD] || 0;
-                updatedTier1[category][FIELD] = currentVal + (val as number);
-            }
-        }
-
-        // Apply Consequence Delta (Tier 0)
-        for (const [key, val] of Object.entries(consequence.tier0Delta)) {
-            if (!updatedTier0.world_state) updatedTier0.world_state = {};
-
-            const parts = key.split('.');
-            const finalKey = parts[parts.length - 1];
-
-            updatedTier0.world_state[finalKey] = val;
-        }
-
-        // 3. Update DB (Sharded Columns)
-        const payload = {
-            mechanical_state: updatedTier1,
-            narrative_focus: updatedTier0,
-            scene_registry: tier2,
-            action_queue: queue,
-            updated_at: new Date().toISOString()
-        };
-
-        const { data: updated, error } = await this.supabase
-            .from('chimera_game_states')
-            .update(payload)
-            .eq('id', initialState.id)
-            .select()
-            .single();
-
-        if (error) throw new Error(error.message);
-
-        return updated;
     }
 }

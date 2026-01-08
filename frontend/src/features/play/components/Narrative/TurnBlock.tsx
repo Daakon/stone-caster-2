@@ -1,6 +1,7 @@
 import type { LogEntry } from './types';
-import { StoryBlock } from './StoryBlock';
+import { NarrativeBlock } from '@/components/game/feed/NarrativeBlock';
 import { SystemLine } from './SystemLine';
+import { SystemMessage } from '@/components/game/feed/SystemMessage';
 import { cn } from '@/lib/utils';
 import { User } from 'lucide-react';
 
@@ -49,15 +50,27 @@ export function TurnBlock({ data }: TurnBlockProps) {
                 </div>
             )}
 
-            {/* 3. Narrative Prose */}
+            {/* 3. Mechanics & Narrative */}
             {narrative.length > 0 && (
                 <div className="flex flex-col gap-4">
+                    {/* Render Mechanics Chip if present in the first narrative block */}
+                    {narrative[0]?.metadata?.mechanics && (
+                        <SystemMessage
+                            type={narrative[0].metadata.mechanics.outcome === 'success' ? 'success' : 'failure'}
+                            label={narrative[0].metadata.mechanics.skill_check || 'Check'}
+                            details={
+                                narrative[0].metadata.mechanics.roll
+                                    ? `Rolled ${narrative[0].metadata.mechanics.roll} vs ${narrative[0].metadata.mechanics.target}`
+                                    : undefined
+                            }
+                        />
+                    )}
+
                     {narrative.map(log => (
-                        <StoryBlock
+                        <NarrativeBlock
                             key={log.id}
                             text={log.text}
                             role="narrator"
-                            timestamp={log.timestamp}
                         />
                     ))}
                 </div>

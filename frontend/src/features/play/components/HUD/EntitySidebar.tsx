@@ -1,59 +1,14 @@
 import { useActiveGameStore } from '@/stores/useActiveGameStore';
 import { cn } from '@/lib/utils';
-import { User, Skull, Box, HelpCircle, Heart, Zap } from 'lucide-react';
-
-function PlayerCard() {
-    const { vitals, gameState } = useActiveGameStore();
-    // Heuristic: Get player name from genesis or default
-    const entityRecord = (gameState as any)?.tier1_mechanical?.entities;
-    // Find player entity if possible
-    const playerEntity = entityRecord ? Object.values(entityRecord).find((e: any) => e.type === 'PLAYER') : null;
-    const playerName = (playerEntity as any)?.properties?.name || "Traveler";
-    const archetype = (playerEntity as any)?.properties?.archetype || "Adventurer";
-
-    if (!vitals) return null;
-
-    return (
-        <div className="flex flex-col gap-2 p-3 bg-background/60 backdrop-blur-md rounded-lg border border-primary/20 shadow-sm mb-2">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/50 overflow-hidden flex items-center justify-center shrink-0">
-                    <User className="w-5 h-5 text-primary" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-bold text-foreground leading-none truncate">{playerName}</span>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{archetype}</span>
-                </div>
-            </div>
-
-            {/* Vitals Bars */}
-            <div className="flex flex-col gap-1.5 mt-1">
-                {/* HP */}
-                <div className="flex items-center gap-2">
-                    <Heart className="w-3 h-3 text-red-500 shrink-0" />
-                    <div className="h-1.5 flex-1 bg-secondary/50 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-red-500 transition-all duration-500 ease-out"
-                            style={{ width: `${(vitals.hp / vitals.maxHp) * 100}%` }}
-                        />
-                    </div>
-                </div>
-                {/* Stamina */}
-                <div className="flex items-center gap-2">
-                    <Zap className="w-3 h-3 text-yellow-500 shrink-0" />
-                    <div className="h-1.5 flex-1 bg-secondary/50 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-yellow-500 transition-all duration-500 ease-out"
-                            style={{ width: `${vitals.stamina}%` }}
-                        />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
+import { User, Skull, Box, HelpCircle } from 'lucide-react';
+import { VitalsPanel } from '../sidebar/VitalsPanel';
+import { WorldClock } from '../sidebar/WorldClock';
+import { StatusBadges } from '../sidebar/StatusBadges';
 
 export function EntitySidebar() {
-    const { entities, setSelectedEntity, selectedEntityId } = useActiveGameStore();
+    const { entities, setSelectedEntity, selectedEntityId, gameState } = useActiveGameStore();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mechanicalState = gameState?.mechanical_state || (gameState as any)?.tier1_mechanical || {};
 
     // Filter out player
     const list = entities ? Object.values(entities).filter((e: any) => e.type !== 'PLAYER' && e.type !== 'player') : [];
@@ -74,8 +29,25 @@ export function EntitySidebar() {
 
     return (
         <div className="flex flex-col gap-2 mt-4 pointer-events-auto w-full">
-            {/* Player Card at top */}
-            <PlayerCard />
+            {/* HUD Components */}
+            <WorldClock mechanicalState={mechanicalState} />
+
+            <div className="flex flex-col gap-2">
+                <div className="flex items-end gap-3 px-2">
+                    <div className="w-12 h-12 rounded-full bg-muted border-2 border-border shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0 relative">
+                        <User className="w-6 h-6 text-muted-foreground" />
+                        {/* Combat Glow */}
+                        {mechanicalState?.entities?.[mechanicalState?.index?.player_id]?.properties?.combat_condition &&
+                            mechanicalState?.entities?.[mechanicalState?.index?.player_id]?.properties?.combat_condition !== 'Healthy' && (
+                                <div className="absolute inset-0 border-2 border-red-500/50 rounded-full animate-pulse" />
+                            )}
+                    </div>
+                    <div className="flex-1 pb-1">
+                        <StatusBadges mechanicalState={mechanicalState} />
+                    </div>
+                </div>
+                <VitalsPanel mechanicalState={mechanicalState} />
+            </div>
 
             {/* Divider or Header */}
             {list.length > 0 && (

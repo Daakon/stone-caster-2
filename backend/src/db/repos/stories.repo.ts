@@ -67,20 +67,21 @@ export class StoriesRepository {
    */
   async createGameState(
     storyId: string,
-    bundle: any, // Typed as GameStateBundle in service, but using any here to avoid strict circular deps if needed
+    bundle: any,
     playerId: string
   ): Promise<string> {
-    const { mechanical, narrative, registry, queue } = bundle;
+    const { mechanical, narrative, registry, queue, compiled_system_prompt } = bundle;
 
     const { data, error } = await this.supabase
       .from('chimera_game_states')
       .insert({
         story_id: storyId,
         player_id: playerId,
-        mechanical_state: mechanical,
-        narrative_focus: narrative,
-        scene_registry: registry,
-        action_queue: queue || []
+        mechanical_state: mechanical || {},
+        narrative_focus: narrative || {},
+        scene_registry: registry || {},
+        action_queue: queue || [],
+        compiled_system_prompt: compiled_system_prompt || null
       })
       .select('id')
       .single();
@@ -99,12 +100,12 @@ export class StoriesRepository {
   /**
    * Load a game state by ID
    * @param id - The game state ID
-   * @returns GameStateBundle or null
+   * @returns GameState or null
    */
-  async loadGameState(id: string): Promise<any | null> {
+  async loadGameState(id: string): Promise<GameState | null> {
     const { data, error } = await this.supabase
       .from('chimera_game_states')
-      .select('story_id, mechanical_state, narrative_focus, scene_registry, action_queue')
+      .select('id, story_id, player_id, mechanical_state, narrative_focus, scene_registry, action_queue, compiled_system_prompt, updated_at')
       .eq('id', id)
       .single();
 
@@ -115,15 +116,78 @@ export class StoriesRepository {
 
     if (!data) return null;
 
+    // Direct mapping to GameState interface
     return {
       id: data.id,
       story_id: data.story_id,
-      tier1_mechanical: data.mechanical_state, // Mapped to expected frontend key
-      narrative: data.narrative_focus,
-      registry: data.scene_registry,
-      queue: data.action_queue
+      player_id: data.player_id,
+      mechanical_state: data.mechanical_state,
+      narrative_focus: data.narrative_focus,
+      scene_registry: data.scene_registry,
+      action_queue: data.action_queue,
+      compiled_system_prompt: data.compiled_system_prompt,
+      updated_at: data.updated_at
     };
   }
+
+  /**
+   * Update specific shards of the game state
+   * @param gameStateId - The ID of the game state
+   * @param partialState - The shards to update (mechanical, narrative, registry, etc.)
+   */
+  async updateGameState(gameStateId: string, partialState: Partial<GameState>): Promise<void> {
+    // Map DTO keys to DB columns (they match in the new schema, but good to be explicit)
+    const updatePayload: any = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (partialState.mechanical_state) updatePayload.mechanical_state = partialState.mechanical_state;
+    if (partialState.narrative_focus) updatePayload.narrative_focus = partialState.narrative_focus;
+    if (partialState.scene_registry) updatePayload.scene_registry = partialState.scene_registry;
+    if (partialState.action_queue) updatePayload.action_queue = partialState.action_queue;
+
+    const { error } = await this.supabase
+      .from('chimera_game_states')
+      .update(updatePayload)
+      .eq('id', gameStateId);
+
+    if (error) {
+      throw new Error(`Failed to update game state: ${error.message}`);
+    }
+  }
+
+  /**
+   * Record a turn in the history log
+   * @param turnData - Object containing turn details
+   * @returns The created turn record
+   */
+  async recordTurn(turnData: {
+    gameStateId: string;
+    turnIndex: number;
+    playerInput: string;
+    mas1Intent: any;
+    mechanicalDelta: any;
+    mas2Narration: any;
+  }): Promise<any> { // Returns GameTurn logic ideally
+    const { data, error } = await this.supabase
+      .from('chimera_turns')
+      .insert({
+        game_state_id: turnData.gameStateId,
+        turn_index: turnData.turnIndex,
+        player_input: turnData.playerInput,
+        mas1_intent: turnData.mas1Intent || {},
+        mechanical_delta: turnData.mechanicalDelta || {},
+        mas2_narration: turnData.mas2Narration || {}
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to record turn: ${error.message}`);
+    }
+    return data;
+  }
+
 
   /**
    * Helper to reconstruct CompiledStory from DB row
@@ -251,5 +315,46 @@ export class StoriesRepository {
     }
 
     return data.story_id;
+  }
+  /**
+   * Get the next turn index for a game state
+   * @param gameStateId - The game state ID
+   * @returns The next turn index (0 if no turns exist)
+   */
+  async getNextTurnIndex(gameStateId: string): Promise<number> {
+    const { data, error } = await this.supabase
+      .from('chimera_turns')
+      .select('turn_index')
+      .eq('game_state_id', gameStateId)
+      .order('turn_index', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return 0; // No turns found, start at 0
+      }
+      // If there's a real error, we might log it but falling back to 0 or throwing depends on strictness.
+      // For now, let's throw to be safe.
+      throw new Error(`Failed to get next turn index: ${error.message}`);
+    }
+
+    return (data?.turn_index ?? -1) + 1;
+  }
+
+  /**
+   * Links an existing AI Audit Log to a newly created turn
+   * @param traceId - The trace ID (PK of ai_audit_logs)
+   * @param turnId - The UUID of the chimera_turn
+   */
+  async linkAuditLogToTurn(traceId: string, turnId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('ai_audit_logs')
+      .update({ turn_id: turnId })
+      .eq('id', traceId);
+
+    if (error) {
+      console.warn(`[StoriesRepo] Failed to link Audit ${traceId} to Turn ${turnId}: ${error.message}`);
+    }
   }
 }

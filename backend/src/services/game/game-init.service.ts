@@ -266,7 +266,8 @@ ${rulesData.mas2}
     console.log('[GameInit] Creating initial game state (Pre-Genesis)...');
 
     // Create state without narrative description first
-    const gameStateId = await this.stateRepo.createState(storyId, bundle, playerId);
+    // REFACTORED: Use StoriesRepository for sharded persistence
+    const gameStateId = await this.storiesRepo.createGameState(storyId, bundle, playerId);
 
     // Inject ID into bundle for downstream services (Narrative/Audit)
     bundle.id = gameStateId;
@@ -293,7 +294,26 @@ ${rulesData.mas2}
 
     // Step 5: Persistence - PHASE B (Update with Narrative)
     console.log('[GameInit] Updating game state with Genesis narrative...', bundle.narrative.scene_context);
-    await this.stateRepo.updateState(gameStateId, bundle);
+
+    // REFACTORED: Use StoriesRepository for partial updates
+    await this.storiesRepo.updateGameState(gameStateId, {
+      narrative_focus: bundle.narrative
+    });
+
+    // [GENESIS] PHASE C: Record Turn 0 (The History Log)
+    // This ensures the frontend has a log to display immediately.
+    console.log('[GameInit] Recording Genesis Turn (Index 0)...');
+    await this.storiesRepo.recordTurn({
+      gameStateId,
+      turnIndex: 0,
+      playerInput: "Game Start",
+      mas1Intent: { type: "GENESIS" },
+      mechanicalDelta: {},
+      mas2Narration: {
+        narration: openingText,
+        thought_chain: "Genesis construction complete."
+      }
+    });
 
     return gameStateId;
   }

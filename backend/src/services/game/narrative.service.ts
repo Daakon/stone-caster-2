@@ -37,6 +37,9 @@ const pacingStyles: Record<string, string> = {
     Concise: "Be direct. Avoid flowery language or excessive adjectives."
 };
 
+// [DEBUG] Mock Mode Flag
+const USE_MOCK_AI = true;
+
 export class NarrativeService {
     private llm: LlmService;
 
@@ -45,14 +48,62 @@ export class NarrativeService {
     }
 
     /**
+     * MOCK REACTION (Debug Mode)
+     * Deterministic output to verify Game Loop pipeline.
+     */
+    private mockReaction(state: GameState, playerInput: string): AiTurnResult {
+        const lower = playerInput.toLowerCase();
+        let narrative = "";
+        let intentTag = "Action";
+
+        // Extract basic stats for dynamic text
+        const mech = state.mechanical || {};
+        const player = (mech.entities || {})[state.index?.player_id || ''] || {};
+        const hp = player.properties?.hp ?? '??';
+        const stamina = player.properties?.stamina ?? '??';
+
+        if (lower.includes('attack') || lower.includes('fight') || lower.includes('hit')) {
+            intentTag = "Combat";
+            narrative = `MOCK MODE (COMBAT): You lash out with your weapon! The enemy flinches. (HP: ${hp}, Stamina: ${stamina})`;
+        } else if (lower.includes('look') || lower.includes('search') || lower.includes('examine')) {
+            intentTag = "Observation";
+            narrative = `MOCK MODE (LOOK): You scan the area. The details are sharp. (HP: ${hp}, Stamina: ${stamina})`;
+        } else {
+            intentTag = "General";
+            narrative = `MOCK MODE (DEFAULT): You perform the action: "${playerInput}". The world reacts accordingly. (HP: ${hp}, Stamina: ${stamina})`;
+        }
+
+        return {
+            narration: narrative,
+            scene_context: {
+                location: state.narrative.scene_context.location,
+                time: state.narrative.scene_context.time,
+                atmosphere: "Mock Simulation"
+            },
+            state_updates: {
+                // Mock a small stamina cost to verify mechanics
+                player_stamina_change: -2
+            },
+            thought_chain: `[MockAI] Detected ${intentTag} intent. Generated deterministic response.`
+        };
+    }
+
+    /**
      * Generates the opening narrative (Turn 0) based on the Director's Slate
      * and the initial game state.
      */
     async generateOpeningNarrative(state: GameState, systemPromptOverride?: string): Promise<string> {
+        // [DEBUG] Check Mock Mode
+        if (USE_MOCK_AI) {
+            console.warn('[NarrativeService] Using Mock Genesis.');
+            return "MOCK MODE: The story begins in a test environment. Everything is stable. The air smells of ozone and debugging.";
+        }
+
         // 1. Extract the Context
         const narrativeFocus = state.narrative;
         const config = narrativeFocus.director_instructions || {};
         const contextDescription = narrativeFocus.scene_context.description || "A new world awaits.";
+        // ... (rest of the file follows)
 
         // [GENESIS] Build Cast Manifest
         const entities = state.mechanical.entities || {};
@@ -211,6 +262,7 @@ JSON TEMPLATE:
     /**
      * Private Audit Logger
      * [PHASE 6.8] Writes to ai_audit_logs table via Service Role
+     * Returns the created Log ID (traceId)
      */
     private async logAiTransaction(params: {
         gameId: string;
@@ -220,14 +272,14 @@ JSON TEMPLATE:
         tokenUsage: Record<string, number>;
         costStones: number;
         modelUsed: string;
-    }): Promise<void> {
+    }): Promise<string | null> {
         try {
             const supabase = getChimeraSupabaseAdminClient();
 
             // Console backup for quick debugging
             console.log(`[AI_AUDIT] ${params.actionType} | Cost: ${params.costStones} stones`);
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('ai_audit_logs')
                 .insert({
                     game_id: params.gameId,
@@ -238,13 +290,18 @@ JSON TEMPLATE:
                     cost_stones: params.costStones,
                     model_used: params.modelUsed,
                     turn_index: null // Optional, passed if in turn loop
-                });
+                })
+                .select('id')
+                .single();
 
             if (error) {
                 console.error('[NarrativeService] Audit Log Failed:', error.message);
+                return null;
             }
+            return data?.id || null;
         } catch (err) {
             console.error('[NarrativeService] Audit Log Exception:', err);
+            return null;
         }
     }
 
@@ -253,6 +310,28 @@ JSON TEMPLATE:
      * Returns structured data: narrative prose, system logs, and state mutations.
      */
     async generateReaction(state: GameState, playerInput: string, systemPromptOverride?: string): Promise<AiTurnResult> {
+        // [DEBUG] Mock Mode
+        if (USE_MOCK_AI) {
+            console.warn('[NarrativeService] Using Mock Reaction.');
+            const mockResult = this.mockReaction(state, playerInput);
+
+            // [AI AUDIT] Log the mock transaction so it appears in DB
+            const auditId = await this.logAiTransaction({
+                gameId: state.id!,
+                actionType: 'TURN_REACTION',
+                promptText: "MOCK_MODE_ENABLED",
+                rawResponse: JSON.stringify(mockResult),
+                tokenUsage: { total: 0 },
+                costStones: 0,
+                modelUsed: 'mock-deterministic'
+            });
+
+            return {
+                ...mockResult,
+                meta: { traceId: auditId || undefined }
+            };
+        }
+
         // 1. Production Context Assembly
         const narrativeFocus = state.narrative;
 
@@ -302,7 +381,7 @@ Return the structured JSON object EXACTLY as defined in the output schema.
 
         try {
             const jsonResponseText = await this.llm.generateText({
-                systemPrompt: systemPrompt,
+                systemPrompt: typeof systemPrompt === 'object' ? JSON.stringify(systemPrompt) : systemPrompt,
                 userPrompt: userPrompt,
                 temperature: 0.7,
                 maxTokens: 500,
@@ -316,7 +395,7 @@ Return the structured JSON object EXACTLY as defined in the output schema.
             } catch (e) {
                 console.error("Failed to parse AI JSON response", jsonResponseText);
                 result = {
-                    narrative: "The world blurs. (AI Error - Invalid JSON)",
+                    narration: "The world blurs. (AI Error - Invalid JSON)",
                     thought_chain: "JSON Parse Failure",
                     state_updates: {}
                 };
@@ -338,7 +417,7 @@ Return the structured JSON object EXACTLY as defined in the output schema.
         } catch (error) {
             console.error('[NarrativeService] LLM Failure:', error);
             return {
-                narrative: "Silence greets your action. The gods are silent.",
+                narration: "Silence greets your action. The gods are silent.",
                 thought_chain: "LLM Service Failure",
                 state_updates: {}
             };

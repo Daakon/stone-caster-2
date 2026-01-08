@@ -41,7 +41,10 @@ router.post(
                 return sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, result.message || 'Turn failed', req);
             }
 
-            return sendSuccess(res, result.state, req);
+            return sendSuccess(res, {
+                turn: result.turn,
+                delta: result.delta
+            }, req);
 
         } catch (error) {
             console.error('[ActiveGameController] Turn Error:', error);
