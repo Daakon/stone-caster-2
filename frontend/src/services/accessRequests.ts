@@ -22,9 +22,13 @@ export const publicAccessRequestsService = {
     });
 
     if (!result.ok) {
+      const errorCode = result.error.code;
+      const validCode = (errorCode === 'RATE_LIMITED' || errorCode === 'VALIDATION_FAILED' || errorCode === 'INTERNAL_ERROR')
+        ? errorCode
+        : 'INTERNAL_ERROR';
       return {
         ok: false,
-        code: result.error.code || 'INTERNAL_ERROR',
+        code: validCode,
         message: result.error.message || 'Failed to submit request',
       };
     }
@@ -39,9 +43,13 @@ export const publicAccessRequestsService = {
     const result = await apiFetch<{ request: AccessRequest | null }>('/api/request-access/status');
 
     if (!result.ok) {
+      const errorCode = result.error.code;
+      const validCode = (errorCode === 'UNAUTHORIZED' || errorCode === 'NOT_FOUND')
+        ? errorCode
+        : 'UNAUTHORIZED';
       return {
         ok: false,
-        code: result.error.code || 'UNAUTHORIZED',
+        code: validCode,
         message: result.error.message || 'Failed to fetch status',
       };
     }

@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ProfileService } from '../services/profile';
 import { chimeraProfileService } from '../services/chimera.profile';
 import { useAuthStore } from '../store/auth';
-import { usePlayerAccount } from '../hooks/usePlayerAccount';
 import { makeTitle } from '../lib/meta';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
@@ -545,7 +544,7 @@ function ProfilePageContent() {
               <Label htmlFor="memberSince" className="sm:text-right">Member Since</Label>
               <Input 
                 id="memberSince" 
-                value={profile?.lastSeenAt ? new Date(profile.lastSeenAt).toLocaleDateString() : 'N/A'} 
+                value={profile?.lastSeen ? new Date(profile.lastSeen).toLocaleDateString() : 'N/A'} 
                 disabled 
                 className="col-span-3" 
               />
@@ -554,7 +553,7 @@ function ProfilePageContent() {
               <Label htmlFor="lastSeen" className="sm:text-right">Last Seen</Label>
               <Input 
                 id="lastSeen" 
-                value={profile?.lastSeenAt ? new Date(profile.lastSeenAt).toLocaleString() : 'N/A'} 
+                value={profile?.lastSeen ? new Date(profile.lastSeen).toLocaleString() : 'N/A'} 
                 disabled 
                 className="col-span-3" 
               />

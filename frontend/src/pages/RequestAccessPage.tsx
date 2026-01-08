@@ -15,9 +15,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle2, AlertCircle, Mail } from 'lucide-react';
+import { Loader2, CheckCircle2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { publicAccessRequestsService } from '@/services/accessRequests';
+import type { AccessRequest } from '@shared/types/accessRequests';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/auth';
 
@@ -58,7 +59,7 @@ export default function RequestAccessPage() {
     enabled: !!user,
     refetchInterval: (data) => {
       // Only poll if status is pending, stop polling once approved/denied or no request
-      const status = data?.data?.request?.status;
+      const status = data && 'ok' in data && data.ok && 'data' in data && data.data?.request?.status;
       if (status === 'pending') {
         return 10000; // Poll every 10s
       }
@@ -68,8 +69,8 @@ export default function RequestAccessPage() {
   });
 
   useEffect(() => {
-    if (statusData?.ok && statusData.data?.request) {
-      const status = statusData.data.request.status;
+    if (statusData && 'ok' in statusData && statusData.ok && 'data' in statusData && statusData.data && 'request' in statusData.data && statusData.data.request) {
+      const status = (statusData.data.request as AccessRequest).status;
       setRequestStatus(status);
       setHasPendingRequest(status === 'pending');
       
@@ -77,7 +78,7 @@ export default function RequestAccessPage() {
       if (status === 'approved') {
         toast.success('Your Early Access request has been approved!');
       }
-    } else if (statusData?.ok && !statusData.data?.request) {
+    } else if (statusData && 'ok' in statusData && statusData.ok && 'data' in statusData && !statusData.data?.request) {
       setHasPendingRequest(false);
       setRequestStatus(null);
     }
@@ -116,7 +117,7 @@ export default function RequestAccessPage() {
   };
 
   // Show status badge if user is authenticated and has a request
-  const showStatusBadge = user && (requestStatus || statusData?.data?.request);
+  const showStatusBadge = user && (requestStatus || (statusData && 'ok' in statusData && statusData.ok && 'data' in statusData && statusData.data && 'request' in statusData.data && statusData.data.request));
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
@@ -143,7 +144,7 @@ export default function RequestAccessPage() {
                           : 'secondary'
                     }
                   >
-                    {requestStatus || statusData?.data?.request?.status || 'pending'}
+                    {requestStatus || (statusData && 'ok' in statusData && statusData.ok && 'data' in statusData && statusData.data && 'request' in statusData.data && statusData.data.request ? (statusData.data.request as AccessRequest).status : undefined) || 'pending'}
                   </Badge>
                   {requestStatus === 'pending' && (
                     <span className="text-sm text-muted-foreground">

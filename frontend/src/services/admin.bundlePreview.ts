@@ -5,8 +5,9 @@
 
 import { supabase } from '@/lib/supabase';
 import { entryPointsService } from './admin.entryPoints';
-import { rulesetsService } from './admin.rulesets';
-import { worldsService } from './admin.worlds';
+// TODO: These services don't exist yet - need to implement or use alternative APIs
+// import { rulesetsService } from './admin.rulesets';
+// import { worldsService } from './admin.worlds';
 
 export interface BundlePreview {
   entry: {

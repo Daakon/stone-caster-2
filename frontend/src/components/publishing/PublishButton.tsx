@@ -60,9 +60,9 @@ export function PublishButton({
         toast.success(message);
       } else {
         // Handle specific error codes
-        const errorCode = response.error?.code;
-        const errorMessage = response.error?.message || 'Failed to submit publish request';
-        const errorDetails = response.error?.details as Record<string, unknown> | undefined;
+        const errorCode = !response.ok && 'error' in response ? response.error?.code : undefined;
+        const errorMessage = !response.ok && 'error' in response ? response.error?.message || 'Failed to submit publish request' : 'Failed to submit publish request';
+        const errorDetails = !response.ok && 'error' in response ? response.error?.details as Record<string, unknown> | undefined : undefined;
 
         // Phase 5: Use centralized messaging when flag is enabled
         if (isPublishingNotificationsEnabled()) {

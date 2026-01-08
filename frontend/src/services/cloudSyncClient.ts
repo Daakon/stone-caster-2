@@ -444,5 +444,4 @@ export function getCloudSyncClient(config?: CloudSyncConfig): CloudSyncClient {
   return cloudSyncClient;
 }
 
-// Export for use in other modules
-export { CloudSyncClient };
+// CloudSyncClient is already exported above as a class export

@@ -15,7 +15,7 @@ interface AccessStatusContextValue {
 const AccessStatusContext = createContext<AccessStatusContextValue | null>(null);
 
 export function AccessStatusProvider({ children }: { children: ReactNode }) {
-  const { data: accessStatus, isLoading, isError } = useAccessStatus();
+  const { data: accessStatus, isLoading } = useAccessStatus();
   
   // Only consider approved if we have a status and it's 'approved'
   // If accessStatus is null, it means no request exists (not approved)

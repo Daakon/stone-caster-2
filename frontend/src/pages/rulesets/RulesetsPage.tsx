@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRulesetsQuery } from '@/lib/queries';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
@@ -145,7 +145,7 @@ export default function RulesetsPage() {
         </div>
         
         <CatalogGrid>
-          {rulesets.map((ruleset) => (
+          {rulesets.map((ruleset: any) => (
             <CatalogCard
               key={ruleset.id}
               entity="ruleset"

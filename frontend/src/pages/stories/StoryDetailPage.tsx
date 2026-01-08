@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { WorldRuleMeters } from '@/components/gameplay/WorldRuleMeters';
 // TODO: Refactor for Chimera V3 - StoneCost removed (legacy stone system)
 // import { StoneCost } from '@/components/gameplay/StoneCost';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
@@ -21,8 +20,6 @@ import {
   ExternalLink,
   Star,
   Clock,
-  Shield,
-  Eye,
   Play,
   Edit,
 } from 'lucide-react';
@@ -30,7 +27,6 @@ import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLin
 import { isChimeraEnabled } from '@/config/features';
 import { useAuthStore } from '@/store/auth';
 import { chimeraStoriesService } from '@/services/chimera.stories';
-import { toast } from 'sonner';
 
 export default function StoryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -180,12 +176,6 @@ export default function StoryDetailPage() {
     }
   };
 
-  const differentiatorIcons = {
-    relationships: Users,
-    factions: Shield,
-    npcAgency: Eye,
-    worldRules: Zap
-  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -262,7 +252,7 @@ export default function StoryDetailPage() {
                       {story.world.name}
                     </Badge>
                   )}
-                  {story.rulesets?.map((ruleset) => (
+                  {story.rulesets?.map((ruleset: any) => (
                     <Badge
                       key={ruleset.id}
                       variant="outline"
@@ -278,7 +268,7 @@ export default function StoryDetailPage() {
                 {/* Tags */}
                 {story.tags && story.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {story.tags.map((tag) => (
+                    {story.tags.map((tag: string) => (
                       <Badge key={tag} variant="secondary" className="text-xs">
                         {tag}
                       </Badge>
@@ -339,7 +329,7 @@ export default function StoryDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {story.rulesets.map((ruleset) => (
+                  {story.rulesets.map((ruleset: any) => (
                     <div key={ruleset.id} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
                       <Zap className="h-5 w-5 text-primary mt-0.5" />
                       <div>
@@ -364,7 +354,7 @@ export default function StoryDetailPage() {
               </CardHeader>
               <CardContent>
                 <CatalogGrid columns={{ mobile: 2, tablet: 3, desktop: 4 }}>
-                  {story.featured_npcs.map((npc) => (
+                  {story.featured_npcs.map((npc: any) => (
                     <CatalogCard
                       key={npc.id}
                       entity="npc"
@@ -434,7 +424,7 @@ export default function StoryDetailPage() {
                   {story.world.description || 'Explore this world'}
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  {story.tags.map((tag) => (
+                  {story.tags.map((tag: string) => (
                     <Badge key={tag} variant="outline" className="text-xs">
                       {tag}
                     </Badge>

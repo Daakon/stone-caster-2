@@ -13,6 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlayInput } from '@/components/play/PlayInput';
 import { NarrativeStream } from '@/features/play/components/Narrative/NarrativeStream';
 import { SensoryObserver } from '@/features/play/components/FX/SensoryObserver';
+import { DebugPanel } from '@/components/play/DebugPanel';
+import { chimeraPlayService } from '@/services/chimera.play';
+import { chimeraStoriesService } from '@/services/chimera.stories';
 
 export default function PlayPage() {
   const { gameStateId } = useParams<{ gameStateId: string }>();
@@ -52,18 +55,19 @@ export default function PlayPage() {
   const castStoneMutation = useMutation({
     mutationFn: (textInput: string) =>
       chimeraPlayService.castStone(gameStateId!, { text_input: textInput }, debug),
-    onSuccess: (updatedState: any) => {
-      // The backend now updates the DB and returns the FULL updated state.
-      // So we can just invalidate the query or use the returned state to update cache.
-      // Ideally we just refetch or setQueryData, but React Query v5 syntax differences aside:
-      refetchGameState();
-    },
     onError: (error: Error) => {
       toast.error('Failed to process action', {
         description: error.message || 'An error occurred while processing your action.',
       });
     },
   });
+
+  // Handle mutation success
+  useEffect(() => {
+    if (castStoneMutation.isSuccess) {
+      refetchGameState();
+    }
+  }, [castStoneMutation.isSuccess, refetchGameState]);
 
   const handleSubmit = useCallback(
     async (text: string) => {

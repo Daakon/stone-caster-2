@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useStoryQuery, useCharactersQuery, useCreateCharacter, useCreateSession, useCreateGuestToken, usePrefetchSessionBundle, useFindExistingSession } from '@/lib/queries';
@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, User, UserPlus, ArrowLeft, Play } from 'lucide-react';
 import { 
-  trackStartStoryView, 
   trackStartStoryAuthChoice, 
   trackCharacterSelect, 
   trackCharacterCreate, 
@@ -20,10 +19,8 @@ import {
   trackFunnelStage
 } from '@/lib/analytics';
 import type { Character } from '@/types/domain';
-import { useQueryClient } from '@tanstack/react-query';
 import { ensureGuestToken } from '@/lib/auth';
 import { makeIdempotencyKey, setStoredSessionId, getStoredSessionId } from '@/lib/idempotency';
-import { findExistingSession } from '@/lib/api';
 
 type FlowStep = 'intro' | 'auth' | 'character' | 'confirm' | 'error';
 
@@ -37,12 +34,10 @@ export default function StartStoryPage() {
   const [isCharacterModalOpen, setIsCharacterModalOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isGuestMode, setIsGuestMode] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [beginDisabled, setBeginDisabled] = useState(false);
   const [lastStageTs, setLastStageTs] = useState<number>(Date.now());
 
-  const queryClient = useQueryClient();
   const prefetchSessionBundle = usePrefetchSessionBundle();
   const { lookup } = useFindExistingSession();
 
@@ -60,8 +55,8 @@ export default function StartStoryPage() {
   const createSessionMutation = useCreateSession();
   const createGuestTokenMutation = useCreateGuestToken();
 
-  const story = storyData?.data;
-  const characters = charactersData?.data || [];
+  const story = storyData && 'data' in storyData ? storyData.data : undefined;
+  const characters = charactersData && 'data' in charactersData ? charactersData.data : [];
 
   // Check authentication status (runs once on mount)
   useEffect(() => {
@@ -136,7 +131,7 @@ export default function StartStoryPage() {
       if (method === 'guest') {
         // Ensure token with expiry; silently refresh if needed
         await ensureGuestToken(() => createGuestTokenMutation.mutateAsync() as any);
-        setIsGuestMode(true);
+        // Guest mode handled by ensureGuestToken
         trackStartStoryAuthChoice(story!.id, 'guest');
       } else {
         trackStartStoryAuthChoice(story!.id, 'authenticated');
@@ -163,15 +158,15 @@ export default function StartStoryPage() {
       const result = await createCharacterMutation.mutateAsync(newCharacter);
       if (result.ok) {
         setSelectedCharacter(result.data);
-        trackCharacterCreate(result.data.id, story!.id);
+        trackCharacterCreate(story!.id);
         emitStage('character', { story_id: story!.id, character_id: result.data.id });
         setCurrentStep('confirm');
       } else {
-        trackStartStoryError('character_creation', 'Failed to create character');
+        trackStartStoryError('character_create', 'Failed to create character');
       }
     } catch (error) {
       console.error('Character creation failed:', error);
-      trackStartStoryError('character_creation', 'Character creation failed');
+      trackStartStoryError('character_create', 'Character creation failed');
     }
   };
 
@@ -227,14 +222,14 @@ export default function StartStoryPage() {
         emitStage('created', { story_id: storyIdValue, character_id: characterIdValue, session_id: sessionId });
         await prefetchAndNavigate(sessionId);
       } else {
-        trackStartStoryError('session_creation', 'Failed to create session');
+        trackStartStoryError('session_create', 'Failed to create session');
         setErrorMessage('Failed to start story. Please try again.');
         setCurrentStep('error');
       }
     } catch (error: any) {
       const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
       console.error('Session creation failed:', error);
-      trackStartStoryError('session_creation', offline ? 'Offline' : 'Session creation failed');
+      trackStartStoryError('session_create', offline ? 'Offline' : 'Session creation failed');
       setErrorMessage(offline ? 'You appear to be offline. Please retry when online.' : 'Failed to start story. Please try again.');
       setCurrentStep('error');
     } finally {
@@ -285,7 +280,7 @@ export default function StartStoryPage() {
                   )}
                   <div className="flex flex-wrap gap-2 mt-3">
                     <Badge variant="secondary">{story.kind}</Badge>
-                    {story.tags.map((tag) => (
+                    {story.tags.map((tag: string) => (
                       <Badge key={tag} variant="outline">{tag}</Badge>
                     ))}
                   </div>

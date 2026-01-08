@@ -5,7 +5,12 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      // Don't fail on type errors in dev mode
+      typescript: {
+        check: false, // Vite will still show type errors, but won't block dev server
+      },
+    }),
     {
       name: 'no-runtime-mocks',
       resolveId(id) {

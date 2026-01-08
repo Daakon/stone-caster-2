@@ -47,7 +47,7 @@ export function PreflightPanel({ type, id }: PreflightPanelProps) {
           toast.success('Preflight check saved');
         }
       } else {
-        toast.error(response.error?.message || 'Failed to run preflight');
+        toast.error(!response.ok && 'error' in response ? response.error?.message || 'Failed to run preflight' : 'Failed to run preflight');
       }
     } catch (error) {
       console.error('[publishing] Preflight error:', error);
@@ -173,7 +173,7 @@ export function PreflightPanel({ type, id }: PreflightPanelProps) {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium">{issue.message}</span>
-                          <Badge variant={getSeverityBadge(issue.severity)} size="sm">
+                          <Badge variant={getSeverityBadge(issue.severity)}>
                             {issue.severity}
                           </Badge>
                         </div>

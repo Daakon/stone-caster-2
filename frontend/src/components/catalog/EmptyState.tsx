@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Home, Search } from 'lucide-react';
@@ -10,13 +10,17 @@ interface EmptyStateProps {
   icon?: ReactNode;
   action?: {
     label: string;
-    href: string;
-  };
+    href?: string;
+    onClick?: () => void;
+  } | ReactNode;
   secondaryAction?: {
     label: string;
     href: string;
   };
   className?: string;
+  // Legacy props for backward compatibility
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 export function EmptyState({ 
@@ -25,8 +29,15 @@ export function EmptyState({
   icon,
   action,
   secondaryAction,
-  className 
+  className,
+  actionLabel,
+  onAction
 }: EmptyStateProps) {
+  // Handle legacy props
+  const resolvedAction = actionLabel && onAction
+    ? { label: actionLabel, onClick: onAction }
+    : action;
+
   return (
     <Card className={className}>
       <CardContent className="flex flex-col items-center justify-center py-12 px-6 text-center">
@@ -43,12 +54,22 @@ export function EmptyState({
         </p>
         
         <div className="flex flex-col sm:flex-row gap-3">
-          {action && (
-            <Button asChild>
-              <Link to={action.href}>
-                {action.label}
-              </Link>
-            </Button>
+          {resolvedAction && (
+            typeof resolvedAction === 'object' && 'label' in resolvedAction ? (
+              resolvedAction.href ? (
+                <Button asChild>
+                  <Link to={resolvedAction.href}>
+                    {resolvedAction.label}
+                  </Link>
+                </Button>
+              ) : resolvedAction.onClick ? (
+                <Button onClick={resolvedAction.onClick}>
+                  {resolvedAction.label}
+                </Button>
+              ) : null
+            ) : (
+              resolvedAction
+            )
           )}
           
           {secondaryAction && (
@@ -59,7 +80,7 @@ export function EmptyState({
             </Button>
           )}
           
-          {!action && !secondaryAction && (
+          {!resolvedAction && !secondaryAction && (
             <Button asChild>
               <Link to="/">
                 <Home className="mr-2 h-4 w-4" />

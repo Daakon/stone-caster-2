@@ -4,10 +4,11 @@
  */
 
 import { apiGet } from '@/lib/api';
-import { worldsService } from './admin.worlds';
-import { rulesetsService } from './admin.rulesets';
 import { entryPointsService } from './admin.entryPoints';
-import { npcsService } from './admin.npcs';
+// TODO: These services don't exist yet - need to implement or use alternative APIs
+// import { worldsService } from './admin.worlds';
+// import { rulesetsService } from './admin.rulesets';
+// import { npcsService } from './admin.npcs';
 
 export interface RefItem {
   id: string;
@@ -27,44 +28,18 @@ export class RefsService {
    * Search worlds for picker
    */
   async searchWorlds(options: SearchOptions = {}): Promise<RefItem[]> {
-    try {
-      const response = await worldsService.listWorlds(
-        { search: options.q },
-        1,
-        options.limit || 100
-      );
-      
-      return (response.data || []).map(world => ({
-        id: world.id,
-        name: world.name,
-        type: 'world'
-      }));
-    } catch (error) {
-      console.error('Error searching worlds:', error);
-      return [];
-    }
+    // TODO: Implement when admin.worlds service is available
+    console.warn('searchWorlds not implemented - admin.worlds service missing');
+    return [];
   }
 
   /**
    * Search rulesets for picker
    */
   async searchRulesets(options: SearchOptions = {}): Promise<RefItem[]> {
-    try {
-      const response = await rulesetsService.listRulesets(
-        { search: options.q },
-        1,
-        options.limit || 100
-      );
-      
-      return (response.data || []).map(ruleset => ({
-        id: ruleset.id,
-        name: ruleset.name,
-        type: 'ruleset'
-      }));
-    } catch (error) {
-      console.error('Error searching rulesets:', error);
-      return [];
-    }
+    // TODO: Implement when admin.rulesets service is available
+    console.warn('searchRulesets not implemented - admin.rulesets service missing');
+    return [];
   }
 
   /**
@@ -97,29 +72,9 @@ export class RefsService {
    * Search NPCs for picker
    */
   async searchNPCs(options: SearchOptions = {}): Promise<RefItem[]> {
-    try {
-      const response = await npcsService.listNPCs(
-        { search: options.q },
-        1,
-        options.limit || 100
-      );
-      
-      // Filter by world_id if provided (client-side filter since API doesn't support it yet)
-      let npcs = response.data || [];
-      if (options.world_id) {
-        // Note: NPCs don't have world_id in current schema, so we can't filter by it
-        // This will return all NPCs until we add world_id to NPCs table
-      }
-      
-      return npcs.map(npc => ({
-        id: npc.id,
-        name: npc.name || npc.id,
-        type: 'npc'
-      }));
-    } catch (error) {
-      console.error('Error searching NPCs:', error);
-      return [];
-    }
+    // TODO: Implement when admin.npcs service is available
+    console.warn('searchNPCs not implemented - admin.npcs service missing');
+    return [];
   }
 
   /**
@@ -129,21 +84,15 @@ export class RefsService {
     try {
       switch (type) {
         case 'world': {
-          const world = await worldsService.getWorld(id);
-          return {
-            id: world.id,
-            name: world.name,
-            type: 'world'
-          };
+          // TODO: Implement when admin.worlds service is available
+          console.warn('getRefItem for world not implemented');
+          return null;
         }
 
         case 'ruleset': {
-          const ruleset = await rulesetsService.getRuleset(id);
-          return {
-            id: ruleset.id,
-            name: ruleset.name,
-            type: 'ruleset'
-          };
+          // TODO: Implement when admin.rulesets service is available
+          console.warn('getRefItem for ruleset not implemented');
+          return null;
         }
 
         case 'entry': {
@@ -157,12 +106,9 @@ export class RefsService {
         }
 
         case 'npc': {
-          const npc = await npcsService.getNPC(id);
-          return {
-            id: npc.id,
-            name: npc.name || npc.id,
-            type: 'npc'
-          };
+          // TODO: Implement when admin.npcs service is available
+          console.warn('getRefItem for npc not implemented');
+          return null;
         }
 
         default:

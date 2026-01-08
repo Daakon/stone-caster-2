@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
@@ -12,8 +10,8 @@ import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { useWorld, useStories } from '@/lib/queries/index';
 import { useNPCsQuery } from '@/lib/queries';
 import { track } from '@/lib/analytics';
-import { ExternalLink, Users, BookOpen } from 'lucide-react';
-import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLink, upsertMeta, upsertProperty, injectJSONLD } from '@/lib/meta';
+import { Users, BookOpen } from 'lucide-react';
+import { makeTitle } from '@/lib/meta';
 
 export default function WorldDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -27,10 +25,9 @@ export default function WorldDetailPage() {
   });
 
   const { data: npcsData, isLoading: npcsLoading } = useNPCsQuery(
-    { world: world?.id },
-    { enabled: !!world?.id }
+    { world: world?.id }
   );
-  const npcs = npcsData?.data || [];
+  const npcs = (npcsData && 'data' in npcsData && npcsData.data) ? npcsData.data : [];
 
   // Track world view and update document title
   useEffect(() => {
@@ -120,7 +117,7 @@ export default function WorldDetailPage() {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="stories" className="flex items-center gap-2">
             <BookOpen className="h-4 w-4" />
-            Stories ({stories.length})
+            Stories ({Array.isArray(stories) ? stories.length : 0})
           </TabsTrigger>
           <TabsTrigger value="npcs" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -137,9 +134,9 @@ export default function WorldDetailPage() {
                   <CatalogSkeleton key={i} />
                 ))}
               </CatalogGrid>
-            ) : stories.length > 0 ? (
+            ) : Array.isArray(stories) && stories.length > 0 ? (
               <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
-                {stories.map((story) => (
+                {stories.map((story: any) => (
                   <CatalogCard
                     key={story.id}
                     entity="story"
@@ -150,7 +147,7 @@ export default function WorldDetailPage() {
                     description={story.short_desc}
                     chips={[
                       { label: story.world?.name || 'Unknown World', variant: 'secondary' },
-                      ...(story.rulesets?.map(r => ({ label: r.name, variant: 'outline' as const })) || [])
+                      ...(story.rulesets?.map((r: any) => ({ label: r.name, variant: 'outline' as const })) || [])
                     ]}
                     onCardClick={handleCardClick}
                   />
@@ -188,8 +185,7 @@ export default function WorldDetailPage() {
                     idOrSlug={npc.id}
                     href={`/npcs/${npc.id}`}
                     imageUrl={npc.portrait_url}
-                    coverMedia={npc.cover_media || null}
-                    imageAlt={npc.name}
+                    coverMedia={null}
                     title={npc.name}
                     description={npc.short_desc}
                     chips={[

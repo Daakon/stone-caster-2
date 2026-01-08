@@ -163,7 +163,7 @@ export default function StoriesPage() {
               idOrSlug={story.slug || story.id}
               title={story.title}
               description={story.description || story.synopsis}
-              imageUrl={null}
+              imageUrl={undefined}
               coverMedia={story.cover_media || null}
               href={`/stories/${story.slug || story.id}`}
               chips={story.tags && story.tags.length > 0 ? [

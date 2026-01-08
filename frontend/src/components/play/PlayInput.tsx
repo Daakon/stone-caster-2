@@ -3,7 +3,8 @@
  * Free-text input for player actions
  */
 
-import { useState, FormEvent } from 'react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Send } from 'lucide-react';

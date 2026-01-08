@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
@@ -163,7 +163,7 @@ export default function WorldsPage() {
               idOrSlug={world.slug || world.id}
               title={world.name}
               description={world.short_desc || world.tagline}
-              imageUrl={null}
+              imageUrl={undefined}
               coverMedia={world.cover_media || null}
               href={`/worlds/${world.slug || world.id}`}
               onCardClick={() => handleCardClick(world.slug || world.id)}

@@ -202,19 +202,19 @@ export function useRulesetSelectionManager({ initialSelectedKeys = [], lockedKey
                         isOpen: true,
                         title: "Resolve Conflicts",
                         description: (
-                            <div className="space-y-2" >
-                                <p>Enabling < strong > {target.name} < /strong> requires changes to your current selection:</p >
+                            <div className="space-y-2">
+                                <p>Enabling <strong>{target.name}</strong> requires changes to your current selection:</p>
                                 <ul className="list-disc pl-5 text-stone-400 space-y-1">
                                     {
                                         conflicts.map((c, i) => (
-                                            <li key={i} >
-                                                Switch < strong > {c.removed} < /strong> to <strong>{c.added}</strong >
+                                            <li key={i}>
+                                                Switch <strong>{c.removed}</strong> to <strong>{c.added}</strong>
                                             </li>
                                         ))
                                     }
                                 </ul>
-                                < p > Do you want to proceed ? </p>
-                            </div >
+                                <p>Do you want to proceed?</p>
+                            </div>
                         ),
                         confirmLabel: "Switch Rulesets",
                         onConfirm: applyAdd
@@ -253,12 +253,12 @@ export function useRulesetSelectionManager({ initialSelectedKeys = [], lockedKey
                     isOpen: true,
                     title: "Remove Dependencies?",
                     description: (
-                        <div className="space-y-2" >
-                            <p>The following rulesets depend on<strong>{getRuleset(key)?.name}< /strong> and will also be removed:</p >
-                            <ul className="list-disc pl-5 text-stone-400" >
+                        <div className="space-y-2">
+                            <p>The following rulesets depend on <strong>{getRuleset(key)?.name}</strong> and will also be removed:</p>
+                            <ul className="list-disc pl-5 text-stone-400">
                                 {
                                     dependents.map(d => (
-                                        <li key={d} > {getRuleset(d)?.name || d} </li>
+                                        <li key={d}>{getRuleset(d)?.name || d}</li>
                                     ))
                                 }
                             </ul>

@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: sessionData.user.email,
           displayName: sessionData.user.email || 'User',
           state: AuthState.AUTHENTICATED,
-          key: null, // Token is handled by Supabase client
+          key: undefined, // Token is handled by Supabase client
         };
         
         // Update store with user data

@@ -56,7 +56,7 @@ export default function PublishingWizardPage() {
 
   const [currentStep, setCurrentStep] = useState<WizardStep>('dependencies');
   const [entityName, setEntityName] = useState<string>('');
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
 
   // Dependencies step state
   const [dependencyValid, setDependencyValid] = useState<boolean | null>(null);
@@ -282,7 +282,7 @@ export default function PublishingWizardPage() {
     if (!type || !id) return;
 
     try {
-      const tableName = type === 'story' ? 'entry_points' : `${type}s`;
+      // const tableName = type === 'story' ? 'entry_points' : `${type}s`;
       // This would need to be adapted to your actual API structure
       // For now, we'll use a placeholder
       setEntityName(`${type} ${id.substring(0, 8)}...`);
@@ -319,7 +319,7 @@ export default function PublishingWizardPage() {
         }
       } else {
         // If endpoint fails, show error
-        setDependencyError(response.error?.message || 'Failed to check dependencies');
+        setDependencyError(!response.ok && 'error' in response ? response.error?.message || 'Failed to check dependencies' : 'Failed to check dependencies');
         setDependencyValid(false);
       }
     } catch (error) {
@@ -353,7 +353,7 @@ export default function PublishingWizardPage() {
           saveSession();
         }
       } else {
-        setPreflightError(response.error?.message || 'Failed to run preflight');
+        setPreflightError(!response.ok && 'error' in response ? response.error?.message || 'Failed to run preflight' : 'Failed to run preflight');
       }
     } catch (error) {
       console.error('[wizard] Preflight error:', error);
@@ -392,7 +392,7 @@ export default function PublishingWizardPage() {
           navigate('/admin/publishing');
         }, 2000);
       } else {
-        toast.error(response.error?.message || 'Failed to submit publish request');
+        toast.error(!response.ok && 'error' in response ? response.error?.message || 'Failed to submit publish request' : 'Failed to submit publish request');
       }
     } catch (error) {
       console.error('[wizard] Submit error:', error);
@@ -496,7 +496,9 @@ export default function PublishingWizardPage() {
         setResetDialogOpen(false);
       }
       // Enter to advance (when button is enabled)
-      if (e.key === 'Enter' && !e.shiftKey && canProceed() && currentStep !== 'submit') {
+      const canProceedNow = currentStep === 'dependencies' ? dependencyValid === true : 
+                            currentStep === 'preflight' ? (preflightScore !== null && preflightScore >= 60) : true;
+      if (e.key === 'Enter' && !e.shiftKey && canProceedNow && currentStep !== 'submit') {
         e.preventDefault();
         handleNext();
       }
@@ -504,7 +506,7 @@ export default function PublishingWizardPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canProceed, currentStep, resetDialogOpen, handleNext]);
+  }, [currentStep, resetDialogOpen, handleNext, dependencyValid, preflightScore]);
 
   // Phase 8: Get error summary
   const getErrorSummary = () => {
@@ -823,7 +825,7 @@ export default function PublishingWizardPage() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-medium">{issue.message}</span>
-                              <Badge variant={issue.severity === 'high' ? 'destructive' : 'secondary'} size="sm">
+                              <Badge variant={issue.severity === 'high' ? 'destructive' : 'secondary'}>
                                 {issue.severity}
                               </Badge>
                             </div>

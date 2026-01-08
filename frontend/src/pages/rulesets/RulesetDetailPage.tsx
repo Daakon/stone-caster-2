@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
@@ -19,11 +18,12 @@ export default function RulesetDetailPage() {
   const navigate = useNavigate();
 
   const { data: rulesetData, isLoading: rulesetLoading, error: rulesetError } = useRulesetQuery(id || '');
-  const ruleset = rulesetData?.data;
+  const ruleset = rulesetData && 'data' in rulesetData ? rulesetData.data : undefined;
 
-  const { data: stories = [], isLoading: storiesLoading } = useStories({
+  const { data: storiesData, isLoading: storiesLoading } = useStories({
     ruleset: ruleset?.id,
   });
+  const stories = Array.isArray(storiesData) ? storiesData : [];
 
   // Track ruleset view
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function RulesetDetailPage() {
     if (!rulesetData || !('data' in rulesetData) || !rulesetData.data) return;
     const ruleset = rulesetData.data;
     const title = makeTitle([ruleset.name, 'StoneCaster']);
-    const desc = makeDescription(ruleset.short_desc || 'Rules and mechanics for StoneCaster stories.');
+    const desc = makeDescription(ruleset.description || 'Rules and mechanics for StoneCaster stories.');
     const url = absoluteUrl(`/rulesets/${ruleset.id}`);
     const image = absoluteUrl(`/og/ruleset/${ruleset.id}`);
 
@@ -135,7 +135,7 @@ export default function RulesetDetailPage() {
           </CatalogGrid>
         ) : stories.length > 0 ? (
           <CatalogGrid>
-            {stories.map((story) => (
+            {stories.map((story: any) => (
               <CatalogCard
                 key={story.id}
                 entity="story"
@@ -146,7 +146,7 @@ export default function RulesetDetailPage() {
                 description={story.short_desc}
                 chips={[
                   { label: story.world?.name || 'Unknown World', variant: 'secondary' as const },
-                  ...(story.rulesets?.filter(r => r.id !== ruleset.id).map(r => ({ 
+                  ...(story.rulesets?.filter((r: any) => r.id !== ruleset.id).map((r: any) => ({ 
                     label: r.name, 
                     variant: 'outline' as const 
                   })) || [])

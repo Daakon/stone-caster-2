@@ -172,7 +172,7 @@ export class EntryPointsService {
   /**
    * Submit entry point for review (lifecycle transition)
    */
-  async submitForReview(id: string, note?: string): Promise<void> {
+  async submitForReview(id: string, _note?: string): Promise<void> {
     await this.updateEntryPoint(id, {
       lifecycle: 'pending_review'
     });
@@ -190,7 +190,7 @@ export class EntryPointsService {
   /**
    * Request changes to entry point (moderator/admin action)
    */
-  async requestChanges(id: string, note: string): Promise<EntryPoint> {
+  async requestChanges(id: string, _note: string): Promise<EntryPoint> {
     return this.updateEntryPoint(id, {
       lifecycle: 'changes_requested'
     });
@@ -199,7 +199,7 @@ export class EntryPointsService {
   /**
    * Reject entry point (moderator/admin action)
    */
-  async rejectEntryPoint(id: string, reason: string): Promise<EntryPoint> {
+  async rejectEntryPoint(id: string, _reason: string): Promise<EntryPoint> {
     return this.updateEntryPoint(id, {
       lifecycle: 'rejected'
     });
@@ -229,8 +229,6 @@ export class EntryPointsService {
     
     // Temporary stub - will be replaced in Phase 2
     return [];
-    
-    return result.data.data;
   }
 
   /**
