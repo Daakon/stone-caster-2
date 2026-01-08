@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { User, Skull, Box, HelpCircle } from 'lucide-react';
+import { User, Skull, Box, HelpCircle, HeartCrack, Activity, Moon } from 'lucide-react';
 import { resolveEntityDisplay } from '../../utils/entity-utils';
 
 interface HudSidebarProps {
@@ -53,6 +53,22 @@ export function HudSidebar({ context, entities, locations, playerId, activeScene
                         const { name, role, isUnknown } = resolveEntityDisplay(entity);
                         const status = entity.status || "active";
                         const isHostile = status === 'hostile'; // or check properties
+                        const props = entity.properties || {};
+                        const combatCondition = props.combat_condition || 'Healthy';
+
+                        // Combat Condition Icon Logic
+                        const getCombatConditionIcon = () => {
+                            if (combatCondition === 'Wounded') {
+                                return <HeartCrack className="w-3.5 h-3.5 text-red-500" />;
+                            } else if (combatCondition === 'Defeated') {
+                                return <Skull className="w-3.5 h-3.5 text-gray-500 opacity-50" />;
+                            } else if (combatCondition === 'Unconscious') {
+                                return <Moon className="w-3.5 h-3.5 text-blue-500" />;
+                            }
+                            return null; // Healthy - no icon
+                        };
+
+                        const combatIcon = getCombatConditionIcon();
 
                         return (
                             <button
@@ -76,13 +92,27 @@ export function HudSidebar({ context, entities, locations, playerId, activeScene
                                         "absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-background z-10",
                                         isHostile ? "bg-red-500" : "bg-green-500"
                                     )} />
+                                    {/* Combat Condition Badge - Overlay on avatar corner (Slim mode) */}
+                                    {combatIcon && (
+                                        <div className="absolute top-0 left-0 w-4 h-4 bg-background/90 rounded-full flex items-center justify-center border border-border z-20 xl:hidden">
+                                            {combatIcon}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Text Info */}
                                 <div className="flex flex-col items-center xl:items-start min-w-0 max-w-[60px] xl:max-w-full">
-                                    <span className="text-[10px] xl:text-sm font-semibold truncate tracking-tight text-foreground/80 group-hover:text-primary leading-tight">
-                                        {name}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 xl:gap-2">
+                                        <span className="text-[10px] xl:text-sm font-semibold truncate tracking-tight text-foreground/80 group-hover:text-primary leading-tight">
+                                            {name}
+                                        </span>
+                                        {/* Combat Condition Icon - Next to name (Full mode) */}
+                                        {combatIcon && (
+                                            <div className="hidden xl:flex items-center">
+                                                {combatIcon}
+                                            </div>
+                                        )}
+                                    </div>
                                     {/* Role only visible on XL */}
                                     <span className="hidden xl:block text-[10px] text-muted-foreground truncate opacity-70">
                                         {role}

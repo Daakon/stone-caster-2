@@ -1,6 +1,6 @@
 import { useActiveGameStore } from '@/stores/useActiveGameStore';
 import { cn } from '@/lib/utils';
-import { User, Skull, Box, HelpCircle } from 'lucide-react';
+import { User, Skull, Box, HelpCircle, HeartCrack, Activity, Moon } from 'lucide-react';
 import { VitalsPanel } from '../sidebar/VitalsPanel';
 import { WorldClock } from '../sidebar/WorldClock';
 import { StatusBadges } from '../sidebar/StatusBadges';
@@ -72,6 +72,21 @@ export function EntitySidebar() {
                     const status = entity.status || "active";
                     const isHostile = status === 'hostile';
                     const isUnknown = displayName.toLowerCase().includes("unknown") || displayName.toLowerCase().includes("figure");
+                    const combatCondition = props.combat_condition || 'Healthy';
+
+                    // Combat Condition Icon Logic
+                    const getCombatConditionIcon = () => {
+                        if (combatCondition === 'Wounded') {
+                            return <HeartCrack className="w-3.5 h-3.5 text-red-500" />;
+                        } else if (combatCondition === 'Defeated') {
+                            return <Skull className="w-3.5 h-3.5 text-gray-500 opacity-50" />;
+                        } else if (combatCondition === 'Unconscious') {
+                            return <Moon className="w-3.5 h-3.5 text-blue-500" />;
+                        }
+                        return null; // Healthy - no icon
+                    };
+
+                    const combatIcon = getCombatConditionIcon();
 
                     return (
                         <button
@@ -96,17 +111,35 @@ export function EntitySidebar() {
                                     "absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-background z-10",
                                     isHostile ? "bg-red-500" : "bg-green-500"
                                 )} />
+                                
+                                {/* Combat Condition Badge - Overlay on avatar corner */}
+                                {combatIcon && (
+                                    <div className="absolute top-0 left-0 w-4 h-4 bg-background/90 rounded-full flex items-center justify-center border border-border z-20">
+                                        {combatIcon}
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="flex flex-col overflow-hidden min-w-0">
-                                <span className={cn(
-                                    "text-sm font-semibold truncate tracking-tight transition-colors",
-                                    selectedEntityId === entity.id ? "text-primary" : "text-foreground group-hover:text-primary"
-                                )}>
-                                    {displayName}
-                                </span>
+                            <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                    <span className={cn(
+                                        "text-sm font-semibold truncate tracking-tight transition-colors",
+                                        selectedEntityId === entity.id ? "text-primary" : "text-foreground group-hover:text-primary"
+                                    )}>
+                                        {displayName}
+                                    </span>
+                                    {/* Combat Condition Icon - Next to name */}
+                                    {combatIcon && (
+                                        <div className="flex items-center flex-shrink-0">
+                                            {combatIcon}
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate opacity-70">
                                     <span>{props.archetype || props.race || "Entity"}</span>
+                                    {combatCondition !== 'Healthy' && (
+                                        <span className="text-red-500">• {combatCondition}</span>
+                                    )}
                                 </div>
                             </div>
                         </button>

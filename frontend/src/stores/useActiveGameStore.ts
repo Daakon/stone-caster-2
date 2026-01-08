@@ -243,9 +243,10 @@ export const useActiveGameStore = create<ActiveGameState>()(
                                     const oldProperties = oldEntity.properties;
                                     const newProperties = { ...oldProperties };
 
-                                    // 2. Apply math to the CLONE
-                                    Object.entries(propertiesDelta as Record<string, number>).forEach(([key, val]) => {
+                                    // 2. Apply changes to the CLONE (handles both numeric deltas and string assignments)
+                                    Object.entries(propertiesDelta as Record<string, any>).forEach(([key, val]) => {
                                         if (typeof val === 'number') {
+                                            // Numeric delta: add to current value
                                             // Get current value (default to 100 for stamina/satiety, 0 for others)
                                             const defaultValue = (key === 'current_stamina' || key === 'satiety') ? 100 : 0;
                                             const current = (oldProperties[key] ?? defaultValue) as number;
@@ -265,6 +266,10 @@ export const useActiveGameStore = create<ActiveGameState>()(
                                             if (key === 'stamina') {
                                                 newProperties['current_stamina'] = newVal;
                                             }
+                                        } else if (typeof val === 'string' || typeof val === 'boolean') {
+                                            // String/Boolean assignment: set directly (e.g., combat_condition: "Wounded")
+                                            console.log(`Frontend Setting ${key}: ${oldProperties[key]} -> ${val}`);
+                                            newProperties[key] = val;
                                         }
                                     });
 
@@ -281,8 +286,9 @@ export const useActiveGameStore = create<ActiveGameState>()(
                                     const oldProperties = oldEntity.properties;
                                     const newProperties = { ...oldProperties };
 
-                                    Object.entries(entityDelta as Record<string, number>).forEach(([key, val]) => {
+                                    Object.entries(entityDelta as Record<string, any>).forEach(([key, val]) => {
                                         if (typeof val === 'number') {
+                                            // Numeric delta: add to current
                                             const defaultValue = (key === 'current_stamina' || key === 'satiety') ? 100 : 0;
                                             const current = (oldProperties[key] ?? defaultValue) as number;
                                             const newVal = Math.max(0, current + val);
@@ -297,6 +303,10 @@ export const useActiveGameStore = create<ActiveGameState>()(
                                             if (key === 'stamina') {
                                                 newProperties['current_stamina'] = newVal;
                                             }
+                                        } else if (typeof val === 'string' || typeof val === 'boolean') {
+                                            // String/Boolean assignment: set directly
+                                            console.log(`Frontend Setting (flat) ${key}: ${oldProperties[key]} -> ${val}`);
+                                            newProperties[key] = val;
                                         }
                                     });
 
