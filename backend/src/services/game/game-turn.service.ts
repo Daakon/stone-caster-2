@@ -139,17 +139,41 @@ export class GameTurnService {
 
         // 3. Append Mechanical Delta Log (System)
         if (resolution && resolution.mechanicalDelta && Object.keys(resolution.mechanicalDelta).length > 0) {
-            const changes = Object.entries(resolution.mechanicalDelta)
-                .map(([k, v]) => `${k}: ${v}`)
-                .join(', ');
 
-            if (state.narrative.dialogue_history) {
-                state.narrative.dialogue_history.push({
-                    id: crypto.randomUUID(),
-                    role: 'system',
-                    content: `[SYSTEM] Changes: ${changes}`,
-                    timestamp: new Date(Date.now() - 50).toISOString()
-                });
+            const logLines: string[] = [];
+
+            // Keyed Delta: { [entityId]: { prop: val } }
+            for (const [entityId, changes] of Object.entries(resolution.mechanicalDelta)) {
+                // Resolve Entity Name
+                // state.mechanical?.entities is where they live
+                const entity = state.mechanical?.entities?.[entityId];
+                const entityName = entity?.properties?.name || entity?.properties?.display_name || 'Unknown Entity';
+
+                // Format Changes: "Stamina -5, Satiety -1"
+                // Cast changes to Record<string, any>
+                const changeStr = Object.entries(changes as Record<string, any>)
+                    .map(([k, v]) => {
+                        // Cleanup key names if needed (e.g. current_stamina -> Stamina)
+                        const niceKey = k.replace('current_', '').replace('_', ' ');
+                        const niceKeyCap = niceKey.charAt(0).toUpperCase() + niceKey.slice(1);
+                        return `${niceKeyCap}: ${v}`;
+                    })
+                    .join(', ');
+
+                if (changeStr) {
+                    logLines.push(`${entityName}: ${changeStr}`);
+                }
+            }
+
+            if (logLines.length > 0) {
+                if (state.narrative.dialogue_history) {
+                    state.narrative.dialogue_history.push({
+                        id: crypto.randomUUID(),
+                        role: 'system',
+                        content: `[SYSTEM] ${logLines.join(' | ')}`,
+                        timestamp: new Date(Date.now() - 50).toISOString()
+                    });
+                }
             }
         }
 

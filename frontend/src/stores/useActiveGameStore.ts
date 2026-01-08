@@ -158,27 +158,30 @@ export const useActiveGameStore = create<ActiveGameState>()(
                         const mech = (nextGameState as any).mechanical_state || {};
                         const playerId = mech.index?.player_id;
 
-                        if (playerId && mech.entities && mech.entities[playerId] && delta) {
-                            const playerProps = mech.entities[playerId].properties;
+                        if (mech.entities && delta) {
+                            // Iterate Keyed Delta: { [entityId]: { current_stamina: -5 } }
+                            Object.entries(delta).forEach(([entityId, changes]) => {
+                                const entity = mech.entities[entityId];
+                                if (entity && entity.properties) {
+                                    // Apply all changes
+                                    Object.entries(changes as Record<string, number>).forEach(([key, val]) => {
+                                        if (typeof val === 'number') {
+                                            // 1. Update exact matching property
+                                            const safeVal = (entity.properties[key] || 0) + val;
+                                            entity.properties[key] = safeVal;
 
-                            // Iterate Input Delta: { stamina: -5 }
-                            Object.entries(delta).forEach(([key, val]) => {
-                                if (typeof val === 'number') {
-                                    // 1. Direct key match (e.g. 'stamina' -> 'stamina')
-                                    if (typeof playerProps[key] === 'number') {
-                                        playerProps[key] += val;
-                                    }
-                                    // 2. Schema Translation (e.g. 'stamina' -> 'current_stamina')
-                                    // This ensures LeftSidebar (using current_*) updates too.
-                                    const currentKey = `current_${key}`;
-                                    if (typeof playerProps[currentKey] === 'number') {
-                                        playerProps[currentKey] += val;
-                                    }
+                                            // 2. Compatibility Mapping (current_stamina <-> stamina)
+                                            if (key === 'current_stamina') {
+                                                entity.properties['stamina'] = safeVal; // Update short name too if used by Vitals
+                                            }
+                                            if (key === 'stamina') {
+                                                entity.properties['current_stamina'] = safeVal;
+                                            }
 
-                                    // 3. Initialize if missing?
-                                    if (typeof playerProps[key] === 'undefined' && typeof playerProps[currentKey] === 'undefined') {
-                                        playerProps[key] = val;
-                                    }
+                                            // Satiety map if needed?
+                                            // assuming 'satiety' is standard
+                                        }
+                                    });
                                 }
                             });
                         }

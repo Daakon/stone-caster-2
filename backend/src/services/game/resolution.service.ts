@@ -38,85 +38,59 @@ export class ResolutionService {
         };
 
         if (lower.includes('attack') || lower.includes('hit') || lower.includes('strike') || lower.includes('fight')) {
-            mas1 = {
-                type: 'COMBAT',
-                intent: 'combat_action',
-                skill_id: 'root_force',
-                difficulty_mod: 0,
-                duration_tag: 'moment',
-                confidence: 1.0,
-                analysis: 'Combat Intent Detected',
-                parameters: {}
-            };
-        } else if (lower.includes('look') || lower.includes('search') || lower.includes('examine')) {
-            mas1 = {
-                type: 'NARRATIVE',
-                intent: 'attempt_action',
-                skill_id: 'root_awareness',
-                difficulty_mod: 0,
-                duration_tag: 'scene',
-                confidence: 1.0,
-                analysis: 'Observation Intent Detected',
-                parameters: {}
-            };
+            mas1 = { type: 'COMBAT', intent: 'combat_action', skill_id: 'root_force', difficulty_mod: 0, duration_tag: 'moment', confidence: 1.0, analysis: 'Combat Intent', parameters: {} };
+        } else if (lower.includes('look') || lower.includes('search')) {
+            mas1 = { type: 'NARRATIVE', intent: 'attempt_action', skill_id: 'root_awareness', difficulty_mod: 0, duration_tag: 'scene', confidence: 1.0, analysis: 'Observation Intent', parameters: {} };
         }
 
         const logs: string[] = [];
-        logs.push(`[SYSTEM] MAS-1 Intent: ${mas1.intent} (${mas1.skill_id})`);
+        logs.push(`[SYSTEM] MAS-1 Intent: ${mas1.intent}`);
 
-        // 2. Deterministic Engine Execution
-        const playerId = state.index?.player_id;
-        const player = state.mechanical?.entities?.[playerId];
+        // 2. Deterministic State Modification (Mock Engine)
+        // Access via mechanical state structure
+        const mech = state.mechanical || {};
+        const playerId = mech.index?.player_id;
 
-        // Mock Action Definition (In real app, fetch from Ruleset based on mas1.skill_id)
-        // Ensure path matches GameStateBundle structure: mechanical.entities...
-        const mockActionDef = {
-            logic: [
-                {
-                    function: 'state.modify',
-                    args: {
-                        path: `mechanical.entities.${playerId}.properties.stamina`,
-                        amount: mas1.type === 'COMBAT' ? -5 : -1
-                    }
-                },
-                {
-                    function: 'state.modify',
-                    args: {
-                        path: `mechanical.entities.${playerId}.properties.satiety`,
-                        amount: -1
-                    }
-                }
-            ]
-        };
-
-        if (mas1.type === 'COMBAT') {
-            // Add a mock HP damage to enemy logic if we had an enemy ID.
-            // For now just drain stamina.
-            logs.push(`[ENGINE] Executing Combat Action (Cost: 5 Stamina)`);
-        } else {
-            logs.push(`[ENGINE] Executing Narrative Action (Cost: 1 Stamina)`);
+        // Safety check
+        if (!playerId || !mech.entities || !mech.entities[playerId]) {
+            logs.push('[ENGINE] Error: Player Entity not found in state.');
+            return { success: false, logs, mechanicalDelta: {}, intent: mas1 };
         }
 
-        let newState = state;
-        try {
-            // [CRITICAL] Execute Engine even in Mock Mode
-            newState = EngineExecutor.executeAction(state, mockActionDef, {}); // schema empty for mock
-            logs.push(`[ENGINE] Execution Successful.`);
-        } catch (e) {
-            console.error('[ResolutionService] Engine Execution Failed:', e);
-            logs.push(`[ENGINE] Error: ${(e as Error).message}`);
-        }
+        // Define Mock Delta (Entity-Keyed)
+        // Use "current_stamina" vs "stamina" based on verified schema. 
+        // User requested "current_stamina". 
+        const deltaValues = mas1.type === 'COMBAT'
+            ? { current_stamina: -5, satiety: -1 }
+            : { current_stamina: -1, satiety: -1 };
 
-        // Calculate explicit delta for frontend (Mock)
-        const mechanicalDelta = {
-            stamina: mas1.type === 'COMBAT' ? -5 : -1,
-            satiety: -1
+        const keyedDelta = {
+            [playerId]: deltaValues
         };
+
+        // 3. Apply Delta to create New State
+        // Use structuredClone for deep copy
+        const newState = structuredClone(state);
+        const targetEntity = newState.mechanical.entities[playerId];
+
+        // Initialize properties if missing to avoid crashes
+        if (!targetEntity.properties) targetEntity.properties = {};
+
+        // Apply changes
+        Object.entries(deltaValues).forEach(([key, val]) => {
+            const current = targetEntity.properties[key] || 0; // Default to 0? Or 100?
+            // If value is missing in DB, we should probably default to something safe or handle gracefully.
+            // Using existing val or 100 if we assume max is 100?
+            // Let's use `current || 0` and assume it handles initialized state properly.
+            targetEntity.properties[key] = (current as number) + (val as number);
+        });
+
+        logs.push(`[ENGINE] Applied Delta to ${playerId}: ${JSON.stringify(deltaValues)}`);
 
         return {
             success: true,
             logs,
-            mechanicalDelta,
+            mechanicalDelta: keyedDelta,
             intent: mas1,
             state: newState
         };
