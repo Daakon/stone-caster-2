@@ -3,7 +3,6 @@ import { NarrativeBlock } from '@/components/game/feed/NarrativeBlock';
 import { SystemLine } from './SystemLine';
 import { SystemMessage } from '@/components/game/feed/SystemMessage';
 import { cn } from '@/lib/utils';
-import { User } from 'lucide-react';
 
 interface TurnBlockProps {
     data: {
@@ -18,60 +17,55 @@ export function TurnBlock({ data }: TurnBlockProps) {
     const { input, system, narrative } = data;
 
     return (
-        <div className="flex flex-col gap-4 py-6 border-b border-border/40 last:border-0 relative group">
+        <div className="flex flex-col gap-6 py-4 w-full">
 
-            {/* 1. Player Input (Header) */}
+            {/* 1. Player Input (Action Block) */}
             {input && (
-                <div className="flex items-center justify-end gap-3 opacity-90 group-hover:opacity-100 transition-opacity">
-                    <div className="flex flex-col items-end">
-                        <span className="text-sm font-bold text-primary italic">
-                            "{input.text}"
-                        </span>
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                            Command
-                        </span>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center">
-                        <User className="w-4 h-4 text-primary" />
+                <div className="flex flex-col items-end w-full mb-2">
+                    <div className="ml-auto w-fit max-w-[85%] md:max-w-[70%] bg-primary/5 border-r-4 border-primary pl-4 pr-4 py-3 rounded-l-lg text-right italic shadow-sm">
+                        <p className="text-base text-foreground font-medium leading-relaxed">
+                            {input.text}
+                        </p>
                     </div>
                 </div>
             )}
 
-            {/* 2. System Logs (Collapsible or Block) */}
+            {/* 2. System Logs (Center) */}
             {system.length > 0 && (
-                <div className="flex flex-col gap-1 pl-4 border-l-2 border-secondary/30 my-2">
+                <div className="flex flex-col items-center gap-1 my-3 w-full px-8">
                     {system.map(log => (
-                        <SystemLine
-                            key={log.id}
-                            text={log.text}
-                            type={log.metadata?.type as any || 'info'}
-                        />
+                        <div key={log.id} className="w-full text-center py-1 text-xs text-muted-foreground uppercase tracking-widest opacity-70">
+                            {log.text}
+                        </div>
                     ))}
                 </div>
             )}
 
-            {/* 3. Mechanics & Narrative */}
+            {/* 3. Mechanics & Narrative (Prose) */}
             {narrative.length > 0 && (
-                <div className="flex flex-col gap-4">
-                    {/* Render Mechanics Chip if present in the first narrative block */}
+                <div className="flex flex-col gap-4 w-full">
+                    {/* Render Mechanics Chip if present */}
                     {narrative[0]?.metadata?.mechanics && (
-                        <SystemMessage
-                            type={narrative[0].metadata.mechanics.outcome === 'success' ? 'success' : 'failure'}
-                            label={narrative[0].metadata.mechanics.skill_check || 'Check'}
-                            details={
-                                narrative[0].metadata.mechanics.roll
-                                    ? `Rolled ${narrative[0].metadata.mechanics.roll} vs ${narrative[0].metadata.mechanics.target}`
-                                    : undefined
-                            }
-                        />
+                        <div className="flex justify-start">
+                            <SystemMessage
+                                type={narrative[0].metadata.mechanics.outcome === 'success' ? 'success' : 'failure'}
+                                label={narrative[0].metadata.mechanics.skill_check || 'Check'}
+                                details={
+                                    narrative[0].metadata.mechanics.roll
+                                        ? `Rolled ${narrative[0].metadata.mechanics.roll} vs ${narrative[0].metadata.mechanics.target}`
+                                        : undefined
+                                }
+                            />
+                        </div>
                     )}
 
                     {narrative.map(log => (
-                        <NarrativeBlock
-                            key={log.id}
-                            text={log.text}
-                            role="narrator"
-                        />
+                        <div key={log.id} className="w-full max-w-none text-left text-foreground leading-relaxed text-base">
+                            <NarrativeBlock
+                                text={log.text}
+                                role="narrator"
+                            />
+                        </div>
                     ))}
                 </div>
             )}

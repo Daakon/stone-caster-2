@@ -163,6 +163,7 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
             entities={entities}
             locations={locations}
             playerId={statePlayerId || playerId}
+            activeSceneId={registry?.active_scene_id}
             onInspect={handleInspect}
         />
     );
