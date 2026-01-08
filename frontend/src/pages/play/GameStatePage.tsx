@@ -11,11 +11,8 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlayInput } from '@/components/play/PlayInput';
-import { MessageLog, type Message } from '@/components/play/MessageLog';
-import { DebugPanel } from '@/components/play/DebugPanel';
-import { chimeraPlayService } from '@/services/chimera.play';
-import { chimeraStoriesService } from '@/services/chimera.stories';
-import type { CastStoneResponse } from '@/services/chimera.play';
+import { NarrativeStream } from '@/features/play/components/Narrative/NarrativeStream';
+import { SensoryObserver } from '@/features/play/components/FX/SensoryObserver';
 
 export default function PlayPage() {
   const { gameStateId } = useParams<{ gameStateId: string }>();
@@ -23,7 +20,6 @@ export default function PlayPage() {
   const navigate = useNavigate();
   const debug = searchParams.get('debug') === 'true';
 
-  const [messages, setMessages] = useState<Message[]>([]);
   const [storyName, setStoryName] = useState<string>('');
 
   // Fetch game state
@@ -31,6 +27,7 @@ export default function PlayPage() {
     data: gameState,
     isLoading: isLoadingState,
     error: stateError,
+    refetch: refetchGameState
   } = useQuery({
     queryKey: ['chimera-game-state', gameStateId],
     queryFn: () => chimeraPlayService.getGameState(gameStateId!),
@@ -55,28 +52,11 @@ export default function PlayPage() {
   const castStoneMutation = useMutation({
     mutationFn: (textInput: string) =>
       chimeraPlayService.castStone(gameStateId!, { text_input: textInput }, debug),
-    onSuccess: (response: CastStoneResponse) => {
-      // Add player message
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `player-${Date.now()}`,
-          type: 'player',
-          content: response.debug_info?.mas_1_input || '...',
-          timestamp: new Date(),
-        },
-      ]);
-
-      // Add narrative response
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `narrative-${Date.now()}`,
-          type: 'narrative',
-          content: response.ripple_narrative,
-          timestamp: new Date(),
-        },
-      ]);
+    onSuccess: (updatedState: any) => {
+      // The backend now updates the DB and returns the FULL updated state.
+      // So we can just invalidate the query or use the returned state to update cache.
+      // Ideally we just refetch or setQueryData, but React Query v5 syntax differences aside:
+      refetchGameState();
     },
     onError: (error: Error) => {
       toast.error('Failed to process action', {
@@ -87,14 +67,43 @@ export default function PlayPage() {
 
   const handleSubmit = useCallback(
     async (text: string) => {
+      console.log('[Debug] GameStatePage handleSubmit', { text, gameStateId });
       if (!gameStateId) {
         toast.error('Game state ID is missing');
         return;
       }
-      await castStoneMutation.mutateAsync(text);
+      try {
+        console.log('[Debug] Triggering mutation');
+        await castStoneMutation.mutateAsync(text);
+        console.log('[Debug] Mutation completed');
+      } catch (err) {
+        console.error('[Debug] Mutation failed', err);
+        throw err;
+      }
     },
     [gameStateId, castStoneMutation]
   );
+
+  // Derive logs from gameState history
+  // Derive logs from gameState history
+  let historyLogs = ((gameState?.tier0_narrative as any)?.dialogue_history || (gameState?.tier0_narrative as any)?.history)?.map((h: any, i: number) => ({
+    id: `history-${i}`,
+    role: h.role || (h.speaker === 'Narrator' ? 'narrator' : 'player'), // Fallback for legacy
+    text: h.content || h.text, // Fallback for legacy
+    timestamp: new Date(h.timestamp || Date.now()),
+    metadata: h.metadata
+  })) || [];
+
+  // Fault Tolerance: If history is empty but description exists (Opening Narrative), inject it.
+  const description = (gameState?.tier0_narrative as any)?.description;
+  if (historyLogs.length === 0 && description) {
+    historyLogs = [{
+      id: 'history-fallback-0',
+      role: 'narrator',
+      text: description,
+      timestamp: new Date(gameState?.created_at || Date.now())
+    }];
+  }
 
   if (isLoadingState) {
     return (
@@ -146,8 +155,11 @@ export default function PlayPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
+      {/* Sensory Observer for Visual FX */}
+      <SensoryObserver gameState={gameState} />
+
       {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 transition-colors">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -162,7 +174,7 @@ export default function PlayPage() {
               <div>
                 <h1 className="text-lg font-semibold">{storyName || 'Playing Story'}</h1>
                 <p className="text-xs text-muted-foreground">
-                  Turn {gameState.turn_count} • {gameState.status}
+                  Turn {gameState.turn_count || 0} • {gameState.status || 'Active'}
                 </p>
               </div>
             </div>
@@ -172,21 +184,24 @@ export default function PlayPage() {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Message Log */}
+        {/* Narrative Stream */}
         <div className="flex-1 flex flex-col min-w-0">
-          <MessageLog messages={messages} className="flex-1" />
+          <NarrativeStream logs={historyLogs} />
         </div>
 
         {/* Debug Panel (Sidebar) */}
-        {debug && castStoneMutation.data?.debug_info && (
-          <aside className="w-80 border-l border-border bg-muted/30 overflow-y-auto p-4">
-            <DebugPanel debugInfo={castStoneMutation.data.debug_info} />
+        {debug && (
+          <aside className="w-80 border-l border-border bg-muted/30 overflow-y-auto p-4 hidden md:block">
+            <DebugPanel debugInfo={{
+              state: gameState,
+              last_mutation: castStoneMutation.data
+            } as any} />
           </aside>
         )}
       </div>
 
       {/* Input Area */}
-      <footer className="border-t border-border bg-background p-4">
+      <footer className="border-t border-border bg-background p-4 z-20">
         <div className="container mx-auto max-w-4xl">
           <PlayInput
             onSubmit={handleSubmit}

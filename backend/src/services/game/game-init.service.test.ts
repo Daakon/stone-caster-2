@@ -6,23 +6,82 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GameInitService, PlayerInputDto } from './game-init.service';
 import { StoriesRepository } from '../../db/repos/stories.repo.js';
-import type { CompiledStory } from '@shared/types/chimera-compiled';
-import type { GameState } from '@shared/types/chimera-runtime';
+
+// Define explicit mock interfaces to avoid @shared dependency
+interface CompiledStory {
+  meta: { source_ids: string[] };
+  master_schema: any;
+  narrative_index: any[];
+  initial_state: any;
+  config_engine?: any;
+  story_key?: string;
+}
+
+// Mock specific dependencies
+const mockSelect = vi.fn();
+const mockFrom = vi.fn(() => ({ select: mockSelect }));
+const mockEq = vi.fn();
+const mockMaybeSingle = vi.fn();
+const mockSingle = vi.fn();
+
+// Setup chain responses
+mockSelect.mockReturnValue({ eq: mockEq });
+mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle, single: mockSingle });
+
+vi.mock('../supabase.js', () => ({
+  supabaseAdmin: {
+    from: mockFrom
+  }
+}));
+
+vi.mock('../ai/prompt-assembly.service.js', () => ({
+  PromptAssemblyService: class {
+    getCompiledRules = vi.fn().mockResolvedValue({
+      mas1: '[MOCK MAS1]',
+      mas2: '[MOCK MAS2]'
+    });
+  }
+}));
 
 describe('GameInitService', () => {
   let service: GameInitService;
   let mockStoriesRepo: {
     getCompiledStoryById: ReturnType<typeof vi.fn>;
+    getCompiledStoryByDraftId: ReturnType<typeof vi.fn>; // Added this
     createGameState: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Default Supabase Mocks (Success Path)
+    mockSelect.mockReturnValue({ eq: mockEq, in: mockEq }); // Allow .in() as well
+    mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle, single: mockSingle });
+
+    // Mock Draft Story
+    mockMaybeSingle.mockResolvedValue({
+      data: {
+        title: 'Mock Story',
+        protagonist_id: 'char-1',
+        active_ruleset_ids: [],
+        genesis_config: {}
+      },
+      error: null
+    });
+
+    // Mock Character
+    mockSingle.mockResolvedValue({
+      data: { id: 'char-1', name: 'Hero' },
+      error: null
+    });
+
     mockStoriesRepo = {
       getCompiledStoryById: vi.fn(),
+      getCompiledStoryByDraftId: vi.fn(),
       createGameState: vi.fn(),
     };
 
-    service = new GameInitService(mockStoriesRepo as unknown as StoriesRepository);
+    service = new GameInitService(mockStoriesRepo as unknown as StoriesRepository, {} as any);
   });
 
   const createMockCompiledStory = (): CompiledStory => ({
@@ -197,7 +256,7 @@ describe('GameInitService', () => {
       mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
       mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
         const tier1 = state.tier1_mechanical as Record<string, unknown>;
-        
+
         // Verify stats from compiler are preserved
         expect(tier1.hp).toBe(100);
         expect(tier1.mana).toBe(50);
@@ -221,7 +280,7 @@ describe('GameInitService', () => {
       mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
       mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
         const tier0 = state.tier0_narrative as Record<string, unknown>;
-        
+
         // Verify tier0 structure is preserved
         expect(Array.isArray(tier0.memory_stream)).toBe(true);
         expect(Array.isArray(tier0.active_quests)).toBe(true);

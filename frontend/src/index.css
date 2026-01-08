@@ -57,4 +57,19 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
+
+  /* Global Scrollbar Styling */
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    @apply bg-zinc-700/50 rounded-full;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-600;
+  }
 }

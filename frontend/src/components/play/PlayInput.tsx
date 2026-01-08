@@ -21,6 +21,7 @@ export function PlayInput({ onSubmit, disabled = false, placeholder = 'What do y
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    console.log('[Debug] PlayInput handleSubmit called', { input, disabled, isSubmitting });
     if (!input.trim() || disabled || isSubmitting) return;
 
     const text = input.trim();
@@ -28,7 +29,9 @@ export function PlayInput({ onSubmit, disabled = false, placeholder = 'What do y
     setIsSubmitting(true);
 
     try {
+      console.log('[Debug] Calling onSubmit prop');
       await onSubmit(text);
+      console.log('[Debug] onSubmit prop completed');
     } catch (error) {
       // Error handling is done by parent
       console.error('Error submitting action:', error);

@@ -36,14 +36,23 @@ export interface DirectorInstructions {
 
 export interface NarrativeFocus {
     scene_context: {
-        name: string;
+        name: string; // Internal/System Name
         description: string;
+        // [PHASE 6.6] Structured Scene Data
+        location?: string; // Display Name (The Wobbly Goblin)
+        time?: string;     // Time of Day (Night, Morning)
         atmosphere?: string;
     };
     // Visual descriptions mapped by ID
     // The Factory will default string values here.
     entity_visuals: Record<EntityId, string>;
-    dialogue_history: Array<{ speaker: string; text: string; type?: 'dialogue' | 'action' | 'system' }>;
+    dialogue_history: Array<{
+        id?: string;
+        role: string; // 'player' | 'system' | 'narrator'
+        content: string;
+        timestamp?: string;
+        type?: 'dialogue' | 'action' | 'system'
+    }>;
     director_instructions?: DirectorInstructions;
 }
 
@@ -56,8 +65,11 @@ export interface SceneRegistry {
 
 // --- Composite Bundle for Creation ---
 export interface GameStateBundle {
+    id?: string; // Optional during creation phase
     mechanical: MechanicalState;
     narrative: NarrativeFocus;
     registry: SceneRegistry;
     queue?: any[];
+    compiled_system_prompt?: string;
+    current_turn_index?: number;
 }

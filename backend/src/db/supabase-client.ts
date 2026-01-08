@@ -204,6 +204,85 @@ export interface Database {
           updated_at?: string;
         };
       };
+      ai_audit_logs: {
+        Row: {
+          id: string;
+          game_id: string | null;
+          turn_index: number | null;
+          action_type: string | null;
+          prompt_text: string;
+          raw_response: string | null;
+          token_usage: Record<string, unknown> | null;
+          cost_stones: number | null;
+          model_used: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          game_id?: string | null;
+          turn_index?: number | null;
+          action_type?: string | null;
+          prompt_text: string;
+          raw_response?: string | null;
+          token_usage?: Record<string, unknown> | null;
+          cost_stones?: number | null;
+          model_used?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          game_id?: string | null;
+          turn_index?: number | null;
+          action_type?: string | null;
+          prompt_text?: string;
+          raw_response?: string | null;
+          token_usage?: Record<string, unknown> | null;
+          cost_stones?: number | null;
+          model_used?: string | null;
+          created_at?: string;
+        }
+      };
+      chimera_game_states: {
+        Row: {
+          id: string;
+          story_id: string;
+          player_id: string;
+          mechanical_state: Record<string, unknown>;
+          narrative_focus: Record<string, unknown>;
+          scene_registry: Record<string, unknown>;
+          action_queue: Record<string, unknown>[];
+          current_turn_index: number;
+          compiled_system_prompt: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          story_id: string;
+          player_id: string;
+          mechanical_state?: Record<string, unknown>;
+          narrative_focus?: Record<string, unknown>;
+          scene_registry?: Record<string, unknown>;
+          action_queue?: Record<string, unknown>[];
+          current_turn_index?: number;
+          compiled_system_prompt?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          story_id?: string;
+          player_id?: string;
+          mechanical_state?: Record<string, unknown>;
+          narrative_focus?: Record<string, unknown>;
+          scene_registry?: Record<string, unknown>;
+          action_queue?: Record<string, unknown>[];
+          current_turn_index?: number;
+          compiled_system_prompt?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
 
     };
   };

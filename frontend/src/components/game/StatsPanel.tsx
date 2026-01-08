@@ -11,7 +11,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 
 interface StatsPanelProps {
   tier1Data: Record<string, unknown>;
@@ -133,29 +133,27 @@ export function StatsPanel({ tier1Data }: StatsPanelProps) {
         <CardTitle className="text-lg">Character Stats</CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[calc(100vh-200px)]">
-          <div className="space-y-4">
-            {/* Resources (HP/MP) */}
-            {resourceEntries.length > 0 && (
-              <div className="space-y-3">
-                {resourceEntries.map(([key, value]) => renderValue(key, value, displayData))}
-              </div>
-            )}
+        <div className="space-y-4">
+          {/* Resources (HP/MP) */}
+          {resourceEntries.length > 0 && (
+            <div className="space-y-3">
+              {resourceEntries.map(([key, value]) => renderValue(key, value, displayData))}
+            </div>
+          )}
 
-            {/* Attributes Grid */}
-            {attributeEntries.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Attributes</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {attributeEntries.map(([key, value]) => renderValue(key, value, displayData))}
-                </div>
+          {/* Attributes Grid */}
+          {attributeEntries.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Attributes</h4>
+              <div className="grid grid-cols-3 gap-2">
+                {attributeEntries.map(([key, value]) => renderValue(key, value, displayData))}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Other entries */}
-            {otherEntries.map(([key, value]) => renderValue(key, value, displayData))}
-          </div>
-        </ScrollArea>
+          {/* Other entries */}
+          {otherEntries.map(([key, value]) => renderValue(key, value, displayData))}
+        </div>
       </CardContent>
     </Card>
   );
