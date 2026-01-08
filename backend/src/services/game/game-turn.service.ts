@@ -46,12 +46,18 @@ export class GameTurnService {
         const resolution = await this.resolutionService.resolve(playerInput, state);
         console.log('[Turn] Resolution:', resolution);
 
+        // Update state with Engine results for the Narrative to see (e.g. reduced stamina)
+        let processedState = state;
+        if (resolution.state) {
+            processedState = resolution.state;
+        }
+
         // Step 3: Narrative (The Brain)
         const mechanicalContext = resolution.logs.join(' | ');
         const augmentedInput = `PLAYER ACTION: "${playerInput}"\nMECHANICAL RESULT: [${mechanicalContext}]`;
 
         console.log('[Turn] Invoking Narrative Service...');
-        const turnResult: any = await this.narrativeService.generateReaction(state, augmentedInput, compiledPrompt || undefined);
+        const turnResult: any = await this.narrativeService.generateReaction(processedState, augmentedInput, compiledPrompt || undefined);
 
         // Step 4: Record History (The Log)
         const nextIndex = await this.storiesRepo.getNextTurnIndex(state.id);
@@ -87,11 +93,12 @@ export class GameTurnService {
         console.log('[GameLoop] Turn Recorded:', { id: recordedTurn.id, index: recordedTurn.turn_index });
 
         // Step 5: Merge & Persist State (The Snapshot)
-        await this.applyTurnResult(state, turnResult, resolution, nextIndex, playerInput);
+        // Use processedState (which has engine updates)
+        await this.applyTurnResult(processedState, turnResult, resolution, nextIndex, playerInput);
 
         return {
             success: true,
-            state: state, // Legacy support (optional, but requested to NOT be the primary payload if possible, but controller decides what to send)
+            state: processedState,
             turn: recordedTurn,
             delta: resolution.mechanicalDelta || {}
         };
@@ -110,55 +117,65 @@ export class GameTurnService {
         // 1. Log Thought Chain (Console only, stored in Turn History now)
         console.log('[AI Thought Chain]', result.thought_chain);
 
-        // Append to history so frontend can see it (Frontend reads from narrative_focus.dialogue_history)
+        // 1. Append Player Input first (The Action)
+        if (state.narrative.dialogue_history) {
+            state.narrative.dialogue_history.push({
+                id: crypto.randomUUID(),
+                role: 'player',
+                content: playerInput,
+                timestamp: new Date(Date.now() - 200).toISOString() // Slightly in past
+            });
+        }
+
+        // 2. Append System Thought (The Processing)
         if (result.thought_chain && state.narrative.dialogue_history) {
             state.narrative.dialogue_history.push({
                 id: crypto.randomUUID(),
                 role: 'system',
                 content: `[THOUGHT] ${result.thought_chain}`,
+                timestamp: new Date(Date.now() - 100).toISOString()
+            });
+        }
+
+        // 3. Append Mechanical Delta Log (System)
+        if (resolution && resolution.mechanicalDelta && Object.keys(resolution.mechanicalDelta).length > 0) {
+            const changes = Object.entries(resolution.mechanicalDelta)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(', ');
+
+            if (state.narrative.dialogue_history) {
+                state.narrative.dialogue_history.push({
+                    id: crypto.randomUUID(),
+                    role: 'system',
+                    content: `[SYSTEM] Changes: ${changes}`,
+                    timestamp: new Date(Date.now() - 50).toISOString()
+                });
+            }
+        }
+
+        // 4. Append Narrator Response (The Result)
+        if (result.narration && state.narrative.dialogue_history) {
+            state.narrative.dialogue_history.push({
+                id: crypto.randomUUID(),
+                role: 'narrator',
+                content: result.narration,
                 timestamp: new Date().toISOString()
             });
         }
 
-        // Append actual narrative
-        state.narrative.dialogue_history?.push({
-            role: 'player',
-            content: playerInput,
-            timestamp: new Date().toISOString()
-        });
+        // 5. Apply Mechanical Changes (LEGACY/FALLBACK)
+        // If resolution.state was used, state.mechanical is already updated. 
+        // If NOT, we might need to apply delta here.
+        // But we refactored ResolutionService to run EngineExecutor which updates state. 
+        // So state should be fresh.
+        // We skip manual application here to avoid double-application if we trust ResolutionService.
 
-        // 2. Apply Mechanical Changes (AI Driven + Engine Driven)
-        // Merge Engine Delta (from Resolution)
-        if (resolution && resolution.mechanicalDelta) {
-            // ... Logic to apply delta ...
-            // (Simulated for MVP)
-        }
-
-        // Merge AI State Updates
-        if (result.state_updates) {
-            const mech = state.mechanical;
-            const updates = result.state_updates;
-
-            // HP
-            if (updates.player_hp_change && mech.entities[mech.index.player_id]) {
-                const entity = mech.entities[mech.index.player_id];
-                entity.properties.hp = (entity.properties.hp || 100) + updates.player_hp_change;
-            }
-            // Stamina
-            if (updates.player_stamina_change && mech.entities[mech.index.player_id]) {
-                const entity = mech.entities[mech.index.player_id];
-                entity.properties.stamina = (entity.properties.stamina || 100) + updates.player_stamina_change;
-            }
-        }
-
-        // 3. Persist (REFACTOR: Use StoriesRepo)
+        // 6. Persist
         await this.storiesRepo.updateGameState(state.id, {
             mechanical_state: state.mechanical,
             narrative_focus: state.narrative,
             action_queue: [], // Clear queue
-            // turn_index is now determined by the count of chimera_turns rows conceptually,
-            // but we don't store it in chimera_game_states anymore (removed in migration).
-            // So we just update the content.
+            // turn_index updated by Repo
         });
     }
 

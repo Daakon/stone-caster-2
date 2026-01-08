@@ -17,13 +17,13 @@ export function TurnBlock({ data }: TurnBlockProps) {
     const { input, system, narrative } = data;
 
     return (
-        <div className="flex flex-col gap-6 py-4 w-full">
+        <div className="flex flex-col gap-6 py-6 w-full max-w-3xl mx-auto">
 
             {/* 1. Player Input (Action Block) */}
             {input && (
                 <div className="flex flex-col items-end w-full mb-2">
-                    <div className="ml-auto w-fit max-w-[85%] md:max-w-[70%] bg-primary/5 border-r-4 border-primary pl-4 pr-4 py-3 rounded-l-lg text-right italic shadow-sm">
-                        <p className="text-base text-foreground font-medium leading-relaxed">
+                    <div className="ml-auto w-fit max-w-[85%] border-r-2 border-primary pl-4 pr-3 py-1 text-right">
+                        <p className="text-base text-foreground font-medium italic leading-relaxed">
                             {input.text}
                         </p>
                     </div>
@@ -32,9 +32,9 @@ export function TurnBlock({ data }: TurnBlockProps) {
 
             {/* 2. System Logs (Center) */}
             {system.length > 0 && (
-                <div className="flex flex-col items-center gap-1 my-3 w-full px-8">
+                <div className="flex flex-col items-center gap-1 my-2 w-full">
                     {system.map(log => (
-                        <div key={log.id} className="w-full text-center py-1 text-xs text-muted-foreground uppercase tracking-widest opacity-70">
+                        <div key={log.id} className="w-full text-center py-1 text-xs text-muted-foreground/60 font-mono uppercase tracking-[0.2em]">
                             {log.text}
                         </div>
                     ))}
@@ -43,7 +43,7 @@ export function TurnBlock({ data }: TurnBlockProps) {
 
             {/* 3. Mechanics & Narrative (Prose) */}
             {narrative.length > 0 && (
-                <div className="flex flex-col gap-4 w-full">
+                <div className="flex flex-col gap-4 w-full mb-4">
                     {/* Render Mechanics Chip if present */}
                     {narrative[0]?.metadata?.mechanics && (
                         <div className="flex justify-start">
@@ -60,7 +60,7 @@ export function TurnBlock({ data }: TurnBlockProps) {
                     )}
 
                     {narrative.map(log => (
-                        <div key={log.id} className="w-full max-w-none text-left text-foreground leading-relaxed text-base">
+                        <div key={log.id} className="w-full max-w-none text-left text-foreground prose prose-invert leading-loose">
                             <NarrativeBlock
                                 text={log.text}
                                 role="narrator"

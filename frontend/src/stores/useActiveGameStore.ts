@@ -146,10 +146,42 @@ export const useActiveGameStore = create<ActiveGameState>()(
                     const { turn, delta } = await activeGameApi.submitTurn(activeGameId, { input: draftText });
 
                     // 3. Merging (Hybrid Sync)
+                    // 3. Merging (Hybrid Sync)
                     const currentGameState = get().gameState;
                     if (currentGameState) {
                         // A. Merge Delta (Mechanical changes)
-                        const nextGameState = deepMerge(currentGameState, delta);
+                        // Use structuredClone for deep copy since deepMerge might not be sufficient/safe for immutability here
+                        const nextGameState = structuredClone(currentGameState); // Clone entire state
+
+                        // Locate Player Entity in the New State
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const mech = (nextGameState as any).mechanical_state || {};
+                        const playerId = mech.index?.player_id;
+
+                        if (playerId && mech.entities && mech.entities[playerId] && delta) {
+                            const playerProps = mech.entities[playerId].properties;
+
+                            // Iterate Input Delta: { stamina: -5 }
+                            Object.entries(delta).forEach(([key, val]) => {
+                                if (typeof val === 'number') {
+                                    // 1. Direct key match (e.g. 'stamina' -> 'stamina')
+                                    if (typeof playerProps[key] === 'number') {
+                                        playerProps[key] += val;
+                                    }
+                                    // 2. Schema Translation (e.g. 'stamina' -> 'current_stamina')
+                                    // This ensures LeftSidebar (using current_*) updates too.
+                                    const currentKey = `current_${key}`;
+                                    if (typeof playerProps[currentKey] === 'number') {
+                                        playerProps[currentKey] += val;
+                                    }
+
+                                    // 3. Initialize if missing?
+                                    if (typeof playerProps[key] === 'undefined' && typeof playerProps[currentKey] === 'undefined') {
+                                        playerProps[key] = val;
+                                    }
+                                }
+                            });
+                        }
 
                         // B. Append Logs (Narrative changes)
                         // Construct Log Entries from Turn Record
