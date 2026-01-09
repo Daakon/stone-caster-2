@@ -32,8 +32,18 @@ MAS-1 is a **pure interpreter**. It NEVER narrates.
       "difficulty_mod": -20,
       "duration_tag": "scene",
       "tactic_tag": null,
+      "situational_tags": [],
       "blocked_reason": null
     }
+
+**Situational Tags:**
+MAS-1 extracts contextual modifiers from user input and game state:
+* `INTOXICATED`: Player mentions being drunk/impaired
+* `PROTECTING_ALLY`: Player mentions defending/protecting someone
+* `EXHAUSTED`: Derived from stamina state (< 20)
+* `ENRAGED`: Player mentions rage/fury
+* `TERRIFIED`: Player mentions fear/terror
+* `FOCUSED`: Player mentions concentration/focus
 
 *If `blocked_reason` is non-null, the Engine halts and returns the diegetic warning directly.*
 
@@ -48,6 +58,47 @@ When a trigger is received, the Engine retrieves registered listeners from the `
 Standard D100 Roll-Under:
 * Outcome: `crit | success | fail | fumble`
 * Margin: `target - roll`
+
+**3.2.1 Resolution Ladder (4-Tier Priority)**
+The Engine applies modifiers in a strict priority order:
+
+1. **Tier 1: Comparative Modifiers** (Highest Priority)
+   * Actor vs Target comparison (e.g., Elite Guard vs Peasant)
+   * Based on `target.properties.occupation_tags` and `combat_prowess`
+   * Applied first, before all other modifiers
+
+2. **Tier 2: Situational Modifiers**
+   * Context-based tags from MAS-1 (e.g., `INTOXICATED`, `PROTECTING_ALLY`)
+   * Mapped via Situational Modifier Registry
+   * Applied after comparative modifiers
+
+3. **Tier 3: Difficulty Modifiers**
+   * Environmental factors (e.g., "rusty lock", "dark room")
+   * Extracted by MAS-1 from user input
+   * Applied after situational modifiers
+
+4. **Tier 4: Tactic Modifiers** (Lowest Priority)
+   * Action approach (e.g., "aggressive", "defensive", "trickery")
+   * From `tactic_tag` in MAS-1 output
+   * Applied last
+
+**3.2.2 Situational Modifier Registry**
+MAS-1 extracts situational context tags that map to engine modifiers:
+
+| Situational Tag | Modifier | Description |
+|----------------|----------|-------------|
+| `INTOXICATED` | -15 | Actor is drunk/impaired, reduces combat effectiveness |
+| `PROTECTING_ALLY` | +10 | Actor is defending an ally, gains defensive bonus |
+| `EXHAUSTED` | -20 | Actor is physically exhausted (stamina < 20) |
+| `ENRAGED` | +5 | Actor is in a rage, gains offensive bonus but loses defense |
+| `TERRIFIED` | -25 | Actor is terrified, severe penalty to all actions |
+| `FOCUSED` | +5 | Actor is highly focused, small bonus to precision actions |
+
+**Resolution Formula:**
+```
+Final Target = ActorSkill + Tier1_Modifier + Tier2_Modifier + Tier3_Modifier + Tier4_Modifier
+Success = Roll <= Final Target
+```
 
 **3.3 Survival Subsystems**
 * **Stamina**: Updates `current_stamina`. Calculates `physical_condition` (Rested → Winded → Exhausted → Collapsed).

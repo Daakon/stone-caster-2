@@ -48,8 +48,34 @@ MAS-1 converts free text into structured intent. It never produces prose.
       "skill_id": "root_finesse",
       "difficulty_mod": -20,
       "duration_tag": "scene",
+      "tactic_tag": "aggressive",
+      "situational_tags": ["INTOXICATED", "PROTECTING_ALLY"],
       "blocked_reason": null
     }
+
+**MAS-1 DTO Schema (Full):**
+```typescript
+{
+  trigger_id: "combat_action" | "social_action" | "rest_action" | "attempt_action" | "navigate",
+  target_ids: string[], // Array of UUIDs
+  parameters: {
+    verb: string,
+    tactic_tag?: string,
+    difficulty_mod?: number,
+    skill_id?: string,
+  },
+  duration_tag: "moment" | "scene" | "journey" | "rest",
+  situational_tags?: string[], // NEW: Contextual modifiers
+  original_text: string,
+}
+```
+
+**Situational Tag Extraction:**
+MAS-1 must detect and tag situational context:
+* Scan user input for keywords (e.g., "drunk", "protect", "exhausted")
+* Check game state for conditions (e.g., stamina < 20 → `EXHAUSTED`)
+* Return array of applicable tags (e.g., `["INTOXICATED", "PROTECTING_ALLY"]`)
+* Engine applies modifiers via Situational Modifier Registry (see 03_Engine_Logic)
 
 ## 5. MAS-2 Prompt Template (Narrative Engine)
 MAS-2 generates narrative, constrained by the Engine's resolution.

@@ -1,30 +1,113 @@
 // [CHIMERA V3] Architecture: Greenfield | Layer: Backend
 /**
- * Engine Service (The Resolver)
- * Deterministic action processing - no LLM calls, pure logic
+ * [SERVICE] EngineService
+ * ----------------------------------------------------------------------
+ * ROLE: Deterministic Logic Processor (The "CPU").
+ * RESPONSIBILITY:
+ * - Matching MAS-1 Intents to Ruleset Actions.
+ * - Executing JSON-Logic steps sequentially.
+ * - Orchestrating Multi-Target and Multi-Intent loops.
+ *
+ * CONSTRAINTS:
+ * - Stateless execution (relies on StateService for data).
+ * - Must log all decisions via [LOGIC_TRACE].
  */
 
 import type { GameState, Mas1Intent, EngineResultDto } from '@shared/types/chimera-runtime';
 import { EngineResultDtoSchema } from '@shared/types/chimera-runtime';
+import {
+  resolveD100Check,
+  getEntityFromState,
+  type ResolutionSummary,
+} from './d100-resolution.js';
+import {
+  calculateResolutionLadder,
+  applyDamageReductionHook,
+  type ResolutionLadderBreakdown,
+} from './resolution-ladder.js';
 
 export class EngineService {
   /**
-   * Execute an action deterministically
-   * @param intent - The interpreted intent from MAS1
-   * @param gameState - Current game state
-   * @param actionsMap - Map of action definitions from compiled story
-   * @returns EngineResultDto with success, outcome_summary, and numeric_deltas
+   * [METHOD] executeActionSteps
+   * ----------------------------------------------------------------
+   * @sourceOfTruth - gameState parameter (read-only)
+   * @logic_flow
+   * 1. Accept array of Mas1Intent[] from MAS1
+   * 2. Iterate through intents sequentially
+   * 3. Pass updated state from Intent 1 into Intent 2 (chained execution)
+   * 4. Aggregate all deltas and summaries
+   * 5. Return combined EngineResultDto
+   */
+  async executeActionSteps(
+    intents: Mas1Intent[],
+    gameState: GameState,
+    actionsMap: Record<string, unknown>
+  ): Promise<EngineResultDto> {
+    console.log(`[LOGIC_TRACE] [EngineService] Input: Processing ${intents.length} intent(s)`);
+    
+    let currentState = gameState;
+    const aggregatedDeltas: Record<string, number> = {};
+    const resolutionSummaries: string[] = [];
+    let allSuccess = true;
+
+    for (let i = 0; i < intents.length; i++) {
+      const intent = intents[i];
+      console.log(`[LOGIC_TRACE] [EngineService] Execution: Processing intent ${i + 1}/${intents.length}: ${intent.trigger_id}`);
+      
+      // Execute this intent against current state
+      const result = await this.execute(intent, currentState, actionsMap);
+      
+      // Aggregate results
+      allSuccess = allSuccess && result.success;
+      resolutionSummaries.push(result.outcome_summary);
+      
+      // Merge numeric deltas
+      for (const [path, delta] of Object.entries(result.numeric_deltas)) {
+        aggregatedDeltas[path] = (aggregatedDeltas[path] || 0) + delta;
+      }
+
+      // CRITICAL: Apply state changes immediately so subsequent actions see updated state
+      // Note: This is a simplified state update - in production, use StateService
+      currentState = this.applyStateUpdates(currentState, result);
+      
+      console.log(`[LOGIC_TRACE] [EngineService] Output: Intent ${i + 1} completed - Success: ${result.success}, Deltas: ${Object.keys(result.numeric_deltas).length}`);
+    }
+
+    const aggregatedResult: EngineResultDto = {
+      success: allSuccess,
+      outcome_summary: resolutionSummaries.join(' AND '),
+      numeric_deltas: aggregatedDeltas,
+    };
+
+    console.log(`[LOGIC_TRACE] [EngineService] Output: All intents processed - Final Success: ${allSuccess}, Total Deltas: ${Object.keys(aggregatedDeltas).length}`);
+    
+    return EngineResultDtoSchema.parse(aggregatedResult);
+  }
+
+  /**
+   * [METHOD] execute
+   * ----------------------------------------------------------------
+   * @sourceOfTruth - gameState parameter (read-only)
+   * @logic_flow
+   * 1. Map trigger_id to action slug
+   * 2. Parse action definition
+   * 3. Execute logic (dice rolls, comparisons)
+   * 4. Calculate numeric deltas
+   * 5. Return EngineResultDto
    */
   async execute(
     intent: Mas1Intent,
     gameState: GameState,
     actionsMap: Record<string, unknown>
   ): Promise<EngineResultDto> {
+    console.log(`[LOGIC_TRACE] [EngineService] Input: Intent ${intent.trigger_id}, Targets: ${intent.target_ids.length}`);
+    
     // Map trigger_id to action slug (existing logic)
     const actionSlug = this.mapTriggerToActionSlug(intent.trigger_id, actionsMap);
     const actionDef = actionsMap[actionSlug];
 
     if (!actionDef) {
+      console.log(`[LOGIC_TRACE] [EngineService] Execution: Unknown action: ${actionSlug}`);
       return {
         success: false,
         outcome_summary: `Unknown action: ${actionSlug}`,
@@ -44,6 +127,16 @@ export class EngineService {
       action = actionDef as Record<string, unknown>;
     }
     
+    // Check if this action should use D100 resolution
+    const useD100Resolution = intent.trigger_id === 'combat_action' || 
+                              intent.trigger_id === 'attempt_action' ||
+                              action.resolution_type === 'd100';
+    
+    if (useD100Resolution && intent.target_ids.length > 0) {
+      // Use D100 Comparative Resolution
+      return await this.executeD100Resolution(intent, gameState, action, actionSlug);
+    }
+
     // Extract action logic (e.g., "1d20 + str vs 15")
     const logic = action.logic as string | undefined;
     const numericDeltas: Record<string, number> = {};
@@ -94,11 +187,226 @@ export class EngineService {
       numeric_deltas: numericDeltas,
     };
 
+    console.log(`[LOGIC_TRACE] [EngineService] Output: Success: ${success}, Deltas: ${Object.keys(numericDeltas).length}`);
+
     return EngineResultDtoSchema.parse(result);
   }
 
   /**
-   * Map trigger_id to action slug (ruleset matching logic)
+   * [METHOD] executeD100Resolution
+   * ----------------------------------------------------------------
+   * @sourceOfTruth - gameState parameter
+   * @logic_flow
+   * 1. Get actor entity from gameState (player)
+   * 2. Get target entity from gameState
+   * 3. Get actor skill from intent.parameters.skill_id
+   * 4. Calculate Resolution Ladder (4-tier priority system)
+   * 5. Execute D100 roll-under check using final target
+   * 6. Apply damage reduction hook if INTOXICATED
+   * 7. Only apply state deltas if resolution is success or crit
+   * 8. Return EngineResultDto with resolution summary
+   */
+  private async executeD100Resolution(
+    intent: Mas1Intent,
+    gameState: GameState,
+    action: Record<string, unknown>,
+    actionSlug: string
+  ): Promise<EngineResultDto> {
+    console.log(`[LOGIC_TRACE] [EngineService] Using D100 Resolution Ladder System`);
+    
+    // Get actor (player) - use player_id from gameState
+    const playerId = (gameState as any).player_id;
+    if (!playerId) {
+      console.log(`[LOGIC_TRACE] [EngineService] No player_id in gameState`);
+      return {
+        success: false,
+        outcome_summary: 'No player_id found in game state',
+        numeric_deltas: {},
+      };
+    }
+    
+    const actor = getEntityFromState(gameState, playerId);
+    
+    if (!actor) {
+      console.log(`[LOGIC_TRACE] [EngineService] Actor not found: ${playerId}`);
+      return {
+        success: false,
+        outcome_summary: `Actor not found: ${playerId}`,
+        numeric_deltas: {},
+      };
+    }
+    
+    // Get skill ID from intent parameters or default
+    const skillId = (intent.parameters.skill_id as string) || 'root_force';
+    
+    // Process each target
+    const resolutionSummaries: string[] = [];
+    const numericDeltas: Record<string, number> = {};
+    let allSuccess = true;
+    let resolutionSummary: ResolutionSummary = 'fail';
+    let hasIntoxicated = false;
+    
+    for (const targetId of intent.target_ids) {
+      const target = getEntityFromState(gameState, targetId);
+      
+      if (!target) {
+        console.log(`[LOGIC_TRACE] [EngineService] Target not found: ${targetId}`);
+        resolutionSummaries.push(`Target ${targetId.substring(0, 8)} not found`);
+        allSuccess = false;
+        continue;
+      }
+      
+      // Calculate Resolution Ladder (4-tier priority system)
+      const ladder = calculateResolutionLadder(actor, target, intent, gameState, skillId);
+      hasIntoxicated = ladder.hasIntoxicated;
+      
+      // Execute D100 check using final target from ladder
+      // Note: resolveD100Check expects (actorSkill, modifier), but we've already calculated finalTarget
+      // So we pass actorSkill and totalModifier, which will be recalculated but should match
+      const resolution = resolveD100Check(ladder.actorSkill, ladder.totalModifier);
+      resolutionSummary = resolution.summary;
+      
+      // Verify the target matches (should be identical)
+      if (resolution.target !== ladder.finalTarget) {
+        console.warn(`[LOGIC_TRACE] [EngineService] Target mismatch: ladder=${ladder.finalTarget}, resolution=${resolution.target}`);
+      }
+      
+      // Determine success (crit or success = true, fail or fumble = false)
+      const targetSuccess = resolution.summary === 'crit' || resolution.summary === 'success';
+      allSuccess = allSuccess && targetSuccess;
+      
+      // Build summary with full breakdown
+      const targetName = (target.properties?.display_name as string) || 
+                        (target.properties?.name as string) || 
+                        `entity-${targetId.substring(0, 8)}`;
+      const outcomeDesc = resolution.summary === 'crit' ? 'critical success' :
+                          resolution.summary === 'fumble' ? 'critical failure' :
+                          resolution.summary;
+      resolutionSummaries.push(
+        `${targetName}: ${outcomeDesc} (Roll: ${resolution.roll}, Target: ${ladder.finalTarget}, ` +
+        `T1:${ladder.tier1_comparative} T2:${ladder.tier2_situational} T3:${ladder.tier3_difficulty} T4:${ladder.tier4_tactic})`
+      );
+      
+      // Only apply state deltas if resolution is success or crit
+      if (targetSuccess) {
+        // Extract damage/healing from action definition or parameters
+        const damage = (action.damage as number) || (intent.parameters.damage as number);
+        const healing = (action.healing as number) || (intent.parameters.healing as number);
+        
+        if (damage && typeof damage === 'number') {
+          const deltaPath = `entities.${targetId}.properties.hp`;
+          numericDeltas[deltaPath] = (numericDeltas[deltaPath] || 0) - damage;
+          console.log(`[LOGIC_TRACE] [EngineService] Applying damage ${damage} to ${targetId} (success)`);
+        } else if (healing && typeof healing === 'number') {
+          const deltaPath = `entities.${targetId}.properties.hp`;
+          numericDeltas[deltaPath] = (numericDeltas[deltaPath] || 0) + healing;
+          console.log(`[LOGIC_TRACE] [EngineService] Applying healing ${healing} to ${targetId} (success)`);
+        } else if (actionSlug === 'attack' || actionSlug === 'resolve_clash') {
+          // Default attack damage if not specified
+          const rolledDamage = this.rollDice('1d6');
+          const deltaPath = `entities.${targetId}.properties.hp`;
+          numericDeltas[deltaPath] = (numericDeltas[deltaPath] || 0) - rolledDamage;
+          console.log(`[LOGIC_TRACE] [EngineService] Applying default damage ${rolledDamage} to ${targetId} (success)`);
+        }
+      } else {
+        console.log(`[LOGIC_TRACE] [EngineService] Skipping state deltas for ${targetId} (${resolution.summary})`);
+      }
+    }
+    
+    // Apply damage reduction hook for INTOXICATED (affects actor's incoming damage)
+    // Note: This applies to any deltas that would affect the actor (e.g., counter-attack damage)
+    const finalDeltas = applyDamageReductionHook(numericDeltas, playerId, hasIntoxicated);
+    
+    const outcomeSummary = resolutionSummaries.join(' AND ');
+    
+    return {
+      success: allSuccess,
+      outcome_summary: outcomeSummary,
+      numeric_deltas: finalDeltas,
+    };
+  }
+
+  /**
+   * [METHOD] applyStateUpdates
+   * ----------------------------------------------------------------
+   * @sourceOfTruth - currentState parameter
+   * @logic_flow
+   * 1. Deep clone current state
+   * 2. Apply numeric deltas from engine result
+   * 3. Return updated state (for chained execution)
+   */
+  private applyStateUpdates(
+    currentState: GameState,
+    engineResult: EngineResultDto
+  ): GameState {
+    // Deep clone to avoid mutations
+    const updatedState: GameState = {
+      ...currentState,
+      tier1_mechanical: JSON.parse(JSON.stringify(currentState.tier1_mechanical)),
+      tier0_narrative: JSON.parse(JSON.stringify(currentState.tier0_narrative)),
+    };
+
+    // Apply Tier 1 (Mechanical) deltas from Engine
+    for (const [path, delta] of Object.entries(engineResult.numeric_deltas)) {
+      const deltaNum = typeof delta === 'number' ? delta : 0;
+      
+      if (path.includes('.')) {
+        // Deep path update (e.g., "entities.enemy.stats.hp")
+        this.setDeepValue(updatedState.tier1_mechanical, path, deltaNum);
+      } else {
+        // Simple path update
+        const currentValue = updatedState.tier1_mechanical[path];
+        if (typeof currentValue === 'number') {
+          updatedState.tier1_mechanical[path] = currentValue + deltaNum;
+        } else {
+          // Initialize if doesn't exist
+          updatedState.tier1_mechanical[path] = deltaNum;
+        }
+      }
+    }
+
+    return updatedState;
+  }
+
+  /**
+   * [METHOD] setDeepValue
+   * ----------------------------------------------------------------
+   * @mutates obj - Sets value at deep path, creating intermediate objects as needed
+   * @logic_flow
+   * 1. Split path by dots
+   * 2. Navigate/create path except for the last part
+   * 3. Set the final value (add delta to existing value or initialize)
+   */
+  private setDeepValue(obj: Record<string, unknown>, path: string, delta: number): void {
+    const parts = path.split('.');
+    let current: Record<string, unknown> = obj;
+
+    // Navigate/create path except for the last part
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!current[part] || typeof current[part] !== 'object') {
+        current[part] = {};
+      }
+      current = current[part] as Record<string, unknown>;
+    }
+
+    // Set the final value (add delta to existing value or initialize)
+    const finalKey = parts[parts.length - 1];
+    const currentValue = current[finalKey];
+    if (typeof currentValue === 'number') {
+      current[finalKey] = currentValue + delta;
+    } else {
+      current[finalKey] = delta;
+    }
+  }
+
+  /**
+   * [METHOD] mapTriggerToActionSlug
+   * ----------------------------------------------------------------
+   * @logic_flow
+   * 1. Map trigger_id to action slug using predefined mapping
+   * 2. Fallback to finding action by key matching
+   * 3. Return action slug or default 'wait'
    */
   private mapTriggerToActionSlug(triggerId: string, actionsMap: Record<string, unknown>): string {
     // Existing logic: map trigger_id to action slug
@@ -126,9 +434,16 @@ export class EngineService {
   }
 
   /**
-   * Parse dice code logic and resolve it
-   * Supports patterns like "1d20 + str vs 15" or "2d6 + 3"
-   * Now handles multiple targets via target_ids array
+   * [METHOD] parseAndResolveLogic
+   * ----------------------------------------------------------------
+   * @logic_flow
+   * 1. Parse dice codes from logic string
+   * 2. Roll dice and calculate total
+   * 3. Extract modifiers (stats or numbers)
+   * 4. Check comparison operators (vs, >=, etc.)
+   * 5. Calculate success/failure
+   * 6. Generate deltas for each target
+   * 7. Return success, summary, and deltas
    */
   private parseAndResolveLogic(
     logic: string,
@@ -262,7 +577,13 @@ export class EngineService {
   }
 
   /**
-   * Get a stat value from game state
+   * [METHOD] getStatValue
+   * ----------------------------------------------------------------
+   * @sourceOfTruth - gameState parameter
+   * @logic_flow
+   * 1. Check tier1_mechanical for stat
+   * 2. Check nested stats structure
+   * 3. Return stat value or 0 if not found
    */
   private getStatValue(statName: string, gameState: GameState): number {
     // Check tier1_mechanical first
@@ -285,7 +606,13 @@ export class EngineService {
   }
 
   /**
-   * Roll dice from a dice code string (e.g., "1d6", "2d8+3")
+   * [METHOD] rollDice
+   * ----------------------------------------------------------------
+   * @logic_flow
+   * 1. Parse dice code (e.g., "1d6", "2d8+3")
+   * 2. Roll dice and sum results
+   * 3. Apply modifiers
+   * 4. Return total
    */
   private rollDice(diceCode: string): number {
     const dicePattern = /(\d+)d(\d+)/;

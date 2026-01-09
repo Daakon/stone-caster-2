@@ -5,9 +5,11 @@ import { ResolutionService } from './resolution.service.js';
 // REFACTOR: Import StoriesRepository (The new DAL)
 import { StoriesRepository } from '../../db/repos/stories.repo.js';
 import { CompiledStoriesRepository } from '../../db/repos/compiled-stories.repo.js';
-// Import proper MAS1 and MAS2 services for the game loop
+// Import proper MAS1, Engine, and MAS2 services for the game loop
 import { Mas1Service } from '../runtime/mas1.service.js';
+import { EngineService } from '../runtime/engine.service.js';
 import { Mas2Service } from '../runtime/mas2.service.js';
+import { StateService } from '../runtime/state.service.js';
 
 import { GameStateBundle, MechanicalState, NarrativeFocus, SceneRegistry } from '../../domain/game-state.types.js';
 
@@ -23,22 +25,25 @@ export class GameTurnService {
     private storiesRepo: StoriesRepository; // REFACTOR: Use Repo
     private compiledStoriesRepo: CompiledStoriesRepository; // Keep for legacy if needed/removed
     private narrativeService: NarrativeService;
-    private resolutionService: ResolutionService;
+    private resolutionService: ResolutionService; // Legacy - kept for fallback
     private mas1Service: Mas1Service;
+    private engineService: EngineService; // NEW: Resolution Ladder Engine
     private mas2Service: Mas2Service;
 
     constructor(
         private supabase: SupabaseClient<Database>,
         narrativeService?: NarrativeService,
         mas1Service?: Mas1Service,
+        engineService?: EngineService,
         mas2Service?: Mas2Service
     ) {
         this.storiesRepo = new StoriesRepository(supabase); // Initialize Repo
         this.compiledStoriesRepo = new CompiledStoriesRepository(supabase);
         this.narrativeService = narrativeService || new NarrativeService();
-        this.resolutionService = new ResolutionService();
+        this.resolutionService = new ResolutionService(); // Legacy fallback
         // MAS1 and MAS2 can have mock AI, but Engine is deterministic
         this.mas1Service = mas1Service || new Mas1Service();
+        this.engineService = engineService || new EngineService(); // NEW: Use Resolution Ladder Engine
         this.mas2Service = mas2Service || new Mas2Service();
     }
 
@@ -97,84 +102,84 @@ export class GameTurnService {
             });
 
             // Step 3: Engine (Deterministic) - NO MOCKS, pure logic
-            // Processes MAS1 intents sequentially and applies deterministic game mechanics
-            console.log('[Turn] Step 3: Calling Engine (Deterministic)...');
+            // Uses Resolution Ladder (4-tier priority system) for D100 resolution
+            console.log('[Turn] Step 3: Calling Engine (Deterministic with Resolution Ladder)...');
             
-            // Process each intent sequentially (similar to GameLoopService)
-            let currentState = state;
-            let aggregatedSuccess = true;
-            const aggregatedDeltas: Record<string, number> = {};
-            const resolutionSummaries: string[] = [];
+            // Convert state to GameState format for EngineService
+            const gameState = this.convertStateToGameState(state);
             
-            for (let i = 0; i < mas1Intents.length; i++) {
-                const intent = mas1Intents[i];
-                console.log(`[Turn] Processing intent ${i + 1}/${mas1Intents.length}: ${intent.trigger_id}`);
-                
-                const engineResult = await this.resolutionService.executeActionFromMas1(
-                    currentState,
-                    intent,
-                    actionsMap
-                );
-                
-                aggregatedSuccess = aggregatedSuccess && engineResult.success;
-                resolutionSummaries.push(engineResult.success ? `${intent.parameters.verb} succeeded` : `${intent.parameters.verb} failed`);
-                
-                // Merge deltas
-                if (engineResult.delta) {
-                    const numericDeltas = this.flattenDeltaToNumeric(engineResult.delta);
-                    for (const [path, value] of Object.entries(numericDeltas)) {
-                        aggregatedDeltas[path] = (aggregatedDeltas[path] || 0) + value;
+            // Extract schema from CompiledStory for strict validation
+            const schema = compiledStory.master_schema ? {
+              tier1_allowlist: compiledStory.master_schema.tier1_allowlist || [],
+              tier0_allowlist: compiledStory.master_schema.tier0_allowlist || [],
+            } : undefined;
+            
+            // Initialize StateService (Single Source of Truth) with schema validation
+            const stateService = new StateService(gameState, schema);
+            
+            // Execute all intents via EngineService (uses Resolution Ladder)
+            const engineResult = await this.engineService.executeActionSteps(
+                mas1Intents,
+                stateService.getState(),
+                actionsMap
+            );
+            
+            console.log('[Turn] Engine Result:', {
+                success: engineResult.success,
+                deltaKeys: Object.keys(engineResult.numeric_deltas),
+                stateUpdated: Object.keys(engineResult.numeric_deltas).length > 0
+            });
+            
+            // Apply engine deltas to StateService
+            stateService.applyDeltas(engineResult.numeric_deltas);
+            
+            // Get final authoritative state from StateService
+            const finalGameState = stateService.getState();
+            
+            // Convert back to GameStateBundle format for compatibility
+            // Map tier1_mechanical back to mechanical, tier0_narrative back to narrative
+            const engineProcessedState: GameStateBundle = {
+                ...state,
+                mechanical: (finalGameState as any).tier1_mechanical || state.mechanical,
+                narrative: (finalGameState as any).tier0_narrative || state.narrative,
+            };
+            
+            // Convert numeric deltas to nested structure for compatibility
+            const delta: Record<string, any> = {};
+            for (const [path, value] of Object.entries(engineResult.numeric_deltas)) {
+                if (path.includes('.')) {
+                    // Deep path (e.g., "entities.id.properties.stamina")
+                    const parts = path.split('.');
+                    let current: Record<string, any> = delta;
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        if (!current[parts[i]]) {
+                            current[parts[i]] = {};
+                        }
+                        current = current[parts[i]];
                     }
+                    current[parts[parts.length - 1]] = value;
+                } else {
+                    delta[path] = value;
                 }
-                
-            // Update state for next iteration
-            // CRITICAL: Use the authoritative state from engineResult
-            // This ensures each iteration sees the cumulative changes from previous iterations
-            currentState = engineResult.state || currentState;
+            }
             
-            // Log state after each intent for debugging
-            const playerId = currentState.mechanical?.index?.player_id;
-            if (playerId && currentState.mechanical?.entities?.[playerId]) {
-                const entity = currentState.mechanical.entities[playerId];
-                console.log(`[Turn] After intent ${i + 1}/${mas1Intents.length}: Stamina = ${entity.properties?.current_stamina}`);
-            }
-        }
-        
-        // Convert numeric deltas back to nested structure for compatibility
-        const delta: Record<string, any> = {};
-        for (const [path, value] of Object.entries(aggregatedDeltas)) {
-            if (path.includes('.')) {
-                // Deep path (e.g., "entities.id.properties.stamina")
-                const parts = path.split('.');
-                let current: Record<string, any> = delta;
-                for (let i = 0; i < parts.length - 1; i++) {
-                    if (!current[parts[i]]) {
-                        current[parts[i]] = {};
-                    }
-                    current = current[parts[i]];
-                }
-                current[parts[parts.length - 1]] = value;
-            } else {
-                delta[path] = value;
-            }
-        }
-        
-        const engineResult = {
-            success: aggregatedSuccess,
-            state: currentState, // This is the authoritative final state after all intents
-            delta,
-            outcome_summary: resolutionSummaries.join(' AND ')
-        };
-        console.log('[Turn] Engine Result:', {
-            success: engineResult.success,
-            deltaKeys: Object.keys(engineResult.delta?.entities || {}),
-            stateUpdated: !!engineResult.state
-        });
+            const engineResultFormatted = {
+                success: engineResult.success,
+                state: engineProcessedState, // Authoritative final state from StateService
+                delta,
+                outcome_summary: engineResult.outcome_summary
+            };
+            console.log('[Turn] Engine Result:', {
+                success: engineResult.success,
+                deltaKeys: Object.keys(delta?.entities || {}),
+                stateUpdated: !!engineProcessedState,
+                outcomeSummary: engineResult.outcome_summary
+            });
 
         // CRITICAL: Use the authoritative final state from engineResult
         // This is the state after all intents have been processed sequentially
         // Do NOT fall back to the original state - use the mutated state
-        let processedState = engineResult.state;
+        let processedState = engineResultFormatted.state;
         
         if (!processedState) {
             console.error('[Turn] ❌ Engine did not return state! Using original state as fallback.');
@@ -205,9 +210,9 @@ export class GameTurnService {
             console.log('[Turn] Step 4: Calling MAS2 (Narrator)...');
             const mas2Result = await this.mas2Service.narrate(
                 {
-                    success: engineResult.success,
-                    outcome_summary: engineResult.outcome_summary || (engineResult.success ? 'Action executed' : 'Action failed'),
-                    numeric_deltas: this.flattenDeltaToNumeric(engineResult.delta)
+                    success: engineResultFormatted.success,
+                    outcome_summary: engineResultFormatted.outcome_summary || (engineResultFormatted.success ? 'Action executed' : 'Action failed'),
+                    numeric_deltas: engineResult.numeric_deltas || {} // Use numeric_deltas directly from EngineService
                 },
                 this.convertStateToGameState(processedState),
                 mas1Intents[0]?.trigger_id, // Use first intent's trigger_id
@@ -230,7 +235,7 @@ export class GameTurnService {
                 processedState = mutationResult.state || processedState;
                 // Merge deltas
                 if (mutationResult.delta) {
-                    engineResult.delta = this.mergeDeltas(engineResult.delta, mutationResult.delta);
+                    engineResultFormatted.delta = this.mergeDeltas(engineResultFormatted.delta || {}, mutationResult.delta);
                 }
             }
 
@@ -244,7 +249,7 @@ export class GameTurnService {
                 );
                 processedState = stateUpdateDelta.state || processedState;
                 if (stateUpdateDelta.delta) {
-                    engineResult.delta = this.mergeDeltas(engineResult.delta, stateUpdateDelta.delta);
+                    engineResultFormatted.delta = this.mergeDeltas(engineResultFormatted.delta || {}, stateUpdateDelta.delta);
                 }
             }
 
@@ -270,7 +275,7 @@ export class GameTurnService {
                 turnIndex: nextIndex,
                 playerInput: playerInput,
                 mas1Intent: mas1Intent,
-                mechanicalDelta: engineResult.delta || {},
+                mechanicalDelta: engineResultFormatted.delta || {},
                 mas2Narration: {
                     narration: mas2Result.ripple_narrative || '',
                     thought_chain: mas2Result.thought_chain || ''
@@ -314,7 +319,7 @@ export class GameTurnService {
                 narration: mas2Result.ripple_narrative || '',
                 thought_chain: mas2Result.thought_chain || ''
             }, {
-                mechanicalDelta: engineResult.delta || {},
+                mechanicalDelta: engineResultFormatted.delta || {},
                 intent: mas1Intent
             }, nextIndex, playerInput);
 
@@ -322,7 +327,7 @@ export class GameTurnService {
                 success: true,
                 state: finalState, // Return the validated final state
                 turn: recordedTurn,
-                delta: engineResult.delta || {}
+                delta: engineResultFormatted.delta || {}
             };
         } catch (error) {
             // NO FALLBACK: Fail fast with clear error message
@@ -528,10 +533,15 @@ export class GameTurnService {
      * Convert GameStateBundle to GameState format expected by MAS1/MAS2
      */
     private convertStateToGameState(state: GameStateBundle): any {
+        // Extract player_id from mechanical state
+        const playerId = state.mechanical?.index?.player_id;
+        
         return {
-            tier1_mechanical: state.mechanical,
-            tier0_narrative: state.narrative,
-            tier2_spatial: state.registry
+            story_id: state.id || '', // Use state ID as story_id
+            player_id: playerId || '', // Extract player_id from mechanical.index
+            tier1_mechanical: state.mechanical || {},
+            tier0_narrative: state.narrative || {},
+            tier2_spatial: state.registry || {}
         };
     }
 

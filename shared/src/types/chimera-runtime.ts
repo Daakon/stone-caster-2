@@ -146,6 +146,13 @@ export const Mas1IntentSchema = z.object({
   duration_tag: z.enum(['moment', 'scene', 'journey', 'rest']),
   
   /**
+   * Situational tags for contextual modifiers
+   * Extracted by MAS-1 from user input and game state
+   * Maps to Situational Modifier Registry in Engine (see 03_Engine_Logic)
+   */
+  situational_tags: z.array(z.string()).optional(),
+  
+  /**
    * Original user input text for reference
    */
   original_text: z.string(),

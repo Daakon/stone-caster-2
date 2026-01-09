@@ -38,7 +38,15 @@ export class OpenAILlmProvider implements LlmProvider {
     // Check if this is a test scenario - if so, delegate to MockLlmProvider
     // This allows test scenarios to work even when OPENAI_API_KEY is set
     const normalizedInput = userPrompt.toLowerCase().trim();
-    const isTestScenario = ['test_combat', 'test_attack', 'test_mixed', 'test_social', 'test_travel'].includes(normalizedInput);
+    const isTestScenario = [
+      'test_combat', 
+      'test_attack', 
+      'test_mixed', 
+      'test_social', 
+      'test_travel',
+      'test_drunk_combat',
+      'test_protective_combat'
+    ].includes(normalizedInput);
     
     if (isTestScenario && (systemPrompt.includes('Action Interpreter') || systemPrompt.includes('map the user'))) {
       console.log('[OpenAILlmProvider] Detected test scenario, delegating to MockLlmProvider');
@@ -256,11 +264,57 @@ export class MockLlmProvider implements LlmProvider {
         break;
       }
 
+      case 'test_drunk_combat': {
+        // Scenario 5: Situational Tag - INTOXICATED
+        // Goal: Verify MAS-1 extracts situational tag for drunk combat
+        // Target: Guard (Garret)
+        console.log('[MockLlmProvider] Matched test_drunk_combat case');
+        rawIntents = [
+          {
+            trigger_id: 'combat_action',
+            target_ids: [TARGET_GUARD_ID],
+            parameters: {
+              verb: 'attack',
+              tactic_tag: 'aggressive',
+              skill_id: 'root_force',
+            },
+            duration_tag: 'moment',
+            situational_tags: ['INTOXICATED'],
+            original_text: userText,
+          },
+        ];
+        console.log('[MockLlmProvider] Created rawIntents with INTOXICATED tag:', JSON.stringify(rawIntents, null, 2));
+        break;
+      }
+
+      case 'test_protective_combat': {
+        // Scenario 6: Situational Tag - PROTECTING_ALLY
+        // Goal: Verify MAS-1 extracts situational tag for protective combat
+        // Target: Guard (Garret) - protecting an ally
+        console.log('[MockLlmProvider] Matched test_protective_combat case');
+        rawIntents = [
+          {
+            trigger_id: 'combat_action',
+            target_ids: [TARGET_GUARD_ID],
+            parameters: {
+              verb: 'defend',
+              tactic_tag: 'defensive',
+              skill_id: 'root_force',
+            },
+            duration_tag: 'moment',
+            situational_tags: ['PROTECTING_ALLY'],
+            original_text: userText,
+          },
+        ];
+        console.log('[MockLlmProvider] Created rawIntents with PROTECTING_ALLY tag:', JSON.stringify(rawIntents, null, 2));
+        break;
+      }
+
       default: {
         // NO FALLBACK: Fail fast with clear error for unmatched test scenarios
         throw new Error(
           `[MockLlmProvider] Unmatched test scenario: "${userText}". ` +
-          `Supported scenarios: test_combat, test_attack, test_mixed, test_social, test_travel. ` +
+          `Supported scenarios: test_combat, test_attack, test_mixed, test_social, test_travel, test_drunk_combat, test_protective_combat. ` +
           `If this is a real user input, configure OPENAI_API_KEY to use real LLM.`
         );
       }
