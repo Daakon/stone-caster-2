@@ -4,7 +4,7 @@
  * Coordinates the full runtime loop: Input -> MAS1 -> Engine -> MAS2 -> State Update
  */
 
-import type { GameState, Mas1ResponseDto, EngineResultDto, Mas2ResponseDto } from '@shared/types/chimera-runtime';
+import type { GameState, Mas1Intent, EngineResultDto, Mas2ResponseDto } from '@shared/types/chimera-runtime';
 import { GameStateSchema } from '@shared/types/chimera-runtime';
 import { Mas1Service } from './mas1.service.js';
 import { EngineService } from './engine.service.js';
@@ -13,7 +13,7 @@ import { StoriesRepository } from '../../db/repos/stories.repo.js';
 import type { CompiledStory } from '@shared/types/chimera-compiled';
 
 export interface CastStoneResult {
-  mas1: Mas1ResponseDto;
+  mas1: Mas1Intent[];
   engine: EngineResultDto;
   mas2: Mas2ResponseDto;
   updatedState: GameState;
@@ -64,25 +64,69 @@ export class GameLoopService {
     // Convert CompiledStory to the format we need
     const actionsMap = this.extractActionsMap(compiledStory);
 
-    // Step 2: Call MAS1 (Interpreter)
-    const mas1Result = await this.mas1.resolve(userText, gameState, actionsMap);
+    // Step 2: Call MAS1 (Interpreter) - Returns array of intents
+    const mas1Intents = await this.mas1.resolve(userText, gameState, actionsMap);
+    console.log(`[GameLoop] MAS1 returned ${mas1Intents.length} intent(s)`);
 
-    // Step 3: Call Engine (Resolver)
-    const engineResult = await this.engine.execute(mas1Result, gameState, actionsMap);
+    // Step 3: Execute each intent sequentially, aggregating results
+    let currentState = gameState;
+    const aggregatedDeltas: Record<string, number> = {};
+    const resolutionSummaries: string[] = [];
+    let allSuccess = true;
 
-    // Step 4: Call MAS2 (Narrator)
-    const mas2Result = await this.mas2.narrate(engineResult, gameState, mas1Result.action_slug);
+    for (let i = 0; i < mas1Intents.length; i++) {
+      const intent = mas1Intents[i];
+      console.log(`[GameLoop] Processing intent ${i + 1}/${mas1Intents.length}: ${intent.trigger_id}`);
 
-    // Step 5: State Reducer - Apply deltas
-    const updatedState = this.applyStateUpdates(gameState, engineResult, mas2Result);
+      // Execute this intent against current state
+      const engineResult = await this.engine.execute(intent, currentState, actionsMap);
 
-    // Step 6: Save updated state to DB
+      // Aggregate results
+      allSuccess = allSuccess && engineResult.success;
+      resolutionSummaries.push(engineResult.outcome_summary);
+      
+      // Merge numeric deltas
+      for (const [path, delta] of Object.entries(engineResult.numeric_deltas)) {
+        aggregatedDeltas[path] = (aggregatedDeltas[path] || 0) + delta;
+      }
+
+      // CRITICAL: Apply state changes immediately so subsequent actions see updated state
+      currentState = this.applyStateUpdates(currentState, engineResult, {
+        ripple_narrative: '',
+        tier0_mutations: {},
+      });
+
+      // Check for early failure/gating (e.g., "Collapsed" status stops further actions)
+      if (!engineResult.success && this.shouldStopExecution(engineResult)) {
+        console.log(`[GameLoop] Early termination: Action ${i + 1} failed with gating condition`);
+        break;
+      }
+    }
+
+    // Step 4: Create aggregated engine result for MAS2
+    const aggregatedEngineResult: EngineResultDto = {
+      success: allSuccess,
+      outcome_summary: resolutionSummaries.join(' AND '),
+      numeric_deltas: aggregatedDeltas,
+    };
+
+    // Step 5: Call MAS2 (Narrator) with aggregated results
+    const mas2Result = await this.mas2.narrate(
+      aggregatedEngineResult,
+      currentState,
+      mas1Intents[0]?.trigger_id || 'unknown'
+    );
+
+    // Step 6: Final state update with MAS2 mutations
+    const updatedState = this.applyStateUpdates(currentState, aggregatedEngineResult, mas2Result);
+
+    // Step 7: Save updated state to DB
     await this.storiesRepo.updateGameState(gameStateId, updatedState);
 
-    // Step 7: Return composite result
+    // Step 8: Return composite result
     return {
-      mas1: mas1Result,
-      engine: engineResult,
+      mas1: mas1Intents,
+      engine: aggregatedEngineResult,
       mas2: mas2Result,
       updatedState,
     };
@@ -118,23 +162,41 @@ export class GameLoopService {
 
   /**
    * Extract actions_map from compiled story
+   * NEW: Reads from config_mechanics.runtime.actions (specialized column)
    */
   private extractActionsMap(compiledStory: CompiledStory): Record<string, unknown> {
-    // CompiledStory from shared/types has master_schema.actions_map
+    // NEW ARCHITECTURE: Read from config_mechanics (specialized column for Engine)
+    const storyAny = compiledStory as any;
+    if (storyAny.config_mechanics?.runtime?.actions) {
+      const actions = storyAny.config_mechanics.runtime.actions;
+      console.log("[GameLoopService] 🚀 Switched to 'config_mechanics'. Actions loaded:", Object.keys(actions));
+      return actions as Record<string, unknown>;
+    }
+    
+    // FALLBACK: Legacy support for old compiled stories (reads from config_engine)
+    if (compiledStory.config_engine && typeof compiledStory.config_engine === 'object') {
+      const configEngine = compiledStory.config_engine as any;
+      if (configEngine.runtime?.actions) {
+        console.warn("[GameLoopService] ⚠️ Using legacy config_engine (fallback). Consider recompiling story.");
+        return configEngine.runtime.actions as Record<string, unknown>;
+      }
+    }
+    
+    // FALLBACK: Old master_schema format
     if (compiledStory.master_schema?.actions_map) {
-      // actions_map is Record<string, string> in the schema, but we need to parse it
+      console.warn("[GameLoopService] ⚠️ Using legacy master_schema.actions_map (fallback). Consider recompiling story.");
       const actionsMap: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(compiledStory.master_schema.actions_map)) {
         try {
-          // Try to parse as JSON if it's a string
           actionsMap[key] = typeof value === 'string' ? JSON.parse(value) : value;
         } catch {
-          // If not JSON, use as-is
           actionsMap[key] = value;
         }
       }
       return actionsMap;
     }
+    
+    console.warn("[GameLoopService] ⚠️ No actions found in compiled story!");
     return {};
   }
 
@@ -238,6 +300,18 @@ export class GameLoopService {
       memories: [],
       relationships: {},
     };
+  }
+
+  /**
+   * Check if execution should stop early due to gating conditions
+   * (e.g., "Collapsed" status, critical failure, etc.)
+   */
+  private shouldStopExecution(engineResult: EngineResultDto): boolean {
+    // Check for gating keywords in outcome summary
+    const summary = engineResult.outcome_summary.toLowerCase();
+    const gatingKeywords = ['collapsed', 'unconscious', 'defeated', 'dead', 'critical failure'];
+    
+    return gatingKeywords.some(keyword => summary.includes(keyword));
   }
 }
 

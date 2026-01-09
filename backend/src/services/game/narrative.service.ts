@@ -62,15 +62,24 @@ export class NarrativeService {
         const hp = player.properties?.hp ?? '??';
         const stamina = player.properties?.stamina ?? '??';
 
+        // Extract entity names from state for context
+        const entities = mech.entities || {};
+        const guardId = '39757d45-2426-4377-a5d0-e99e9681d1ff';
+        const bartenderId = '00f2f66c-4ece-46df-ace9-af89a488c077';
+        const guard = entities[guardId] as any;
+        const bartender = entities[bartenderId] as any;
+        const guardName = guard?.properties?.display_name || guard?.properties?.name || 'Guard';
+        const bartenderName = bartender?.properties?.display_name || bartender?.properties?.name || 'Bartender';
+
         if (lower.includes('attack') || lower.includes('fight') || lower.includes('hit')) {
             intentTag = "Combat";
-            narrative = `MOCK MODE (COMBAT): You lash out with your weapon! The enemy flinches. (HP: ${hp}, Stamina: ${stamina})`;
+            narrative = `MOCK MODE (COMBAT): You lash out with your weapon against ${guardName}! The clash is intense. ${guardName === 'Garret' ? 'The Guard Captain staggers back.' : 'Your opponent flinches.'} The ${bartenderName} glares at you from behind the bar. (Stamina: ${stamina})`;
         } else if (lower.includes('look') || lower.includes('search') || lower.includes('examine')) {
             intentTag = "Observation";
-            narrative = `MOCK MODE (LOOK): You scan the area. The details are sharp. (HP: ${hp}, Stamina: ${stamina})`;
+            narrative = `MOCK MODE (LOOK): You scan the tavern. The ${bartenderName} is busy behind the bar. ${guardName} watches from the corner. The Bard plays his lute on stage. (Stamina: ${stamina})`;
         } else {
             intentTag = "General";
-            narrative = `MOCK MODE (DEFAULT): You perform the action: "${playerInput}". The world reacts accordingly. (HP: ${hp}, Stamina: ${stamina})`;
+            narrative = `MOCK MODE (DEFAULT): You perform the action: "${playerInput}". The world reacts accordingly. The tavern continues its bustling activity around you. (Stamina: ${stamina})`;
         }
 
         return {

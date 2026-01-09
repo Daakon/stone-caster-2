@@ -5,6 +5,9 @@ import { ResolutionService } from './resolution.service.js';
 // REFACTOR: Import StoriesRepository (The new DAL)
 import { StoriesRepository } from '../../db/repos/stories.repo.js';
 import { CompiledStoriesRepository } from '../../db/repos/compiled-stories.repo.js';
+// Import proper MAS1 and MAS2 services for the game loop
+import { Mas1Service } from '../runtime/mas1.service.js';
+import { Mas2Service } from '../runtime/mas2.service.js';
 
 import { GameStateBundle, MechanicalState, NarrativeFocus, SceneRegistry } from '../../domain/game-state.types.js';
 
@@ -21,36 +24,170 @@ export class GameTurnService {
     private compiledStoriesRepo: CompiledStoriesRepository; // Keep for legacy if needed/removed
     private narrativeService: NarrativeService;
     private resolutionService: ResolutionService;
+    private mas1Service: Mas1Service;
+    private mas2Service: Mas2Service;
 
     constructor(
         private supabase: SupabaseClient<Database>,
-        narrativeService?: NarrativeService
+        narrativeService?: NarrativeService,
+        mas1Service?: Mas1Service,
+        mas2Service?: Mas2Service
     ) {
         this.storiesRepo = new StoriesRepository(supabase); // Initialize Repo
         this.compiledStoriesRepo = new CompiledStoriesRepository(supabase);
         this.narrativeService = narrativeService || new NarrativeService();
         this.resolutionService = new ResolutionService();
+        // MAS1 and MAS2 can have mock AI, but Engine is deterministic
+        this.mas1Service = mas1Service || new Mas1Service();
+        this.mas2Service = mas2Service || new Mas2Service();
     }
 
     /**
      * The Standard Turn Loop (Phase 7.1)
+     * Proper Flow: MAS1 (Interpreter) -> Engine (Deterministic) -> MAS2 (Narrator)
+     * Mocks ONLY for MAS1 and MAS2 AI results, Engine is fully deterministic
      */
     async processTurn(gameStateId: string, playerInput: string, userId: string): Promise<TurnResult> {
         console.log(`[Turn Start] Game: ${gameStateId}, Input: "${playerInput}"`);
+        console.log('[Turn] 🚀 NEW FLOW: MAS1 -> Engine -> MAS2 (Proper Architecture)');
 
-        // Step 1: Load State
-        const state = await this.loadState(gameStateId, userId);
-        const compiledPrompt = state.compiled_system_prompt;
+        try {
+            // Step 1: Load State and Compiled Story
+            const state = await this.loadState(gameStateId, userId);
+            const compiledPrompt = state.compiled_system_prompt;
 
-        // Step 2: Resolution (The Engine)
-        const resolution = await this.resolutionService.resolve(playerInput, state);
-        console.log('[Turn] Resolution:', resolution?.logs);
+            // Load compiled story to get actionsMap for MAS1 and Engine
+            // The game state's story_id is the draft story ID, not the compiled story ID
+            const draftStoryId = await this.getStoryIdFromGameState(gameStateId);
+            if (!draftStoryId) {
+                throw new Error(`Story ID not found for game state: ${gameStateId}`);
+            }
 
-        // Update state with Engine results for the Narrative to see (e.g. reduced stamina)
-        let processedState = state;
-        if (resolution.state) {
-            processedState = resolution.state;
+            // Try to get compiled story by draft ID first (most common case)
+            let compiledStory = await this.storiesRepo.getCompiledStoryByDraftId(draftStoryId);
             
+            // Fallback: try by ID in case story_id is actually a compiled story ID
+            if (!compiledStory) {
+                compiledStory = await this.storiesRepo.getCompiledStoryById(draftStoryId);
+            }
+            
+            if (!compiledStory) {
+                throw new Error(`Compiled story not found for draft story: ${draftStoryId}`);
+            }
+
+            // Extract actionsMap from compiled story
+            const actionsMap = this.extractActionsMap(compiledStory);
+
+            // Step 2: MAS1 (Interpreter) - Can have mock AI results
+            // Extracts action type, target, and other parameters from player input
+            console.log('[Turn] Step 2: Calling MAS1 (Interpreter)...');
+            const mas1Intents = await this.mas1Service.resolve(
+                playerInput,
+                this.convertStateToGameState(state),
+                actionsMap
+            );
+            console.log('[Turn] MAS1 Result:', {
+                intentCount: mas1Intents.length,
+                triggers: mas1Intents.map(i => i.trigger_id),
+                firstIntent: mas1Intents[0] ? {
+                    trigger_id: mas1Intents[0].trigger_id,
+                    target_count: mas1Intents[0].target_ids.length,
+                    verb: mas1Intents[0].parameters.verb
+                } : null
+            });
+
+            // Step 3: Engine (Deterministic) - NO MOCKS, pure logic
+            // Processes MAS1 intents sequentially and applies deterministic game mechanics
+            console.log('[Turn] Step 3: Calling Engine (Deterministic)...');
+            
+            // Process each intent sequentially (similar to GameLoopService)
+            let currentState = state;
+            let aggregatedSuccess = true;
+            const aggregatedDeltas: Record<string, number> = {};
+            const resolutionSummaries: string[] = [];
+            
+            for (let i = 0; i < mas1Intents.length; i++) {
+                const intent = mas1Intents[i];
+                console.log(`[Turn] Processing intent ${i + 1}/${mas1Intents.length}: ${intent.trigger_id}`);
+                
+                const engineResult = await this.resolutionService.executeActionFromMas1(
+                    currentState,
+                    intent,
+                    actionsMap
+                );
+                
+                aggregatedSuccess = aggregatedSuccess && engineResult.success;
+                resolutionSummaries.push(engineResult.success ? `${intent.parameters.verb} succeeded` : `${intent.parameters.verb} failed`);
+                
+                // Merge deltas
+                if (engineResult.delta) {
+                    const numericDeltas = this.flattenDeltaToNumeric(engineResult.delta);
+                    for (const [path, value] of Object.entries(numericDeltas)) {
+                        aggregatedDeltas[path] = (aggregatedDeltas[path] || 0) + value;
+                    }
+                }
+                
+            // Update state for next iteration
+            // CRITICAL: Use the authoritative state from engineResult
+            // This ensures each iteration sees the cumulative changes from previous iterations
+            currentState = engineResult.state || currentState;
+            
+            // Log state after each intent for debugging
+            const playerId = currentState.mechanical?.index?.player_id;
+            if (playerId && currentState.mechanical?.entities?.[playerId]) {
+                const entity = currentState.mechanical.entities[playerId];
+                console.log(`[Turn] After intent ${i + 1}/${mas1Intents.length}: Stamina = ${entity.properties?.current_stamina}`);
+            }
+        }
+        
+        // Convert numeric deltas back to nested structure for compatibility
+        const delta: Record<string, any> = {};
+        for (const [path, value] of Object.entries(aggregatedDeltas)) {
+            if (path.includes('.')) {
+                // Deep path (e.g., "entities.id.properties.stamina")
+                const parts = path.split('.');
+                let current: Record<string, any> = delta;
+                for (let i = 0; i < parts.length - 1; i++) {
+                    if (!current[parts[i]]) {
+                        current[parts[i]] = {};
+                    }
+                    current = current[parts[i]];
+                }
+                current[parts[parts.length - 1]] = value;
+            } else {
+                delta[path] = value;
+            }
+        }
+        
+        const engineResult = {
+            success: aggregatedSuccess,
+            state: currentState, // This is the authoritative final state after all intents
+            delta,
+            outcome_summary: resolutionSummaries.join(' AND ')
+        };
+        console.log('[Turn] Engine Result:', {
+            success: engineResult.success,
+            deltaKeys: Object.keys(engineResult.delta?.entities || {}),
+            stateUpdated: !!engineResult.state
+        });
+
+        // CRITICAL: Use the authoritative final state from engineResult
+        // This is the state after all intents have been processed sequentially
+        // Do NOT fall back to the original state - use the mutated state
+        let processedState = engineResult.state;
+        
+        if (!processedState) {
+            console.error('[Turn] ❌ Engine did not return state! Using original state as fallback.');
+            processedState = state;
+        }
+        
+        // Verify the state structure is correct
+        if (!processedState.mechanical) {
+            console.error('[Turn] ❌ Processed state missing mechanical property! State keys:', Object.keys(processedState));
+            // Try to recover by using original state
+            processedState = state;
+        }
+
             // --- DEBUG PERSISTENCE ---
             const playerId = processedState.mechanical?.index?.player_id;
             if (playerId && processedState.mechanical?.entities?.[playerId]) {
@@ -62,58 +199,136 @@ export class GameTurnService {
                 console.log('ProcessedState Mechanical State Keys:', Object.keys(processedState.mechanical || {}));
                 console.log('--- END DEBUG PERSISTENCE ---');
             }
-        }
 
-        // Step 3: Narrative (The Brain)
-        const mechanicalContext = resolution.logs.join(' | ');
-        const augmentedInput = `PLAYER ACTION: "${playerInput}"\nMECHANICAL RESULT: [${mechanicalContext}]`;
+            // Step 4: MAS2 (Narrator) - Can have mock AI results
+            // Generates narrative and may trigger additional relationship changes
+            console.log('[Turn] Step 4: Calling MAS2 (Narrator)...');
+            const mas2Result = await this.mas2Service.narrate(
+                {
+                    success: engineResult.success,
+                    outcome_summary: engineResult.outcome_summary || (engineResult.success ? 'Action executed' : 'Action failed'),
+                    numeric_deltas: this.flattenDeltaToNumeric(engineResult.delta)
+                },
+                this.convertStateToGameState(processedState),
+                mas1Intents[0]?.trigger_id, // Use first intent's trigger_id
+                undefined, // worldStyle
+                compiledStory
+            );
+            console.log('[Turn] MAS2 Result:', {
+                ripple_narrative: mas2Result.ripple_narrative?.substring(0, 100),
+                hasMutations: !!(mas2Result.tier0_mutations && Object.keys(mas2Result.tier0_mutations).length > 0)
+            });
 
-        console.log('[Turn] Invoking Narrative Service...');
-        const turnResult: any = await this.narrativeService.generateReaction(processedState, augmentedInput, compiledPrompt || undefined);
-
-        // Step 4: Record History (The Log)
-        const nextIndex = await this.storiesRepo.getNextTurnIndex(state.id);
-        console.log('[GameLoop] Preparing Turn:', { nextIndex, gameStateId });
-
-        // Ensure we pass objects, not strings. verify resolution.intent is object or parses to one if string
-        // The user says: "Pass Object. NOT JSON.stringify". 
-        // We assume resolution.intent IS an object.
-
-        const recordedTurn = await this.storiesRepo.recordTurn({
-            gameStateId: state.id,
-            turnIndex: nextIndex,
-            playerInput: playerInput,
-            mas1Intent: resolution.intent,
-            mechanicalDelta: resolution.mechanicalDelta || {},
-            mas2Narration: {
-                narration: turnResult.narration,
-                thought_chain: turnResult.thought_chain
+            // Step 5: Process MAS2 Mutations (e.g., relationship changes from NPC reactions)
+            // If MAS2 detected NPC reactions (e.g., guard's friend gets mad), process them
+            if (mas2Result.tier0_mutations && Object.keys(mas2Result.tier0_mutations).length > 0) {
+                const mutationResult = await this.processMas2Mutations(
+                    processedState,
+                    mas2Result.tier0_mutations,
+                    actionsMap
+                );
+                processedState = mutationResult.state || processedState;
+                // Merge deltas
+                if (mutationResult.delta) {
+                    engineResult.delta = this.mergeDeltas(engineResult.delta, mutationResult.delta);
+                }
             }
-        });
 
-        // [TELEMETRY] Link Turn to Audit Log if Trace ID exists
-        // Check both locations for meta just in case
-        const traceId = turnResult.meta?.traceId || resolution.meta?.traceId;
+            // Step 5b: Process MAS2 State Updates (social ripple effects)
+            // Apply entity relationship changes and world updates from MAS2
+            if (mas2Result.state_updates) {
+                const stateUpdateDelta = await this.processMas2StateUpdates(
+                    processedState,
+                    mas2Result.state_updates,
+                    actionsMap
+                );
+                processedState = stateUpdateDelta.state || processedState;
+                if (stateUpdateDelta.delta) {
+                    engineResult.delta = this.mergeDeltas(engineResult.delta, stateUpdateDelta.delta);
+                }
+            }
 
-        if (traceId && recordedTurn?.id) {
-            await this.storiesRepo.linkAuditLogToTurn(traceId, recordedTurn.id);
-            console.log('[GameLoop] Linked Audit Log:', { traceId, turnId: recordedTurn.id });
-        } else {
-            console.warn('[GameLoop] Failed to link audit log: Missing ID', { traceId, turnId: recordedTurn?.id });
+            // Step 6: Record History (The Log)
+            const nextIndex = await this.storiesRepo.getNextTurnIndex(state.id);
+            console.log('[GameLoop] Preparing Turn:', { nextIndex, gameStateId });
+
+            // Convert MAS1 intents to intent format for storage (use first intent)
+            const firstIntent = mas1Intents[0];
+            const mas1Intent = {
+                type: firstIntent?.trigger_id === 'combat_action' ? 'COMBAT' : 'NARRATIVE',
+                intent: firstIntent?.trigger_id || 'attempt_action',
+                skill_id: firstIntent?.parameters.skill_id || 'root_force',
+                difficulty_mod: firstIntent?.parameters.difficulty_mod || 0,
+                duration_tag: firstIntent?.duration_tag || 'moment',
+                confidence: 1.0,
+                analysis: 'neutral',
+                parameters: firstIntent?.parameters || {}
+            };
+
+            const recordedTurn = await this.storiesRepo.recordTurn({
+                gameStateId: state.id,
+                turnIndex: nextIndex,
+                playerInput: playerInput,
+                mas1Intent: mas1Intent,
+                mechanicalDelta: engineResult.delta || {},
+                mas2Narration: {
+                    narration: mas2Result.ripple_narrative || '',
+                    thought_chain: mas2Result.thought_chain || ''
+                }
+            });
+
+            // [TELEMETRY] Link Turn to Audit Log if Trace ID exists
+            const traceId = mas2Result.meta?.traceId || (firstIntent as any)?.meta?.traceId;
+            if (traceId && recordedTurn?.id) {
+                await this.storiesRepo.linkAuditLogToTurn(traceId, recordedTurn.id);
+                console.log('[GameLoop] Linked Audit Log:', { traceId, turnId: recordedTurn.id });
+            } else {
+                console.warn('[GameLoop] Failed to link audit log: Missing ID', { traceId, turnId: recordedTurn?.id });
+            }
+
+            console.log('[GameLoop] Turn Recorded:', { id: recordedTurn.id, index: recordedTurn.turn_index });
+
+            // Step 7: Merge & Persist State (The Snapshot)
+            // CRITICAL: Ensure processedState is in the correct GameStateBundle format
+            // The engine may have mutated the state structure, so we need to ensure it matches
+            const finalState: GameStateBundle = {
+                id: processedState.id || state.id,
+                mechanical: processedState.mechanical || state.mechanical,
+                narrative: processedState.narrative || state.narrative,
+                registry: processedState.registry || state.registry,
+                compiled_system_prompt: processedState.compiled_system_prompt || state.compiled_system_prompt,
+            };
+            
+            // Final validation: Log the authoritative state before persistence
+            const finalPlayerId = finalState.mechanical?.index?.player_id;
+            if (finalPlayerId && finalState.mechanical?.entities?.[finalPlayerId]) {
+                const finalEntity = finalState.mechanical.entities[finalPlayerId];
+                console.log('[Turn] 📊 FINAL STATE BEFORE PERSISTENCE:');
+                console.log(`  Player ID: ${finalPlayerId}`);
+                console.log(`  Stamina: ${finalEntity.properties?.current_stamina}`);
+                console.log(`  Satiety: ${finalEntity.properties?.satiety}`);
+            }
+            
+            // Use finalState (the authoritative, validated state)
+            await this.applyTurnResult(finalState, {
+                narration: mas2Result.ripple_narrative || '',
+                thought_chain: mas2Result.thought_chain || ''
+            }, {
+                mechanicalDelta: engineResult.delta || {},
+                intent: mas1Intent
+            }, nextIndex, playerInput);
+
+            return {
+                success: true,
+                state: finalState, // Return the validated final state
+                turn: recordedTurn,
+                delta: engineResult.delta || {}
+            };
+        } catch (error) {
+            // NO FALLBACK: Fail fast with clear error message
+            console.error('[Turn] ❌ Error in MAS1 -> Engine -> MAS2 flow:', error);
+            throw error;
         }
-
-        console.log('[GameLoop] Turn Recorded:', { id: recordedTurn.id, index: recordedTurn.turn_index });
-
-        // Step 5: Merge & Persist State (The Snapshot)
-        // Use processedState (which has engine updates)
-        await this.applyTurnResult(processedState, turnResult, resolution, nextIndex, playerInput);
-
-        return {
-            success: true,
-            state: processedState,
-            turn: recordedTurn,
-            delta: resolution.mechanicalDelta || {}
-        };
     }
 
     /**
@@ -225,9 +440,17 @@ export class GameTurnService {
             console.log('--- END DEBUG BEFORE PERSIST ---');
         }
 
+        // CRITICAL: Use the authoritative state passed to this method
+        // This should be the final processedState from processTurn, not a stale copy
+        // Verify we have the correct state structure
+        if (!state.mechanical) {
+            console.error('[PERSIST] ❌ State missing mechanical property! State keys:', Object.keys(state));
+            throw new Error('Cannot persist state: missing mechanical property');
+        }
+        
         const updatePayload = {
-            mechanical_state: state.mechanical,
-            narrative_focus: state.narrative,
+            mechanical_state: state.mechanical, // Use the authoritative state from processTurn
+            narrative_focus: state.narrative || {}, // Ensure narrative exists
             action_queue: [], // Clear queue
             // turn_index updated by Repo
         };
@@ -235,10 +458,15 @@ export class GameTurnService {
         // --- DEBUG UPDATE PAYLOAD ---
         console.log('--- DEBUG UPDATE PAYLOAD ---');
         console.log('Update Payload Keys:', Object.keys(updatePayload));
+        console.log('State ID:', state.id);
         if (updatePayload.mechanical_state?.entities?.[playerId]) {
             const entity = updatePayload.mechanical_state.entities[playerId];
             console.log('Update Payload Entity Stamina:', entity.properties?.current_stamina);
             console.log('Update Payload Entity Satiety:', entity.properties?.satiety);
+            console.log('Update Payload Entity Properties Keys:', Object.keys(entity.properties || {}));
+        } else {
+            console.warn('[PERSIST] ⚠️ Player entity not found in mechanical_state.entities');
+            console.log('Available entity IDs:', Object.keys(updatePayload.mechanical_state?.entities || {}));
         }
         console.log('--- END DEBUG UPDATE PAYLOAD ---');
 
@@ -260,6 +488,262 @@ export class GameTurnService {
     // ============================================================================
     // HELPERS
     // ============================================================================
+
+    /**
+     * Extract actionsMap from compiled story
+     */
+    private extractActionsMap(compiledStory: any): Record<string, unknown> {
+        // Try config_mechanics first (new architecture)
+        if (compiledStory.config_mechanics?.runtime?.actions) {
+            return compiledStory.config_mechanics.runtime.actions;
+        }
+        // Fallback to legacy config_engine
+        if (compiledStory.config_engine?.runtime?.actions) {
+            return compiledStory.config_engine.runtime.actions;
+        }
+        // Fallback to master_schema
+        if (compiledStory.master_schema?.actions_map) {
+            const actionsMap: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(compiledStory.master_schema.actions_map)) {
+                try {
+                    actionsMap[key] = typeof value === 'string' ? JSON.parse(value) : value;
+                } catch {
+                    actionsMap[key] = value;
+                }
+            }
+            return actionsMap;
+        }
+        return {};
+    }
+
+    /**
+     * Get story ID from game state
+     */
+    private async getStoryIdFromGameState(gameStateId: string): Promise<string | null> {
+        const gameState = await this.storiesRepo.loadGameState(gameStateId);
+        return gameState?.story_id || null;
+    }
+
+    /**
+     * Convert GameStateBundle to GameState format expected by MAS1/MAS2
+     */
+    private convertStateToGameState(state: GameStateBundle): any {
+        return {
+            tier1_mechanical: state.mechanical,
+            tier0_narrative: state.narrative,
+            tier2_spatial: state.registry
+        };
+    }
+
+    /**
+     * Flatten delta to numeric_deltas format for EngineResultDto
+     */
+    private flattenDeltaToNumeric(delta: Record<string, any>): Record<string, number> {
+        const numeric: Record<string, number> = {};
+        if (delta.entities) {
+            for (const [entityId, changes] of Object.entries(delta.entities)) {
+                if (typeof changes === 'object' && changes !== null) {
+                    for (const [key, value] of Object.entries(changes)) {
+                        if (typeof value === 'number') {
+                            numeric[`entities.${entityId}.${key}`] = value;
+                        }
+                    }
+                }
+            }
+        }
+        return numeric;
+    }
+
+    /**
+     * Process MAS2 mutations (e.g., NPC relationship changes)
+     * These may trigger additional engine calls for relationship updates
+     */
+    private async processMas2Mutations(
+        state: GameStateBundle,
+        mutations: Record<string, unknown>,
+        actionsMap: Record<string, unknown>
+    ): Promise<{ state: GameStateBundle; delta?: Record<string, any> }> {
+        // Apply tier0_mutations to narrative state (memory, flags, etc.)
+        if (mutations.memory_stream && state.narrative) {
+            state.narrative.memory_stream = mutations.memory_stream as any[];
+        }
+        
+        // Process relationship changes from MAS2 (mock mode - apply directly to state)
+        const relationshipChanges = mutations.relationship_changes as Record<string, Record<string, number>> | undefined;
+        if (relationshipChanges && Object.keys(relationshipChanges).length > 0) {
+            // Initialize relationships structure if needed
+            const mech = state.mechanical_state || state.mechanical || {};
+            if (!mech.ledgers) {
+                mech.ledgers = {};
+            }
+            if (!mech.ledgers.relationships) {
+                mech.ledgers.relationships = {};
+            }
+            
+            const relationships = mech.ledgers.relationships as Record<string, Record<string, number>>;
+            const relationshipDelta: Record<string, any> = { relationships: {} };
+            
+            // Apply relationship changes
+            for (const [npcId, changes] of Object.entries(relationshipChanges)) {
+                if (!relationships[npcId]) {
+                    relationships[npcId] = { trust: 5, warmth: 5, respect: 5, desire: 5, awe: 5 };
+                }
+                
+                if (!relationshipDelta.relationships[npcId]) {
+                    relationshipDelta.relationships[npcId] = {};
+                }
+                
+                for (const [axis, delta] of Object.entries(changes)) {
+                    const current = relationships[npcId][axis] || 5;
+                    const newValue = Math.max(0, Math.min(20, current + (delta as number)));
+                    relationships[npcId][axis] = newValue;
+                    relationshipDelta.relationships[npcId][axis] = newValue;
+                }
+            }
+            
+            // Update state
+            if (state.mechanical_state) {
+                state.mechanical_state.ledgers = mech.ledgers;
+            } else if (state.mechanical) {
+                state.mechanical.ledgers = mech.ledgers;
+            }
+            
+            return { state, delta: relationshipDelta };
+        }
+        
+        return { state };
+    }
+
+    /**
+     * Process MAS2 state_updates (social ripple effects)
+     * Applies entity relationship changes and world updates
+     */
+    private async processMas2StateUpdates(
+        state: GameStateBundle,
+        stateUpdates: { entity_updates: Array<{ id: string; path: string; value: number | string | boolean; description?: string }>; world_updates: Record<string, unknown> },
+        actionsMap: Record<string, unknown>
+    ): Promise<{ state: GameStateBundle; delta?: Record<string, any> }> {
+        const delta: Record<string, any> = {
+            entities: {},
+            world: {},
+        };
+
+        // Process entity updates (relationship changes)
+        for (const update of stateUpdates.entity_updates) {
+            // Parse the path (e.g., "relationships.player.trust")
+            const pathParts = update.path.split('.');
+            
+            if (pathParts[0] === 'relationships' && pathParts.length >= 3) {
+                // Initialize relationships structure if needed
+                const mech = state.mechanical_state || state.mechanical || {};
+                if (!mech.ledgers) {
+                    mech.ledgers = {};
+                }
+                if (!mech.ledgers.relationships) {
+                    mech.ledgers.relationships = {};
+                }
+
+                const relationships = mech.ledgers.relationships as Record<string, Record<string, number>>;
+                if (!relationships[update.id]) {
+                    relationships[update.id] = { trust: 5, warmth: 5, respect: 5, desire: 5, awe: 5 };
+                }
+
+                // Extract relationship axis (e.g., "trust" from "relationships.player.trust")
+                const axis = pathParts[pathParts.length - 1];
+                const current = relationships[update.id][axis] || 5;
+                
+                // Apply change (value is a delta, not absolute)
+                if (typeof update.value === 'number') {
+                    const newValue = Math.max(0, Math.min(20, current + update.value));
+                    relationships[update.id][axis] = newValue;
+                    
+                    // Add to delta
+                    if (!delta.entities[update.id]) {
+                        delta.entities[update.id] = {};
+                    }
+                    if (!delta.entities[update.id].relationships) {
+                        delta.entities[update.id].relationships = {};
+                    }
+                    delta.entities[update.id].relationships[axis] = newValue;
+                }
+
+                // Update state
+                if (state.mechanical_state) {
+                    state.mechanical_state.ledgers = mech.ledgers;
+                } else if (state.mechanical) {
+                    state.mechanical.ledgers = mech.ledgers;
+                }
+            }
+        }
+
+        // Process world updates
+        for (const [path, value] of Object.entries(stateUpdates.world_updates)) {
+            // Parse path (e.g., "narrative.atmosphere")
+            const pathParts = path.split('.');
+            if (pathParts[0] === 'narrative') {
+                const narrative = state.narrative || {};
+                const targetKey = pathParts.slice(1).join('.');
+                
+                // Set nested value
+                const setNested = (obj: any, keys: string[], val: unknown) => {
+                    const [first, ...rest] = keys;
+                    if (rest.length === 0) {
+                        obj[first] = val;
+                    } else {
+                        if (!obj[first]) obj[first] = {};
+                        setNested(obj[first], rest, val);
+                    }
+                };
+                
+                setNested(narrative, targetKey.split('.'), value);
+                state.narrative = narrative;
+                
+                // Add to delta
+                if (!delta.world.narrative) {
+                    delta.world.narrative = {};
+                }
+                setNested(delta.world.narrative, targetKey.split('.'), value);
+            }
+        }
+
+        // Clean up empty objects
+        if (Object.keys(delta.entities).length === 0) {
+            delete delta.entities;
+        }
+        if (Object.keys(delta.world).length === 0) {
+            delete delta.world;
+        }
+
+        return { state, delta: Object.keys(delta).length > 0 ? delta : undefined };
+    }
+
+    /**
+     * Merge two delta objects
+     */
+    private mergeDeltas(delta1: Record<string, any>, delta2: Record<string, any>): Record<string, any> {
+        // Deep merge deltas
+        const merged = { ...delta1 };
+        
+        // Merge entities
+        if (delta2.entities) {
+            if (!merged.entities) merged.entities = {};
+            Object.assign(merged.entities, delta2.entities);
+        }
+        
+        // Merge world changes
+        if (delta2.world) {
+            if (!merged.world) merged.world = {};
+            Object.assign(merged.world, delta2.world);
+        }
+        
+        // Merge relationship changes
+        if (delta2.relationships) {
+            if (!merged.relationships) merged.relationships = {};
+            Object.assign(merged.relationships, delta2.relationships);
+        }
+        
+        return merged;
+    }
 
     private async loadState(gameId: string, userId: string): Promise<GameStateBundle> {
         // REFACTOR: Use StoriesRepo

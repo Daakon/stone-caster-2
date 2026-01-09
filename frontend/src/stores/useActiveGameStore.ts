@@ -217,27 +217,39 @@ export const useActiveGameStore = create<ActiveGameState>()(
 
                         let nextGameState = currentGameState;
 
-                        if (currentMech.entities && delta && playerId) {
+                        // Unwrap delta.entities if present (backend sends { entities: { ... }, world: { ... } })
+                        const entityDelta = (delta as any)?.entities || delta;
+                        const worldDelta = (delta as any)?.world;
+                        
+                        if (currentMech.entities && entityDelta && playerId) {
                             // IMMUTABLE UPDATE PATTERN: Create new object references at every level
                             const newEntities: Record<string, any> = { ...currentMech.entities };
 
                             // Iterate Keyed Delta: { [entityId]: { properties: { current_stamina: -5, satiety: -1 } } }
-                            Object.entries(delta).forEach(([entityId, entityDelta]) => {
+                            // OR: { [entityId]: { combat_condition: "Wounded" } } (flat structure)
+                            Object.entries(entityDelta).forEach(([entityId, entityDeltaValue]) => {
                                 const oldEntity = currentMech.entities[entityId];
                                 if (!oldEntity || !oldEntity.properties) {
+                                    console.warn(`Frontend: Entity ${entityId} not found or missing properties`);
                                     return;
                                 }
 
-                                // Handle nested properties structure
-                                const playerDelta = entityDelta as any;
+                                // Handle nested properties structure OR flat structure
+                                const playerDelta = entityDeltaValue as any;
                                 const propertiesDelta = playerDelta?.properties;
+                                
+                                // If delta is flat (e.g., { combat_condition: "Wounded" }), treat it as properties
+                                const isFlatDelta = !propertiesDelta && typeof playerDelta === 'object' && playerDelta !== null;
                                 
                                 console.log(`Frontend Processing Delta for Entity ${entityId}:`, {
                                     hasProperties: !!propertiesDelta,
+                                    isFlatDelta,
                                     propertiesDelta,
+                                    playerDelta,
                                     currentEntityProps: oldEntity.properties
                                 });
 
+                                // Process nested properties structure
                                 if (propertiesDelta && typeof propertiesDelta === 'object') {
                                     // 1. Clone the specific entity's properties (Spread operator)
                                     const oldProperties = oldEntity.properties;
@@ -280,13 +292,13 @@ export const useActiveGameStore = create<ActiveGameState>()(
                                     newEntities[entityId] = newEntity;
                                     
                                     console.log(`Frontend After Delta - Entity ${entityId} properties:`, newProperties);
-                                } else {
-                                    // Fallback: Handle flat structure for backward compatibility
-                                    console.log('Frontend Using fallback flat structure handling');
+                                } else if (isFlatDelta) {
+                                    // Handle flat structure: { combat_condition: "Wounded" } directly on entity
+                                    console.log('Frontend Using flat structure handling (no properties wrapper)');
                                     const oldProperties = oldEntity.properties;
                                     const newProperties = { ...oldProperties };
 
-                                    Object.entries(entityDelta as Record<string, any>).forEach(([key, val]) => {
+                                    Object.entries(playerDelta as Record<string, any>).forEach(([key, val]) => {
                                         if (typeof val === 'number') {
                                             // Numeric delta: add to current
                                             const defaultValue = (key === 'current_stamina' || key === 'satiety') ? 100 : 0;
@@ -316,12 +328,32 @@ export const useActiveGameStore = create<ActiveGameState>()(
                             });
 
                             // 5. Clone the mechanical state and inject new entities
-                            const newMech = {
+                            let newMech = {
                                 ...currentMech,
                                 entities: newEntities
                             };
+                            
+                            // 6. Apply world-level changes (e.g., atmosphere)
+                            if (worldDelta && typeof worldDelta === 'object') {
+                                const newGlobals = { ...(newMech.globals || {}) };
+                                
+                                // Merge world delta into globals
+                                if (worldDelta.narrative) {
+                                    newGlobals.narrative = {
+                                        ...(newGlobals.narrative || {}),
+                                        ...worldDelta.narrative
+                                    };
+                                }
+                                
+                                newMech = {
+                                    ...newMech,
+                                    globals: newGlobals
+                                };
+                                
+                                console.log('Frontend Applied world delta:', worldDelta);
+                            }
 
-                            // 6. Clone the game state and inject new mechanical state
+                            // 7. Clone the game state and inject new mechanical state
                             nextGameState = {
                                 ...currentGameState,
                                 mechanical_state: newMech

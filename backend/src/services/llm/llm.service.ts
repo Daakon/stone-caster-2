@@ -32,12 +32,33 @@ export class LlmService {
     schema?: ZodSchema<T>
   ): Promise<T> {
     try {
+      console.log('[LlmService] Calling provider.generateJson, provider type:', this.provider.constructor.name);
       const response = await this.provider.generateJson<T>(system, user);
+      console.log('[LlmService] Raw provider response:', JSON.stringify(response, null, 2).substring(0, 500));
 
       // Validate against schema if provided
       if (schema) {
-        const validated = schema.parse(response);
-        return validated;
+        try {
+          console.log('[LlmService] Validating response against schema...');
+          const validated = schema.parse(response);
+          console.log('[LlmService] Validation successful');
+          return validated;
+        } catch (validationError) {
+          // Log detailed validation error for debugging
+          if (validationError instanceof z.ZodError) {
+            console.error('[LlmService] ❌ Validation failed:', {
+              userInput: user.substring(0, 100),
+              errorCount: validationError.errors.length,
+              errors: validationError.errors,
+              responseType: Array.isArray(response) ? 'array' : typeof response,
+              responseLength: Array.isArray(response) ? response.length : 'N/A',
+              responseSample: Array.isArray(response) && response.length > 0 
+                ? JSON.stringify(response[0], null, 2).substring(0, 500)
+                : JSON.stringify(response, null, 2).substring(0, 500)
+            });
+          }
+          throw validationError;
+        }
       }
 
       return response;

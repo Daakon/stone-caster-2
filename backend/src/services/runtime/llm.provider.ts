@@ -4,6 +4,10 @@
  * Abstracts LLM API calls with OpenAI adapter and mock fallback
  */
 
+import type { Mas1Intent } from '@shared/types/chimera-runtime';
+import { Mas1IntentSchema } from '@shared/types/chimera-runtime';
+import { z } from 'zod';
+
 export interface LlmProvider {
   /**
    * Generate structured JSON response from system and user prompts
@@ -29,6 +33,17 @@ export class OpenAILlmProvider implements LlmProvider {
   async generateJson<T>(systemPrompt: string, userPrompt: string): Promise<T> {
     if (!this.apiKey) {
       throw new Error('OpenAI API key is not configured');
+    }
+
+    // Check if this is a test scenario - if so, delegate to MockLlmProvider
+    // This allows test scenarios to work even when OPENAI_API_KEY is set
+    const normalizedInput = userPrompt.toLowerCase().trim();
+    const isTestScenario = ['test_combat', 'test_attack', 'test_mixed', 'test_social', 'test_travel'].includes(normalizedInput);
+    
+    if (isTestScenario && (systemPrompt.includes('Action Interpreter') || systemPrompt.includes('map the user'))) {
+      console.log('[OpenAILlmProvider] Detected test scenario, delegating to MockLlmProvider');
+      const mockProvider = new MockLlmProvider();
+      return mockProvider.generateJson<T>(systemPrompt, userPrompt);
     }
 
     try {
@@ -72,6 +87,7 @@ export class OpenAILlmProvider implements LlmProvider {
 /**
  * Mock LLM Provider
  * Returns hardcoded responses for testing without API costs
+ * Provides strictly defined test scenarios for deterministic Engine testing
  */
 export class MockLlmProvider implements LlmProvider {
   async generateJson<T>(systemPrompt: string, userPrompt: string): Promise<T> {
@@ -80,20 +96,46 @@ export class MockLlmProvider implements LlmProvider {
     console.log('[LLM Provider] User:', userPrompt);
 
     // Return a mock response based on the prompt content
-    // This is a simple heuristic - in production, you might want more sophisticated mocking
     if (systemPrompt.includes('Action Interpreter') || systemPrompt.includes('map the user')) {
-      // Mock MAS1 response
-      return {
-        action_slug: 'attack',
-        parameters: { target: 'enemy', weapon: 'sword' },
-        sentiment: 'aggressive',
-      } as T;
+      // Mock MAS1 response - Returns { intents: Mas1Intent[] } wrapper
+      // OpenAI requires json_object format, so we wrap the array in an object
+      console.log('[MockLlmProvider] Detected Action Interpreter prompt, calling generateMas1');
+      const intents = this.generateMas1(userPrompt);
+      console.log('[MockLlmProvider] generateMas1 returned', intents.length, 'intents');
+      // Wrap in object to match OpenAI json_object format requirement
+      const wrapped = { intents };
+      console.log('[MockLlmProvider] Returning wrapped response:', JSON.stringify(wrapped, null, 2));
+      return wrapped as unknown as T;
     } else if (systemPrompt.includes('Narrate') || systemPrompt.includes('narrative')) {
-      // Mock MAS2 response
+      // Mock MAS2 response - matches actual test story entities
       return {
-        ripple_narrative: 'You swing your sword with determination, striking the enemy for 5 damage.',
+        ripple_narrative: 'You lash out with your weapon! The clash is intense, and you manage to land a solid blow against Garret and Kiera. The Guard Captain staggers back, clearly wounded. The room falls silent as the violence spills over. The Bartender glares at you, hand reaching for a club, while the Bard hides behind his lute.',
         tier0_mutations: {
-          memories: ['Combat encounter with enemy'],
+          memory_stream: [{
+            timestamp: new Date().toISOString(),
+            event: 'Combat encounter with Guard and Kiera',
+            outcome: 'success',
+            action: 'combat_action'
+          }],
+        },
+        state_updates: {
+          entity_updates: [
+            {
+              id: '00f2f66c-4ece-46df-ace9-af89a488c077', // Bartender
+              path: 'relationships.player.trust',
+              value: -10,
+              description: 'The Bartender glares at you, hand reaching for a club.',
+            },
+            {
+              id: '7a70ee42-101d-4dd3-8cee-2882fdd8a84e', // Bard
+              path: 'relationships.player.trust',
+              value: -5,
+              description: 'The Bard hides behind his lute.',
+            },
+          ],
+          world_updates: {
+            'narrative.atmosphere': 'Hostile',
+          },
         },
       } as T;
     }
@@ -101,12 +143,167 @@ export class MockLlmProvider implements LlmProvider {
     // Default mock response
     return {} as T;
   }
+
+  /**
+   * Generate Mas1Intent[] based on strictly defined test scenarios
+   * @param userText - User input text (normalized to lowercase for matching)
+   * @returns Array of Mas1Intent matching test scenario requirements (validated against schema)
+   */
+  generateMas1(userText: string): Mas1Intent[] {
+    const normalized = userText.toLowerCase().trim();
+    console.log('[MockLlmProvider] generateMas1 called with:', { userText, normalized });
+
+    // Test scenario UUIDs from actual game state
+    // From test story: 901d84d8-ec64-4c0e-86cf-796e10262b97
+    const TARGET_GUARD_ID = '39757d45-2426-4377-a5d0-e99e9681d1ff'; // Garret (Guard Captain)
+    const TARGET_BARTENDER_ID = '00f2f66c-4ece-46df-ace9-af89a488c077'; // Bartender
+    const TARGET_BARD_ID = '7a70ee42-101d-4dd3-8cee-2882fdd8a84e'; // Bard
+    const TARGET_KIERA_ID = '789dbece-3bc9-4080-82ce-31b47139fbb5'; // Kiera (Panther Shifter)
+    const TARGET_CAEL_ID = '4c5bb787-53ce-487d-b574-c7a6c66070e7'; // Cael (Dire Wolf Shifter)
+    // Note: Location IDs are scene IDs (strings), not UUIDs
+    // For navigate actions, we use the scene ID from scene_registry
+    const TARGET_LOCATION_SCENE_ID = 'start_node'; // From scene_registry.active_scene_id
+
+    let rawIntents: Array<Record<string, unknown>> | undefined;
+
+    switch (normalized) {
+      case 'test_combat':
+      case 'test_attack': {
+        // Scenario 1: Multi-Target Combat
+        // Goal: Verify the engine iterates and resolves two separate clashes
+        // Targets: Guard (Garret) and Kiera (Panther Shifter)
+        console.log('[MockLlmProvider] Matched test_combat/test_attack case');
+        rawIntents = [
+          {
+            trigger_id: 'combat_action',
+            target_ids: [TARGET_GUARD_ID, TARGET_KIERA_ID],
+            parameters: {
+              verb: 'slash',
+              tactic_tag: 'aggressive',
+              skill_id: 'root_force',
+            },
+            duration_tag: 'moment',
+            original_text: userText,
+          },
+        ];
+        console.log('[MockLlmProvider] Created rawIntents:', JSON.stringify(rawIntents, null, 2));
+        break;
+      }
+
+      case 'test_mixed': {
+        // Scenario 2: Sequence Aggregation
+        // Goal: Verify the engine applies stamina cost from Intent A, then applies stamina recovery from Intent B
+        // Target: Guard (Garret)
+        rawIntents = [
+          {
+            trigger_id: 'combat_action',
+            target_ids: [TARGET_GUARD_ID],
+            parameters: {
+              verb: 'attack',
+              tactic_tag: 'defensive',
+              skill_id: 'root_force',
+            },
+            duration_tag: 'moment',
+            original_text: userText,
+          },
+          {
+            trigger_id: 'rest_action',
+            target_ids: [],
+            parameters: {
+              verb: 'rest',
+            },
+            duration_tag: 'rest',
+            original_text: userText,
+          },
+        ];
+        break;
+      }
+
+      case 'test_social': {
+        // Scenario 3: Relationship Logic
+        // Goal: Verify apply_relationship_delta maps "flirt" -> "desire"
+        // Target: Bartender (jovial, heavyset)
+        rawIntents = [
+          {
+            trigger_id: 'social_action',
+            target_ids: [TARGET_BARTENDER_ID],
+            parameters: {
+              verb: 'flirt',
+              skill_id: 'root_awareness',
+            },
+            duration_tag: 'scene',
+            original_text: userText,
+          },
+        ];
+        break;
+      }
+
+      case 'test_travel': {
+        // Scenario 4: Time & Gating
+        // Goal: Verify time advancement and hunger decay
+        // Note: Navigate actions typically don't have entity targets, but may reference scene IDs
+        rawIntents = [
+          {
+            trigger_id: 'navigate',
+            target_ids: [], // Navigate actions don't target entities, they target locations/scenes
+            parameters: {
+              verb: 'travel',
+            },
+            duration_tag: 'journey',
+            original_text: userText,
+          },
+        ];
+        break;
+      }
+
+      default: {
+        // NO FALLBACK: Fail fast with clear error for unmatched test scenarios
+        throw new Error(
+          `[MockLlmProvider] Unmatched test scenario: "${userText}". ` +
+          `Supported scenarios: test_combat, test_attack, test_mixed, test_social, test_travel. ` +
+          `If this is a real user input, configure OPENAI_API_KEY to use real LLM.`
+        );
+      }
+    }
+
+    // Safety check: rawIntents should always be set by a case
+    if (!rawIntents) {
+      console.error('[MockLlmProvider] ❌ rawIntents is undefined! Normalized input:', normalized);
+      throw new Error(
+        `[MockLlmProvider] Internal error: rawIntents not initialized for input: "${userText}" (normalized: "${normalized}")`
+      );
+    }
+
+    console.log('[MockLlmProvider] About to validate', rawIntents.length, 'intents');
+    
+    // Validate each intent against the schema before returning
+    try {
+      const validated = rawIntents.map(intent => {
+        console.log('[MockLlmProvider] Validating intent:', JSON.stringify(intent, null, 2));
+        return Mas1IntentSchema.parse(intent);
+      });
+      console.log('[MockLlmProvider] Validation successful, returning', validated.length, 'intents');
+      return validated;
+    } catch (error) {
+      console.error('[MockLlmProvider] ❌ Validation failed:', error);
+      throw error;
+    }
+  }
 }
 
 /**
  * Factory function to create the appropriate LLM provider
+ * Checks for ENABLE_MOCK_AI or USE_MOCK_LLM flag to force mock mode for testing
  */
 export function createLlmProvider(): LlmProvider {
+  // Check for explicit mock flag (takes precedence over API key)
+  const useMock = process.env.ENABLE_MOCK_AI === 'true' || process.env.USE_MOCK_LLM === 'true';
+  
+  if (useMock) {
+    console.log('[LLM Provider] Mock mode forced via ENABLE_MOCK_AI/USE_MOCK_LLM, using Mock provider');
+    return new MockLlmProvider();
+  }
+  
   const apiKey = process.env.OPENAI_API_KEY;
   
   if (apiKey) {

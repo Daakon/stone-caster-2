@@ -217,7 +217,7 @@ export class StoriesRepository {
   async getCompiledStory(storyKey: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
       .eq('story_id', storyKey) // Check story_id column (which often holds the key/slug/uuid)
       .order('version', { ascending: false })
       .limit(1)
@@ -245,7 +245,7 @@ export class StoriesRepository {
   async getCompiledStoryById(id: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
       .eq('id', id)
       .single();
 
@@ -271,7 +271,7 @@ export class StoriesRepository {
   async getCompiledStoryByDraftId(storyId: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
       .eq('story_id', storyId)
       .order('version', { ascending: false })
       .limit(1)

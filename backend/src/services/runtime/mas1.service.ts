@@ -5,9 +5,18 @@
  * Maps user text input to structured actions using LLM
  */
 
-import type { GameState, Mas1ResponseDto } from '@shared/types/chimera-runtime';
-import { Mas1ResponseDtoSchema } from '@shared/types/chimera-runtime';
+import type { GameState, Mas1Intent } from '@shared/types/chimera-runtime';
+import { Mas1IntentSchema } from '@shared/types/chimera-runtime';
 import { LlmService } from '../llm/llm.service';
+import { z } from 'zod';
+
+/**
+ * Schema for MAS-1 response: Object wrapper (required by OpenAI json_object format)
+ * The LLM must return an object, not a raw array, due to response_format: { type: 'json_object' }
+ */
+const Mas1ResponseSchema = z.object({
+  intents: z.array(Mas1IntentSchema),
+});
 
 export class Mas1Service {
   private llmService: LlmService;
@@ -17,65 +26,76 @@ export class Mas1Service {
   }
 
   /**
-   * Resolve user text input into a structured action using LLM
+   * Resolve user text input into structured intents using LLM
    * @param userText - The player's input text
    * @param gameState - Current game state for context
    * @param actionsMap - Map of available actions from compiled story
-   * @returns Mas1ResponseDto with action_slug, parameters, and sentiment
+   * @returns Array of Mas1Intent matching ruleset trigger definitions
+   * @throws Error if LLM provider fails or validation fails - NO FALLBACK
    */
   async resolve(
     userText: string,
     gameState: GameState,
     actionsMap: Record<string, unknown>
-  ): Promise<Mas1ResponseDto> {
-    // Build system prompt with allowed actions
-    const actionKeys = Object.keys(actionsMap);
-    const systemPrompt = `You are the Game Referee. Your job is to identify the user's intent from their natural language input and map it to one of the Allowed Actions.
-
-Allowed Actions: ${actionKeys.length > 0 ? actionKeys.join(', ') : 'wait'}
-
-You must return a JSON object with:
-- action_slug: One of the allowed action keys (must match exactly)
-- parameters: An object with any extracted parameters (target, direction, item, etc.)
-- sentiment: The emotional tone detected (e.g., "aggressive", "curious", "friendly", "neutral", "fearful")
-
-If the user's intent doesn't match any allowed action, choose the closest match or default to "wait".
-Extract any relevant parameters from the user's input (targets, directions, items, etc.).`;
-
-    // Build user prompt with context
-    const tier1Summary = this.summarizeTier1State(gameState.tier1_mechanical);
-    const userPrompt = `User Input: "${userText}"
-
-Current Game State Context:
-${tier1Summary}
-
-Available Actions: ${JSON.stringify(actionKeys)}
-
-Return a JSON object matching the schema.`;
-
-    // Call LLM with JSON mode
-    const response = await this.llmService.generateJSON<Mas1ResponseDto>(
+  ): Promise<Mas1Intent[]> {
+    const systemPrompt = this.buildSystemPrompt(gameState, actionsMap);
+    
+    console.log('[Mas1Service] Resolving user input:', userText);
+    console.log('[Mas1Service] System prompt includes "Action Interpreter":', systemPrompt.includes('Action Interpreter'));
+    
+    // Call LLM provider - Expect { intents: Mas1Intent[] } wrapper
+    // OpenAI requires response_format: { type: 'json_object' }, so we cannot return a raw array
+    // Validation happens in LlmService.generateJSON with Mas1ResponseSchema
+    // If validation fails, error is thrown immediately - no fallback
+    const response = await this.llmService.generateJSON<{ intents: Mas1Intent[] }>(
       systemPrompt,
-      userPrompt,
-      Mas1ResponseDtoSchema
+      userText,
+      Mas1ResponseSchema
     );
-
-    // Validate that the action_slug exists in actionsMap
-    if (!actionsMap[response.action_slug] && actionKeys.length > 0) {
-      // If LLM returned an invalid action, try to find closest match
-      const matchingAction = actionKeys.find(action => 
-        action.includes(response.action_slug) || response.action_slug.includes(action)
+    
+    console.log('[Mas1Service] LLM response received:', {
+      hasIntents: !!response.intents,
+      intentCount: response.intents?.length || 0,
+      firstIntent: response.intents?.[0]?.trigger_id,
+      responseKeys: Object.keys(response || {})
+    });
+    
+    // Unwrap the intents array from the response object
+    if (!response.intents || !Array.isArray(response.intents)) {
+      throw new Error(
+        `[Mas1Service] Invalid response structure: expected { intents: Mas1Intent[] }, got ${JSON.stringify(response)}`
       );
-      
-      if (matchingAction) {
-        response.action_slug = matchingAction;
-      } else {
-        // Default to first available action or 'wait'
-        response.action_slug = actionKeys[0] || 'wait';
-      }
     }
+    
+    if (response.intents.length === 0) {
+      console.warn('[Mas1Service] ⚠️ Received empty intents array for input:', userText);
+    }
+    
+    return response.intents;
+  }
 
-    return response;
+  /**
+   * Build system prompt for MAS1 interpreter
+   */
+  private buildSystemPrompt(gameState: GameState, actionsMap: Record<string, unknown>): string {
+    const stateSummary = this.summarizeTier1State(gameState.tier1_mechanical || {});
+    const actionKeys = Object.keys(actionsMap);
+    
+    return `You are the Chimera Action Interpreter (MAS-1). Your role is to map user text input to structured Mas1Intent objects.
+
+Available trigger IDs: combat_action, social_action, rest_action, attempt_action, navigate
+
+Available actions: ${actionKeys.join(', ')}
+
+Current game state:
+${stateSummary}
+
+Return a JSON object with a key 'intents' containing an array of Mas1Intent objects matching the user's input. Each intent must have:
+- trigger_id: One of the valid trigger IDs
+- target_ids: Array of UUID strings (empty array if no targets)
+- parameters: Object with verb (required), and optionally tactic_tag, difficulty_mod, skill_id
+- duration_tag: moment, scene, journey, or rest
+- original_text: The user's input text`;
   }
 
   /**

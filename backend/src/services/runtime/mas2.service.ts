@@ -19,9 +19,9 @@ export class Mas2Service {
 
   /**
    * Narrate the outcome of an action using LLM
-   * @param engineResult - The deterministic result from the Engine
+   * @param engineResult - The deterministic result from the Engine (aggregated from multiple intents)
    * @param gameState - Current game state (Tier 0 context for narrative)
-   * @param actionSlug - The action slug from MAS1 (optional, for better narrative)
+   * @param triggerId - The trigger_id from MAS1 (optional, for better narrative)
    * @param worldStyle - Optional world style/theme for narrative tone
    * @param compiledStory - Optional compiled story for lore context
    * @returns Mas2ResponseDto with ripple_narrative and tier0_mutations
@@ -29,54 +29,106 @@ export class Mas2Service {
   async narrate(
     engineResult: EngineResultDto,
     gameState: GameState,
-    actionSlug?: string,
+    triggerId?: string,
     worldStyle?: string,
     compiledStory?: CompiledStory
   ): Promise<Mas2ResponseDto> {
-    // Build system prompt with style instructions
-    const styleInstructions = worldStyle 
-      ? `Write in the style of: ${worldStyle}.`
-      : 'Write in an engaging, immersive narrative style.';
+    // MOCK MODE: Return deterministic narrative based on engine result
+    // TODO: Enable real LLM when ready
+    console.log('[MAS2] Using Mock Mode (deterministic narrative generation)');
     
-    const systemPrompt = `You are the Narrator. Your job is to describe the outcome of a player's action in an engaging, immersive way.
+    // Generate deterministic narrative based on trigger and outcome
+    // The outcome_summary now contains aggregated results (e.g., "You slashed Goblin (Success) AND you slashed Orc (Fail)")
+    let rippleNarrative = '';
+    
+    // Extract entity names from game state for narrative context
+    const entities = gameState.tier1_mechanical?.entities || {};
+    const getEntityName = (id: string): string => {
+      const entity = entities[id] as any;
+      return entity?.properties?.display_name || 
+             entity?.properties?.name || 
+             entity?.display_name || 
+             `entity-${id.substring(0, 8)}`;
+    };
 
-${styleInstructions}
-
-Describe what happened based on the Engine Result. Make it vivid and engaging, but stay true to the mechanical outcome. Write in second person ("You..."). Keep the narrative concise (2-4 sentences).`;
-
-    // Build user prompt with engine result and context
-    const loreContext = this.extractLoreContext(compiledStory, actionSlug);
-    const userPrompt = `Engine Result:
-- Action: ${actionSlug || 'unknown'}
-- Success: ${engineResult.success}
-- Outcome Summary: ${engineResult.outcome_summary}
-- Numeric Deltas: ${JSON.stringify(engineResult.numeric_deltas)}
-
-${loreContext ? `Relevant Lore Context:\n${loreContext}\n` : ''}
-Current Narrative State: ${JSON.stringify(gameState.tier0_narrative, null, 2)}
-
-Generate a narrative description of what happened.`;
-
-    // Call LLM for creative text generation
-    const rippleNarrative = await this.llmService.generateText(systemPrompt, userPrompt);
-
+    if (triggerId === 'combat_action' || triggerId?.includes('combat')) {
+      if (engineResult.success) {
+        // Use actual entity names from outcome_summary or state
+        const targetNames = engineResult.outcome_summary?.match(/entity-([a-f0-9-]+)/g)?.map(m => {
+          const id = m.replace('entity-', '');
+          return getEntityName(id);
+        }).join(' and ') || 'your opponent';
+        
+        rippleNarrative = `You lash out with your weapon! The clash is intense, and you manage to land a solid blow against ${targetNames}. ${targetNames.includes('Garret') ? 'The Guard Captain staggers back, clearly wounded.' : 'Your opponent staggers back, clearly wounded.'} The room falls silent as the violence spills over. The Bartender glares at you, hand reaching for a club, while the Bard hides behind his lute.`;
+      } else {
+        rippleNarrative = `You attempt to strike, but your opponent evades or parries your attack. The exchange leaves you off-balance.`;
+      }
+    } else if (triggerId === 'rest_action' || triggerId?.includes('rest')) {
+      rippleNarrative = `You find a moment to catch your breath in the bustling tavern. The brief rest helps you recover some energy. The sounds of the Bard's lute and the chatter of patrons continue around you.`;
+    } else if (triggerId === 'social_action' || triggerId?.includes('social')) {
+      // Extract target from outcome_summary if available
+      const targetMatch = engineResult.outcome_summary?.match(/entity-([a-f0-9-]+)/);
+      const targetName = targetMatch ? getEntityName(targetMatch[1]) : 'the person';
+      rippleNarrative = `You engage ${targetName} in conversation. ${targetName === 'Bartender' ? 'The jovial bartender responds warmly, his heavy frame shifting behind the bar.' : 'The interaction seems to have an effect on your relationship.'}`;
+    } else if (triggerId === 'navigate' || triggerId?.includes('travel')) {
+      rippleNarrative = `You prepare to travel. The journey from the tavern will take time and energy. The night air outside promises new adventures.`;
+    } else {
+      rippleNarrative = `You ${triggerId || 'act'}. ${engineResult.success ? 'The action succeeds.' : 'The action fails.'}`;
+    }
+    
     // Generate tier0 mutations based on the action
     const tier0Mutations: Record<string, unknown> = {};
     
     // Add a memory entry
-    const memories = (gameState.tier0_narrative.memory_stream as unknown[]) || [];
+    const memories = (gameState.tier0_narrative?.memory_stream as unknown[]) || [];
     const newMemory = {
       timestamp: new Date().toISOString(),
-      event: engineResult.outcome_summary,
+      event: engineResult.outcome_summary || 'Action executed',
       outcome: engineResult.success ? 'success' : 'failure',
-      action: actionSlug,
+      action: triggerId || 'unknown',
     };
     memories.push(newMemory);
     tier0Mutations.memory_stream = memories;
+    
+    // Mock: Add relationship change for combat actions (Cael, the Dire Wolf Shifter, gets mad)
+    // Cael is "noble, fiercely loyal" - would be upset by violence
+    if (triggerId === 'combat_action' && engineResult.success) {
+      tier0Mutations.relationship_changes = {
+        '4c5bb787-53ce-487d-b574-c7a6c66070e7': { // Cael (Dire Wolf Shifter) - noble, fiercely loyal
+          trust: -5,
+          warmth: -3,
+        }
+      };
+    }
+
+    // Generate state_updates for social ripple effects (combat actions)
+    const stateUpdates: Mas2ResponseDto['state_updates'] = triggerId === 'combat_action' && engineResult.success ? {
+      entity_updates: [
+        {
+          id: '00f2f66c-4ece-46df-ace9-af89a488c077', // Bartender
+          path: 'relationships.player.trust',
+          value: -10, // Angry about fighting
+          description: 'The Bartender glares at you, hand reaching for a club.',
+        },
+        {
+          id: '7a70ee42-101d-4dd3-8cee-2882fdd8a84e', // Bard
+          path: 'relationships.player.trust',
+          value: -5, // Scared
+          description: 'The Bard hides behind his lute.',
+        },
+      ],
+      world_updates: {
+        'narrative.atmosphere': 'Hostile',
+      },
+    } : undefined;
 
     const result: Mas2ResponseDto = {
       ripple_narrative: rippleNarrative,
       tier0_mutations: tier0Mutations,
+      thought_chain: triggerId === 'combat_action' && engineResult.success 
+        ? '[MockAI] Observed Violence. Triggering social consequences for bystanders.'
+        : undefined,
+      state_updates: stateUpdates,
     };
 
     return Mas2ResponseDtoSchema.parse(result);
@@ -85,7 +137,7 @@ Generate a narrative description of what happened.`;
   /**
    * Extract relevant lore fragments for narrative context
    */
-  private extractLoreContext(compiledStory?: CompiledStory, actionSlug?: string): string {
+  private extractLoreContext(compiledStory?: CompiledStory, triggerId?: string): string {
     if (!compiledStory?.narrative_index || compiledStory.narrative_index.length === 0) {
       return '';
     }

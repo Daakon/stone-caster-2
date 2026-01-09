@@ -41,7 +41,7 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         setInspectEntity(entity);
     };
 
-    // Extract History
+    // Extract History - MUST be called before any conditional returns
     const history = useActiveGameStore(state => {
         const gs = state.gameState as any;
         return gs?.narrative_focus?.dialogue_history ||
@@ -50,6 +50,11 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
             gs?.narrative?.history ||
             [];
     });
+
+    // State Extraction - MUST be called before any conditional returns
+    const storeState = useActiveGameStore(state => state.gameState);
+    const storeEntities = useActiveGameStore(state => state.entities);
+    const storeVitals = useActiveGameStore(state => state.vitals);
 
     const { data: gameState, isLoading, error } = useQuery({
         queryKey: ['game-state', gameStateId],
@@ -123,7 +128,6 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     }];
 
     // State Extraction - Read from store for optimistic updates, fallback to React Query
-    const storeState = useActiveGameStore(state => state.gameState);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anyState = (storeState || gameState) as any;
     const mechanical = anyState?.mechanical_state || anyState?.tier1_mechanical || anyState?.mechanical || {};
@@ -133,8 +137,6 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     const sceneContext = narrative?.scene_context || {};
 
     // Entities & Player - Use store entities for reactivity
-    const storeEntities = useActiveGameStore(state => state.entities);
-    const storeVitals = useActiveGameStore(state => state.vitals);
     const entities = storeEntities && Object.keys(storeEntities).length > 0 
         ? storeEntities 
         : (mechanical?.entities || {});

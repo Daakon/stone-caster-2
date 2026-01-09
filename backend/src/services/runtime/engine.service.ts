@@ -4,23 +4,24 @@
  * Deterministic action processing - no LLM calls, pure logic
  */
 
-import type { GameState, Mas1ResponseDto, EngineResultDto } from '@shared/types/chimera-runtime';
+import type { GameState, Mas1Intent, EngineResultDto } from '@shared/types/chimera-runtime';
 import { EngineResultDtoSchema } from '@shared/types/chimera-runtime';
 
 export class EngineService {
   /**
    * Execute an action deterministically
-   * @param mas1Result - The interpreted action from MAS1
+   * @param intent - The interpreted intent from MAS1
    * @param gameState - Current game state
    * @param actionsMap - Map of action definitions from compiled story
    * @returns EngineResultDto with success, outcome_summary, and numeric_deltas
    */
   async execute(
-    mas1Result: Mas1ResponseDto,
+    intent: Mas1Intent,
     gameState: GameState,
     actionsMap: Record<string, unknown>
   ): Promise<EngineResultDto> {
-    const actionSlug = mas1Result.action_slug;
+    // Map trigger_id to action slug (existing logic)
+    const actionSlug = this.mapTriggerToActionSlug(intent.trigger_id, actionsMap);
     const actionDef = actionsMap[actionSlug];
 
     if (!actionDef) {
@@ -51,14 +52,30 @@ export class EngineService {
 
     if (logic && logic !== 'none') {
       // Parse dice codes and resolve action
-      const result = this.parseAndResolveLogic(logic, gameState, mas1Result.parameters, actionSlug, mas1Result, action);
+      // Handle multiple targets if present
+      const result = this.parseAndResolveLogic(
+        logic,
+        gameState,
+        intent.parameters,
+        actionSlug,
+        intent,
+        action,
+        intent.target_ids
+      );
       success = result.success;
       outcomeSummary = result.summary;
       Object.assign(numericDeltas, result.deltas);
     } else {
       // Simple action without dice logic
       success = true;
-      outcomeSummary = `Executed action: ${actionSlug}`;
+      
+      // Build outcome summary with target information
+      if (intent.target_ids.length > 0) {
+        const targetNames = intent.target_ids.map(id => `entity-${id.substring(0, 8)}`).join(' and ');
+        outcomeSummary = `Executed ${intent.parameters.verb} on ${targetNames}`;
+      } else {
+        outcomeSummary = `Executed action: ${actionSlug}`;
+      }
       
       // Apply any direct deltas from action definition
       if (action.deltas && typeof action.deltas === 'object') {
@@ -81,16 +98,46 @@ export class EngineService {
   }
 
   /**
+   * Map trigger_id to action slug (ruleset matching logic)
+   */
+  private mapTriggerToActionSlug(triggerId: string, actionsMap: Record<string, unknown>): string {
+    // Existing logic: map trigger_id to action slug
+    // combat_action -> resolve_clash
+    // social_action -> apply_relationship_delta
+    // rest_action -> take_rest
+    // etc.
+    const triggerMap: Record<string, string> = {
+      combat_action: 'resolve_clash',
+      social_action: 'apply_relationship_delta',
+      rest_action: 'take_rest',
+      attempt_action: 'attempt_action',
+      navigate: 'navigate',
+    };
+
+    const mappedSlug = triggerMap[triggerId];
+    if (mappedSlug && actionsMap[mappedSlug]) {
+      return mappedSlug;
+    }
+
+    // Fallback: try to find action with matching key
+    const actionKeys = Object.keys(actionsMap);
+    const matchingAction = actionKeys.find(key => key.includes(triggerId) || triggerId.includes(key));
+    return matchingAction || actionKeys[0] || 'wait';
+  }
+
+  /**
    * Parse dice code logic and resolve it
    * Supports patterns like "1d20 + str vs 15" or "2d6 + 3"
+   * Now handles multiple targets via target_ids array
    */
   private parseAndResolveLogic(
     logic: string,
     gameState: GameState,
     parameters: Record<string, unknown>,
     actionSlug: string,
-    mas1Result: Mas1ResponseDto,
-    actionDef: Record<string, unknown>
+    intent: Mas1Intent,
+    actionDef: Record<string, unknown>,
+    targetIds: string[] = []
   ): { success: boolean; summary: string; deltas: Record<string, number> } {
     // Parse dice codes: (\d+)d(\d+)
     const dicePattern = /(\d+)d(\d+)/g;
@@ -166,28 +213,52 @@ export class EngineService {
       : `${diceStr}`;
 
     // Calculate deltas based on success/failure
+    // Handle multiple targets: apply action to each target
     const deltas: Record<string, number> = {};
+    const targetResults: string[] = [];
     
     // Extract damage/healing from action definition, parameters, or default
     const damage = (actionDef.damage as number) || (parameters.damage as number);
     const healing = (actionDef.healing as number) || (parameters.healing as number);
     
-    if (damage && typeof damage === 'number') {
-      const target = (mas1Result.parameters.target as string) || (parameters.target as string) || 'enemy';
-      const deltaPath = `entities.${target}.stats.hp`;
-      deltas[deltaPath] = success ? -damage : 0;
-    } else if (healing && typeof healing === 'number') {
-      const target = (mas1Result.parameters.target as string) || (parameters.target as string) || 'player';
-      const deltaPath = `entities.${target}.stats.hp`;
-      deltas[deltaPath] = success ? healing : 0;
-    } else if (actionSlug === 'attack' && success) {
-      // Default attack damage if not specified - roll 1d6
-      const target = (mas1Result.parameters.target as string) || 'enemy';
-      const rolledDamage = this.rollDice('1d6');
-      deltas[`entities.${target}.stats.hp`] = -rolledDamage;
+    // Process each target in the target_ids array
+    const targetsToProcess = targetIds.length > 0 ? targetIds : ['default'];
+    
+    for (const targetId of targetsToProcess) {
+      let targetSuccess = success;
+      let targetSummary = summary;
+      
+      // For multi-target actions, roll separately for each target
+      // Note: In a full implementation, each target would get its own roll
+      // For now, we use the same roll result but apply it to each target
+      targetSuccess = success;
+      targetSummary = summary;
+      
+      // Build target-specific result summary
+      const targetLabel = targetId === 'default' ? 'target' : `entity-${targetId.substring(0, 8)}`;
+      targetResults.push(`${targetLabel} (${targetSuccess ? 'Success' : 'Fail'})`);
+      
+      // Apply damage/healing to this target
+      if (damage && typeof damage === 'number') {
+        const deltaPath = `entities.${targetId}.stats.hp`;
+        deltas[deltaPath] = (deltas[deltaPath] || 0) + (targetSuccess ? -damage : 0);
+      } else if (healing && typeof healing === 'number') {
+        const deltaPath = `entities.${targetId}.stats.hp`;
+        deltas[deltaPath] = (deltas[deltaPath] || 0) + (targetSuccess ? healing : 0);
+      } else if ((actionSlug === 'attack' || actionSlug === 'resolve_clash') && targetSuccess) {
+        // Default attack damage if not specified - roll 1d6
+        const rolledDamage = this.rollDice('1d6');
+        const deltaPath = `entities.${targetId}.stats.hp`;
+        deltas[deltaPath] = (deltas[deltaPath] || 0) - rolledDamage;
+      }
     }
+    
+    // Build combined summary for multiple targets
+    const combinedSummary = targetIds.length > 1
+      ? `You ${intent.parameters.verb} ${targetResults.join(' AND ')}`
+      : summary;
 
-    return { success, summary, deltas };
+    return { success, summary: combinedSummary, deltas };
   }
 
   /**

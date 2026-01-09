@@ -98,6 +98,62 @@ export type AiAuditLog = z.infer<typeof AiAuditLogSchema>;
 
 
 /**
+ * Mas1Intent - Robust Schema for Ruleset Engine
+ * Matches ruleset trigger.keyword_id definitions and supports multiple targets
+ */
+export const Mas1IntentSchema = z.object({
+  /**
+   * Trigger ID matching ruleset trigger.keyword_id
+   * Must match one of the valid trigger IDs from ruleset definitions
+   */
+  trigger_id: z.enum(['combat_action', 'social_action', 'rest_action', 'attempt_action', 'navigate']),
+  
+  /**
+   * Target IDs - Array of UUIDs resolved from entity names
+   * Supports multiple targets per action (e.g., "I attack the Goblin and the Orc")
+   */
+  target_ids: z.array(z.string().uuid()),
+  
+  /**
+   * Action parameters extracted from user input
+   */
+  parameters: z.object({
+    /**
+     * Verb extracted from user input (e.g., "slash", "attack", "intimidate")
+     */
+    verb: z.string(),
+    
+    /**
+     * Tactic tag indicating approach (e.g., "aggressive", "defensive", "trickery", "reckless")
+     * Maps to ruleset action logic modifiers
+     */
+    tactic_tag: z.string().optional(),
+    
+    /**
+     * Difficulty modifier for skill checks
+     */
+    difficulty_mod: z.number().optional(),
+    
+    /**
+     * Skill ID to use for resolution (e.g., "root_force", "root_finesse", "root_awareness")
+     */
+    skill_id: z.string().optional(),
+  }),
+  
+  /**
+   * Duration tag indicating action scope
+   */
+  duration_tag: z.enum(['moment', 'scene', 'journey', 'rest']),
+  
+  /**
+   * Original user input text for reference
+   */
+  original_text: z.string(),
+});
+
+export type Mas1Intent = z.infer<typeof Mas1IntentSchema>;
+
+/**
  * Mas1ResponseDto (Legacy/Compat - to be refactored into GameTurn.mas1_intent)
  */
 export const Mas1ResponseDtoSchema = z.object({
@@ -123,6 +179,16 @@ export type EngineResultDto = z.infer<typeof EngineResultDtoSchema>;
 export const Mas2ResponseDtoSchema = z.object({
   ripple_narrative: z.string(),
   tier0_mutations: z.record(z.string(), z.unknown()).default({}),
+  thought_chain: z.string().optional(),
+  state_updates: z.object({
+    entity_updates: z.array(z.object({
+      id: z.string().uuid(),
+      path: z.string(),
+      value: z.union([z.number(), z.string(), z.boolean()]),
+      description: z.string().optional(),
+    })).default([]),
+    world_updates: z.record(z.string(), z.unknown()).default({}),
+  }).optional(),
 });
 export type Mas2ResponseDto = z.infer<typeof Mas2ResponseDtoSchema>;
 
