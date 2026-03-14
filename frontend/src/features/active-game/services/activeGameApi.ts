@@ -13,10 +13,10 @@ export const activeGameApi = {
      * @param payload Input text and optional entity ID
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    submitTurn: async (gameId: string, payload: SubmitTurnPayload): Promise<{ turn: any; delta: any }> => {
+    submitTurn: async (gameId: string, payload: SubmitTurnPayload): Promise<{ turn: any; delta: any; new_logs?: any[] }> => {
         console.log('[activeGameApi] submitTurn called', { gameId, payload });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = await apiPost<{ turn: any; delta: any }>(`/api/games/${gameId}/turn`, payload);
+        const result = await apiPost<{ turn: any; delta: any; new_logs?: any[] }>(`/api/games/${gameId}/turn`, payload);
         console.log('[activeGameApi] submitTurn result', result);
 
         if (!result.ok) {

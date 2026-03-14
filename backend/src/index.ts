@@ -42,14 +42,15 @@ app.use(cors({
 
     // Define allowed origins
     const allowedOrigins = [
-      'http://localhost:5173',  // Local development (Vite default)
-      'http://localhost:4173',  // Local development (Vite preview)
-      'http://localhost:3000',  // Local development (alternative port)
       'https://stonecaster.ai', // Production frontend (HTTPS)
       'https://www.stonecaster.ai', // Production frontend with www (HTTPS)
       'http://stonecaster.ai', // Production frontend fallback (HTTP)
       'http://www.stonecaster.ai', // Production frontend fallback with www (HTTP)
     ];
+
+    // In development, allow any localhost port
+    const localhostPattern = /^http:\/\/localhost:\d+$/;
+    const isLocalhost = localhostPattern.test(origin);
 
     // Also allow any subdomain of stonecaster.ai (e.g., preview hosts)
     const stonecasterSubdomain = /^https:\/\/([a-z0-9-]+\.)*stonecaster\.ai$/i;
@@ -60,13 +61,13 @@ app.use(cors({
     }
 
     // Check if origin is allowed
-    if (allowedOrigins.includes(origin) || stonecasterSubdomain.test(origin)) {
+    if (allowedOrigins.includes(origin) || stonecasterSubdomain.test(origin) || isLocalhost) {
       return callback(null, true);
     }
 
     // Log the blocked origin for debugging
     console.log(`[CORS] Blocked origin: ${origin}`);
-    console.log(`[CORS] Allowed origins: ${allowedOrigins.join(', ')}`);
+    console.log(`[CORS] Allowed origins: ${allowedOrigins.join(', ')} + localhost:*`);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,

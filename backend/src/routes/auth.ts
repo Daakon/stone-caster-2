@@ -40,11 +40,14 @@ router.post('/magic/start', async (req: Request, res: Response) => {
     // Validate request body
     const { email } = MagicLinkStartSchema.parse(req.body);
 
+    // Use the request origin for redirect, fallback to config
+    const origin = req.get('origin') || config.web.baseUrl;
+
     // Send magic link via Supabase
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${config.web.baseUrl}/auth/callback`,
+        emailRedirectTo: `${origin}/auth/callback`,
       },
     });
 
@@ -168,11 +171,14 @@ router.get('/oauth/:provider/start', async (req: Request, res: Response) => {
     })).toString('base64');
 
     // Build redirectTo based on destination
+    // Use the request origin for redirect, fallback to config
+    const origin = req.get('origin') || config.web.baseUrl;
+
     let redirectTo: string;
     if (destination === 'api') {
       redirectTo = `${config.apiBase.baseUrl}/api/auth/oauth/${provider}/callback`;
     } else {
-      redirectTo = `${config.web.baseUrl}/auth/callback`;
+      redirectTo = `${origin}/auth/callback`;
     }
 
     // Guard: reject localhost in production
@@ -293,8 +299,12 @@ router.get('/oauth/:provider/callback', async (req: Request, res: Response) => {
       );
     }
 
-    // Redirect to frontend with success (use new webBaseUrl)
-    const successUrl = `${config.web.baseUrl}/auth/success?user=${encodeURIComponent(JSON.stringify({
+    // Redirect to frontend with success
+    // Use the referer origin if available, fallback to config
+    const referer = req.get('referer') || '';
+    const refererOrigin = referer ? new URL(referer).origin : config.web.baseUrl;
+
+    const successUrl = `${refererOrigin}/auth/success?user=${encodeURIComponent(JSON.stringify({
       id: data.user.id,
       email: data.user.email,
       isGuest: false,
@@ -312,7 +322,10 @@ router.get('/oauth/:provider/callback', async (req: Request, res: Response) => {
     }
 
     console.error('OAuth callback error:', error);
-    res.redirect(`${config.web.baseUrl}/auth/error?message=${encodeURIComponent('Authentication failed')}`);
+    // Use the referer origin if available, fallback to config
+    const referer = req.get('referer') || '';
+    const refererOrigin = referer ? new URL(referer).origin : config.web.baseUrl;
+    res.redirect(`${refererOrigin}/auth/error?message=${encodeURIComponent('Authentication failed')}`);
   }
 });
 

@@ -39,16 +39,21 @@ export class OpenAILlmProvider implements LlmProvider {
     // This allows test scenarios to work even when OPENAI_API_KEY is set
     const normalizedInput = userPrompt.toLowerCase().trim();
     const isTestScenario = [
-      'test_combat', 
-      'test_attack', 
-      'test_mixed', 
-      'test_social', 
+      'test_combat',
+      'test_attack',
+      'test_mixed',
+      'test_social',
       'test_travel',
       'test_drunk_combat',
       'test_protective_combat'
     ].includes(normalizedInput);
-    
-    if (isTestScenario && (systemPrompt.includes('Action Interpreter') || systemPrompt.includes('map the user'))) {
+
+    if (isTestScenario && (
+      systemPrompt.includes('Action Interpreter') ||
+      systemPrompt.includes('map the user') ||
+      systemPrompt.includes('Director') ||
+      systemPrompt.includes('Strategic Lead')
+    )) {
       console.log('[OpenAILlmProvider] Detected test scenario, delegating to MockLlmProvider');
       const mockProvider = new MockLlmProvider();
       return mockProvider.generateJson<T>(systemPrompt, userPrompt);
@@ -79,7 +84,7 @@ export class OpenAILlmProvider implements LlmProvider {
 
       const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
       const content = data.choices?.[0]?.message?.content;
-      
+
       if (!content) {
         throw new Error('No content in OpenAI response');
       }
@@ -106,7 +111,6 @@ export class MockLlmProvider implements LlmProvider {
     // Return a mock response based on the prompt content
     if (systemPrompt.includes('Action Interpreter') || systemPrompt.includes('map the user')) {
       // Mock MAS1 response - Returns { intents: Mas1Intent[] } wrapper
-      // OpenAI requires json_object format, so we wrap the array in an object
       console.log('[MockLlmProvider] Detected Action Interpreter prompt, calling generateMas1');
       const intents = this.generateMas1(userPrompt);
       console.log('[MockLlmProvider] generateMas1 returned', intents.length, 'intents');
@@ -114,10 +118,17 @@ export class MockLlmProvider implements LlmProvider {
       const wrapped = { intents };
       console.log('[MockLlmProvider] Returning wrapped response:', JSON.stringify(wrapped, null, 2));
       return wrapped as unknown as T;
+    } else if (systemPrompt.includes('Director') || systemPrompt.includes('Strategic Lead')) {
+      // Mock Director response - Returns DirectorUnifiedIntent
+      console.log('[MockLlmProvider] Detected Director prompt, calling generateDirector');
+      const directorIntent = this.generateDirector(userPrompt);
+      console.log('[MockLlmProvider] generateDirector returned intent queue size:', directorIntent.intent_queue.length);
+      return directorIntent as unknown as T;
     } else if (systemPrompt.includes('Narrate') || systemPrompt.includes('narrative')) {
       // Mock MAS2 response - matches actual test story entities
       return {
         ripple_narrative: 'You lash out with your weapon! The clash is intense, and you manage to land a solid blow against Garret and Kiera. The Guard Captain staggers back, clearly wounded. The room falls silent as the violence spills over. The Bartender glares at you, hand reaching for a club, while the Bard hides behind his lute.',
+        thought_chain: 'The player is attacking the guard. The guard is wounded. The bartender is hostile. The bard is scared.',
         tier0_mutations: {
           memory_stream: [{
             timestamp: new Date().toISOString(),
@@ -150,6 +161,160 @@ export class MockLlmProvider implements LlmProvider {
 
     // Default mock response
     return {} as T;
+  }
+
+  /**
+   * Generate DirectorUnifiedIntent based on strict test scenarios
+   */
+  generateDirector(userText: string): any {
+    const normalized = userText.toLowerCase().trim();
+    console.log('[MockLlmProvider] generateDirector called with:', { userText, normalized });
+
+    const TARGET_GUARD_ID = '39757d45-2426-4377-a5d0-e99e9681d1ff'; // Garret
+    const TARGET_KIERA_ID = '789dbece-3bc9-4080-82ce-31b47139fbb5'; // Kiera
+    const TARGET_BARTENDER_ID = '00f2f66c-4ece-46df-ace9-af89a488c077';
+    // const TARGET_BARD_ID = '7a70ee42-101d-4dd3-8cee-2882fdd8a84e';
+
+    // Base structure
+    const baseResponse = {
+      turn_meta: {
+        resolution_mode: 'engine',
+        atmosphere_shift: 'Tense',
+        time_jump_minutes: 0,
+      },
+      unseen_ripples: [],
+      intent_queue: [],
+    };
+
+    switch (normalized) {
+      case 'test_combat':
+      case 'test_attack':
+        // Scene: Multi-Target Combat
+        return {
+          ...baseResponse,
+          intent_queue: [
+            {
+              actor_id: '00000000-0000-0000-0000-000000000000', // Will be replaced by service logic if needed, or ignored 
+              trigger_id: 'combat_action',
+              intended_targets: [TARGET_GUARD_ID, TARGET_KIERA_ID],
+              proximity_cluster: [TARGET_BARTENDER_ID],
+              parameters: {
+                verb: 'slash',
+                tactic_tag: 'aggressive',
+                skill_id: 'root_force',
+                impact_tier: 'Moderate'
+              }
+            }
+          ]
+        };
+
+      case 'test_mixed':
+        // Sequence: Attack then Rest
+        return {
+          ...baseResponse,
+          intent_queue: [
+            {
+              actor_id: '00000000-0000-0000-0000-000000000000',
+              trigger_id: 'combat_action',
+              intended_targets: [TARGET_GUARD_ID],
+              proximity_cluster: [],
+              parameters: {
+                verb: 'attack',
+                tactic_tag: 'defensive',
+                skill_id: 'root_force',
+                impact_tier: 'Low'
+              }
+            },
+            {
+              actor_id: '00000000-0000-0000-0000-000000000000',
+              trigger_id: 'rest_action',
+              intended_targets: [],
+              proximity_cluster: [],
+              parameters: {
+                verb: 'rest',
+                impact_tier: 'Low'
+              }
+            }
+          ],
+          turn_meta: { ...baseResponse.turn_meta, time_jump_minutes: 15 } // Rest takes time
+        };
+
+      case 'test_social':
+        // Social action
+        return {
+          ...baseResponse,
+          turn_meta: { ...baseResponse.turn_meta, resolution_mode: 'narrative' },
+          intent_queue: [
+            {
+              actor_id: '00000000-0000-0000-0000-000000000000',
+              trigger_id: 'social_action',
+              intended_targets: [TARGET_BARTENDER_ID],
+              proximity_cluster: [],
+              parameters: {
+                verb: 'flirt',
+                skill_id: 'root_awareness',
+                impact_tier: 'Moderate'
+              }
+            }
+          ],
+          unseen_ripples: [
+            {
+              target_id: TARGET_BARTENDER_ID,
+              type: 'emotional',
+              delta_tier: 'Minor',
+              property_path: 'relationships.player.desire',
+              reason: 'Player flirted successfully'
+            }
+          ]
+        };
+
+      case 'test_travel':
+        return {
+          ...baseResponse,
+          intent_queue: [
+            {
+              actor_id: '00000000-0000-0000-0000-000000000000',
+              trigger_id: 'navigate',
+              intended_targets: [],
+              proximity_cluster: [],
+              parameters: {
+                verb: 'travel',
+                impact_tier: 'Low'
+              }
+            }
+          ],
+          turn_meta: { ...baseResponse.turn_meta, time_jump_minutes: 60 }
+        };
+
+      case 'test_drunk_combat':
+      case 'test_protective_combat':
+        // For these, we just return a standard combat intent but maybe add a ripple or just let logic handle it.
+        // Director unified intent doesn't have 'situational_tags' directly in intent_queue items in the schema I saw?
+        // Checking schema: intent_queue items have parameters. 
+        // Director schema doesn't seem to have situational_tags per intent?
+        // Ah, Mas1Intent had it. 
+        // We'll map it to tactic_tag or just standard combat for now.
+        return {
+          ...baseResponse,
+          intent_queue: [
+            {
+              actor_id: '00000000-0000-0000-0000-000000000000',
+              trigger_id: 'combat_action',
+              intended_targets: [TARGET_GUARD_ID],
+              proximity_cluster: [],
+              parameters: {
+                verb: 'attack',
+                tactic_tag: 'aggressive',
+                skill_id: 'root_force',
+                impact_tier: 'Moderate'
+              }
+            }
+          ]
+        };
+
+      default:
+        throw new Error(`[MockLlmProvider] Unmatched Director test scenario: "${userText}"`);
+    }
   }
 
   /**
@@ -329,7 +494,7 @@ export class MockLlmProvider implements LlmProvider {
     }
 
     console.log('[MockLlmProvider] About to validate', rawIntents.length, 'intents');
-    
+
     // Validate each intent against the schema before returning
     try {
       const validated = rawIntents.map(intent => {
@@ -352,18 +517,18 @@ export class MockLlmProvider implements LlmProvider {
 export function createLlmProvider(): LlmProvider {
   // Check for explicit mock flag (takes precedence over API key)
   const useMock = process.env.ENABLE_MOCK_AI === 'true' || process.env.USE_MOCK_LLM === 'true';
-  
+
   if (useMock) {
     console.log('[LLM Provider] Mock mode forced via ENABLE_MOCK_AI/USE_MOCK_LLM, using Mock provider');
     return new MockLlmProvider();
   }
-  
+
   const apiKey = process.env.OPENAI_API_KEY;
-  
+
   if (apiKey) {
     return new OpenAILlmProvider(apiKey);
   }
-  
+
   console.warn('[LLM Provider] No OPENAI_API_KEY found, using Mock provider');
   return new MockLlmProvider();
 }

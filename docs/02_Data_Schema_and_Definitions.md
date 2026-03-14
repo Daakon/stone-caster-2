@@ -16,7 +16,7 @@ The overall platform enabling authors to build worlds, compile stories, and deli
 The runtime logic and prompt-governance system that interprets player actions, resolves outcomes deterministically, and generates narrative.
 
 **Chimera Engine Workflow**
-The structured pipeline governing how prompts, state, and logic interact: **MAS-1 → Engine → MAS-2**
+The structured pipeline governing how prompts, state, and logic interact: **Director → Engine → Narrator**
 
 **Compiler**
 Transforms author-created content + selected rulesets into a **Compiled Story**, including schema definitions, initial state, instruction bundles, and lore index metadata.
@@ -53,18 +53,18 @@ All actors in the story (player + NPCs), including identity, stats, personality,
 **Tier 2 (T2) — Systems**
 Global and systemic mechanics: stamina, hunger, combat states, magic system values, agendas, survival flags.
 
-## 3. MAS Model Terms
+## 3. Director-Narrator Model Terms
 
-**MAS-1 (Action Interpreter)**
-Role: Interpret player text, extract intent, determine skill route, assign duration tag, and detect gating failures.
-*Output: Structured JSON only.*
+**Director (Strategic Lead)**
+Role: Interpret player text, extract intent, determine skill route, assign duration tag, and detect gating failures. Defines social reality and queues tactical actions.
+*Output: Unified Intent DTO with intent_queue, unseen_ripples, and proximity_cluster.*
 
-**MAS-2 (Narrative Engine)**
-Role: Narrate outcome, apply style injections, reflect state readouts, embody NPC moods, and integrate lore.
+**Narrator (Cinematic Lead)**
+Role: Narrate outcome, apply style injections, reflect state readouts, embody NPC moods, and integrate lore. Synthesizes Director's intent with Engine's results.
 *Output: Structured JSON with narration and hints.*
 
 **Instructions Bundle**
-Compiler-generated set of constraints and style rules applied to MAS-1 and MAS-2.
+Compiler-generated set of constraints and style rules applied to Director and Narrator.
 
 ## 4. Ruleset Terms
 
@@ -80,13 +80,13 @@ A JSON merge defining new or modified fields in T0/T1/T2.
 ## 5. Engine Terms
 
 **Resolution Summary**
-The Engine's distilled description of action outcome (success, fail, strain). Used as MAS-2 context.
+The Engine's distilled description of action outcome (success, fail, strain). Used as Narrator context.
 
 **State Delta**
 Minimal changes applied to the previous state to form the new state.
 
 **Duration Tag**
-Used by MAS-1 and Engine to advance time: *moment, scene, journey, rest*.
+Used by Director and Engine to advance time: *moment, scene, journey, rest*.
 
 **Hard Gate**
 A rule preventing an action (e.g., collapsed stamina blocks travel).
@@ -109,7 +109,7 @@ A memory or shared history that colors NPC reactions in the current turn.
 
 # PART 2: DOMAIN MODEL AND JSON SPECIFICATIONS
 
-StoneCaster uses a **deterministic tiered world model**. This structure is **compiled**, not free-form. MAS-1/MAS-2 *must obey* the resulting schema.
+StoneCaster uses a **deterministic tiered world model**. This structure is **compiled**, not free-form. Director/Narrator *must obey* the resulting schema.
 
 ## 1. WorldDefinition JSON (Authoring)
 
@@ -195,11 +195,11 @@ Each ruleset contributes state fields, engine functions, and AI instructions.
         }
       },
       "ai_instructions": {
-        "mas1": {
+        "director": {
           "intent_keywords": ["attack", "climb", "sneak"],
           "skill_routing": { "fallback_root": "root_force" }
         },
-        "mas2": {
+        "narrator": {
           "state_readouts": [
             { "path": "tier2_system.physical_condition", "label": "PHYSICAL CONDITION" }
           ]
@@ -240,8 +240,8 @@ The compiler produces this deterministic artifact.
         }
       },
       "instructions": {
-        "mas1": {"...": "..."},
-        "mas2": {"...": "..."}
+        "director": {"...": "..."},
+        "narrator": {"...": "..."}
       },
       "lore_index": {
         "retrieval": {"k": 3, "min_score": 0.65}
@@ -278,18 +278,40 @@ The compiler produces this deterministic artifact.
       }
     }
 
-## 6. MAS-1 Output DTO
+## 6. Director Unified Intent DTO
 
     {
-      "intent": "attempt_action",
-      "skill_id": "root_finesse",
-      "difficulty_mod": -20,
-      "duration_tag": "scene",
-      "tactic_tag": null,
-      "blocked_reason": null
+      "turn_meta": {
+        "resolution_mode": "engine | narrative",
+        "atmosphere_shift": "string",
+        "time_jump_minutes": 0
+      },
+      "unseen_ripples": [
+        {
+          "target_id": "uuid",
+          "type": "relationship | emotional | status",
+          "delta_tier": "Minor | Moderate | Major | Severe",
+          "property_path": "string",
+          "reason": "string"
+        }
+      ],
+      "intent_queue": [
+        {
+          "actor_id": "uuid",
+          "trigger_id": "string",
+          "intended_targets": ["uuid"],
+          "proximity_cluster": ["uuid"],
+          "parameters": {
+            "verb": "string",
+            "impact_tier": "Low | Moderate | High | Severe",
+            "tactic_tag": "string",
+            "skill_id": "string"
+          }
+        }
+      ]
     }
 
-## 7. MAS-2 Output DTO
+## 7. Narrator Output DTO
 
     {
       "narration": "The lock gives a reluctant click...",
@@ -417,9 +439,9 @@ The compiler produces this deterministic artifact.
       game_state_id uuid not null references chimera_game_states(id) on delete cascade,
       turn_index int not null,
       player_input text not null,        -- The user's raw text
-      mas1_intent jsonb,                 -- Structured output from Interpreter (Intent, Params)
+      director_intent jsonb,             -- Unified Intent DTO from Director (Intent Queue, Unseen Ripples)
       mechanical_delta jsonb,            -- Deterministic changes from Engine (Stats, Tags)
-      mas2_narration jsonb,              -- Final prose and hints from Narrator
+      narrator_output jsonb,              -- Final prose and hints from Narrator
       created_at timestamptz not null default now()
     );
     create index on chimera_turns (game_state_id, turn_index);

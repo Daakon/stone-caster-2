@@ -110,11 +110,11 @@ export const useActiveGameStore = create<ActiveGameState>()(
                 let newVitals = get().vitals;
                 if (playerEntity && playerEntity.properties) {
                     const props = playerEntity.properties;
-                    
+
                     // CRITICAL: Read current_stamina (the resource), not stamina (which might be max/static)
                     const currentStamina = props.current_stamina ?? props.stamina ?? 100;
                     const currentSatiety = props.satiety ?? props.saturation ?? 100;
-                    
+
                     console.log('[syncState] Extracting Vitals from Player Entity:', {
                         playerId,
                         current_stamina: props.current_stamina,
@@ -125,7 +125,7 @@ export const useActiveGameStore = create<ActiveGameState>()(
                         extractedSatiety: currentSatiety,
                         allProps: Object.keys(props)
                     });
-                    
+
                     newVitals = {
                         hp: props.hp ?? 100,
                         maxHp: props.maxHp ?? props.max_hp ?? 100,
@@ -161,24 +161,24 @@ export const useActiveGameStore = create<ActiveGameState>()(
                 // 6. Update Store
                 // CRITICAL: Create new object references to ensure React detects changes
                 const newEntities = { ...allEntities }; // Spread to create new reference
-                
-                console.log('[ActiveGameStore] Synced State:', { 
-                    newVitals, 
-                    ctx, 
-                    narrative, 
+
+                console.log('[ActiveGameStore] Synced State:', {
+                    newVitals,
+                    ctx,
+                    narrative,
                     playerEntity,
                     playerId,
                     entitiesCount: Object.keys(newEntities).length,
                     playerEntityInNewEntities: !!newEntities[playerId || '']
                 });
-                
+
                 set({
                     gameState: serverState,
                     vitals: newVitals,
                     suggested_actions: newSuggestions,
                     entities: newEntities // Use new reference
                 });
-                
+
                 console.log('[ActiveGameStore] Store updated. New vitals:', newVitals);
             },
 
@@ -192,230 +192,51 @@ export const useActiveGameStore = create<ActiveGameState>()(
 
                 try {
                     // 2. Call API
-                    const { turn, delta } = await activeGameApi.submitTurn(activeGameId, { input: draftText });
+                    const { turn, delta, new_logs } = await activeGameApi.submitTurn(activeGameId, { input: draftText });
 
-                    // --- FRONTEND DEBUG ---
-                    console.log('Frontend Delta received:', delta);
-                    console.log('Turn received:', turn);
+                    // 3. Apply Delta & Append Logs (Event-Driven Update)
+                    const currentState = get().gameState as any;
+                    if (currentState) {
+                        // A. Identify Keys
+                        const mechKey = currentState.tier1_mechanical ? 'tier1_mechanical' :
+                            currentState.mechanical_state ? 'mechanical_state' :
+                                'mechanical';
+                        const narrKey = currentState.narrative_focus ? 'narrative_focus' :
+                            currentState.tier0_narrative ? 'tier0_narrative' :
+                                'narrative';
 
-                    // 3. Merging (Hybrid Sync) - IMMUTABLE PATTERN
-                    const currentGameState = get().gameState;
-                    if (currentGameState) {
-                        // A. Merge Delta (Mechanical changes) - Using Immutable Patterns
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const currentMech = (currentGameState as any).mechanical_state || (currentGameState as any).mechanical || {};
-                        const playerId = currentMech.index?.player_id;
+                        const currentMech = currentState[mechKey] || {};
+                        const currentNarr = currentState[narrKey] || {};
 
-                        console.log('Frontend Player ID:', playerId);
-                        console.log('Frontend Mechanical State:', {
-                            hasEntities: !!currentMech.entities,
-                            entityKeys: Object.keys(currentMech.entities || {}),
-                            playerEntityExists: !!currentMech.entities?.[playerId],
-                            currentStamina: currentMech.entities?.[playerId]?.properties?.current_stamina,
-                            currentSatiety: currentMech.entities?.[playerId]?.properties?.satiety
-                        });
-
-                        let nextGameState = currentGameState;
-
-                        // Unwrap delta.entities if present (backend sends { entities: { ... }, world: { ... } })
-                        const entityDelta = (delta as any)?.entities || delta;
-                        const worldDelta = (delta as any)?.world;
-                        
-                        if (currentMech.entities && entityDelta && playerId) {
-                            // IMMUTABLE UPDATE PATTERN: Create new object references at every level
-                            const newEntities: Record<string, any> = { ...currentMech.entities };
-
-                            // Iterate Keyed Delta: { [entityId]: { properties: { current_stamina: -5, satiety: -1 } } }
-                            // OR: { [entityId]: { combat_condition: "Wounded" } } (flat structure)
-                            Object.entries(entityDelta).forEach(([entityId, entityDeltaValue]) => {
-                                const oldEntity = currentMech.entities[entityId];
-                                if (!oldEntity || !oldEntity.properties) {
-                                    console.warn(`Frontend: Entity ${entityId} not found or missing properties`);
-                                    return;
+                        // B. Deep Merge Delta into Mechanical State
+                        const mergeDelta = (target: any, source: any) => {
+                            for (const key in source) {
+                                if (source[key] instanceof Object && key in target) {
+                                    Object.assign(source[key], mergeDelta(target[key], source[key]));
                                 }
-
-                                // Handle nested properties structure OR flat structure
-                                const playerDelta = entityDeltaValue as any;
-                                const propertiesDelta = playerDelta?.properties;
-                                
-                                // If delta is flat (e.g., { combat_condition: "Wounded" }), treat it as properties
-                                const isFlatDelta = !propertiesDelta && typeof playerDelta === 'object' && playerDelta !== null;
-                                
-                                console.log(`Frontend Processing Delta for Entity ${entityId}:`, {
-                                    hasProperties: !!propertiesDelta,
-                                    isFlatDelta,
-                                    propertiesDelta,
-                                    playerDelta,
-                                    currentEntityProps: oldEntity.properties
-                                });
-
-                                // Process nested properties structure
-                                if (propertiesDelta && typeof propertiesDelta === 'object') {
-                                    // 1. Clone the specific entity's properties (Spread operator)
-                                    const oldProperties = oldEntity.properties;
-                                    const newProperties = { ...oldProperties };
-
-                                    // 2. Apply changes to the CLONE (handles both numeric deltas and string assignments)
-                                    Object.entries(propertiesDelta as Record<string, any>).forEach(([key, val]) => {
-                                        if (typeof val === 'number') {
-                                            // Numeric delta: add to current value
-                                            // Get current value (default to 100 for stamina/satiety, 0 for others)
-                                            const defaultValue = (key === 'current_stamina' || key === 'satiety') ? 100 : 0;
-                                            const current = (oldProperties[key] ?? defaultValue) as number;
-                                            
-                                            // Apply math for visual transition (add delta to current)
-                                            // Delta is relative (-5), so we add it to current
-                                            const newVal = Math.max(0, current + val);
-                                            
-                                            console.log(`Frontend Applying ${key}: ${current} + ${val} = ${newVal}`);
-                                            
-                                            newProperties[key] = newVal;
-
-                                            // Compatibility Mapping (current_stamina <-> stamina)
-                                            if (key === 'current_stamina') {
-                                                newProperties['stamina'] = newVal;
-                                            }
-                                            if (key === 'stamina') {
-                                                newProperties['current_stamina'] = newVal;
-                                            }
-                                        } else if (typeof val === 'string' || typeof val === 'boolean') {
-                                            // String/Boolean assignment: set directly (e.g., combat_condition: "Wounded")
-                                            console.log(`Frontend Setting ${key}: ${oldProperties[key]} -> ${val}`);
-                                            newProperties[key] = val;
-                                        }
-                                    });
-
-                                    // 3. Clone the Entity and inject new properties
-                                    const newEntity = { ...oldEntity, properties: newProperties };
-
-                                    // 4. Clone the Entity Map and inject new Entity
-                                    newEntities[entityId] = newEntity;
-                                    
-                                    console.log(`Frontend After Delta - Entity ${entityId} properties:`, newProperties);
-                                } else if (isFlatDelta) {
-                                    // Handle flat structure: { combat_condition: "Wounded" } directly on entity
-                                    console.log('Frontend Using flat structure handling (no properties wrapper)');
-                                    const oldProperties = oldEntity.properties;
-                                    const newProperties = { ...oldProperties };
-
-                                    Object.entries(playerDelta as Record<string, any>).forEach(([key, val]) => {
-                                        if (typeof val === 'number') {
-                                            // Numeric delta: add to current
-                                            const defaultValue = (key === 'current_stamina' || key === 'satiety') ? 100 : 0;
-                                            const current = (oldProperties[key] ?? defaultValue) as number;
-                                            const newVal = Math.max(0, current + val);
-                                            
-                                            console.log(`Frontend Applying (flat) ${key}: ${current} + ${val} = ${newVal}`);
-                                            
-                                            newProperties[key] = newVal;
-
-                                            if (key === 'current_stamina') {
-                                                newProperties['stamina'] = newVal;
-                                            }
-                                            if (key === 'stamina') {
-                                                newProperties['current_stamina'] = newVal;
-                                            }
-                                        } else if (typeof val === 'string' || typeof val === 'boolean') {
-                                            // String/Boolean assignment: set directly
-                                            console.log(`Frontend Setting (flat) ${key}: ${oldProperties[key]} -> ${val}`);
-                                            newProperties[key] = val;
-                                        }
-                                    });
-
-                                    const newEntity = { ...oldEntity, properties: newProperties };
-                                    newEntities[entityId] = newEntity;
-                                }
-                            });
-
-                            // 5. Clone the mechanical state and inject new entities
-                            let newMech = {
-                                ...currentMech,
-                                entities: newEntities
-                            };
-                            
-                            // 6. Apply world-level changes (e.g., atmosphere)
-                            if (worldDelta && typeof worldDelta === 'object') {
-                                const newGlobals = { ...(newMech.globals || {}) };
-                                
-                                // Merge world delta into globals
-                                if (worldDelta.narrative) {
-                                    newGlobals.narrative = {
-                                        ...(newGlobals.narrative || {}),
-                                        ...worldDelta.narrative
-                                    };
-                                }
-                                
-                                newMech = {
-                                    ...newMech,
-                                    globals: newGlobals
-                                };
-                                
-                                console.log('Frontend Applied world delta:', worldDelta);
                             }
+                            Object.assign(target || {}, source);
+                            return target;
+                        };
 
-                            // 7. Clone the game state and inject new mechanical state
-                            nextGameState = {
-                                ...currentGameState,
-                                mechanical_state: newMech
-                            } as any;
+                        const updatedMechanical = JSON.parse(JSON.stringify(currentMech));
+                        mergeDelta(updatedMechanical, delta || {});
 
-                            console.log('Frontend Immutable Update Complete:', {
-                                newStamina: newMech.entities[playerId]?.properties?.current_stamina,
-                                newSatiety: newMech.entities[playerId]?.properties?.satiety
-                            });
-                        } else {
-                            console.warn('Frontend: No entities or delta to process', {
-                                hasEntities: !!currentMech.entities,
-                                hasDelta: !!delta,
-                                hasPlayerId: !!playerId
-                            });
-                            // Still clone to ensure immutability even if no delta
-                            nextGameState = structuredClone(currentGameState);
-                        }
+                        // C. Append New Logs
+                        const updatedNarrative = { ...currentNarr };
+                        const currentHistory = updatedNarrative.dialogue_history || [];
+                        updatedNarrative.dialogue_history = [...currentHistory, ...(new_logs || [])];
 
-                        // B. Append Logs (Narrative changes)
-                        // Construct Log Entries from Turn Record
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const newLogs: any[] = [];
+                        // D. Construct New State
+                        const newState = {
+                            ...currentState,
+                            [mechKey]: updatedMechanical,
+                            [narrKey]: updatedNarrative
+                        };
 
-                        // Thought Chain (System)
-                        if (turn.mas2_narration?.thought_chain) {
-                            newLogs.push({
-                                id: crypto.randomUUID(),
-                                role: 'system',
-                                content: `[THOUGHT] ${turn.mas2_narration.thought_chain}`,
-                                timestamp: new Date().toISOString()
-                            });
-                        }
-
-                        // Player Input (Player)
-                        newLogs.push({
-                            id: crypto.randomUUID(),
-                            role: 'player',
-                            content: turn.player_input,
-                            timestamp: new Date().toISOString()
-                        });
-
-                        // Narration (Narrator)
-                        if (turn.mas2_narration?.narration) {
-                            newLogs.push({
-                                id: crypto.randomUUID(),
-                                role: 'narrator', // Frontend uses 'narrator' for AI output
-                                content: turn.mas2_narration.narration,
-                                timestamp: new Date().toISOString()
-                            });
-                        }
-
-                        // Push to history
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        if (!nextGameState.narrative_focus) nextGameState.narrative_focus = { dialogue_history: [] } as any;
-                        if (!nextGameState.narrative_focus.dialogue_history) nextGameState.narrative_focus.dialogue_history = [];
-
-                        // We push mutably to the deepMerged copy
-                        nextGameState.narrative_focus.dialogue_history.push(...newLogs);
-
-                        // C. Update Store using syncState to derived vitals
-                        get().syncState(nextGameState);
+                        // E. Sync Store
+                        console.log(`[ActiveGameStore] Applying delta to ${mechKey} and logs to ${narrKey}`);
+                        get().syncState(newState);
                     }
 
                     // 4. Reset UI

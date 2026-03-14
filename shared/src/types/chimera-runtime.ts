@@ -68,9 +68,9 @@ export const GameTurnSchema = z.object({
   player_input: z.string(),
 
   // Structured Pipeline Outputs
-  mas1_intent: z.record(z.unknown()).nullable(),      // Interpreter output
+  director_intent: z.record(z.unknown()).nullable(),      // Unified Intent DTO from Director
   mechanical_delta: z.record(z.unknown()).nullable(), // Engine changes
-  mas2_narration: z.record(z.unknown()).nullable(),   // Final output
+  narrator_output: z.record(z.unknown()).nullable(),   // Final prose from Narrator
 
   created_at: z.string(),
 });
@@ -98,8 +98,42 @@ export type AiAuditLog = z.infer<typeof AiAuditLogSchema>;
 
 
 /**
- * Mas1Intent - Robust Schema for Ruleset Engine
- * Matches ruleset trigger.keyword_id definitions and supports multiple targets
+ * DirectorUnifiedIntent - The new unified DTO from Director
+ * Replaces Mas1Intent with a richer structure including unseen_ripples and intent_queue
+ */
+export const DirectorUnifiedIntentSchema = z.object({
+  turn_meta: z.object({
+    resolution_mode: z.enum(['engine', 'narrative']),
+    atmosphere_shift: z.string().optional(),
+    time_jump_minutes: z.number().int().default(0),
+  }),
+  unseen_ripples: z.array(z.object({
+    target_id: z.string().uuid(),
+    type: z.enum(['relationship', 'emotional', 'status']),
+    delta_tier: z.enum(['Minor', 'Moderate', 'Major', 'Severe']),
+    property_path: z.string(),
+    reason: z.string(),
+  })).default([]),
+  intent_queue: z.array(z.object({
+    actor_id: z.string().uuid(),
+    trigger_id: z.string(),
+    intended_targets: z.array(z.string().uuid()),
+    proximity_cluster: z.array(z.string().uuid()).default([]),
+    parameters: z.object({
+      verb: z.string(),
+      impact_tier: z.enum(['Low', 'Moderate', 'High', 'Severe']).optional(),
+      tactic_tag: z.string().optional(),
+      skill_id: z.string().optional(),
+    }),
+  })).default([]),
+});
+
+export type DirectorUnifiedIntent = z.infer<typeof DirectorUnifiedIntentSchema>;
+
+/**
+ * Mas1Intent - Legacy schema (deprecated, use DirectorUnifiedIntent)
+ * Kept for backward compatibility during migration
+ * @deprecated Use DirectorUnifiedIntent instead
  */
 export const Mas1IntentSchema = z.object({
   /**
@@ -147,8 +181,8 @@ export const Mas1IntentSchema = z.object({
   
   /**
    * Situational tags for contextual modifiers
-   * Extracted by MAS-1 from user input and game state
-   * Maps to Situational Modifier Registry in Engine (see 03_Engine_Logic)
+   * Extracted by Director from user input and game state
+   * Maps to Situational Modifier Registry in Engine (see 03_Universal_Turn_Protocol)
    */
   situational_tags: z.array(z.string()).optional(),
   
@@ -161,7 +195,8 @@ export const Mas1IntentSchema = z.object({
 export type Mas1Intent = z.infer<typeof Mas1IntentSchema>;
 
 /**
- * Mas1ResponseDto (Legacy/Compat - to be refactored into GameTurn.mas1_intent)
+ * Mas1ResponseDto (Legacy/Compat - to be refactored into GameTurn.director_intent)
+ * @deprecated Use DirectorUnifiedIntent instead
  */
 export const Mas1ResponseDtoSchema = z.object({
   action_slug: z.string(),
@@ -171,17 +206,42 @@ export const Mas1ResponseDtoSchema = z.object({
 export type Mas1ResponseDto = z.infer<typeof Mas1ResponseDtoSchema>;
 
 /**
- * EngineResultDto (Legacy/Compat - to be refactored into GameTurn.mechanical_delta)
+ * EngineResultDto - Result from Engine processing
+ * Includes target information for Narrator to distinguish intended vs actual targets
  */
 export const EngineResultDtoSchema = z.object({
   success: z.boolean(),
   numeric_deltas: z.record(z.string(), z.number()).default({}),
   outcome_summary: z.string(),
+  // Target information for proximity cascade handling
+  target_results: z.array(z.object({
+    intent_index: z.number().int(), // Index in intent_queue
+    intended_targets: z.array(z.string().uuid()),
+    actual_targets: z.array(z.string().uuid()), // May differ from intended on fumble
+    resolution_summary: z.enum(['crit', 'success', 'fail', 'fumble']),
+    roll: z.number().int().optional(),
+  })).default([]),
+  // Status tags applied to actors (e.g., [OFF_BALANCE])
+  status_tags: z.record(z.string(), z.array(z.string())).default({}), // actor_id -> [tag1, tag2]
 });
 export type EngineResultDto = z.infer<typeof EngineResultDtoSchema>;
 
 /**
- * Mas2ResponseDto (Legacy/Compat - to be refactored into GameTurn.mas2_narration)
+ * NarratorOutputDto - The new Narrator output structure
+ * Replaces Mas2ResponseDto with clearer naming
+ */
+export const NarratorOutputDtoSchema = z.object({
+  narration: z.string(),
+  hints: z.array(z.string()).default([]),
+  tier0_mutations: z.record(z.string(), z.unknown()).default({}),
+  thought_chain: z.string().optional(),
+});
+
+export type NarratorOutputDto = z.infer<typeof NarratorOutputDtoSchema>;
+
+/**
+ * Mas2ResponseDto (Legacy/Compat - to be refactored into GameTurn.narrator_output)
+ * @deprecated Use NarratorOutputDto instead
  */
 export const Mas2ResponseDtoSchema = z.object({
   ripple_narrative: z.string(),

@@ -14,9 +14,9 @@
  * - Pipeline: MAS1 (Intents) -> Engine (Mutate State) -> MAS2 (Narrate).
  */
 
-import type { GameState, Mas1Intent, EngineResultDto, Mas2ResponseDto } from '@shared/types/chimera-runtime';
+import type { GameState, Mas1Intent, EngineResultDto, Mas2ResponseDto, DirectorUnifiedIntent } from '@shared/types/chimera-runtime';
 import { GameStateSchema } from '@shared/types/chimera-runtime';
-import { Mas1Service } from './mas1.service.js';
+import { DirectorService } from './director.service.js';
 import { EngineService } from './engine.service.js';
 import { Mas2Service } from './mas2.service.js';
 import { StateService } from './state.service.js';
@@ -24,26 +24,26 @@ import { StoriesRepository } from '../../db/repos/stories.repo.js';
 import type { CompiledStory } from '@shared/types/chimera-compiled';
 
 export interface CastStoneResult {
-  mas1: Mas1Intent[];
-  engine: EngineResultDto;
+  director: DirectorUnifiedIntent;
+  engine: EngineResultDto | null; // null if resolution_mode is "narrative"
   mas2: Mas2ResponseDto;
   updatedState: GameState;
 }
 
 export class GameLoopService {
-  private mas1: Mas1Service;
+  private director: DirectorService;
   private engine: EngineService;
   private mas2: Mas2Service;
   private storiesRepo: StoriesRepository;
 
   constructor(
     storiesRepo: StoriesRepository,
-    mas1?: Mas1Service,
+    director?: DirectorService,
     engine?: EngineService,
     mas2?: Mas2Service
   ) {
     this.storiesRepo = storiesRepo;
-    this.mas1 = mas1 || new Mas1Service();
+    this.director = director || new DirectorService();
     this.engine = engine || new EngineService();
     this.mas2 = mas2 || new Mas2Service();
   }
@@ -57,13 +57,15 @@ export class GameLoopService {
    * 1. Load GameState from DB
    * 2. Load CompiledStory and extract actionsMap
    * 3. Initialize StateService with loaded state
-   * 4. Call MAS1 (Interpreter) -> Returns Mas1Intent[]
-   * 5. Call Engine.executeActionSteps (Mas1Intent[]) -> Returns EngineResultDto
-   * 6. Apply engine deltas to StateService
-   * 7. Call MAS2 (Narrator) -> Returns Mas2ResponseDto
-   * 8. Apply MAS2 mutations to StateService
-   * 9. Persist final state using StateService.getState() (NOT engine delta)
-   * 10. Return composite result
+   * 4. Call Director -> Returns DirectorUnifiedIntent
+   * 5. Apply unseen_ripples to StateService (Pre-Engine Write)
+   * 6. If resolution_mode is "engine": Execute intent_queue via Engine
+   * 7. If resolution_mode is "narrative": Skip Engine
+   * 8. Apply engine deltas to StateService (if engine ran)
+   * 9. Call Narrator (MAS2) with current state
+   * 10. Apply Narrator Tier0 mutations to StateService
+   * 11. Persist final state using StateService.getState()
+   * 12. Return composite result
    */
   async castStone(gameStateId: string, userText: string): Promise<CastStoneResult> {
     console.log(`[LOGIC_TRACE] [GameLoopService] Input: GameStateId: ${gameStateId}, UserText: "${userText}"`);
@@ -88,56 +90,78 @@ export class GameLoopService {
     // Convert CompiledStory to the format we need
     const actionsMap = this.extractActionsMap(compiledStory);
 
+    // TODO: Retrieve lore fragments via RAG (placeholder for now)
+    const loreFragments: Array<{ id: string; content: string; title?: string }> = [];
+
     // Step 2: Initialize StateService (Single Source of Truth)
     const stateService = new StateService(gameState);
     console.log(`[LOGIC_TRACE] [GameLoopService] Execution: StateService initialized`);
 
-    // Step 3: Call MAS1 (Interpreter) - Returns array of intents
-    const mas1Intents = await this.mas1.resolve(userText, gameState, actionsMap);
-    console.log(`[LOGIC_TRACE] [GameLoopService] Execution: MAS1 returned ${mas1Intents.length} intent(s)`);
+    // Step 3: Call Director (Strategic Lead) - Returns Unified Intent DTO
+    const directorIntent = await this.director.resolve(userText, gameState, actionsMap, loreFragments);
+    console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Director returned resolution_mode="${directorIntent.turn_meta.resolution_mode}", ${directorIntent.intent_queue.length} intent(s), ${directorIntent.unseen_ripples.length} ripple(s)`);
 
-    // Step 4: Execute all intents via Engine (chained execution)
-    const engineResult = await this.engine.executeActionSteps(
-      mas1Intents,
-      stateService.getState(),
-      actionsMap
-    );
-    console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Engine processed all intents`);
+    // Step 4: Apply unseen_ripples to StateService (Pre-Engine Write)
+    for (const ripple of directorIntent.unseen_ripples) {
+      // Apply the ripple to the state path
+      const currentValue = stateService.getValue(ripple.property_path) as number || 0;
+      // Calculate delta based on tier (will be converted by Engine later, but we apply a percentage here)
+      const tierMultiplier = { Minor: 0.05, Moderate: 0.15, Major: 0.30, Severe: 0.50 }[ripple.delta_tier] || 0.15;
+      const delta = Math.round(currentValue * tierMultiplier * (ripple.type === 'relationship' ? 1 : -1));
+      stateService.setValue(ripple.property_path, currentValue + delta);
+      console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Applied ripple ${ripple.delta_tier} to ${ripple.property_path}: ${currentValue} -> ${currentValue + delta}`);
+    }
 
-    // Step 5: Apply engine deltas to StateService
-    stateService.applyDeltas(engineResult.numeric_deltas);
-    console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Applied ${Object.keys(engineResult.numeric_deltas).length} engine deltas to StateService`);
+    // Step 5: Handle resolution_mode
+    let engineResult: EngineResultDto | null = null;
+    
+    if (directorIntent.turn_meta.resolution_mode === 'engine') {
+      // Step 6: Execute intent_queue via Engine (sequential processing)
+      engineResult = await this.engine.executeIntentQueue(
+        directorIntent,
+        stateService.getState(),
+        actionsMap
+      );
+      console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Engine processed ${directorIntent.intent_queue.length} intent(s) from Director`);
 
-    // Step 6: Call MAS2 (Narrator) with current state
+      // Step 7: Apply engine deltas to StateService
+      stateService.applyDeltas(engineResult.numeric_deltas);
+      console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Applied ${Object.keys(engineResult.numeric_deltas).length} engine deltas to StateService`);
+    } else {
+      console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Resolution mode is "narrative", skipping Engine`);
+    }
+
+    // Step 8: Call Narrator (MAS2) with current state
     const mas2Result = await this.mas2.narrate(
-      engineResult,
+      engineResult || { success: true, numeric_deltas: {}, outcome_summary: 'Narrative-only turn' },
       stateService.getState(),
-      mas1Intents[0]?.trigger_id || 'unknown'
+      directorIntent.intent_queue[0]?.trigger_id || 'unknown'
     );
-    console.log(`[LOGIC_TRACE] [GameLoopService] Execution: MAS2 generated narration`);
+    console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Narrator generated narration`);
 
-    // Step 7: Apply MAS2 Tier0 mutations to StateService
+    // Step 9: Apply Narrator Tier0 mutations to StateService
     for (const [key, value] of Object.entries(mas2Result.tier0_mutations)) {
       stateService.setValue(`tier0_narrative.${key}`, value);
     }
-    console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Applied ${Object.keys(mas2Result.tier0_mutations).length} MAS2 mutations to StateService`);
+    console.log(`[LOGIC_TRACE] [GameLoopService] Execution: Applied ${Object.keys(mas2Result.tier0_mutations).length} Narrator mutations to StateService`);
 
-    // Step 8: Get final authoritative state from StateService (NOT from engine delta)
+    // Step 10: Get final authoritative state from StateService (NOT from engine delta)
     const finalState = stateService.getState();
     console.log(`[LOGIC_TRACE] [GameLoopService] Output: Final state retrieved from StateService (source of truth)`);
 
-    // Step 9: Persist final state to DB (using StateService.getState(), not engine delta)
+    // Step 11: Persist final state to DB (using StateService.getState(), not engine delta)
     await this.storiesRepo.updateGameState(gameStateId, finalState);
     console.log(`[LOGIC_TRACE] [GameLoopService] Output: State persisted to database`);
 
-    // Step 10: Return composite result
+    // Step 12: Return composite result
     return {
-      mas1: mas1Intents,
+      director: directorIntent,
       engine: engineResult,
       mas2: mas2Result,
       updatedState: finalState,
     };
   }
+
 
   /**
    * [METHOD] initializeSession

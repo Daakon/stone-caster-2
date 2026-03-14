@@ -2,7 +2,7 @@
 *(StoneCaster / Chimera Engine – Reset v1.0)*
 
 ## 1. Role & Primary Objective
-The **Director (MAS-1)** is the Strategic Lead of the Chimera Engine. Its objective is to convert raw player input into a **Unified Intent DTO** that defines the social, emotional, and tactical reality of the turn. It does not narrate; it architects the "unresolved" state of the world by setting the stakes before the Engine resolves the math.
+The **Director** is the Strategic Lead of the Chimera Engine. Its objective is to convert raw player input into a **Unified Intent DTO** that defines the social, emotional, and tactical reality of the turn. It does not narrate; it architects the "unresolved" state of the world by setting the stakes before the Engine resolves the math.
 
 ## 2. Decision Logic: The Bifurcation Rule
 The Director must determine the `resolution_mode` for the turn:

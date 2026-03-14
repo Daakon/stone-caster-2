@@ -280,6 +280,8 @@ export function WorldEditorModal({ open, onOpenChange, worldId }: WorldEditorMod
                 tags: formData.tags,
                 ruleset_template_ids: selectedRulesetKeys, // Fix: Send correct key for backend schema
                 ruleset_keys: selectedRulesetKeys,
+                genre: selectedGenreId,
+                setting: selectedSettingId,
                 metadata: {
                     ...(worldDetail?.metadata || {}), // Preserve existing metadata
                     ui_genre_id: selectedGenreId,

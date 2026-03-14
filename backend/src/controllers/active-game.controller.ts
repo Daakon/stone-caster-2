@@ -43,7 +43,8 @@ router.post(
 
             return sendSuccess(res, {
                 turn: result.turn,
-                delta: result.delta
+                delta: result.delta,
+                new_logs: result.new_logs // Return only new logs
             }, req);
 
         } catch (error) {

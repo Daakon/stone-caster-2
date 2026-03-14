@@ -5,8 +5,8 @@ import { ResolutionService } from './resolution.service.js';
 // REFACTOR: Import StoriesRepository (The new DAL)
 import { StoriesRepository } from '../../db/repos/stories.repo.js';
 import { CompiledStoriesRepository } from '../../db/repos/compiled-stories.repo.js';
-// Import proper MAS1, Engine, and MAS2 services for the game loop
-import { Mas1Service } from '../runtime/mas1.service.js';
+// Import proper Director, Engine, and Narrator services for the game loop
+import { DirectorService } from '../runtime/director.service.js';
 import { EngineService } from '../runtime/engine.service.js';
 import { Mas2Service } from '../runtime/mas2.service.js';
 import { StateService } from '../runtime/state.service.js';
@@ -18,6 +18,7 @@ interface TurnResult {
     state?: GameStateBundle;
     turn?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
     delta?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    new_logs?: any[]; // The new dialogue entries created during this turn
     message?: string;
 }
 
@@ -26,14 +27,14 @@ export class GameTurnService {
     private compiledStoriesRepo: CompiledStoriesRepository; // Keep for legacy if needed/removed
     private narrativeService: NarrativeService;
     private resolutionService: ResolutionService; // Legacy - kept for fallback
-    private mas1Service: Mas1Service;
+    private directorService: DirectorService;
     private engineService: EngineService; // NEW: Resolution Ladder Engine
     private mas2Service: Mas2Service;
 
     constructor(
         private supabase: SupabaseClient<Database>,
         narrativeService?: NarrativeService,
-        mas1Service?: Mas1Service,
+        directorService?: DirectorService,
         engineService?: EngineService,
         mas2Service?: Mas2Service
     ) {
@@ -41,8 +42,8 @@ export class GameTurnService {
         this.compiledStoriesRepo = new CompiledStoriesRepository(supabase);
         this.narrativeService = narrativeService || new NarrativeService();
         this.resolutionService = new ResolutionService(); // Legacy fallback
-        // MAS1 and MAS2 can have mock AI, but Engine is deterministic
-        this.mas1Service = mas1Service || new Mas1Service();
+        // Director and Narrator can have mock AI, but Engine is deterministic
+        this.directorService = directorService || new DirectorService();
         this.engineService = engineService || new EngineService(); // NEW: Use Resolution Ladder Engine
         this.mas2Service = mas2Service || new Mas2Service();
     }
@@ -70,12 +71,12 @@ export class GameTurnService {
 
             // Try to get compiled story by draft ID first (most common case)
             let compiledStory = await this.storiesRepo.getCompiledStoryByDraftId(draftStoryId);
-            
+
             // Fallback: try by ID in case story_id is actually a compiled story ID
             if (!compiledStory) {
                 compiledStory = await this.storiesRepo.getCompiledStoryById(draftStoryId);
             }
-            
+
             if (!compiledStory) {
                 throw new Error(`Compiled story not found for draft story: ${draftStoryId}`);
             }
@@ -83,59 +84,77 @@ export class GameTurnService {
             // Extract actionsMap from compiled story
             const actionsMap = this.extractActionsMap(compiledStory);
 
-            // Step 2: MAS1 (Interpreter) - Can have mock AI results
-            // Extracts action type, target, and other parameters from player input
-            console.log('[Turn] Step 2: Calling MAS1 (Interpreter)...');
-            const mas1Intents = await this.mas1Service.resolve(
+            // Step 2: Director (Strategic Lead) - Can have mock AI results
+            // Converts player input into Unified Intent DTO with intent_queue, unseen_ripples, and proximity_cluster
+            console.log('[Turn] Step 2: Calling Director (Strategic Lead)...');
+            const directorIntent = await this.directorService.resolve(
                 playerInput,
                 this.convertStateToGameState(state),
-                actionsMap
+                actionsMap,
+                [] // TODO: Retrieve lore fragments via RAG
             );
-            console.log('[Turn] MAS1 Result:', {
-                intentCount: mas1Intents.length,
-                triggers: mas1Intents.map(i => i.trigger_id),
-                firstIntent: mas1Intents[0] ? {
-                    trigger_id: mas1Intents[0].trigger_id,
-                    target_count: mas1Intents[0].target_ids.length,
-                    verb: mas1Intents[0].parameters.verb
+            console.log('[Turn] Director Result:', {
+                resolutionMode: directorIntent.turn_meta.resolution_mode,
+                intentQueueLength: directorIntent.intent_queue.length,
+                unseenRipplesCount: directorIntent.unseen_ripples.length,
+                firstIntent: directorIntent.intent_queue[0] ? {
+                    trigger_id: directorIntent.intent_queue[0].trigger_id,
+                    target_count: directorIntent.intent_queue[0].intended_targets.length,
+                    proximity_cluster_size: directorIntent.intent_queue[0].proximity_cluster.length,
+                    verb: directorIntent.intent_queue[0].parameters.verb
                 } : null
             });
+
+            // Convert Director intent_queue to Mas1Intent[] format for Engine (temporary bridge)
+            const mas1Intents = directorIntent.intent_queue.map(intent => ({
+                trigger_id: intent.trigger_id as any,
+                target_ids: intent.intended_targets,
+                parameters: {
+                    verb: intent.parameters.verb,
+                    tactic_tag: intent.parameters.tactic_tag,
+                    skill_id: intent.parameters.skill_id,
+                    difficulty_mod: 0,
+                },
+                duration_tag: 'moment' as const,
+                situational_tags: [],
+                original_text: intent.parameters.verb,
+            }));
 
             // Step 3: Engine (Deterministic) - NO MOCKS, pure logic
             // Uses Resolution Ladder (4-tier priority system) for D100 resolution
             console.log('[Turn] Step 3: Calling Engine (Deterministic with Resolution Ladder)...');
-            
+
             // Convert state to GameState format for EngineService
             const gameState = this.convertStateToGameState(state);
-            
+
             // Extract schema from CompiledStory for strict validation
             const schema = compiledStory.master_schema ? {
-              tier1_allowlist: compiledStory.master_schema.tier1_allowlist || [],
-              tier0_allowlist: compiledStory.master_schema.tier0_allowlist || [],
+                tier1_allowlist: compiledStory.master_schema.tier1_allowlist || [],
+                tier0_allowlist: compiledStory.master_schema.tier0_allowlist || [],
             } : undefined;
-            
+
             // Initialize StateService (Single Source of Truth) with schema validation
             const stateService = new StateService(gameState, schema);
-            
+
             // Execute all intents via EngineService (uses Resolution Ladder)
             const engineResult = await this.engineService.executeActionSteps(
                 mas1Intents,
                 stateService.getState(),
                 actionsMap
             );
-            
+
             console.log('[Turn] Engine Result:', {
                 success: engineResult.success,
                 deltaKeys: Object.keys(engineResult.numeric_deltas),
                 stateUpdated: Object.keys(engineResult.numeric_deltas).length > 0
             });
-            
+
             // Apply engine deltas to StateService
             stateService.applyDeltas(engineResult.numeric_deltas);
-            
+
             // Get final authoritative state from StateService
             const finalGameState = stateService.getState();
-            
+
             // Convert back to GameStateBundle format for compatibility
             // Map tier1_mechanical back to mechanical, tier0_narrative back to narrative
             const engineProcessedState: GameStateBundle = {
@@ -143,7 +162,7 @@ export class GameTurnService {
                 mechanical: (finalGameState as any).tier1_mechanical || state.mechanical,
                 narrative: (finalGameState as any).tier0_narrative || state.narrative,
             };
-            
+
             // Convert numeric deltas to nested structure for compatibility
             const delta: Record<string, any> = {};
             for (const [path, value] of Object.entries(engineResult.numeric_deltas)) {
@@ -162,7 +181,7 @@ export class GameTurnService {
                     delta[path] = value;
                 }
             }
-            
+
             const engineResultFormatted = {
                 success: engineResult.success,
                 state: engineProcessedState, // Authoritative final state from StateService
@@ -176,22 +195,22 @@ export class GameTurnService {
                 outcomeSummary: engineResult.outcome_summary
             });
 
-        // CRITICAL: Use the authoritative final state from engineResult
-        // This is the state after all intents have been processed sequentially
-        // Do NOT fall back to the original state - use the mutated state
-        let processedState = engineResultFormatted.state;
-        
-        if (!processedState) {
-            console.error('[Turn] ❌ Engine did not return state! Using original state as fallback.');
-            processedState = state;
-        }
-        
-        // Verify the state structure is correct
-        if (!processedState.mechanical) {
-            console.error('[Turn] ❌ Processed state missing mechanical property! State keys:', Object.keys(processedState));
-            // Try to recover by using original state
-            processedState = state;
-        }
+            // CRITICAL: Use the authoritative final state from engineResult
+            // This is the state after all intents have been processed sequentially
+            // Do NOT fall back to the original state - use the mutated state
+            let processedState = engineResultFormatted.state;
+
+            if (!processedState) {
+                console.error('[Turn] ❌ Engine did not return state! Using original state as fallback.');
+                processedState = state;
+            }
+
+            // Verify the state structure is correct
+            if (!processedState.mechanical) {
+                console.error('[Turn] ❌ Processed state missing mechanical property! State keys:', Object.keys(processedState));
+                // Try to recover by using original state
+                processedState = state;
+            }
 
             // --- DEBUG PERSISTENCE ---
             const playerId = processedState.mechanical?.index?.player_id;
@@ -274,9 +293,9 @@ export class GameTurnService {
                 gameStateId: state.id,
                 turnIndex: nextIndex,
                 playerInput: playerInput,
-                mas1Intent: mas1Intent,
+                directorIntent: mas1Intent, // TODO: Convert to DirectorUnifiedIntent format
                 mechanicalDelta: engineResultFormatted.delta || {},
-                mas2Narration: {
+                narratorOutput: {
                     narration: mas2Result.ripple_narrative || '',
                     thought_chain: mas2Result.thought_chain || ''
                 }
@@ -303,7 +322,7 @@ export class GameTurnService {
                 registry: processedState.registry || state.registry,
                 compiled_system_prompt: processedState.compiled_system_prompt || state.compiled_system_prompt,
             };
-            
+
             // Final validation: Log the authoritative state before persistence
             const finalPlayerId = finalState.mechanical?.index?.player_id;
             if (finalPlayerId && finalState.mechanical?.entities?.[finalPlayerId]) {
@@ -313,9 +332,9 @@ export class GameTurnService {
                 console.log(`  Stamina: ${finalEntity.properties?.current_stamina}`);
                 console.log(`  Satiety: ${finalEntity.properties?.satiety}`);
             }
-            
+
             // Use finalState (the authoritative, validated state)
-            await this.applyTurnResult(finalState, {
+            const newLogs = await this.applyTurnResult(finalState, {
                 narration: mas2Result.ripple_narrative || '',
                 thought_chain: mas2Result.thought_chain || ''
             }, {
@@ -327,7 +346,8 @@ export class GameTurnService {
                 success: true,
                 state: finalState, // Return the validated final state
                 turn: recordedTurn,
-                delta: engineResultFormatted.delta || {}
+                delta: engineResultFormatted.delta || {},
+                new_logs: newLogs
             };
         } catch (error) {
             // NO FALLBACK: Fail fast with clear error message
@@ -345,78 +365,123 @@ export class GameTurnService {
         resolution: any,
         newTurnIndex: number,
         playerInput: string
-    ): Promise<void> {
+    ): Promise<any[]> {
+        const newLogs: any[] = [];
+
         // 1. Log Thought Chain (Console only, stored in Turn History now)
         console.log('[AI Thought Chain]', result.thought_chain);
 
         // 1. Append Player Input first (The Action)
         if (state.narrative.dialogue_history) {
-            state.narrative.dialogue_history.push({
+            const entry = {
                 id: crypto.randomUUID(),
                 role: 'player',
                 content: playerInput,
                 timestamp: new Date(Date.now() - 200).toISOString() // Slightly in past
-            });
+            };
+            state.narrative.dialogue_history.push(entry);
+            newLogs.push(entry);
         }
 
         // 2. Append System Thought (The Processing)
         if (result.thought_chain && state.narrative.dialogue_history) {
-            state.narrative.dialogue_history.push({
+            const entry = {
                 id: crypto.randomUUID(),
                 role: 'system',
                 content: `[THOUGHT] ${result.thought_chain}`,
                 timestamp: new Date(Date.now() - 100).toISOString()
-            });
+            };
+            state.narrative.dialogue_history.push(entry);
+            newLogs.push(entry);
         }
 
         // 3. Append Mechanical Delta Log (System)
-        if (resolution && resolution.mechanicalDelta && Object.keys(resolution.mechanicalDelta).length > 0) {
-
+        // 3. Append Mechanical Delta Log (System)
+        if (resolution && resolution.mechanicalDelta) {
+            const delta = resolution.mechanicalDelta;
             const logLines: string[] = [];
 
-            // Keyed Delta: { [entityId]: { prop: val } }
-            for (const [entityId, changes] of Object.entries(resolution.mechanicalDelta)) {
-                // Resolve Entity Name
-                // state.mechanical?.entities is where they live
-                const entity = state.mechanical?.entities?.[entityId];
-                const entityName = entity?.properties?.name || entity?.properties?.display_name || 'Unknown Entity';
+            // Helper to format deep objects into readable strings (e.g., "Stamina: -5")
+            const formatRecursive = (obj: any, prefix = ''): string[] => {
+                const parts: string[] = [];
+                for (const [key, value] of Object.entries(obj)) {
+                    // Skip technical keys or flatten them
+                    if (key === 'properties' || key === 'stats') { // auto-flatten common containers
+                        parts.push(...formatRecursive(value, prefix));
+                        continue;
+                    }
 
-                // Format Changes: "Stamina -5, Satiety -1"
-                // Cast changes to Record<string, any>
-                const changeStr = Object.entries(changes as Record<string, any>)
-                    .map(([k, v]) => {
-                        // Cleanup key names if needed (e.g. current_stamina -> Stamina)
-                        const niceKey = k.replace('current_', '').replace('_', ' ');
-                        const niceKeyCap = niceKey.charAt(0).toUpperCase() + niceKey.slice(1);
-                        return `${niceKeyCap}: ${v}`;
-                    })
-                    .join(', ');
+                    if (typeof value === 'object' && value !== null) {
+                        parts.push(...formatRecursive(value, prefix ? `${prefix} ${key}` : key));
+                    } else {
+                        // Formatting: "current_stamina" -> "Stamina"
+                        let niceKey = (prefix ? `${prefix} ${key}` : key)
+                            .replace(/^current_/, '')
+                            .replace(/_/g, ' ');
+                        niceKey = niceKey.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                        parts.push(`${niceKey}: ${value}`);
+                    }
+                }
+                return parts;
+            };
 
-                if (changeStr) {
-                    logLines.push(`${entityName}: ${changeStr}`);
+            // A. Handle Entities
+            if (delta.entities) {
+                for (const [entityId, changes] of Object.entries(delta.entities)) {
+                    // Resolve Entity Name
+                    const entity = state.mechanical?.entities?.[entityId];
+                    const entityName = entity?.properties?.display_name || entity?.properties?.name || 'Unknown Entity';
+
+                    const changesFull = formatRecursive(changes);
+                    if (changesFull.length > 0) {
+                        logLines.push(`${entityName} [${changesFull.join(', ')}]`);
+                    }
+                }
+            }
+
+            // B. Handle World/Global
+            if (delta.world) {
+                const worldChanges = formatRecursive(delta.world, 'World');
+                if (worldChanges.length > 0) {
+                    logLines.push(`World [${worldChanges.join(', ')}]`);
+                }
+            }
+
+            // C. Fallback (if old flat format is somehow used)
+            const remainingKeys = Object.keys(delta).filter(k => k !== 'entities' && k !== 'world');
+            if (remainingKeys.length > 0) {
+                const otherProps: Record<string, any> = {};
+                remainingKeys.forEach(k => otherProps[k] = delta[k]);
+                const otherChanges = formatRecursive(otherProps);
+                if (otherChanges.length > 0) {
+                    logLines.push(`Global [${otherChanges.join(', ')}]`);
                 }
             }
 
             if (logLines.length > 0) {
                 if (state.narrative.dialogue_history) {
-                    state.narrative.dialogue_history.push({
+                    const entry = {
                         id: crypto.randomUUID(),
                         role: 'system',
-                        content: `[SYSTEM] ${logLines.join(' | ')}`,
+                        content: `${logLines.join(' | ')}`, // Removed [SYSTEM] prefix to let UI handle styling
                         timestamp: new Date(Date.now() - 50).toISOString()
-                    });
+                    };
+                    state.narrative.dialogue_history.push(entry);
+                    newLogs.push(entry);
                 }
             }
         }
 
         // 4. Append Narrator Response (The Result)
         if (result.narration && state.narrative.dialogue_history) {
-            state.narrative.dialogue_history.push({
+            const entry = {
                 id: crypto.randomUUID(),
                 role: 'narrator',
                 content: result.narration,
                 timestamp: new Date().toISOString()
-            });
+            };
+            state.narrative.dialogue_history.push(entry);
+            newLogs.push(entry);
         }
 
         // 5. Apply Mechanical Changes (LEGACY/FALLBACK)
@@ -452,7 +517,7 @@ export class GameTurnService {
             console.error('[PERSIST] ❌ State missing mechanical property! State keys:', Object.keys(state));
             throw new Error('Cannot persist state: missing mechanical property');
         }
-        
+
         const updatePayload = {
             mechanical_state: state.mechanical, // Use the authoritative state from processTurn
             narrative_focus: state.narrative || {}, // Ensure narrative exists
@@ -478,7 +543,7 @@ export class GameTurnService {
         await this.storiesRepo.updateGameState(state.id, updatePayload);
 
         console.log('[PERSIST] Game state updated in database');
-        
+
         // Verify the save by reloading (optional, for debugging)
         const verifyState = await this.storiesRepo.loadGameState(state.id);
         if (verifyState && verifyState.mechanical_state?.entities?.[playerId]) {
@@ -488,6 +553,8 @@ export class GameTurnService {
             console.log('Saved Satiety:', savedEntity.properties?.satiety);
             console.log('--- END VERIFY SAVED STATE ---');
         }
+
+        return newLogs;
     }
 
     // ============================================================================
@@ -535,7 +602,7 @@ export class GameTurnService {
     private convertStateToGameState(state: GameStateBundle): any {
         // Extract player_id from mechanical state
         const playerId = state.mechanical?.index?.player_id;
-        
+
         return {
             story_id: state.id || '', // Use state ID as story_id
             player_id: playerId || '', // Extract player_id from mechanical.index
@@ -577,7 +644,7 @@ export class GameTurnService {
         if (mutations.memory_stream && state.narrative) {
             state.narrative.memory_stream = mutations.memory_stream as any[];
         }
-        
+
         // Process relationship changes from MAS2 (mock mode - apply directly to state)
         const relationshipChanges = mutations.relationship_changes as Record<string, Record<string, number>> | undefined;
         if (relationshipChanges && Object.keys(relationshipChanges).length > 0) {
@@ -589,20 +656,20 @@ export class GameTurnService {
             if (!mech.ledgers.relationships) {
                 mech.ledgers.relationships = {};
             }
-            
+
             const relationships = mech.ledgers.relationships as Record<string, Record<string, number>>;
             const relationshipDelta: Record<string, any> = { relationships: {} };
-            
+
             // Apply relationship changes
             for (const [npcId, changes] of Object.entries(relationshipChanges)) {
                 if (!relationships[npcId]) {
                     relationships[npcId] = { trust: 5, warmth: 5, respect: 5, desire: 5, awe: 5 };
                 }
-                
+
                 if (!relationshipDelta.relationships[npcId]) {
                     relationshipDelta.relationships[npcId] = {};
                 }
-                
+
                 for (const [axis, delta] of Object.entries(changes)) {
                     const current = relationships[npcId][axis] || 5;
                     const newValue = Math.max(0, Math.min(20, current + (delta as number)));
@@ -610,17 +677,17 @@ export class GameTurnService {
                     relationshipDelta.relationships[npcId][axis] = newValue;
                 }
             }
-            
+
             // Update state
             if (state.mechanical_state) {
                 state.mechanical_state.ledgers = mech.ledgers;
             } else if (state.mechanical) {
                 state.mechanical.ledgers = mech.ledgers;
             }
-            
+
             return { state, delta: relationshipDelta };
         }
-        
+
         return { state };
     }
 
@@ -642,7 +709,7 @@ export class GameTurnService {
         for (const update of stateUpdates.entity_updates) {
             // Parse the path (e.g., "relationships.player.trust")
             const pathParts = update.path.split('.');
-            
+
             if (pathParts[0] === 'relationships' && pathParts.length >= 3) {
                 // Initialize relationships structure if needed
                 const mech = state.mechanical_state || state.mechanical || {};
@@ -661,12 +728,12 @@ export class GameTurnService {
                 // Extract relationship axis (e.g., "trust" from "relationships.player.trust")
                 const axis = pathParts[pathParts.length - 1];
                 const current = relationships[update.id][axis] || 5;
-                
+
                 // Apply change (value is a delta, not absolute)
                 if (typeof update.value === 'number') {
                     const newValue = Math.max(0, Math.min(20, current + update.value));
                     relationships[update.id][axis] = newValue;
-                    
+
                     // Add to delta
                     if (!delta.entities[update.id]) {
                         delta.entities[update.id] = {};
@@ -693,7 +760,7 @@ export class GameTurnService {
             if (pathParts[0] === 'narrative') {
                 const narrative = state.narrative || {};
                 const targetKey = pathParts.slice(1).join('.');
-                
+
                 // Set nested value
                 const setNested = (obj: any, keys: string[], val: unknown) => {
                     const [first, ...rest] = keys;
@@ -704,10 +771,10 @@ export class GameTurnService {
                         setNested(obj[first], rest, val);
                     }
                 };
-                
+
                 setNested(narrative, targetKey.split('.'), value);
                 state.narrative = narrative;
-                
+
                 // Add to delta
                 if (!delta.world.narrative) {
                     delta.world.narrative = {};
@@ -733,25 +800,25 @@ export class GameTurnService {
     private mergeDeltas(delta1: Record<string, any>, delta2: Record<string, any>): Record<string, any> {
         // Deep merge deltas
         const merged = { ...delta1 };
-        
+
         // Merge entities
         if (delta2.entities) {
             if (!merged.entities) merged.entities = {};
             Object.assign(merged.entities, delta2.entities);
         }
-        
+
         // Merge world changes
         if (delta2.world) {
             if (!merged.world) merged.world = {};
             Object.assign(merged.world, delta2.world);
         }
-        
+
         // Merge relationship changes
         if (delta2.relationships) {
             if (!merged.relationships) merged.relationships = {};
             Object.assign(merged.relationships, delta2.relationships);
         }
-        
+
         return merged;
     }
 

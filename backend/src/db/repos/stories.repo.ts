@@ -165,9 +165,9 @@ export class StoriesRepository {
     gameStateId: string;
     turnIndex: number;
     playerInput: string;
-    mas1Intent: any;
+    directorIntent: any;
     mechanicalDelta: any;
-    mas2Narration: any;
+    narratorOutput: any;
   }): Promise<any> { // Returns GameTurn logic ideally
     const { data, error } = await this.supabase
       .from('chimera_turns')
@@ -175,9 +175,9 @@ export class StoriesRepository {
         game_state_id: turnData.gameStateId,
         turn_index: turnData.turnIndex,
         player_input: turnData.playerInput,
-        mas1_intent: turnData.mas1Intent || {},
+        director_intent: turnData.directorIntent || {},
         mechanical_delta: turnData.mechanicalDelta || {},
-        mas2_narration: turnData.mas2Narration || {}
+        narrator_output: turnData.narratorOutput || {}
       })
       .select('*')
       .single();
