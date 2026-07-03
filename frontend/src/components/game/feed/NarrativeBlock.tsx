@@ -19,31 +19,54 @@ export function NarrativeBlock({ text, role = 'narrator', className }: Narrative
 
     // Entity Linker Logic
     const processedText = useMemo(() => {
-        if (!text || isPlayer || !entities) return text;
+        if (!text || isPlayer) return text;
 
         let enriched = text;
-        const validEntities = Object.values(entities).filter((e: any) => e.name || e.display_name);
 
-        // Sort by length desc to handle overlapping names (e.g. "Guard Captain" before "Guard")
-        validEntities.sort((a: any, b: any) => {
-            const nameA = a.display_name || a.name || "";
-            const nameB = b.display_name || b.name || "";
-            return nameB.length - nameA.length;
+        // 1. Parse Backend-Generated Explicit Tags (e.g. [Entity:Cael], [Location:Tavern])
+        // If the MAS2 LLM explicitly tags things for us, convert to markdown links
+        enriched = enriched.replace(/\[(?:Entity|NPC):([^\]]+)\]/gi, (match, name) => {
+            // Find entity ID if we have it in store
+            const entityMatch = entities && Object.values(entities).find((e: any) => 
+                (e.display_name && e.display_name.toLowerCase() === name.toLowerCase()) || 
+                (e.name && e.name.toLowerCase() === name.toLowerCase())
+            );
+            if (entityMatch) return `[${name}](entity:${(entityMatch as any).id})`;
+            return `[${name}](entity:unknown)`; // Still render as a link, inspector handles unknown
         });
 
-        validEntities.forEach((entity: any) => {
-            const name = entity.display_name || entity.name;
-            if (!name) return;
-
-            try {
-                // Determine if we should link (prevent double linking if logic was complex, but simple replace here)
-                // Use word boundary to match names
-                const regex = new RegExp(`\\b(${name})\\b`, 'g');
-                enriched = enriched.replace(regex, `[$1](entity:${entity.id})`);
-            } catch (e) {
-                // Ignore regex errors
-            }
+        enriched = enriched.replace(/\[Location:([^\]]+)\]/gi, (match, name) => {
+            return `[${name}](location:unknown)`; 
         });
+
+        enriched = enriched.replace(/\[Scene:([^\]]+)\]/gi, (match, name) => {
+            return `**${name}**`; // Highlight scene concepts
+        });
+
+        // 2. Auto-Link Known Entities in the Scene (Fallback if backend didn't tag)
+        if (entities) {
+            const validEntities = Object.values(entities).filter((e: any) => e.name || e.display_name);
+
+            // Sort by length desc to handle overlapping names (e.g. "Guard Captain" before "Guard")
+            validEntities.sort((a: any, b: any) => {
+                const nameA = a.display_name || a.name || "";
+                const nameB = b.display_name || b.name || "";
+                return nameB.length - nameA.length;
+            });
+
+            validEntities.forEach((entity: any) => {
+                const name = entity.display_name || entity.name;
+                if (!name) return;
+
+                try {
+                    // Only auto-link if the name isn't already inside a markdown link to avoid double-linking
+                    const regex = new RegExp(`(?<!\\[)\\b(${name})\\b(?!\\]\\([^\\)]+\\))`, 'g');
+                    enriched = enriched.replace(regex, `[$1](entity:${entity.id})`);
+                } catch (e) {
+                    // Ignore regex errors
+                }
+            });
+        }
 
         return enriched;
     }, [text, entities, isPlayer]);
@@ -78,17 +101,27 @@ export function NarrativeBlock({ text, role = 'narrator', className }: Narrative
                     blockquote: ({ children }) => <blockquote className="border-l-4 border-primary/40 pl-4 italic text-muted-foreground/80">{children}</blockquote>,
                     // Code for "System Messages"
                     code: ({ children }) => <code className="bg-muted px-1 py-0.5 rounded font-mono text-sm">{children}</code>,
-                    // Entity Links
+                    // Entity & Location Links
                     a: ({ href, children, ...props }) => {
                         if (href?.startsWith('entity:')) {
                             const id = href.split(':')[1];
                             return (
                                 <span
-                                    onClick={() => setSelectedEntity(id)}
+                                    onClick={() => id !== 'unknown' ? setSelectedEntity(id) : null}
                                     className="cursor-pointer text-brand-primary font-bold hover:text-brand-primary/80 hover:underline decoration-brand-primary/30 underline-offset-4 transition-all"
-                                    title="View details"
+                                    title="Inspect Characters"
                                 >
                                     {children}
+                                </span>
+                            );
+                        }
+                        if (href?.startsWith('location:')) {
+                            return (
+                                <span
+                                    className="cursor-pointer text-amber-500 font-bold hover:text-amber-400 hover:underline decoration-amber-500/30 underline-offset-4 transition-all"
+                                    title="Location Details"
+                                >
+                                    {children} 
                                 </span>
                             );
                         }

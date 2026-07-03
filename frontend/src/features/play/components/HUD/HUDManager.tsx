@@ -20,10 +20,10 @@ export function HUDManager() {
                 {/* Mini Gauges for Mobile */}
                 <div className="flex gap-2 w-1/2">
                     <div className="h-1.5 flex-1 bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-red-500" style={{ width: `${(vitals.hp / vitals.maxHp) * 100}%` }} />
+                        <div className="h-full bg-red-500 transition-all duration-500 ease-out" style={{ width: `${(vitals.hp / vitals.maxHp) * 100}%` }} />
                     </div>
                     <div className="h-1.5 flex-1 bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-yellow-500" style={{ width: `${vitals.stamina}%` }} />
+                        <div className="h-full bg-yellow-500 transition-all duration-500 ease-out" style={{ width: `${vitals.stamina}%` }} />
                     </div>
                 </div>
             </div>

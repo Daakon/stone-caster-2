@@ -1,0 +1,68 @@
+{
+  "delta": {
+    "entities": {
+      "39757d45-2426-4377-a5d0-e99e9681d1ff": {
+        "properties": {
+          "hp": -15
+        }
+      },
+      "789dbece-3bc9-4080-82ce-31b47139fbb5": {
+        "properties": {
+          "hp": -30
+        }
+      },
+      "2bfccd8e-9d2a-4b72-9151-544eb249ccd4": {
+        "properties": {
+          "stamina": -5
+        }
+      },
+      "00f2f66c-4ece-46df-ace9-af89a488c077": {
+        "relationships": {
+          "trust": 0
+        }
+      },
+      "7a70ee42-101d-4dd3-8cee-2882fdd8a84e": {
+        "relationships": {
+          "trust": 0
+        }
+      }
+    },
+    "relationships": {
+      "4c5bb787-53ce-487d-b574-c7a6c66070e7": {
+        "trust": 0,
+        "warmth": 2
+      }
+    },
+    "world": {
+      "narrative": {
+        "atmosphere": "Hostile"
+      }
+    }
+  },
+  "logs": [
+    {
+      "id": "0288f3bb-a828-4fd3-94e2-2e8e7036d3a8",
+      "role": "player",
+      "content": "test_combat",
+      "timestamp": "2026-03-17T20:22:41.974Z"
+    },
+    {
+      "id": "7d5400f4-5ce0-4993-b9e2-c25e313fecc7",
+      "role": "system",
+      "content": "[THOUGHT] [MockAI] Observed Violence. Triggering social consequences for bystanders.",
+      "timestamp": "2026-03-17T20:22:42.074Z"
+    },
+    {
+      "id": "913c70fb-f8d8-4551-a5df-54979e41759d",
+      "role": "system",
+      "content": "Garret [Hp: -15] | Kiera [Hp: -30] | Daakon [Stamina: -5] | Bartender [Relationships Trust: 0] | Unknown Entity [Relationships Trust: 0] | World [World Narrative Atmosphere: Hostile] | Global [Relationships 4c5bb787-53ce-487d-b574-c7a6c66070e7 Trust: 0, Relationships 4c5bb787-53ce-487d-b574-c7a6c66070e7 Warmth: 2]",
+      "timestamp": "2026-03-17T20:22:42.124Z"
+    },
+    {
+      "id": "fb962403-cc0a-4079-a07e-e358ac01497f",
+      "role": "narrator",
+      "content": "You lash out with your weapon! The clash is intense, and you manage to land a solid blow against your opponent. Your opponent staggers back, clearly wounded. The room falls silent as the violence spills over. The Bartender glares at you, hand reaching for a club, while the Bard hides behind his lute.",
+      "timestamp": "2026-03-17T20:22:42.174Z"
+    }
+  ]
+}

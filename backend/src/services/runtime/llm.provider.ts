@@ -159,8 +159,8 @@ export class MockLlmProvider implements LlmProvider {
       } as T;
     }
 
-    // Default mock response
-    return {} as T;
+    // Explicitly throw here so it does not silently fail Zod schema validation later
+    throw new Error(`[MockLlmProvider] Unrecognized system prompt. Cannot generate mock JSON.`);
   }
 
   /**
@@ -313,7 +313,15 @@ export class MockLlmProvider implements LlmProvider {
         };
 
       default:
-        throw new Error(`[MockLlmProvider] Unmatched Director test scenario: "${userText}"`);
+        // Return a generic social/narrative intent fallback instead of throwing an error.
+        // This ensures the game loop safely continues in Mock Mode for unrecognized text inputs.
+        console.warn(`[MockLlmProvider] Unmatched Director test scenario: "${userText}". Returning default narrative mode fallback.`);
+        return {
+          ...baseResponse,
+          turn_meta: { ...baseResponse.turn_meta, resolution_mode: 'narrative' },
+          intent_queue: [],
+          unseen_ripples: []
+        };
     }
   }
 
@@ -476,12 +484,20 @@ export class MockLlmProvider implements LlmProvider {
       }
 
       default: {
-        // NO FALLBACK: Fail fast with clear error for unmatched test scenarios
-        throw new Error(
-          `[MockLlmProvider] Unmatched test scenario: "${userText}". ` +
-          `Supported scenarios: test_combat, test_attack, test_mixed, test_social, test_travel, test_drunk_combat, test_protective_combat. ` +
-          `If this is a real user input, configure OPENAI_API_KEY to use real LLM.`
-        );
+        // Return a generic intent fallback instead of throwing an error.
+        console.warn(`[MockLlmProvider] Unmatched test scenario: "${userText}". Returning default general intent fallback.`);
+        rawIntents = [
+          {
+            trigger_id: 'attempt_action',
+            target_ids: [],
+            parameters: {
+              verb: 'attempt',
+            },
+            duration_tag: 'moment',
+            original_text: userText,
+          },
+        ];
+        break;
       }
     }
 

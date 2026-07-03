@@ -41,6 +41,20 @@ router.post(
                 return sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, result.message || 'Turn failed', req);
             }
 
+            // Inject mock actions if mock mode is enabled
+            const useMock = process.env.ENABLE_MOCK_AI === 'true' || process.env.USE_MOCK_LLM === 'true';
+            if (useMock && result.delta) {
+                result.delta.action_queue = [
+                    "test_combat", "test_social", "test_mixed", "test_travel", 
+                    "test_drunk_combat", "test_protective_combat"
+                ];
+                
+                if (!result.delta.world) result.delta.world = {};
+                if (!result.delta.world.narrative) result.delta.world.narrative = {};
+                if (!result.delta.world.narrative.scene_context) result.delta.world.narrative.scene_context = {};
+                result.delta.world.narrative.scene_context.available_actions = result.delta.action_queue;
+            }
+
             return sendSuccess(res, {
                 turn: result.turn,
                 delta: result.delta,

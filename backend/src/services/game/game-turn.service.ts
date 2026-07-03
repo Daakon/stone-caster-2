@@ -149,6 +149,20 @@ export class GameTurnService {
                 stateUpdated: Object.keys(engineResult.numeric_deltas).length > 0
             });
 
+            // Apply unseen_ripples from Director to StateService (Pre-Engine Write)
+            if (directorIntent.unseen_ripples && directorIntent.unseen_ripples.length > 0) {
+                for (const ripple of directorIntent.unseen_ripples) {
+                    if (ripple.relationship_delta) {
+                        for (const [relType, value] of Object.entries(ripple.relationship_delta)) {
+                            const path = `entities.${ripple.target_id}.relationships.${relType}`;
+                            stateService.applyDeltas({ [path]: value });
+                            // Also add to engineResult to ensure it's returned in the delta to the client
+                            engineResult.numeric_deltas[path] = (engineResult.numeric_deltas[path] || 0) + (value as number);
+                        }
+                    }
+                }
+            }
+
             // Apply engine deltas to StateService
             stateService.applyDeltas(engineResult.numeric_deltas);
 
@@ -428,9 +442,17 @@ export class GameTurnService {
             // A. Handle Entities
             if (delta.entities) {
                 for (const [entityId, changes] of Object.entries(delta.entities)) {
-                    // Resolve Entity Name
+                    // Resolve Entity Name robustly (matching frontend logic)
                     const entity = state.mechanical?.entities?.[entityId];
-                    const entityName = entity?.properties?.display_name || entity?.properties?.name || 'Unknown Entity';
+                    const entityName = entity?.display_name || 
+                                       entity?.name || 
+                                       entity?.properties?.display_name || 
+                                       entity?.properties?.name || 
+                                       entity?.raw_data?.identity?.name || 
+                                       'Unknown Entity'; 
+                                       entity?.properties?.name || 
+                                       entity?.raw_data?.identity?.name || 
+                                       'Unknown Entity';
 
                     const changesFull = formatRecursive(changes);
                     if (changesFull.length > 0) {
@@ -546,8 +568,8 @@ export class GameTurnService {
 
         // Verify the save by reloading (optional, for debugging)
         const verifyState = await this.storiesRepo.loadGameState(state.id);
-        if (verifyState && verifyState.mechanical_state?.entities?.[playerId]) {
-            const savedEntity = verifyState.mechanical_state.entities[playerId];
+        if (verifyState && verifyState.mechanical?.entities?.[playerId]) {
+            const savedEntity = verifyState.mechanical.entities[playerId];
             console.log('--- VERIFY SAVED STATE ---');
             console.log('Saved Stamina:', savedEntity.properties?.current_stamina);
             console.log('Saved Satiety:', savedEntity.properties?.satiety);
@@ -640,55 +662,46 @@ export class GameTurnService {
         mutations: Record<string, unknown>,
         actionsMap: Record<string, unknown>
     ): Promise<{ state: GameStateBundle; delta?: Record<string, any> }> {
-        // Apply tier0_mutations to narrative state (memory, flags, etc.)
-        if (mutations.memory_stream && state.narrative) {
-            state.narrative.memory_stream = mutations.memory_stream as any[];
+        const gameState = this.convertStateToGameState(state);
+        // We reuse the StateService to apply numeric deltas safely
+        const stateService = new StateService(gameState, undefined);
+        
+        const numericMutations: Record<string, number> = {};
+        for (const [key, value] of Object.entries(mutations)) {
+            if (typeof value === 'number') {
+                numericMutations[key] = value;
+            } else if (key === 'memory_stream' && state.narrative) {
+                state.narrative.memory_stream = value as any[];
+            }
         }
 
-        // Process relationship changes from MAS2 (mock mode - apply directly to state)
-        const relationshipChanges = mutations.relationship_changes as Record<string, Record<string, number>> | undefined;
-        if (relationshipChanges && Object.keys(relationshipChanges).length > 0) {
-            // Initialize relationships structure if needed
-            const mech = state.mechanical_state || state.mechanical || {};
-            if (!mech.ledgers) {
-                mech.ledgers = {};
-            }
-            if (!mech.ledgers.relationships) {
-                mech.ledgers.relationships = {};
-            }
+        stateService.applyDeltas(numericMutations);
+        
+        const finalGameState = stateService.getState();
+        const mutatedState: GameStateBundle = {
+            ...state,
+            mechanical: (finalGameState as any).tier1_mechanical || state.mechanical,
+        };
 
-            const relationships = mech.ledgers.relationships as Record<string, Record<string, number>>;
-            const relationshipDelta: Record<string, any> = { relationships: {} };
-
-            // Apply relationship changes
-            for (const [npcId, changes] of Object.entries(relationshipChanges)) {
-                if (!relationships[npcId]) {
-                    relationships[npcId] = { trust: 5, warmth: 5, respect: 5, desire: 5, awe: 5 };
+        // Convert flat numericMutations to nested delta structure so caller can merge it
+        const deltaResult: Record<string, any> = {};
+        for (const [path, value] of Object.entries(numericMutations)) {
+            if (path.includes('.')) {
+                const parts = path.split('.');
+                let current: Record<string, any> = deltaResult;
+                for (let i = 0; i < parts.length - 1; i++) {
+                    if (!current[parts[i]]) {
+                        current[parts[i]] = {};
+                    }
+                    current = current[parts[i]];
                 }
-
-                if (!relationshipDelta.relationships[npcId]) {
-                    relationshipDelta.relationships[npcId] = {};
-                }
-
-                for (const [axis, delta] of Object.entries(changes)) {
-                    const current = relationships[npcId][axis] || 5;
-                    const newValue = Math.max(0, Math.min(20, current + (delta as number)));
-                    relationships[npcId][axis] = newValue;
-                    relationshipDelta.relationships[npcId][axis] = newValue;
-                }
+                current[parts[parts.length - 1]] = value;
+            } else {
+                deltaResult[path] = value;
             }
-
-            // Update state
-            if (state.mechanical_state) {
-                state.mechanical_state.ledgers = mech.ledgers;
-            } else if (state.mechanical) {
-                state.mechanical.ledgers = mech.ledgers;
-            }
-
-            return { state, delta: relationshipDelta };
         }
 
-        return { state };
+        return { state: mutatedState, delta: deltaResult };
     }
 
     /**

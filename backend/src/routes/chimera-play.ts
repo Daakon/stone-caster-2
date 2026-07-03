@@ -59,6 +59,34 @@ router.get(
         );
       }
 
+      // Inject mock actions if mock mode is enabled
+      const useMock = process.env.ENABLE_MOCK_AI === 'true' || process.env.USE_MOCK_LLM === 'true';
+      if (useMock) {
+        gameState.action_queue = [
+            "test_combat", "test_social", "test_mixed", "test_travel", 
+            "test_drunk_combat", "test_protective_combat"
+        ];
+        
+        if (!gameState.narrative) gameState.narrative = {
+          entity_visuals: {},
+          dialogue_history: [],
+          scene_context: {
+            name: 'Mock Scene',
+            description: 'Mock Mode',
+            available_actions: gameState.action_queue
+          }
+        };
+        else if (!gameState.narrative.scene_context) {
+          gameState.narrative.scene_context = {
+            name: 'Mock Scene',
+            description: 'Mock Mode',
+            available_actions: gameState.action_queue
+          };
+        } else {
+          gameState.narrative.scene_context.available_actions = gameState.action_queue;
+        }
+      }
+
       return sendSuccess(res, gameState, req);
     } catch (error) {
       console.error('[Chimera Play] Error loading game state:', error);
@@ -110,9 +138,13 @@ router.post(
 
       const result = await gameTurnService.processTurn(gameStateId, validated.text_input, userId);
 
+      // Extract narrator output from new_logs if available
+      const narratorLog = result.new_logs?.find(log => log.role === 'narrator');
+      const rippleNarrative = narratorLog ? narratorLog.content : '';
+
       // Map TurnResult to CastStoneResponse expected by frontend
       const responseHelper = {
-        ripple_narrative: result.output || '',
+        ripple_narrative: rippleNarrative,
         debug_info: {
           // Mock debug info to satisfy the type
           mas_1_input: validated.text_input,
@@ -126,7 +158,7 @@ router.post(
             message: result.message
           },
           mas_2_response: {
-            ripple_narrative: result.output || '',
+            ripple_narrative: rippleNarrative,
             mutations: []
           },
           final_mutations: []

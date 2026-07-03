@@ -211,11 +211,16 @@ export const useActiveGameStore = create<ActiveGameState>()(
                         // B. Deep Merge Delta into Mechanical State
                         const mergeDelta = (target: any, source: any) => {
                             for (const key in source) {
-                                if (source[key] instanceof Object && key in target) {
+                                if (source[key] !== null && typeof source[key] === 'object' && !Array.isArray(source[key]) && key in target) {
                                     Object.assign(source[key], mergeDelta(target[key], source[key]));
+                                } else if (typeof source[key] === 'number' && typeof target[key] === 'number') {
+                                    target[key] += source[key];
+                                } else {
+                                    if (target) {
+                                        target[key] = source[key];
+                                    }
                                 }
                             }
-                            Object.assign(target || {}, source);
                             return target;
                         };
 
