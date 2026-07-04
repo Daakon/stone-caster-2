@@ -133,48 +133,63 @@ describe('Mock Actions Verification', () => {
         };
     });
 
+    // Shared hygiene assertions: the delta and logs the client receives must be
+    // clean regardless of scenario.
+    const expectCleanTurnOutput = (result: any, label: string) => {
+        const newLogs = result.new_logs || [];
+        for (const log of newLogs) {
+            expect(log.content, `${label} no [THOUGHT] in player-facing logs`).not.toContain('[THOUGHT]');
+        }
+        // Entity-scoped changes must live under entities.<id>, never at a
+        // top-level `relationships` key (breaks name resolution + client merge)
+        expect(result.delta?.relationships, `${label} no top-level delta.relationships`).toBeUndefined();
+    };
+
     it('should process test_combat and generate correct mechanical deltas for all targets and player', async () => {
         const result = await gameTurnService.processTurn(mockGameStateId, 'test_combat', PLAYER_ID);
-        
-        // import('fs').then(fs => fs.writeFileSync('delta_debug.json', JSON.stringify({delta: result.delta, logs: result.new_logs}, null, 2)));
-        
+
         expect(result.success, 'test_combat success').toBe(true);
         expect(result.delta, 'test_combat delta').toBeDefined();
 
         // Engine dynamically scales damage based on target HP and impact tier (Moderate is ~15%)
         expect(result.delta?.entities?.[TARGET_GUARD_ID]?.properties?.hp, 'test_combat guard hp').toBeLessThan(0);
         expect(result.delta?.entities?.[TARGET_KIERA_ID]?.properties?.hp, 'test_combat kiera hp').toBeLessThan(0);
-        
+
         // Engine applies stamina cost to the actor
         expect(result.delta?.entities?.[PLAYER_ID]?.properties?.stamina, 'test_combat player stamina').toBeLessThan(0);
-        
-        // We can optionally remove fs.writeFileSync now that we understand the output
-        
+
         // Ensure "Unknown Entity" is not in the system log (find the mechanical delta log specifically)
         const newLogs = result.new_logs || [];
         const systemLog = newLogs.find(l => l.role === 'system' && (l.content.includes('[Hp:') || l.content.includes('[Stamina:')));
         expect(systemLog, 'test_combat systemLog').toBeDefined();
-        
+
         expect(systemLog?.content, 'test_combat Kiera in log').toContain('Kiera');
         expect(systemLog?.content, 'test_combat Garret in log').toContain('Garret');
         expect(systemLog?.content, 'test_combat Unknown Entity not in log').not.toContain('Unknown Entity');
+
+        expectCleanTurnOutput(result, 'test_combat');
     });
 
     it('should process test_social successfully', async () => {
         const result = await gameTurnService.processTurn(mockGameStateId, 'test_social', PLAYER_ID);
-        
+
         expect(result.success, 'test_social success').toBe(true);
         expect(result.delta, 'test_social delta').toBeDefined();
 
-        // MAS2 will create unseen ripples and relationship updates
-        expect(result.delta?.entities?.[TARGET_BARTENDER_ID]?.relationships?.trust, 'test_social bartender trust').toBeDefined();
-        
+        // MAS2 will create unseen ripples and relationship updates.
+        // The delta must be a nonzero additive change, not a clamped absolute value.
+        const trustDelta = result.delta?.entities?.[TARGET_BARTENDER_ID]?.relationships?.trust;
+        expect(trustDelta, 'test_social bartender trust defined').toBeDefined();
+        expect(trustDelta, 'test_social bartender trust nonzero').not.toBe(0);
+
         const newLogs = result.new_logs || [];
         const systemLog = newLogs.find(l => l.role === 'system' && l.content.includes('Bartender ['));
-        
+
         // It should properly format the bartender's changes
         expect(systemLog?.content, 'test_social Bartender in log').toContain('Bartender');
         expect(systemLog?.content, 'test_social Unknown Entity not in log').not.toContain('Unknown Entity');
+
+        expectCleanTurnOutput(result, 'test_social');
     });
 
     it('should process test_mixed successfully (combat + rest)', async () => {
@@ -189,9 +204,41 @@ describe('Mock Actions Verification', () => {
 
     it('should process test_travel successfully', async () => {
          const result = await gameTurnService.processTurn(mockGameStateId, 'test_travel', PLAYER_ID);
-         
+
          expect(result.success, 'test_travel success').toBe(true);
          // Navigate applies to actor explicitly
          expect(result.delta?.entities?.[PLAYER_ID], 'test_travel player delta').toBeDefined();
+
+         expectCleanTurnOutput(result, 'test_travel');
+    });
+
+    it('should process test_drunk_combat successfully (INTOXICATED situational tag)', async () => {
+        const result = await gameTurnService.processTurn(mockGameStateId, 'test_drunk_combat', PLAYER_ID);
+
+        expect(result.success, 'test_drunk_combat success').toBe(true);
+        expect(result.delta?.entities?.[TARGET_GUARD_ID]?.properties?.hp, 'test_drunk_combat guard hp').toBeLessThan(0);
+        expect(result.delta?.entities?.[PLAYER_ID]?.properties?.stamina, 'test_drunk_combat player stamina').toBeLessThan(0);
+
+        const newLogs = result.new_logs || [];
+        const systemLog = newLogs.find(l => l.role === 'system' && l.content.includes('[Hp:'));
+        expect(systemLog?.content, 'test_drunk_combat Garret in log').toContain('Garret');
+        expect(systemLog?.content, 'test_drunk_combat Unknown Entity not in log').not.toContain('Unknown Entity');
+
+        expectCleanTurnOutput(result, 'test_drunk_combat');
+    });
+
+    it('should process test_protective_combat successfully (PROTECTING_ALLY situational tag)', async () => {
+        const result = await gameTurnService.processTurn(mockGameStateId, 'test_protective_combat', PLAYER_ID);
+
+        expect(result.success, 'test_protective_combat success').toBe(true);
+        expect(result.delta?.entities?.[TARGET_GUARD_ID]?.properties?.hp, 'test_protective_combat guard hp').toBeLessThan(0);
+        expect(result.delta?.entities?.[PLAYER_ID]?.properties?.stamina, 'test_protective_combat player stamina').toBeLessThan(0);
+
+        const newLogs = result.new_logs || [];
+        const systemLog = newLogs.find(l => l.role === 'system' && l.content.includes('[Hp:'));
+        expect(systemLog?.content, 'test_protective_combat Garret in log').toContain('Garret');
+        expect(systemLog?.content, 'test_protective_combat Unknown Entity not in log').not.toContain('Unknown Entity');
+
+        expectCleanTurnOutput(result, 'test_protective_combat');
     });
 });

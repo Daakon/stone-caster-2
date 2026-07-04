@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { loadState, castStone } from '@/services/game-client';
+import { useQuery } from '@tanstack/react-query';
+import { loadState } from '@/services/game-client';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -12,11 +12,9 @@ import { LeftSidebar } from '@/features/play/components/LeftSidebar';
 import { NarrativeStream } from '@/features/play/components/Narrative/NarrativeStream';
 import { InputDeck } from '@/features/play/components/Deck/InputDeck';
 import { SuggestionRail } from '@/features/play/components/Deck/SuggestionRail';
-import { ActionInput } from '@/components/game/ActionInput';
-// import { SceneDeck } from '@/features/play/components/HUD/SceneDeck'; // Removed from layout for now
 import { HudSidebar } from '@/features/play/components/HUD/HudSidebar';
+import { MobileVitalsBar } from '@/features/play/components/HUD/MobileVitalsBar';
 import { EntityInspectorModal } from '@/features/play/components/modals/EntityInspectorModal';
-import { cn } from '@/lib/utils';
 
 // Store
 import { useActiveGameStore } from '@/stores/useActiveGameStore';
@@ -27,12 +25,11 @@ interface ActiveGameInterfaceProps {
 
 export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     const navigate = useNavigate();
-    const queryClient = useQueryClient();
     const {
-        unlockInput, clearDraft, updateVitals, setSuggestedActions, updateEntities,
-        setActiveGameId, setDraft, commitInput,
-        playerId // Assuming store has this, if not we derive from logic or it's implicitly handled by tray
+        unlockInput,
+        setActiveGameId, setDraft, commitInput
     } = useActiveGameStore();
+    const pendingInput = useActiveGameStore(state => state.pendingInput);
 
     const [inspectEntity, setInspectEntity] = useState<any>(null);
     const [showMyChar, setShowMyChar] = useState(false);
@@ -54,7 +51,6 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     // State Extraction - MUST be called before any conditional returns
     const storeState = useActiveGameStore(state => state.gameState);
     const storeEntities = useActiveGameStore(state => state.entities);
-    const storeVitals = useActiveGameStore(state => state.vitals);
 
     const { data: gameState, isLoading, error } = useQuery({
         queryKey: ['game-state', gameStateId],
@@ -81,16 +77,12 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         }
     }, [gameState]);
 
+    // Single reconciliation strategy: the store applies the server delta
+    // optimistically (both for chips and free text); the mount-time GET
+    // remains the authoritative resync. Errors are toasted by the store.
     const handleCommit = async (text: string) => {
-        try {
-            setDraft(text);
-            await commitInput();
-            await queryClient.invalidateQueries({ queryKey: ['game-state', gameStateId] });
-        } catch (err) {
-            console.error('Cast failed:', err);
-            toast.error("Failed to process turn");
-            unlockInput();
-        }
+        setDraft(text);
+        await commitInput();
     };
 
     if (isLoading) {
@@ -105,15 +97,16 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
                 <p className="text-destructive">Failed to load game state.</p>
-                <button onClick={() => navigate('/casting-circle')} className="underline">Back</button>
+                <button onClick={() => navigate('/stories')} className="underline">Back to Stories</button>
             </div>
         );
     }
 
     // Fallback Logs
+    // Entries carry `role` (current backend format) or `speaker` (legacy rows)
     const logs = history.length > 0 ? history.map((entry: any, i: number) => ({
         id: `log-${i}`,
-        role: entry.speaker === 'Narrator' ? 'narrator' : (entry.speaker === 'System' ? 'system' : 'player'),
+        role: entry.role || (entry.speaker === 'Narrator' ? 'narrator' : (entry.speaker === 'System' ? 'system' : 'player')),
         text: entry.text || entry.content,
         timestamp: new Date(entry.timestamp || Date.now()),
         metadata: entry.metadata
@@ -142,20 +135,6 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         : (mechanical?.entities || {});
     const statePlayerId = mechanical?.index?.player_id;
     const playerEntity = entities[statePlayerId] || {};
-    
-    // Debug logging for initial load issue
-    if (playerEntity?.properties) {
-        console.log('[ActiveGameInterface] Player Entity Debug:', {
-            statePlayerId,
-            hasPlayerEntity: !!playerEntity,
-            current_stamina: playerEntity.properties.current_stamina,
-            satiety: playerEntity.properties.satiety,
-            stamina: playerEntity.properties.stamina,
-            storeVitals,
-            entityKeys: Object.keys(entities),
-            usingStoreEntities: storeEntities && Object.keys(storeEntities).length > 0
-        });
-    }
 
     // Locations
     const locations = registry?.entity_locations || {};
@@ -164,7 +143,7 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     const headerContent = (
         <GameHeader
             scene={sceneContext}
-            onExit={() => navigate('/casting-circle')}
+            onExit={() => navigate('/stories')}
             onConfig={() => toast.info("Config Menu Coming Soon")}
         />
     );
@@ -183,7 +162,7 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
             context={sceneContext}
             entities={entities}
             locations={locations}
-            playerId={statePlayerId || playerId}
+            playerId={statePlayerId}
             activeSceneId={registry?.active_scene_id}
             onInspect={handleInspect}
         />
@@ -207,8 +186,9 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
                 leftSidebar={leftSidebarContent}
                 rightSidebar={rightSidebarContent}
                 footer={footerContent}
+                mobileBar={<MobileVitalsBar onInspect={() => setShowMyChar(true)} />}
             >
-                <NarrativeStream logs={logs} />
+                <NarrativeStream logs={logs} pendingInput={pendingInput} />
             </ThreeColumnLayout>
 
             {/* Modals Layer */}

@@ -12,15 +12,11 @@ import { StoriesRepository } from '../db/repos/stories.repo.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared/types/api';
 import { requireAuth } from '../middleware/auth.unified.js';
+import { isMockAiEnabled } from '../config/ai-flags.js';
 
 const router = Router();
 
 // Request body validation schemas
-// Request body validation schemas
-const CastStoneRequestSchema = z.object({
-  text_input: z.string().min(1, 'User text is required'),
-});
-
 const StartSessionRequestSchema = z.object({
   compiledStoryId: z.string().uuid('Invalid compiled story ID'),
 });
@@ -59,32 +55,13 @@ router.get(
         );
       }
 
-      // Inject mock actions if mock mode is enabled
-      const useMock = process.env.ENABLE_MOCK_AI === 'true' || process.env.USE_MOCK_LLM === 'true';
-      if (useMock) {
+      // Mock mode: seed the scripted scenario chips so they're available on
+      // first load, before any Director call has populated action_queue
+      if (isMockAiEnabled()) {
         gameState.action_queue = [
-            "test_combat", "test_social", "test_mixed", "test_travel", 
+            "test_combat", "test_social", "test_mixed", "test_travel",
             "test_drunk_combat", "test_protective_combat"
         ];
-        
-        if (!gameState.narrative) gameState.narrative = {
-          entity_visuals: {},
-          dialogue_history: [],
-          scene_context: {
-            name: 'Mock Scene',
-            description: 'Mock Mode',
-            available_actions: gameState.action_queue
-          }
-        };
-        else if (!gameState.narrative.scene_context) {
-          gameState.narrative.scene_context = {
-            name: 'Mock Scene',
-            description: 'Mock Mode',
-            available_actions: gameState.action_queue
-          };
-        } else {
-          gameState.narrative.scene_context.available_actions = gameState.action_queue;
-        }
       }
 
       return sendSuccess(res, gameState, req);
@@ -100,95 +77,9 @@ router.get(
   }
 );
 
-/**
- * POST /api/chimera/play/:gameStateId/cast-stone
- * Execute the game loop: process player input through GameTurnService (Mock/Prod)
- */
-router.post(
-  '/:gameStateId/cast-stone',
-  requireAuth,
-  async (req: Request, res: Response) => {
-    try {
-      const { gameStateId } = req.params;
-      const validated = CastStoneRequestSchema.parse(req.body);
-      const userId = (req as any).user?.id;
-
-      if (!gameStateId || !z.string().uuid().safeParse(gameStateId).success) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'Invalid game state ID',
-          req
-        );
-      }
-
-      if (!userId) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.UNAUTHORIZED,
-          'User ID not found in request',
-          req
-        );
-      }
-
-      const supabase = getChimeraSupabaseClient(req);
-      // Use the GameTurnService that implements the Mock Router logic
-      const { GameTurnService } = await import('../services/game/game-turn.service.js');
-      const gameTurnService = new GameTurnService(supabase);
-
-      const result = await gameTurnService.processTurn(gameStateId, validated.text_input, userId);
-
-      // Extract narrator output from new_logs if available
-      const narratorLog = result.new_logs?.find(log => log.role === 'narrator');
-      const rippleNarrative = narratorLog ? narratorLog.content : '';
-
-      // Map TurnResult to CastStoneResponse expected by frontend
-      const responseHelper = {
-        ripple_narrative: rippleNarrative,
-        debug_info: {
-          // Mock debug info to satisfy the type
-          mas_1_input: validated.text_input,
-          mas_1_output: {
-            actionDto: { action: 'mock_action' },
-            resolvedQuery: 'mock_query',
-            detectedSentiment: { tone: 'neutral', intensity: 0.5 }
-          },
-          engine_outcome: {
-            success: result.success,
-            message: result.message
-          },
-          mas_2_response: {
-            ripple_narrative: rippleNarrative,
-            mutations: []
-          },
-          final_mutations: []
-        }
-      };
-
-      return sendSuccess(res, responseHelper, req);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'Invalid request body',
-          req,
-          error.errors
-        );
-      }
-
-      console.error('[Chimera Play] Error casting stone:', error);
-      const apiErrorCode = (error instanceof Error && (error.cause as ApiErrorCode)) || ApiErrorCode.INTERNAL_ERROR;
-
-      return sendErrorWithStatus(
-        res,
-        apiErrorCode,
-        error instanceof Error ? error.message : 'Failed to cast stone',
-        req
-      );
-    }
-  }
-);
+// NOTE: turn submission lives at POST /api/games/:gameId/turn
+// (active-game.controller.ts) — the /cast-stone route was an orphaned
+// duplicate pipeline and has been removed.
 
 /**
  * POST /api/chimera/play/start

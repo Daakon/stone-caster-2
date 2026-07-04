@@ -8,6 +8,7 @@ import { LlmService } from '../llm/llm.service.js';
 import { GameStateBundle } from '../../domain/game-state.types.js';
 import { getChimeraSupabaseAdminClient } from '../../db/supabase-client.js';
 import { AiTurnResult } from './ai-types.js';
+import { isMockAiEnabled } from '../../config/ai-flags.js';
 
 // Define GameState interface locally if not strictly exported as such, 
 // or alias GameStateBundle if that is what the user meant by "state".
@@ -36,9 +37,6 @@ const pacingStyles: Record<string, string> = {
     Slow: "Indulge in introspection and environmental description.",
     Concise: "Be direct. Avoid flowery language or excessive adjectives."
 };
-
-// [DEBUG] Mock Mode Flag
-const USE_MOCK_AI = true;
 
 export class NarrativeService {
     private llm: LlmService;
@@ -102,9 +100,8 @@ export class NarrativeService {
      * and the initial game state.
      */
     async generateOpeningNarrative(state: GameState, systemPromptOverride?: string): Promise<string> {
-        // [DEBUG] Check Mock Mode
-        if (USE_MOCK_AI) {
-            console.warn('[NarrativeService] Using Mock Genesis.');
+        if (isMockAiEnabled()) {
+            console.warn('[NarrativeService] Using Mock Genesis (ENABLE_MOCK_AI).');
             return "MOCK MODE: The story begins in a test environment. Everything is stable. The air smells of ozone and debugging.";
         }
 
@@ -319,9 +316,8 @@ JSON TEMPLATE:
      * Returns structured data: narrative prose, system logs, and state mutations.
      */
     async generateReaction(state: GameState, playerInput: string, systemPromptOverride?: string): Promise<AiTurnResult> {
-        // [DEBUG] Mock Mode
-        if (USE_MOCK_AI) {
-            console.warn('[NarrativeService] Using Mock Reaction.');
+        if (isMockAiEnabled()) {
+            console.warn('[NarrativeService] Using Mock Reaction (ENABLE_MOCK_AI).');
             const mockResult = this.mockReaction(state, playerInput);
 
             // [AI AUDIT] Log the mock transaction so it appears in DB
@@ -389,13 +385,11 @@ Return the structured JSON object EXACTLY as defined in the output schema.
         `.trim();
 
         try {
-            const jsonResponseText = await this.llm.generateText({
-                systemPrompt: typeof systemPrompt === 'object' ? JSON.stringify(systemPrompt) : systemPrompt,
-                userPrompt: userPrompt,
-                temperature: 0.7,
-                maxTokens: 500,
-                jsonMode: true
-            });
+            const jsonResponseText = await this.llm.generateText(
+                typeof systemPrompt === 'object' ? JSON.stringify(systemPrompt) : systemPrompt,
+                userPrompt,
+                { temperature: 0.7, maxTokens: 500, jsonMode: true }
+            );
 
             // Parse JSON
             let result: AiTurnResult;

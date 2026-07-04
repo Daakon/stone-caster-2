@@ -5,6 +5,7 @@ import { GameTurnService } from '../services/game/game-turn.service.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared/types/api';
 import { requireAuth } from '../middleware/auth.unified.js';
+import { ServiceError } from '../utils/serviceError.js';
 
 const router = Router();
 
@@ -41,20 +42,9 @@ router.post(
                 return sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, result.message || 'Turn failed', req);
             }
 
-            // Inject mock actions if mock mode is enabled
-            const useMock = process.env.ENABLE_MOCK_AI === 'true' || process.env.USE_MOCK_LLM === 'true';
-            if (useMock && result.delta) {
-                result.delta.action_queue = [
-                    "test_combat", "test_social", "test_mixed", "test_travel", 
-                    "test_drunk_combat", "test_protective_combat"
-                ];
-                
-                if (!result.delta.world) result.delta.world = {};
-                if (!result.delta.world.narrative) result.delta.world.narrative = {};
-                if (!result.delta.world.narrative.scene_context) result.delta.world.narrative.scene_context = {};
-                result.delta.world.narrative.scene_context.available_actions = result.delta.action_queue;
-            }
-
+            // Suggested actions flow from the Director (turn_meta.suggested_actions)
+            // through GameTurnService into delta.action_queue in both mock and
+            // real mode — no injection needed here.
             return sendSuccess(res, {
                 turn: result.turn,
                 delta: result.delta,
@@ -63,13 +53,18 @@ router.post(
 
         } catch (error) {
             console.error('[ActiveGameController] Turn Error:', error);
-            const msg = error instanceof Error ? error.message : 'Unknown error';
 
             if (error instanceof z.ZodError) {
                 return sendErrorWithStatus(res, ApiErrorCode.VALIDATION_FAILED, 'Invalid input', req, error.errors);
             }
 
-            return sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, msg, req);
+            // ServiceError carries its own code + user-safe message (404/409/429/504...)
+            if (error instanceof ServiceError) {
+                return sendErrorWithStatus(res, error.error.code, error.error.message, req, error.error.details);
+            }
+
+            // Never leak raw internal error messages to the client
+            return sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to process turn. Please try again.', req);
         }
     }
 );

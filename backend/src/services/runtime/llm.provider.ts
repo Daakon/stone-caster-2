@@ -7,6 +7,7 @@
 import type { Mas1Intent } from '@shared/types/chimera-runtime';
 import { Mas1IntentSchema } from '@shared/types/chimera-runtime';
 import { z } from 'zod';
+import { isMockAiEnabled } from '../../config/ai-flags';
 
 export interface LlmProvider {
   /**
@@ -16,6 +17,51 @@ export interface LlmProvider {
    * @returns Parsed JSON response of type T
    */
   generateJson<T>(systemPrompt: string, userPrompt: string): Promise<T>;
+}
+
+const DEFAULT_LLM_TIMEOUT_MS = 30_000;
+
+/**
+ * fetch with an abort timeout and a single retry on transient failures
+ * (timeout, network error, 429, 5xx). Non-transient HTTP errors (4xx) are
+ * returned to the caller without retry.
+ */
+export async function fetchWithTimeoutRetry(
+  url: string,
+  init: RequestInit,
+  options: { timeoutMs?: number; retries?: number } = {}
+): Promise<Response> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
+  const retries = options.retries ?? 1;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      // Retry only transient HTTP failures
+      if ((response.status === 429 || response.status >= 500) && attempt < retries) {
+        lastError = new Error(`Transient HTTP ${response.status}`);
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      const isAbort = error instanceof Error && error.name === 'AbortError';
+      if (attempt < retries) {
+        console.warn(`[LLM Provider] ${isAbort ? 'Timeout' : 'Network error'} on attempt ${attempt + 1}, retrying...`);
+        continue;
+      }
+      if (isAbort) {
+        throw new Error(`LLM request timed out after ${timeoutMs}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 /**
@@ -60,7 +106,7 @@ export class OpenAILlmProvider implements LlmProvider {
     }
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetchWithTimeoutRetry('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,25 +150,17 @@ export class OpenAILlmProvider implements LlmProvider {
  */
 export class MockLlmProvider implements LlmProvider {
   async generateJson<T>(systemPrompt: string, userPrompt: string): Promise<T> {
-    console.log('[LLM Provider] Mock mode - logging prompts:');
-    console.log('[LLM Provider] System:', systemPrompt);
-    console.log('[LLM Provider] User:', userPrompt);
+    console.log('[LLM Provider] Mock mode - input:', userPrompt.substring(0, 120));
 
     // Return a mock response based on the prompt content
     if (systemPrompt.includes('Action Interpreter') || systemPrompt.includes('map the user')) {
       // Mock MAS1 response - Returns { intents: Mas1Intent[] } wrapper
-      console.log('[MockLlmProvider] Detected Action Interpreter prompt, calling generateMas1');
       const intents = this.generateMas1(userPrompt);
-      console.log('[MockLlmProvider] generateMas1 returned', intents.length, 'intents');
       // Wrap in object to match OpenAI json_object format requirement
-      const wrapped = { intents };
-      console.log('[MockLlmProvider] Returning wrapped response:', JSON.stringify(wrapped, null, 2));
-      return wrapped as unknown as T;
+      return { intents } as unknown as T;
     } else if (systemPrompt.includes('Director') || systemPrompt.includes('Strategic Lead')) {
       // Mock Director response - Returns DirectorUnifiedIntent
-      console.log('[MockLlmProvider] Detected Director prompt, calling generateDirector');
       const directorIntent = this.generateDirector(userPrompt);
-      console.log('[MockLlmProvider] generateDirector returned intent queue size:', directorIntent.intent_queue.length);
       return directorIntent as unknown as T;
     } else if (systemPrompt.includes('Narrate') || systemPrompt.includes('narrative')) {
       // Mock MAS2 response - matches actual test story entities
@@ -181,6 +219,12 @@ export class MockLlmProvider implements LlmProvider {
         resolution_mode: 'engine',
         atmosphere_shift: 'Tense',
         time_jump_minutes: 0,
+        // In mock mode the chips are always the scripted scenarios so devs can
+        // drive every deterministic path from the UI
+        suggested_actions: [
+          'test_combat', 'test_social', 'test_mixed',
+          'test_travel', 'test_drunk_combat', 'test_protective_combat'
+        ],
       },
       unseen_ripples: [],
       intent_queue: [],
@@ -532,10 +576,8 @@ export class MockLlmProvider implements LlmProvider {
  */
 export function createLlmProvider(): LlmProvider {
   // Check for explicit mock flag (takes precedence over API key)
-  const useMock = process.env.ENABLE_MOCK_AI === 'true' || process.env.USE_MOCK_LLM === 'true';
-
-  if (useMock) {
-    console.log('[LLM Provider] Mock mode forced via ENABLE_MOCK_AI/USE_MOCK_LLM, using Mock provider');
+  if (isMockAiEnabled()) {
+    console.log('[LLM Provider] Mock mode forced via ENABLE_MOCK_AI, using Mock provider');
     return new MockLlmProvider();
   }
 

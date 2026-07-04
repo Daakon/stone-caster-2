@@ -14,13 +14,16 @@ export function SuggestionRail({ onCommit }: SuggestionRailProps) {
         ? suggested_actions
         : ["Look around", "Check inventory", "Wait", "Status"];
 
+    // Chips are inert while a turn is processing, not just when hard-locked
+    const isBusy = inputMode === 'locked' || inputMode === 'thinking';
+
     const handleSuggestionClick = (text: string) => {
-        if (inputMode === 'locked') return;
+        if (isBusy) return;
         setDraft(text);
     };
 
     const handleDoubleClick = (text: string) => {
-        if (inputMode === 'locked') return;
+        if (isBusy) return;
         setDraft(text);
         onCommit?.(text);
     };
@@ -35,8 +38,13 @@ export function SuggestionRail({ onCommit }: SuggestionRailProps) {
                 {displaySuggestions.map((text, i) => (
                     <Badge
                         key={i}
+                        data-testid="suggestion-chip"
                         variant="outline"
-                        className="cursor-pointer hover:bg-secondary transition-colors whitespace-nowrap py-1 px-3 select-none"
+                        className={
+                            isBusy
+                                ? "opacity-50 cursor-wait whitespace-nowrap py-1 px-3 select-none"
+                                : "cursor-pointer hover:bg-secondary transition-colors whitespace-nowrap py-1 px-3 select-none"
+                        }
                         onClick={() => handleSuggestionClick(text)}
                         onDoubleClick={() => handleDoubleClick(text)}
                     >

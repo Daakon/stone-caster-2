@@ -18,6 +18,7 @@ const DirectorResponseSchema = z.object({
     resolution_mode: z.enum(['engine', 'narrative']),
     atmosphere_shift: z.string().optional(),
     time_jump_minutes: z.number().int().default(0),
+    suggested_actions: z.array(z.string()).max(6).default([]),
   }),
   unseen_ripples: z.array(z.object({
     target_id: z.string().uuid(),
@@ -160,6 +161,9 @@ Assign \`impact_tier\` to each intent's parameters:
 - **High**: Significant impact, major effect
 - **Severe**: Devastating impact, life-altering effect
 
+### 6. Suggested Actions
+Propose 3-5 \`suggested_actions\` in \`turn_meta\`: short, player-phrased next moves that fit the scene AFTER this turn resolves (e.g. "Question the bartender", "Search the body", "Slip out the back door"). Keep each under 6 words. Vary the mix (social, physical, exploratory).
+
 ## Available Context
 
 **Available Actions**: ${actionKeys.join(', ') || 'None specified'}
@@ -177,7 +181,8 @@ Return a JSON object matching the DirectorUnifiedIntent schema:
   "turn_meta": {
     "resolution_mode": "engine" | "narrative",
     "atmosphere_shift": "Brief description of scene atmosphere change (optional)",
-    "time_jump_minutes": 0
+    "time_jump_minutes": 0,
+    "suggested_actions": ["Question the bartender", "Search the room", "Head for the door"]
   },
   "unseen_ripples": [
     {

@@ -2,6 +2,18 @@
 
 This document lists all locations where mock AI responses are generated for testing and development.
 
+## The Toggle (single source of truth)
+
+All mock behavior is governed by **`ENABLE_MOCK_AI=true`** in `backend/.env`, read at
+call time via `isMockAiEnabled()` in `backend/src/config/ai-flags.ts`. Consumers:
+`createLlmProvider()`, `LlmService.generateText()`, `Mas2Service.narrate()`,
+`NarrativeService` (genesis + reactions), and the `GET /api/chimera/play/:id` chip seeding.
+`USE_MOCK_LLM` is deprecated (still honored, logs a warning).
+
+Independent of the flag, any player input starting with `test_` takes the **Scenario
+Bypass** path (`isTestScenarioInput()`): the Director and Narrator return deterministic
+scripted output even when real AI is enabled, so scenario checks never cost tokens.
+
 ## Primary Mock Providers
 
 ### 1. **MockLlmProvider** (`backend/src/services/runtime/llm.provider.ts`)
@@ -24,9 +36,10 @@ This document lists all locations where mock AI responses are generated for test
      - Location: `start_node` (from scene_registry)
 
 ### 2. **Mas2Service** (`backend/src/services/runtime/mas2.service.ts`)
-   - **Purpose**: Mock narrative generation for MAS-2
-   - **Location**: Lines 36-115
-   - **Method**: `narrate()` - Lines 29-115
+   - **Purpose**: Deterministic narrator branch (`mockNarrate()`); the real LLM branch
+     (docs/05 Narrator Constraint Model) runs when `ENABLE_MOCK_AI` is off and the
+     input is not a `test_*` scenario
+   - **Method**: `narrate()` routes to `mockNarrate()` per the toggle above
    - **Mock Responses**:
      - Combat actions: Uses actual entity names from game state
      - Rest actions: References tavern context
@@ -39,9 +52,9 @@ This document lists all locations where mock AI responses are generated for test
      - Cael (`4c5bb787...`): -5 trust, -3 warmth on combat
 
 ### 3. **NarrativeService** (`backend/src/services/game/narrative.service.ts`)
-   - **Purpose**: Legacy narrative service with mock reactions
-   - **Location**: Lines 54-89 (`mockReaction()`)
-   - **Mock Flag**: `USE_MOCK_AI = true` (Line 41)
+   - **Purpose**: Opening narrative (genesis) + legacy reactions
+   - **Location**: `mockReaction()` and the mock-genesis branch
+   - **Mock Flag**: `isMockAiEnabled()` per call (the old hardcoded `USE_MOCK_AI = true` is gone)
    - **Methods**:
      - `mockReaction()` - Lines 54-89: Generates deterministic narratives
      - `generateOpeningNarrative()` - Lines 95-99: Mock genesis narrative

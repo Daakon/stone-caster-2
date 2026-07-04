@@ -72,4 +72,6 @@ export interface GameStateBundle {
     queue?: any[];
     compiled_system_prompt?: string;
     current_turn_index?: number;
+    /** DB row timestamp at load time — used as an optimistic concurrency token */
+    updated_at?: string;
 }

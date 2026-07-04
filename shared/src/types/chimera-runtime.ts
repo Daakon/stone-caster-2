@@ -106,6 +106,11 @@ export const DirectorUnifiedIntentSchema = z.object({
     resolution_mode: z.enum(['engine', 'narrative']),
     atmosphere_shift: z.string().optional(),
     time_jump_minutes: z.number().int().default(0),
+    /**
+     * Player-phrased next-action suggestions rendered as chips in the UI.
+     * 3-5 short imperative phrases (e.g. "Question the bartender").
+     */
+    suggested_actions: z.array(z.string()).max(6).default([]),
   }),
   unseen_ripples: z.array(z.object({
     target_id: z.string().uuid(),

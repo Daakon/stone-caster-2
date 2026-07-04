@@ -12,6 +12,8 @@ import { Mas2Service } from '../runtime/mas2.service.js';
 import { StateService } from '../runtime/state.service.js';
 
 import { GameStateBundle, MechanicalState, NarrativeFocus, SceneRegistry } from '../../domain/game-state.types.js';
+import { ServiceError } from '../../utils/serviceError.js';
+import { ApiErrorCode } from '@shared';
 
 interface TurnResult {
     success: boolean;
@@ -178,23 +180,7 @@ export class GameTurnService {
             };
 
             // Convert numeric deltas to nested structure for compatibility
-            const delta: Record<string, any> = {};
-            for (const [path, value] of Object.entries(engineResult.numeric_deltas)) {
-                if (path.includes('.')) {
-                    // Deep path (e.g., "entities.id.properties.stamina")
-                    const parts = path.split('.');
-                    let current: Record<string, any> = delta;
-                    for (let i = 0; i < parts.length - 1; i++) {
-                        if (!current[parts[i]]) {
-                            current[parts[i]] = {};
-                        }
-                        current = current[parts[i]];
-                    }
-                    current[parts[parts.length - 1]] = value;
-                } else {
-                    delta[path] = value;
-                }
-            }
+            const delta = this.nestNumericDeltas(engineResult.numeric_deltas);
 
             const engineResultFormatted = {
                 success: engineResult.success,
@@ -202,12 +188,6 @@ export class GameTurnService {
                 delta,
                 outcome_summary: engineResult.outcome_summary
             };
-            console.log('[Turn] Engine Result:', {
-                success: engineResult.success,
-                deltaKeys: Object.keys(delta?.entities || {}),
-                stateUpdated: !!engineProcessedState,
-                outcomeSummary: engineResult.outcome_summary
-            });
 
             // CRITICAL: Use the authoritative final state from engineResult
             // This is the state after all intents have been processed sequentially
@@ -226,31 +206,23 @@ export class GameTurnService {
                 processedState = state;
             }
 
-            // --- DEBUG PERSISTENCE ---
-            const playerId = processedState.mechanical?.index?.player_id;
-            if (playerId && processedState.mechanical?.entities?.[playerId]) {
-                const entity = processedState.mechanical.entities[playerId];
-                console.log('--- DEBUG PERSISTENCE ---');
-                console.log('ProcessedState Player ID:', playerId);
-                console.log('ProcessedState Stamina:', entity.properties?.current_stamina);
-                console.log('ProcessedState Satiety:', entity.properties?.satiety);
-                console.log('ProcessedState Mechanical State Keys:', Object.keys(processedState.mechanical || {}));
-                console.log('--- END DEBUG PERSISTENCE ---');
-            }
-
             // Step 4: MAS2 (Narrator) - Can have mock AI results
             // Generates narrative and may trigger additional relationship changes
             console.log('[Turn] Step 4: Calling MAS2 (Narrator)...');
             const mas2Result = await this.mas2Service.narrate(
                 {
-                    success: engineResultFormatted.success,
-                    outcome_summary: engineResultFormatted.outcome_summary || (engineResultFormatted.success ? 'Action executed' : 'Action failed'),
-                    numeric_deltas: engineResult.numeric_deltas || {} // Use numeric_deltas directly from EngineService
+                    ...engineResult,
+                    outcome_summary: engineResult.outcome_summary || (engineResult.success ? 'Action executed' : 'Action failed'),
+                    numeric_deltas: engineResult.numeric_deltas || {},
+                    target_results: engineResult.target_results || [],
+                    status_tags: engineResult.status_tags || {}
                 },
                 this.convertStateToGameState(processedState),
                 mas1Intents[0]?.trigger_id, // Use first intent's trigger_id
                 undefined, // worldStyle
-                compiledStory
+                compiledStory,
+                directorIntent, // Ripple reasons + accident context for the Narrator
+                playerInput // test_* scenario bypass detection
             );
             console.log('[Turn] MAS2 Result:', {
                 ripple_narrative: mas2Result.ripple_narrative?.substring(0, 100),
@@ -335,32 +307,27 @@ export class GameTurnService {
                 narrative: processedState.narrative || state.narrative,
                 registry: processedState.registry || state.registry,
                 compiled_system_prompt: processedState.compiled_system_prompt || state.compiled_system_prompt,
+                updated_at: state.updated_at, // Concurrency token from load time
             };
 
-            // Final validation: Log the authoritative state before persistence
-            const finalPlayerId = finalState.mechanical?.index?.player_id;
-            if (finalPlayerId && finalState.mechanical?.entities?.[finalPlayerId]) {
-                const finalEntity = finalState.mechanical.entities[finalPlayerId];
-                console.log('[Turn] 📊 FINAL STATE BEFORE PERSISTENCE:');
-                console.log(`  Player ID: ${finalPlayerId}`);
-                console.log(`  Stamina: ${finalEntity.properties?.current_stamina}`);
-                console.log(`  Satiety: ${finalEntity.properties?.satiety}`);
-            }
-
             // Use finalState (the authoritative, validated state)
+            const suggestedActions = (directorIntent.turn_meta as any)?.suggested_actions ?? [];
             const newLogs = await this.applyTurnResult(finalState, {
                 narration: mas2Result.ripple_narrative || '',
                 thought_chain: mas2Result.thought_chain || ''
             }, {
                 mechanicalDelta: engineResultFormatted.delta || {},
                 intent: mas1Intent
-            }, nextIndex, playerInput);
+            }, nextIndex, playerInput, suggestedActions);
 
             return {
                 success: true,
                 state: finalState, // Return the validated final state
                 turn: recordedTurn,
-                delta: engineResultFormatted.delta || {},
+                delta: {
+                    ...(engineResultFormatted.delta || {}),
+                    ...(suggestedActions.length > 0 ? { action_queue: suggestedActions } : {})
+                },
                 new_logs: newLogs
             };
         } catch (error) {
@@ -378,14 +345,14 @@ export class GameTurnService {
         result: any,
         resolution: any,
         newTurnIndex: number,
-        playerInput: string
+        playerInput: string,
+        suggestedActions: string[] = []
     ): Promise<any[]> {
         const newLogs: any[] = [];
 
-        // 1. Log Thought Chain (Console only, stored in Turn History now)
-        console.log('[AI Thought Chain]', result.thought_chain);
-
         // 1. Append Player Input first (The Action)
+        // Note: the thought chain is persisted in chimera_turns.narrator_output,
+        // never in the player-facing dialogue_history.
         if (state.narrative.dialogue_history) {
             const entry = {
                 id: crypto.randomUUID(),
@@ -397,20 +364,7 @@ export class GameTurnService {
             newLogs.push(entry);
         }
 
-        // 2. Append System Thought (The Processing)
-        if (result.thought_chain && state.narrative.dialogue_history) {
-            const entry = {
-                id: crypto.randomUUID(),
-                role: 'system',
-                content: `[THOUGHT] ${result.thought_chain}`,
-                timestamp: new Date(Date.now() - 100).toISOString()
-            };
-            state.narrative.dialogue_history.push(entry);
-            newLogs.push(entry);
-        }
-
-        // 3. Append Mechanical Delta Log (System)
-        // 3. Append Mechanical Delta Log (System)
+        // 2. Append Mechanical Delta Log (System)
         if (resolution && resolution.mechanicalDelta) {
             const delta = resolution.mechanicalDelta;
             const logLines: string[] = [];
@@ -428,12 +382,17 @@ export class GameTurnService {
                     if (typeof value === 'object' && value !== null) {
                         parts.push(...formatRecursive(value, prefix ? `${prefix} ${key}` : key));
                     } else {
+                        // No-op deltas add noise without information
+                        if (typeof value === 'number' && value === 0) {
+                            continue;
+                        }
                         // Formatting: "current_stamina" -> "Stamina"
                         let niceKey = (prefix ? `${prefix} ${key}` : key)
                             .replace(/^current_/, '')
                             .replace(/_/g, ' ');
                         niceKey = niceKey.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                        parts.push(`${niceKey}: ${value}`);
+                        const displayValue = typeof value === 'number' && value > 0 ? `+${value}` : `${value}`;
+                        parts.push(`${niceKey}: ${displayValue}`);
                     }
                 }
                 return parts;
@@ -444,14 +403,11 @@ export class GameTurnService {
                 for (const [entityId, changes] of Object.entries(delta.entities)) {
                     // Resolve Entity Name robustly (matching frontend logic)
                     const entity = state.mechanical?.entities?.[entityId];
-                    const entityName = entity?.display_name || 
-                                       entity?.name || 
-                                       entity?.properties?.display_name || 
-                                       entity?.properties?.name || 
-                                       entity?.raw_data?.identity?.name || 
-                                       'Unknown Entity'; 
-                                       entity?.properties?.name || 
-                                       entity?.raw_data?.identity?.name || 
+                    const entityName = entity?.display_name ||
+                                       entity?.name ||
+                                       entity?.properties?.display_name ||
+                                       entity?.properties?.name ||
+                                       entity?.raw_data?.identity?.name ||
                                        'Unknown Entity';
 
                     const changesFull = formatRecursive(changes);
@@ -506,35 +462,9 @@ export class GameTurnService {
             newLogs.push(entry);
         }
 
-        // 5. Apply Mechanical Changes (LEGACY/FALLBACK)
-        // If resolution.state was used, state.mechanical is already updated. 
-        // If NOT, we might need to apply delta here.
-        // But we refactored ResolutionService to run EngineExecutor which updates state. 
-        // So state should be fresh.
-        // We skip manual application here to avoid double-application if we trust ResolutionService.
-
-        // 6. Persist
-        // --- DEBUG BEFORE PERSIST ---
-        const playerId = state.mechanical?.index?.player_id;
-        if (playerId && state.mechanical?.entities?.[playerId]) {
-            const entity = state.mechanical.entities[playerId];
-            console.log('--- DEBUG BEFORE PERSIST ---');
-            console.log('State ID:', state.id);
-            console.log('Player ID:', playerId);
-            console.log('Stamina to persist:', entity.properties?.current_stamina);
-            console.log('Satiety to persist:', entity.properties?.satiety);
-            console.log('Mechanical state structure:', {
-                hasEntities: !!state.mechanical.entities,
-                entityKeys: Object.keys(state.mechanical.entities || {}),
-                playerEntityExists: !!state.mechanical.entities[playerId],
-                playerEntityHasProperties: !!state.mechanical.entities[playerId]?.properties
-            });
-            console.log('--- END DEBUG BEFORE PERSIST ---');
-        }
-
+        // 5. Persist
         // CRITICAL: Use the authoritative state passed to this method
         // This should be the final processedState from processTurn, not a stale copy
-        // Verify we have the correct state structure
         if (!state.mechanical) {
             console.error('[PERSIST] ❌ State missing mechanical property! State keys:', Object.keys(state));
             throw new Error('Cannot persist state: missing mechanical property');
@@ -543,38 +473,12 @@ export class GameTurnService {
         const updatePayload = {
             mechanical_state: state.mechanical, // Use the authoritative state from processTurn
             narrative_focus: state.narrative || {}, // Ensure narrative exists
-            action_queue: [], // Clear queue
+            action_queue: suggestedActions, // Next-turn suggestions from the Director
             // turn_index updated by Repo
         };
 
-        // --- DEBUG UPDATE PAYLOAD ---
-        console.log('--- DEBUG UPDATE PAYLOAD ---');
-        console.log('Update Payload Keys:', Object.keys(updatePayload));
-        console.log('State ID:', state.id);
-        if (updatePayload.mechanical_state?.entities?.[playerId]) {
-            const entity = updatePayload.mechanical_state.entities[playerId];
-            console.log('Update Payload Entity Stamina:', entity.properties?.current_stamina);
-            console.log('Update Payload Entity Satiety:', entity.properties?.satiety);
-            console.log('Update Payload Entity Properties Keys:', Object.keys(entity.properties || {}));
-        } else {
-            console.warn('[PERSIST] ⚠️ Player entity not found in mechanical_state.entities');
-            console.log('Available entity IDs:', Object.keys(updatePayload.mechanical_state?.entities || {}));
-        }
-        console.log('--- END DEBUG UPDATE PAYLOAD ---');
-
-        await this.storiesRepo.updateGameState(state.id, updatePayload);
-
-        console.log('[PERSIST] Game state updated in database');
-
-        // Verify the save by reloading (optional, for debugging)
-        const verifyState = await this.storiesRepo.loadGameState(state.id);
-        if (verifyState && verifyState.mechanical?.entities?.[playerId]) {
-            const savedEntity = verifyState.mechanical.entities[playerId];
-            console.log('--- VERIFY SAVED STATE ---');
-            console.log('Saved Stamina:', savedEntity.properties?.current_stamina);
-            console.log('Saved Satiety:', savedEntity.properties?.satiety);
-            console.log('--- END VERIFY SAVED STATE ---');
-        }
+        // Optimistic concurrency: reject if another turn persisted since we loaded
+        await this.storiesRepo.updateGameState(state.id, updatePayload, state.updated_at);
 
         return newLogs;
     }
@@ -684,24 +588,43 @@ export class GameTurnService {
         };
 
         // Convert flat numericMutations to nested delta structure so caller can merge it
-        const deltaResult: Record<string, any> = {};
-        for (const [path, value] of Object.entries(numericMutations)) {
-            if (path.includes('.')) {
-                const parts = path.split('.');
-                let current: Record<string, any> = deltaResult;
-                for (let i = 0; i < parts.length - 1; i++) {
-                    if (!current[parts[i]]) {
-                        current[parts[i]] = {};
-                    }
-                    current = current[parts[i]];
-                }
-                current[parts[parts.length - 1]] = value;
-            } else {
-                deltaResult[path] = value;
-            }
-        }
+        const deltaResult = this.nestNumericDeltas(numericMutations);
 
         return { state: mutatedState, delta: deltaResult };
+    }
+
+    /**
+     * Convert flat dot-path numeric deltas into a nested delta object.
+     * Rewrites top-level `relationships.<entityId>.<axis>` paths to
+     * `entities.<entityId>.relationships.<axis>` so every entity-scoped change
+     * lives under `entities` — the system-log formatter and the client's
+     * additive merge both key entity names off that shape.
+     */
+    private nestNumericDeltas(flat: Record<string, number>): Record<string, any> {
+        const nested: Record<string, any> = {};
+        for (const [rawPath, value] of Object.entries(flat)) {
+            let path = rawPath;
+            const relMatch = /^relationships\.([^.]+)\.(.+)$/.exec(rawPath);
+            if (relMatch) {
+                path = `entities.${relMatch[1]}.relationships.${relMatch[2]}`;
+            }
+
+            if (!path.includes('.')) {
+                nested[path] = value;
+                continue;
+            }
+
+            const parts = path.split('.');
+            let current: Record<string, any> = nested;
+            for (let i = 0; i < parts.length - 1; i++) {
+                if (!current[parts[i]] || typeof current[parts[i]] !== 'object') {
+                    current[parts[i]] = {};
+                }
+                current = current[parts[i]];
+            }
+            current[parts[parts.length - 1]] = value;
+        }
+        return nested;
     }
 
     /**
@@ -747,14 +670,18 @@ export class GameTurnService {
                     const newValue = Math.max(0, Math.min(20, current + update.value));
                     relationships[update.id][axis] = newValue;
 
-                    // Add to delta
-                    if (!delta.entities[update.id]) {
-                        delta.entities[update.id] = {};
+                    // The client applies deltas additively, so record the change
+                    // that actually landed after clamping — not the absolute value.
+                    const applied = newValue - current;
+                    if (applied !== 0) {
+                        if (!delta.entities[update.id]) {
+                            delta.entities[update.id] = {};
+                        }
+                        if (!delta.entities[update.id].relationships) {
+                            delta.entities[update.id].relationships = {};
+                        }
+                        delta.entities[update.id].relationships[axis] = applied;
                     }
-                    if (!delta.entities[update.id].relationships) {
-                        delta.entities[update.id].relationships = {};
-                    }
-                    delta.entities[update.id].relationships[axis] = newValue;
                 }
 
                 // Update state
@@ -808,38 +735,65 @@ export class GameTurnService {
     }
 
     /**
-     * Merge two delta objects
+     * Merge two delta objects. Entity sub-objects are merged deeply (a shallow
+     * assign would clobber sibling keys like `properties` vs `relationships`),
+     * and overlapping numeric deltas are summed since deltas are additive.
+     * Stray top-level `relationships.<id>` maps are folded under `entities`.
      */
     private mergeDeltas(delta1: Record<string, any>, delta2: Record<string, any>): Record<string, any> {
-        // Deep merge deltas
         const merged = { ...delta1 };
 
-        // Merge entities
-        if (delta2.entities) {
-            if (!merged.entities) merged.entities = {};
-            Object.assign(merged.entities, delta2.entities);
-        }
-
-        // Merge world changes
-        if (delta2.world) {
-            if (!merged.world) merged.world = {};
-            Object.assign(merged.world, delta2.world);
-        }
-
-        // Merge relationship changes
+        const entities2: Record<string, any> = { ...(delta2.entities || {}) };
         if (delta2.relationships) {
-            if (!merged.relationships) merged.relationships = {};
-            Object.assign(merged.relationships, delta2.relationships);
+            for (const [id, rels] of Object.entries(delta2.relationships)) {
+                entities2[id] = {
+                    ...(entities2[id] || {}),
+                    relationships: { ...((entities2[id] || {}).relationships || {}), ...(rels as Record<string, any>) }
+                };
+            }
+        }
+
+        if (Object.keys(entities2).length > 0) {
+            if (!merged.entities) merged.entities = {};
+            for (const [id, changes] of Object.entries(entities2)) {
+                merged.entities[id] = this.deepMergeDelta(merged.entities[id] || {}, changes as Record<string, any>);
+            }
+        }
+
+        if (delta2.world) {
+            merged.world = this.deepMergeDelta(merged.world || {}, delta2.world);
         }
 
         return merged;
+    }
+
+    private deepMergeDelta(base: Record<string, any>, patch: Record<string, any>): Record<string, any> {
+        const out = { ...base };
+        for (const [key, value] of Object.entries(patch)) {
+            if (typeof value === 'number' && typeof out[key] === 'number') {
+                out[key] = out[key] + value;
+            } else if (
+                value && typeof value === 'object' && !Array.isArray(value) &&
+                out[key] && typeof out[key] === 'object' && !Array.isArray(out[key])
+            ) {
+                out[key] = this.deepMergeDelta(out[key], value);
+            } else {
+                out[key] = value;
+            }
+        }
+        return out;
     }
 
     private async loadState(gameId: string, userId: string): Promise<GameStateBundle> {
         // REFACTOR: Use StoriesRepo
         const data = await this.storiesRepo.loadGameState(gameId);
 
-        if (!data) throw new Error(`Game state not found: ${gameId}`);
+        if (!data) {
+            throw new ServiceError(404, {
+                code: ApiErrorCode.NOT_FOUND,
+                message: 'Game not found.',
+            });
+        }
         // if (data.player_id !== userId) throw new Error('Unauthorized'); // Repo loads by ID. Authorization should be here or Repo.
 
         // Map GameState (DB DTO) to GameStateBundle (Domain)
@@ -850,9 +804,8 @@ export class GameTurnService {
             registry: data.scene_registry as SceneRegistry,
             queue: data.action_queue as any[],
             compiled_system_prompt: data.compiled_system_prompt || '',
-            current_turn_index: 0 // We'd need to count turns or fetch max index. For now, 0 or pass-through.
-            // TODO: Fetch max turn index if needed for logic, or let DB auto-increment ID.
-            // For MVP, we can query proper index if strictness required.
+            current_turn_index: 0, // We'd need to count turns or fetch max index. For now, 0 or pass-through.
+            updated_at: (data as any).updated_at
         };
     }
 }

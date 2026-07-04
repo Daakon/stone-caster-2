@@ -5,6 +5,8 @@ import type { LogEntry } from './types';
 
 interface NarrativeStreamProps {
     logs: LogEntry[];
+    /** Input currently being processed by the server — renders a pending turn block */
+    pendingInput?: string | null;
 }
 
 interface TurnData {
@@ -25,7 +27,7 @@ const recursiveParse = (data: any): any => {
     return data || {};
 };
 
-export function NarrativeStream({ logs }: NarrativeStreamProps) {
+export function NarrativeStream({ logs, pendingInput }: NarrativeStreamProps) {
     const bottomRef = useRef<HTMLDivElement>(null);
 
     // Group Logs into Turns
@@ -136,12 +138,30 @@ export function NarrativeStream({ logs }: NarrativeStreamProps) {
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [turns.length]);
+    }, [turns.length, pendingInput]);
 
     return (
         <div className="flex-1 w-full px-4 md:px-0">
             <div className="flex flex-col-reverse justify-start min-h-full pb-24 md:pb-32 space-y-4 space-y-reverse max-w-2xl mx-auto">
                 <div ref={bottomRef} className="h-1 scroll-mt-20" />
+
+                {pendingInput && (
+                    <div data-testid="turn-pending" aria-live="polite" className="space-y-3">
+                        <div className="flex justify-end">
+                            <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 max-w-[85%] text-sm">
+                                {pendingInput}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground text-sm italic">
+                            <span className="flex gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.3s]" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.15s]" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" />
+                            </span>
+                            The story unfolds…
+                        </div>
+                    </div>
+                )}
 
                 {[...turns].reverse().map((turn) => (
                     <TurnBlock key={turn.id} data={turn} />

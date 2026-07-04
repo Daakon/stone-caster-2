@@ -41,7 +41,7 @@ export const VitalsPanel = ({ mechanicalState, playerId }: VitalsPanelProps) => 
                         <Zap className="w-3.5 h-3.5" />
                         <span>Stamina</span>
                     </div>
-                    <span>{currentStamina}</span>
+                    <span data-testid="stamina-value">{currentStamina}</span>
                 </div>
                 <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                     <div
