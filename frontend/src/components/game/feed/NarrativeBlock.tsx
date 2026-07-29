@@ -1,7 +1,8 @@
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
 import { useActiveGameStore } from '@/stores/useActiveGameStore';
+import { resolveEntityDisplay } from '@/features/play/utils/entity-utils';
 
 interface NarrativeBlockProps {
     text: string;
@@ -26,10 +27,10 @@ export function NarrativeBlock({ text, role = 'narrator', className }: Narrative
         // 1. Parse Backend-Generated Explicit Tags (e.g. [Entity:Cael], [Location:Tavern])
         // If the MAS2 LLM explicitly tags things for us, convert to markdown links
         enriched = enriched.replace(/\[(?:Entity|NPC):([^\]]+)\]/gi, (match, name) => {
-            // Find entity ID if we have it in store
-            const entityMatch = entities && Object.values(entities).find((e: any) => 
-                (e.display_name && e.display_name.toLowerCase() === name.toLowerCase()) || 
-                (e.name && e.name.toLowerCase() === name.toLowerCase())
+            // Find entity ID if we have it in store — resolve names across all
+            // shapes (top-level, properties, raw_data.identity)
+            const entityMatch = entities && Object.values(entities).find((e: any) =>
+                resolveEntityDisplay(e).name.toLowerCase() === name.toLowerCase()
             );
             if (entityMatch) return `[${name}](entity:${(entityMatch as any).id})`;
             return `[${name}](entity:unknown)`; // Still render as a link, inspector handles unknown
@@ -45,22 +46,23 @@ export function NarrativeBlock({ text, role = 'narrator', className }: Narrative
 
         // 2. Auto-Link Known Entities in the Scene (Fallback if backend didn't tag)
         if (entities) {
-            const validEntities = Object.values(entities).filter((e: any) => e.name || e.display_name);
+            // Resolve names across all known entity shapes; placeholder names
+            // ("Unknown ...", "figure") never become links
+            const validEntities = Object.values(entities)
+                .map((e: any) => ({ entity: e, display: resolveEntityDisplay(e) }))
+                .filter(({ display }) => !display.isUnknown);
 
             // Sort by length desc to handle overlapping names (e.g. "Guard Captain" before "Guard")
-            validEntities.sort((a: any, b: any) => {
-                const nameA = a.display_name || a.name || "";
-                const nameB = b.display_name || b.name || "";
-                return nameB.length - nameA.length;
-            });
+            validEntities.sort((a, b) => b.display.name.length - a.display.name.length);
 
-            validEntities.forEach((entity: any) => {
-                const name = entity.display_name || entity.name;
+            validEntities.forEach(({ entity, display }) => {
+                const name = display.name;
                 if (!name) return;
 
                 try {
                     // Only auto-link if the name isn't already inside a markdown link to avoid double-linking
-                    const regex = new RegExp(`(?<!\\[)\\b(${name})\\b(?!\\]\\([^\\)]+\\))`, 'g');
+                    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const regex = new RegExp(`(?<!\\[)\\b(${escapedName})\\b(?!\\]\\([^\\)]+\\))`, 'g');
                     enriched = enriched.replace(regex, `[$1](entity:${entity.id})`);
                 } catch (e) {
                     // Ignore regex errors
@@ -94,6 +96,13 @@ export function NarrativeBlock({ text, role = 'narrator', className }: Narrative
         )}>
             <ReactMarkdown
                 disallowedElements={disallowedElements}
+                // react-markdown strips unknown URL schemes by default, which
+                // silently killed entity:/location: links — allow them through
+                urlTransform={(url) =>
+                    url.startsWith('entity:') || url.startsWith('location:')
+                        ? url
+                        : defaultUrlTransform(url)
+                }
                 components={{
                     // Override Paragraph to ensure consistent spacing
                     p: ({ children }) => <p className="mb-4 last:mb-0 leading-loose text-gray-100">{children}</p>,
@@ -109,7 +118,7 @@ export function NarrativeBlock({ text, role = 'narrator', className }: Narrative
                                 <span
                                     onClick={() => id !== 'unknown' ? setSelectedEntity(id) : null}
                                     className="cursor-pointer text-brand-primary font-bold hover:text-brand-primary/80 hover:underline decoration-brand-primary/30 underline-offset-4 transition-all"
-                                    title="Inspect Characters"
+                                    title="View details"
                                 >
                                     {children}
                                 </span>

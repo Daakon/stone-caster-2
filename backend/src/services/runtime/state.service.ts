@@ -17,6 +17,11 @@
  */
 
 import type { GameState } from '@shared/types/chimera-runtime';
+import {
+  DEFAULT_CONDITION_RULES,
+  type ConditionRules,
+  type ConditionTransition,
+} from './condition-rules.js';
 
 /**
  * Extended GameState structure used in runtime
@@ -37,6 +42,26 @@ interface StateSchema {
 }
 
 export class StateService {
+  /**
+   * Entity resource properties the engine may create on first write.
+   * Values are the implied baseline the engine already assumes when the
+   * property is absent (e.g. damage is computed against a base HP of 100).
+   */
+  private static readonly PROPERTY_BASELINES: Record<string, number> = {
+    hp: 100,
+    maxHp: 100,
+    max_hp: 100,
+    current_stamina: 100,
+    stamina: 100,
+    satiety: 100,
+    saturation: 100,
+  };
+
+  /** Relationship axes live on a 0-20 scale with a neutral baseline of 5. */
+  private static readonly RELATIONSHIP_BASELINE = 5;
+  private static readonly RELATIONSHIP_MIN = 0;
+  private static readonly RELATIONSHIP_MAX = 20;
+
   private state: RuntimeGameState;
   private schema: StateSchema | null;
 
@@ -222,33 +247,29 @@ export class StateService {
    * [METHOD] modifyValue
    * ----------------------------------------------------------------
    * @mutates context.state - Modifies a numeric value at the specified path
-   * STRICT SCHEMA ENFORCEMENT: Blocks writes to paths not in schema
-   * @sourceOfTruth - The internal state object
+   * STRICT SCHEMA ENFORCEMENT for arbitrary paths; entity resources
+   * (entities.<id>.properties.<known resource> and
+   * entities.<id>.relationships.<axis>) are initialized from their baseline
+   * on first write so engine deltas are never silently dropped.
+   * @returns The delta that actually landed (after baseline init + clamping),
+   *          or null when the write was blocked.
    * @logic_flow
-   * 1. Validate path against schema (STRICT ENFORCEMENT)
-   * 2. If invalid, log LOGIC_ERROR and block write
-   * 3. Navigate to path (NO AUTO-VIVIFICATION - path must exist)
-   * 4. Get current value (must exist - no treating undefined as 0)
-   * 5. Apply modification (current + amount)
-   * 6. Set the new value
+   * 1. Resolve tier root and relative path
+   * 2. If the path is an entity resource on an EXISTING entity:
+   *    vivify the container, seed the baseline, apply + clamp
+   * 3. Otherwise: strict schema validation, path must exist, apply
    */
-  modifyValue(path: string, amount: number): void {
-    // STRICT SCHEMA VALIDATION
-    const validation = this.validatePath(path);
-    if (!validation.valid) {
-      console.error(`[LOGIC_ERROR] [StateService] Schema validation failed: ${validation.reason}`);
-      return;
-    }
+  modifyValue(path: string, amount: number): number | null {
     const parts = path.split('.');
     // Handle paths that start with tier1_mechanical or tier0_narrative
     let current: Record<string, unknown>;
-    
+
     // If path starts with tier1_mechanical or tier0_narrative, navigate there first
     if (parts[0] === 'tier1_mechanical' || parts[0] === 'tier0_narrative') {
       const tier = parts[0];
       if (!this.state[tier]) {
         console.error(`[LOGIC_ERROR] [StateService] Tier "${tier}" does not exist in state. Path: ${path}`);
-        return;
+        return null;
       }
       current = this.state[tier]!;
       parts.shift(); // Remove the tier prefix
@@ -256,9 +277,31 @@ export class StateService {
       // Default to tier1_mechanical if no tier specified
       if (!this.state.tier1_mechanical) {
         console.error(`[LOGIC_ERROR] [StateService] tier1_mechanical does not exist in state. Path: ${path}`);
-        return;
+        return null;
       }
       current = this.state.tier1_mechanical;
+    }
+
+    // [ENTITY RESOURCE WRITE] entities.<id>.properties.<resource> or
+    // entities.<id>.relationships.<axis> on an existing entity: these are
+    // engine-computed deltas against implied baselines, so the leaf (and its
+    // container) may be created on first write.
+    const resourceWrite = this.resolveEntityResourceWrite(current, parts, path);
+    if (resourceWrite) {
+      const { container, leaf, baseline, min, max } = resourceWrite;
+      const before = typeof container[leaf] === 'number' ? (container[leaf] as number) : baseline;
+      let after = before + amount;
+      if (min !== undefined) after = Math.max(min, after);
+      if (max !== undefined) after = Math.min(max, after);
+      container[leaf] = after;
+      return after - before;
+    }
+
+    // STRICT SCHEMA VALIDATION for everything else
+    const validation = this.validatePath(path);
+    if (!validation.valid) {
+      console.error(`[LOGIC_ERROR] [StateService] Schema validation failed: ${validation.reason}`);
+      return null;
     }
 
     // Navigate to path (NO AUTO-VIVIFICATION - path must exist)
@@ -266,7 +309,7 @@ export class StateService {
       const part = parts[i];
       if (!current[part] || typeof current[part] !== 'object' || Array.isArray(current[part])) {
         console.error(`[LOGIC_ERROR] [StateService] Path segment "${parts.slice(0, i + 1).join('.')}" does not exist. Path: ${path}`);
-        return;
+        return null;
       }
       current = current[part] as Record<string, unknown>;
     }
@@ -277,17 +320,86 @@ export class StateService {
 
     if (currentValue === undefined || currentValue === null) {
       console.error(`[LOGIC_ERROR] [StateService] Cannot modify missing value at path: ${path}. Value must exist in schema.`);
-      return;
+      return null;
     }
 
     if (typeof currentValue !== 'number') {
       console.error(`[LOGIC_ERROR] [StateService] Cannot modify non-numeric value at ${path}: ${typeof currentValue}`);
-      return;
+      return null;
     }
 
     // Apply modification
     const newValue = currentValue + amount;
     current[finalKey] = newValue;
+    return amount;
+  }
+
+  /**
+   * [METHOD] resolveEntityResourceWrite
+   * ----------------------------------------------------------------
+   * Detects writes to entity-scoped resources and prepares the target
+   * container, vivifying it when the ENTITY itself already exists.
+   * Returns null when the path is not an eligible entity resource write.
+   */
+  private resolveEntityResourceWrite(
+    tierRoot: Record<string, unknown>,
+    parts: string[],
+    path: string
+  ): { container: Record<string, unknown>; leaf: string; baseline: number; min?: number; max?: number } | null {
+    if (parts.length !== 4 || parts[0] !== 'entities') {
+      return null;
+    }
+    const [, entityId, containerKey, leaf] = parts;
+    if (containerKey !== 'properties' && containerKey !== 'relationships') {
+      return null;
+    }
+
+    const entities = tierRoot.entities;
+    if (!entities || typeof entities !== 'object' || Array.isArray(entities)) {
+      return null;
+    }
+    const entity = (entities as Record<string, unknown>)[entityId];
+    if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+      // The entity must exist — resources are never attached to phantom entities
+      console.error(`[LOGIC_ERROR] [StateService] Entity "${entityId}" does not exist. Path: ${path}`);
+      return null;
+    }
+    const entityRecord = entity as Record<string, unknown>;
+
+    if (containerKey === 'relationships') {
+      if (!entityRecord.relationships || typeof entityRecord.relationships !== 'object' || Array.isArray(entityRecord.relationships)) {
+        entityRecord.relationships = {};
+      }
+      return {
+        container: entityRecord.relationships as Record<string, unknown>,
+        leaf,
+        baseline: StateService.RELATIONSHIP_BASELINE,
+        min: StateService.RELATIONSHIP_MIN,
+        max: StateService.RELATIONSHIP_MAX,
+      };
+    }
+
+    // properties: only known resources may be created; anything else follows
+    // the strict no-vivification rules
+    const baseline = StateService.PROPERTY_BASELINES[leaf];
+    const existingProps = entityRecord.properties;
+    const propsExist = existingProps && typeof existingProps === 'object' && !Array.isArray(existingProps);
+    const leafExists = propsExist && typeof (existingProps as Record<string, unknown>)[leaf] === 'number';
+
+    if (baseline === undefined && !leafExists) {
+      return null;
+    }
+    if (!propsExist) {
+      entityRecord.properties = {};
+    }
+    return {
+      container: entityRecord.properties as Record<string, unknown>,
+      leaf,
+      baseline: baseline ?? 0,
+      // Vital resources never go negative; no upper clamp (max HP varies per
+      // game). Other pre-existing numeric properties keep their full range.
+      min: baseline !== undefined ? 0 : undefined,
+    };
   }
 
   /**
@@ -345,16 +457,122 @@ export class StateService {
    * ----------------------------------------------------------------
    * @mutates context.state - Applies multiple numeric deltas to state paths
    * @sourceOfTruth - The internal state object
+   * @returns Map of path -> delta that ACTUALLY landed in state. Blocked
+   *          writes and no-op (fully clamped) deltas are omitted, so callers
+   *          can report the truth to the client instead of the intent.
    * @logic_flow
    * 1. Iterate through all delta paths
    * 2. For each path, call modifyValue to apply the delta
-   * 3. Supports both simple paths and deep dot-notation paths
+   * 3. Collect the applied (possibly clamped) amounts
    */
-  applyDeltas(deltas: Record<string, number>): void {
+  applyDeltas(deltas: Record<string, number>): Record<string, number> {
+    const applied: Record<string, number> = {};
     for (const [path, delta] of Object.entries(deltas)) {
       if (typeof delta === 'number') {
-        this.modifyValue(path, delta);
+        const result = this.modifyValue(path, delta);
+        if (result !== null && result !== 0) {
+          applied[path] = result;
+        }
       }
     }
+    return applied;
+  }
+
+  /**
+   * [METHOD] deriveConditionChanges
+   * ----------------------------------------------------------------
+   * @mutates context.state - Recomputes each entity's combat_condition and
+   * physical_condition from its vitals per the ACTIVE RULESET's bands and
+   * writes them onto properties.
+   *
+   * The thresholds and labels come from the rules engine (CompiledStory via
+   * resolveConditionRules); this method only evaluates them — no outcome is
+   * hardcoded here. The returned transitions are narrative facts for the
+   * Narrator (MAS2) and state for the HUD, never player-facing text.
+   *
+   * Only entities whose vitals exist as numbers are evaluated (untouched
+   * Genesis NPCs stay implicit), and a default value is never written onto an
+   * entity that had no condition — so the state and the client delta only
+   * carry real transitions.
+   *
+   * @returns The list of condition transitions that occurred this call.
+   */
+  deriveConditionChanges(rules: ConditionRules = DEFAULT_CONDITION_RULES): ConditionTransition[] {
+    const transitions: ConditionTransition[] = [];
+    const mech = this.state.tier1_mechanical;
+    const entities = mech?.entities;
+    if (!entities || typeof entities !== 'object' || Array.isArray(entities)) {
+      return transitions;
+    }
+
+    const playerId = (mech?.index as Record<string, unknown> | undefined)?.player_id;
+
+    for (const [entityId, entityRaw] of Object.entries(entities as Record<string, unknown>)) {
+      if (!entityRaw || typeof entityRaw !== 'object' || Array.isArray(entityRaw)) continue;
+      const entity = entityRaw as Record<string, unknown>;
+      const props = entity.properties;
+      if (!props || typeof props !== 'object' || Array.isArray(props)) continue;
+      const properties = props as Record<string, unknown>;
+
+      const isPlayer = entityId === playerId ||
+        String(entity.type || '').toLowerCase() === 'player';
+      const isHostile = !isPlayer && (
+        String(entity.type || '').toLowerCase() === 'enemy' ||
+        String(entity.status || '').toLowerCase() === 'hostile'
+      );
+
+      // --- Combat condition from HP (first matching band, ascending) ---
+      const hp = properties.hp;
+      if (typeof hp === 'number') {
+        const maxHp = typeof properties.maxHp === 'number' ? properties.maxHp
+          : typeof properties.max_hp === 'number' ? properties.max_hp
+            : 100;
+        const ratio = maxHp > 0 ? hp / maxHp : 0;
+
+        let combat = rules.health_default;
+        for (const band of rules.health_bands) {
+          if (ratio <= band.max_ratio) {
+            combat = isHostile && band.hostile_condition ? band.hostile_condition : band.condition;
+            break;
+          }
+        }
+
+        const previous = properties.combat_condition;
+        if (previous !== combat && !(previous === undefined && combat === rules.health_default)) {
+          properties.combat_condition = combat;
+          transitions.push({
+            entity_id: entityId,
+            property: 'combat_condition',
+            from: typeof previous === 'string' ? previous : undefined,
+            to: combat,
+          });
+        }
+      }
+
+      // --- Physical condition from stamina (first matching band, ascending) ---
+      const stamina = properties.current_stamina;
+      if (typeof stamina === 'number') {
+        let physical = rules.stamina_default;
+        for (const band of rules.stamina_bands) {
+          if (stamina <= band.max_value) {
+            physical = band.condition;
+            break;
+          }
+        }
+
+        const previous = properties.physical_condition;
+        if (previous !== physical && !(previous === undefined && physical === rules.stamina_default)) {
+          properties.physical_condition = physical;
+          transitions.push({
+            entity_id: entityId,
+            property: 'physical_condition',
+            from: typeof previous === 'string' ? previous : undefined,
+            to: physical,
+          });
+        }
+      }
+    }
+
+    return transitions;
   }
 }

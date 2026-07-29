@@ -51,6 +51,9 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
     // State Extraction - MUST be called before any conditional returns
     const storeState = useActiveGameStore(state => state.gameState);
     const storeEntities = useActiveGameStore(state => state.entities);
+    // Entity selected by clicking a name inside the narrative text
+    const selectedEntityId = useActiveGameStore(state => state.selectedEntityId);
+    const setSelectedEntity = useActiveGameStore(state => state.setSelectedEntity);
 
     const { data: gameState, isLoading, error } = useQuery({
         queryKey: ['game-state', gameStateId],
@@ -176,8 +179,11 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
         </div>
     );
 
-    // Player Entity for My Character Modal (fallback to extracted playerEntity)
-    // const modalPlayerEntity = playerEntity;
+    // Entity picked via narrative-text click (StoryBlock -> setSelectedEntity).
+    // Fall back to a minimal shell so the modal still opens for stale IDs.
+    const selectedEntity = selectedEntityId
+        ? (entities[selectedEntityId] || { id: selectedEntityId })
+        : null;
 
     return (
         <>
@@ -202,6 +208,13 @@ export function ActiveGameInterface({ gameStateId }: ActiveGameInterfaceProps) {
                 entity={playerEntity}
                 isOpen={showMyChar}
                 onClose={() => setShowMyChar(false)}
+            />
+
+            {/* Narrative-text entity clicks */}
+            <EntityInspectorModal
+                entity={selectedEntity}
+                isOpen={!!selectedEntity}
+                onClose={() => setSelectedEntity(null)}
             />
         </>
     );

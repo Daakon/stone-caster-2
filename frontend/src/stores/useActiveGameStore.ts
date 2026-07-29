@@ -12,6 +12,8 @@ export interface Vitals {
     stamina: number; // 0-100%
     saturation: number; // 0-100%
     inCombat: boolean;
+    /** Player's non-default condition (e.g. "Wounded", "Collapsed"), null when fine */
+    condition: string | null;
 }
 
 interface ActiveGameState {
@@ -81,7 +83,7 @@ export const useActiveGameStore = create<ActiveGameState>()(
             lastError: null,
 
             // Default Derived
-            vitals: { hp: 100, maxHp: 100, stamina: 100, saturation: 100, inCombat: false },
+            vitals: { hp: 100, maxHp: 100, stamina: 100, saturation: 100, inCombat: false, condition: null },
             entities: {},
             suggested_actions: [],
 
@@ -123,12 +125,19 @@ export const useActiveGameStore = create<ActiveGameState>()(
                     const currentStamina = props.current_stamina ?? props.stamina ?? 100;
                     const currentSatiety = props.satiety ?? props.saturation ?? 100;
 
+                    // Surface the most urgent non-default condition (combat first)
+                    const combatCondition = props.combat_condition && props.combat_condition !== 'Healthy'
+                        ? props.combat_condition : null;
+                    const physicalCondition = props.physical_condition && props.physical_condition !== 'Rested'
+                        ? props.physical_condition : null;
+
                     newVitals = {
                         hp: props.hp ?? 100,
                         maxHp: props.maxHp ?? props.max_hp ?? 100,
                         stamina: currentStamina, // Use current_stamina for reactivity
                         saturation: currentSatiety, // Use satiety for reactivity
-                        inCombat: mech.in_combat ?? false
+                        inCombat: mech.in_combat ?? false,
+                        condition: combatCondition || physicalCondition
                     };
                 } else if (mech.health) {
                     // Fallback to legacy global stats if entities missing
@@ -137,7 +146,8 @@ export const useActiveGameStore = create<ActiveGameState>()(
                         maxHp: mech.health?.max ?? 100,
                         stamina: mech.stamina?.current ?? 100,
                         saturation: 100,
-                        inCombat: mech.in_combat ?? false
+                        inCombat: mech.in_combat ?? false,
+                        condition: null
                     };
                 }
 

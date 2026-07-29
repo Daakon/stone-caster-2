@@ -66,7 +66,7 @@ import TestGalleryPage from './pages/_test_gallery';
 function AppContent() {
   // Use the singleton useAuth hook to check loading state
   // This is the nuclear option - blocks the entire app until session is resolved
-  const { isLoading } = useAuth();
+  const { isLoading, isError } = useAuth();
 
   // CRITICAL: Block ALL rendering until auth loading is complete
   // This prevents the login screen flash by ensuring we never render
@@ -93,6 +93,7 @@ function AppContent() {
         ]}
       />
       <AppLayout>
+        {isError && <ServiceUnavailableNotice />}
         <AdventureToStoryRedirect />
         <Routes>
           {/* Public routes - no early access required */}
@@ -359,6 +360,21 @@ function AppContent() {
       </AppLayout>
       <ToastProvider />
     </>
+  );
+}
+
+function ServiceUnavailableNotice() {
+  return (
+    <div className="border-b border-amber-200 bg-amber-50 text-amber-950" role="status">
+      <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+        <p className="text-sm font-medium">
+          The service is currently unavailable. Sorry for the inconvenience.
+        </p>
+        <p className="mt-1 text-sm text-amber-900/80">
+          You can keep browsing the site, but sign-in and live game features may be unavailable until the API is back online.
+        </p>
+      </div>
+    </div>
   );
 }
 

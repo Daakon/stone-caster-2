@@ -10,8 +10,8 @@
     "tools/author-cli"
   ],
   "scripts": {
-    "dev": "npm run dev:clean",
-    "dev:clean": "npm run kill:ports && npm run dev:parallel",
+    "dev": "node scripts/dev-local.js",
+    "dev:clean": "npm run dev",
     "dev:parallel": "npm run dev:server & npm run dev:client",
     "dev:client": "npm run dev --workspace=frontend",
     "dev:server": "npm run dev:server:local",

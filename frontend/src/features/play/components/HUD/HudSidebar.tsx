@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { User, Skull, Box, HelpCircle, HeartCrack, Activity, Moon } from 'lucide-react';
+import { User, Skull, Box, HelpCircle, HeartCrack, Activity, Moon, Flag } from 'lucide-react';
 import { resolveEntityDisplay } from '../../utils/entity-utils';
 
 interface HudSidebarProps {
@@ -60,6 +60,10 @@ export function HudSidebar({ context, entities, locations, playerId, activeScene
                         const getCombatConditionIcon = () => {
                             if (combatCondition === 'Wounded') {
                                 return <HeartCrack className="w-3.5 h-3.5 text-red-500" />;
+                            } else if (combatCondition === 'Critical') {
+                                return <Activity className="w-3.5 h-3.5 text-red-600 animate-pulse" />;
+                            } else if (combatCondition === 'Surrendered') {
+                                return <Flag className="w-3.5 h-3.5 text-amber-500" />;
                             } else if (combatCondition === 'Defeated') {
                                 return <Skull className="w-3.5 h-3.5 text-gray-500 opacity-50" />;
                             } else if (combatCondition === 'Unconscious') {

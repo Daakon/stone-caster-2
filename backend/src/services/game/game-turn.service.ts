@@ -10,6 +10,8 @@ import { DirectorService } from '../runtime/director.service.js';
 import { EngineService } from '../runtime/engine.service.js';
 import { Mas2Service } from '../runtime/mas2.service.js';
 import { StateService } from '../runtime/state.service.js';
+import { resolveConditionRules, type ConditionRules, type ConditionTransition } from '../runtime/condition-rules.js';
+import { TIER_MULTIPLIERS } from '../runtime/tier-value-mapper.js';
 
 import { GameStateBundle, MechanicalState, NarrativeFocus, SceneRegistry } from '../../domain/game-state.types.js';
 import { ServiceError } from '../../utils/serviceError.js';
@@ -83,8 +85,11 @@ export class GameTurnService {
                 throw new Error(`Compiled story not found for draft story: ${draftStoryId}`);
             }
 
-            // Extract actionsMap from compiled story
+            // Extract actionsMap and condition rules from the compiled story —
+            // the rules engine defines how vitals map to conditions; the
+            // deterministic engine only evaluates those rules.
             const actionsMap = this.extractActionsMap(compiledStory);
+            const conditionRules = resolveConditionRules(compiledStory);
 
             // Step 2: Director (Strategic Lead) - Can have mock AI results
             // Converts player input into Unified Intent DTO with intent_queue, unseen_ripples, and proximity_cluster
@@ -151,22 +156,30 @@ export class GameTurnService {
                 stateUpdated: Object.keys(engineResult.numeric_deltas).length > 0
             });
 
-            // Apply unseen_ripples from Director to StateService (Pre-Engine Write)
-            if (directorIntent.unseen_ripples && directorIntent.unseen_ripples.length > 0) {
-                for (const ripple of directorIntent.unseen_ripples) {
-                    if (ripple.relationship_delta) {
-                        for (const [relType, value] of Object.entries(ripple.relationship_delta)) {
-                            const path = `entities.${ripple.target_id}.relationships.${relType}`;
-                            stateService.applyDeltas({ [path]: value });
-                            // Also add to engineResult to ensure it's returned in the delta to the client
-                            engineResult.numeric_deltas[path] = (engineResult.numeric_deltas[path] || 0) + (value as number);
-                        }
-                    }
-                }
+            // Convert Director unseen_ripples into relationship deltas on the
+            // target entity (0-20 scale, tier-based magnitude). 'status'
+            // ripples erode the relationship; relationship/emotional build it.
+            const combinedDeltas: Record<string, number> = { ...engineResult.numeric_deltas };
+            for (const ripple of directorIntent.unseen_ripples ?? []) {
+                const axis = ripple.property_path?.split('.').pop();
+                if (!axis || !ripple.target_id) continue;
+                const multiplier = TIER_MULTIPLIERS[ripple.delta_tier] ?? TIER_MULTIPLIERS.Moderate;
+                const magnitude = Math.max(1, Math.round(20 * multiplier));
+                const sign = ripple.type === 'status' ? -1 : 1;
+                const path = `entities.${ripple.target_id}.relationships.${axis}`;
+                combinedDeltas[path] = (combinedDeltas[path] || 0) + sign * magnitude;
             }
 
-            // Apply engine deltas to StateService
-            stateService.applyDeltas(engineResult.numeric_deltas);
+            // Apply all deterministic deltas ONCE. Only what actually landed in
+            // state (after clamping / dropped writes) is reported to the client,
+            // so the system log can never claim a change that didn't persist.
+            const appliedDeltas = stateService.applyDeltas(combinedDeltas);
+
+            // Derive injury/collapse/surrender conditions from the vitals that
+            // just changed, per the story's condition rules, BEFORE the
+            // Narrator runs — the transitions are handed to MAS2 as facts to
+            // render as fiction, never printed to the player directly.
+            const conditionTransitions = stateService.deriveConditionChanges(conditionRules);
 
             // Get final authoritative state from StateService
             const finalGameState = stateService.getState();
@@ -179,8 +192,9 @@ export class GameTurnService {
                 narrative: (finalGameState as any).tier0_narrative || state.narrative,
             };
 
-            // Convert numeric deltas to nested structure for compatibility
-            const delta = this.nestNumericDeltas(engineResult.numeric_deltas);
+            // Convert the APPLIED deltas to nested structure for the client
+            const delta = this.nestNumericDeltas(appliedDeltas);
+            this.mergeConditionChanges(delta, conditionTransitions);
 
             const engineResultFormatted = {
                 success: engineResult.success,
@@ -222,7 +236,8 @@ export class GameTurnService {
                 undefined, // worldStyle
                 compiledStory,
                 directorIntent, // Ripple reasons + accident context for the Narrator
-                playerInput // test_* scenario bypass detection
+                playerInput, // test_* scenario bypass detection
+                conditionTransitions // Injury/collapse/surrender facts to render as fiction
             );
             console.log('[Turn] MAS2 Result:', {
                 ripple_narrative: mas2Result.ripple_narrative?.substring(0, 100),
@@ -235,7 +250,8 @@ export class GameTurnService {
                 const mutationResult = await this.processMas2Mutations(
                     processedState,
                     mas2Result.tier0_mutations,
-                    actionsMap
+                    actionsMap,
+                    conditionRules
                 );
                 processedState = mutationResult.state || processedState;
                 // Merge deltas
@@ -373,6 +389,12 @@ export class GameTurnService {
             const formatRecursive = (obj: any, prefix = ''): string[] => {
                 const parts: string[] = [];
                 for (const [key, value] of Object.entries(obj)) {
+                    // Derived conditions are the Narrator's material, not log
+                    // output — the player learns "he surrendered" as prose,
+                    // never as a game-result line.
+                    if (key === 'combat_condition' || key === 'physical_condition') {
+                        continue;
+                    }
                     // Skip technical keys or flatten them
                     if (key === 'properties' || key === 'stats') { // auto-flatten common containers
                         parts.push(...formatRecursive(value, prefix));
@@ -564,7 +586,8 @@ export class GameTurnService {
     private async processMas2Mutations(
         state: GameStateBundle,
         mutations: Record<string, unknown>,
-        actionsMap: Record<string, unknown>
+        actionsMap: Record<string, unknown>,
+        conditionRules: ConditionRules
     ): Promise<{ state: GameStateBundle; delta?: Record<string, any> }> {
         const gameState = this.convertStateToGameState(state);
         // We reuse the StateService to apply numeric deltas safely
@@ -579,18 +602,40 @@ export class GameTurnService {
             }
         }
 
-        stateService.applyDeltas(numericMutations);
-        
+        const appliedMutations = stateService.applyDeltas(numericMutations);
+
+        // Narrator mutations can move vitals too — recompute conditions
+        const conditionTransitions = stateService.deriveConditionChanges(conditionRules);
+
         const finalGameState = stateService.getState();
         const mutatedState: GameStateBundle = {
             ...state,
             mechanical: (finalGameState as any).tier1_mechanical || state.mechanical,
         };
 
-        // Convert flat numericMutations to nested delta structure so caller can merge it
-        const deltaResult = this.nestNumericDeltas(numericMutations);
+        // Report only the mutations that actually landed in state
+        const deltaResult = this.nestNumericDeltas(appliedMutations);
+        this.mergeConditionChanges(deltaResult, conditionTransitions);
 
         return { state: mutatedState, delta: deltaResult };
+    }
+
+    /**
+     * Fold derived condition transitions into the nested client delta under
+     * entities.<id>.properties. This keeps the HUD state in sync (icons,
+     * badges); the system-log formatter explicitly SKIPS these keys — the
+     * Narrator, not the log, tells the player what happened.
+     */
+    private mergeConditionChanges(
+        delta: Record<string, any>,
+        transitions: ConditionTransition[]
+    ): void {
+        for (const transition of transitions) {
+            if (!delta.entities) delta.entities = {};
+            if (!delta.entities[transition.entity_id]) delta.entities[transition.entity_id] = {};
+            if (!delta.entities[transition.entity_id].properties) delta.entities[transition.entity_id].properties = {};
+            delta.entities[transition.entity_id].properties[transition.property] = transition.to;
+        }
     }
 
     /**
@@ -642,53 +687,48 @@ export class GameTurnService {
         };
 
         // Process entity updates (relationship changes)
+        // Relationships live ON the entity (entities.<id>.relationships.<axis>)
+        // — the same location the engine ripples target, the client merges, and
+        // the vitals/inspector UI reads. (They previously went to a detached
+        // mechanical.ledgers map that nothing displayed or reloaded.)
         for (const update of stateUpdates.entity_updates) {
             // Parse the path (e.g., "relationships.player.trust")
             const pathParts = update.path.split('.');
 
-            if (pathParts[0] === 'relationships' && pathParts.length >= 3) {
-                // Initialize relationships structure if needed
-                const mech = state.mechanical_state || state.mechanical || {};
-                if (!mech.ledgers) {
-                    mech.ledgers = {};
-                }
-                if (!mech.ledgers.relationships) {
-                    mech.ledgers.relationships = {};
+            if (pathParts[0] === 'relationships' && pathParts.length >= 3 && typeof update.value === 'number') {
+                const mech = ((state as any).mechanical_state || state.mechanical || {}) as MechanicalState;
+                const entity = mech.entities?.[update.id];
+                if (!entity) {
+                    console.warn(`[Turn] MAS2 relationship update for unknown entity ${update.id} — skipped`);
+                    continue;
                 }
 
-                const relationships = mech.ledgers.relationships as Record<string, Record<string, number>>;
-                if (!relationships[update.id]) {
-                    relationships[update.id] = { trust: 5, warmth: 5, respect: 5, desire: 5, awe: 5 };
+                if (!entity.relationships || typeof entity.relationships !== 'object') {
+                    entity.relationships = {};
                 }
+                const relationships = entity.relationships as Record<string, number>;
 
                 // Extract relationship axis (e.g., "trust" from "relationships.player.trust")
                 const axis = pathParts[pathParts.length - 1];
-                const current = relationships[update.id][axis] || 5;
+                // Migrate from the legacy ledger location if the axis was tracked there
+                const legacyValue = ((mech as any).ledgers?.relationships)?.[update.id]?.[axis];
+                const current = relationships[axis] ?? (typeof legacyValue === 'number' ? legacyValue : 5);
 
-                // Apply change (value is a delta, not absolute)
-                if (typeof update.value === 'number') {
-                    const newValue = Math.max(0, Math.min(20, current + update.value));
-                    relationships[update.id][axis] = newValue;
+                // Apply change (value is a delta, not absolute), clamped to 0-20
+                const newValue = Math.max(0, Math.min(20, current + update.value));
+                relationships[axis] = newValue;
 
-                    // The client applies deltas additively, so record the change
-                    // that actually landed after clamping — not the absolute value.
-                    const applied = newValue - current;
-                    if (applied !== 0) {
-                        if (!delta.entities[update.id]) {
-                            delta.entities[update.id] = {};
-                        }
-                        if (!delta.entities[update.id].relationships) {
-                            delta.entities[update.id].relationships = {};
-                        }
-                        delta.entities[update.id].relationships[axis] = applied;
+                // The client applies deltas additively, so record the change
+                // that actually landed after clamping — not the absolute value.
+                const applied = newValue - current;
+                if (applied !== 0) {
+                    if (!delta.entities[update.id]) {
+                        delta.entities[update.id] = {};
                     }
-                }
-
-                // Update state
-                if (state.mechanical_state) {
-                    state.mechanical_state.ledgers = mech.ledgers;
-                } else if (state.mechanical) {
-                    state.mechanical.ledgers = mech.ledgers;
+                    if (!delta.entities[update.id].relationships) {
+                        delta.entities[update.id].relationships = {};
+                    }
+                    delta.entities[update.id].relationships[axis] = applied;
                 }
             }
         }

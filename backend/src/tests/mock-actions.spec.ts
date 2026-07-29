@@ -82,11 +82,11 @@ describe('Mock Actions Verification', () => {
                 },
                 rest_action: {
                     logic: 'none',
-                    deltas: { [`entities.${PLAYER_ID}.properties.stamina`]: 10 }
+                    deltas: { [`entities.${PLAYER_ID}.properties.current_stamina`]: 10 }
                 },
                 navigate: {
                     logic: 'none',
-                    deltas: { [`entities.${PLAYER_ID}.properties.stamina`]: -10 }
+                    deltas: { [`entities.${PLAYER_ID}.properties.current_stamina`]: -10 }
                 }
             }
         },
@@ -145,6 +145,17 @@ describe('Mock Actions Verification', () => {
         expect(result.delta?.relationships, `${label} no top-level delta.relationships`).toBeUndefined();
     };
 
+    // A turn only counts when it lands in the DB: grab the payload of the last
+    // updateGameState call so tests can assert the PERSISTED snapshot matches
+    // the delta the client was told about.
+    const getPersistedMechanicalState = (label: string) => {
+        const updateMock = (gameTurnService as any).storiesRepo.updateGameState;
+        expect(updateMock.mock.calls.length, `${label} state persisted`).toBeGreaterThan(0);
+        const payload = updateMock.mock.calls[updateMock.mock.calls.length - 1][1];
+        expect(payload.mechanical_state, `${label} persisted mechanical_state`).toBeDefined();
+        return payload.mechanical_state;
+    };
+
     it('should process test_combat and generate correct mechanical deltas for all targets and player', async () => {
         const result = await gameTurnService.processTurn(mockGameStateId, 'test_combat', PLAYER_ID);
 
@@ -155,8 +166,19 @@ describe('Mock Actions Verification', () => {
         expect(result.delta?.entities?.[TARGET_GUARD_ID]?.properties?.hp, 'test_combat guard hp').toBeLessThan(0);
         expect(result.delta?.entities?.[TARGET_KIERA_ID]?.properties?.hp, 'test_combat kiera hp').toBeLessThan(0);
 
-        // Engine applies stamina cost to the actor
-        expect(result.delta?.entities?.[PLAYER_ID]?.properties?.stamina, 'test_combat player stamina').toBeLessThan(0);
+        // Engine applies stamina cost to the actor's LIVE resource (current_stamina)
+        const staminaDelta = result.delta?.entities?.[PLAYER_ID]?.properties?.current_stamina;
+        expect(staminaDelta, 'test_combat player current_stamina').toBeLessThan(0);
+
+        // The persisted snapshot must reflect exactly what the delta claimed —
+        // this is what the vitals HUD reads after a refresh.
+        const persisted = getPersistedMechanicalState('test_combat');
+        expect(persisted.entities[PLAYER_ID].properties.current_stamina, 'test_combat persisted stamina')
+            .toBe(100 + staminaDelta);
+        expect(persisted.entities[TARGET_GUARD_ID].properties.hp, 'test_combat persisted guard hp')
+            .toBe(50 + result.delta.entities[TARGET_GUARD_ID].properties.hp);
+        expect(persisted.entities[TARGET_KIERA_ID].properties.hp, 'test_combat persisted kiera hp')
+            .toBe(60 + result.delta.entities[TARGET_KIERA_ID].properties.hp);
 
         // Ensure "Unknown Entity" is not in the system log (find the mechanical delta log specifically)
         const newLogs = result.new_logs || [];
@@ -182,6 +204,20 @@ describe('Mock Actions Verification', () => {
         expect(trustDelta, 'test_social bartender trust defined').toBeDefined();
         expect(trustDelta, 'test_social bartender trust nonzero').not.toBe(0);
 
+        // Director ripple: Minor emotional ripple builds desire (+1 on the 0-20 scale)
+        const desireDelta = result.delta?.entities?.[TARGET_BARTENDER_ID]?.relationships?.desire;
+        expect(desireDelta, 'test_social ripple desire delta').toBe(1);
+
+        // Relationships persist ON the entity — the canonical location the
+        // client merges into and reloads from. Baseline is 5, clamped 0-20.
+        const persisted = getPersistedMechanicalState('test_social');
+        const persistedRels = persisted.entities[TARGET_BARTENDER_ID].relationships;
+        expect(persistedRels, 'test_social persisted relationships').toBeDefined();
+        expect(persistedRels.trust, 'test_social persisted trust').toBe(5 + trustDelta);
+        expect(persistedRels.desire, 'test_social persisted desire').toBe(5 + desireDelta);
+        // No detached ledger copy — entity-level storage is the single source
+        expect(persisted.ledgers?.relationships, 'test_social no legacy ledger writes').toBeUndefined();
+
         const newLogs = result.new_logs || [];
         const systemLog = newLogs.find(l => l.role === 'system' && l.content.includes('Bartender ['));
 
@@ -194,12 +230,19 @@ describe('Mock Actions Verification', () => {
 
     it('should process test_mixed successfully (combat + rest)', async () => {
         const result = await gameTurnService.processTurn(mockGameStateId, 'test_mixed', PLAYER_ID);
-        
+
         expect(result.success, 'test_mixed success').toBe(true);
         expect(result.delta, 'test_mixed delta').toBeDefined();
-        
+
         expect(result.delta?.entities?.[TARGET_GUARD_ID], 'test_mixed guard delta').toBeDefined();
         expect(result.delta?.entities?.[PLAYER_ID], 'test_mixed player delta').toBeDefined();
+
+        // Sequence aggregation: combat drains 5 (mocked roll), rest restores 10
+        const staminaDelta = result.delta?.entities?.[PLAYER_ID]?.properties?.current_stamina;
+        expect(staminaDelta, 'test_mixed net stamina').toBe(5);
+        const persisted = getPersistedMechanicalState('test_mixed');
+        expect(persisted.entities[PLAYER_ID].properties.current_stamina, 'test_mixed persisted stamina')
+            .toBe(100 + staminaDelta);
     });
 
     it('should process test_travel successfully', async () => {
@@ -208,6 +251,10 @@ describe('Mock Actions Verification', () => {
          expect(result.success, 'test_travel success').toBe(true);
          // Navigate applies to actor explicitly
          expect(result.delta?.entities?.[PLAYER_ID], 'test_travel player delta').toBeDefined();
+         expect(result.delta?.entities?.[PLAYER_ID]?.properties?.current_stamina, 'test_travel stamina delta').toBe(-10);
+
+         const persisted = getPersistedMechanicalState('test_travel');
+         expect(persisted.entities[PLAYER_ID].properties.current_stamina, 'test_travel persisted stamina').toBe(90);
 
          expectCleanTurnOutput(result, 'test_travel');
     });
@@ -217,7 +264,7 @@ describe('Mock Actions Verification', () => {
 
         expect(result.success, 'test_drunk_combat success').toBe(true);
         expect(result.delta?.entities?.[TARGET_GUARD_ID]?.properties?.hp, 'test_drunk_combat guard hp').toBeLessThan(0);
-        expect(result.delta?.entities?.[PLAYER_ID]?.properties?.stamina, 'test_drunk_combat player stamina').toBeLessThan(0);
+        expect(result.delta?.entities?.[PLAYER_ID]?.properties?.current_stamina, 'test_drunk_combat player stamina').toBeLessThan(0);
 
         const newLogs = result.new_logs || [];
         const systemLog = newLogs.find(l => l.role === 'system' && l.content.includes('[Hp:'));
@@ -227,12 +274,54 @@ describe('Mock Actions Verification', () => {
         expectCleanTurnOutput(result, 'test_drunk_combat');
     });
 
+    it('should mark a weakened hostile target as Surrendered after test_combat', async () => {
+        // Guard is hostile and already badly hurt: 8/50 HP (16%). The Moderate
+        // impact from test_combat drops him below the 25% surrender threshold.
+        const weakenedState = getInitialGameState();
+        (weakenedState.mechanical as any).entities[TARGET_GUARD_ID] = {
+            id: TARGET_GUARD_ID,
+            type: 'enemy',
+            properties: { name: 'Garret', hp: 8, maxHp: 50 }
+        };
+        vi.spyOn(gameTurnService, 'loadState' as any).mockResolvedValue(weakenedState);
+
+        const result = await gameTurnService.processTurn(mockGameStateId, 'test_combat', PLAYER_ID);
+
+        expect(result.success, 'surrender scenario success').toBe(true);
+
+        // The condition transition rides the client delta as HUD state
+        const guardDelta = result.delta?.entities?.[TARGET_GUARD_ID]?.properties;
+        expect(guardDelta?.hp, 'surrender scenario guard took damage').toBeLessThan(0);
+        expect(guardDelta?.combat_condition, 'surrender scenario condition in delta').toBe('Surrendered');
+
+        // And it persists on the entity for reloads
+        const persisted = getPersistedMechanicalState('surrender scenario');
+        expect(persisted.entities[TARGET_GUARD_ID].properties.combat_condition, 'surrender scenario persisted condition')
+            .toBe('Surrendered');
+
+        const newLogs = result.new_logs || [];
+
+        // The system log must NEVER print the raw condition label — that is
+        // the Narrator's material, not a game-result line.
+        for (const log of newLogs.filter(l => l.role === 'system')) {
+            expect(log.content, 'surrender scenario no condition labels in system log').not.toContain('Combat Condition');
+            expect(log.content, 'surrender scenario no condition labels in system log').not.toContain('Physical Condition');
+        }
+
+        // The NARRATOR renders the surrender as prose, like a DM would
+        const narratorLog = newLogs.find(l => l.role === 'narrator');
+        expect(narratorLog?.content, 'surrender scenario narrated as fiction').toContain('surrender');
+        expect(narratorLog?.content, 'surrender scenario names the NPC').toContain('Garret');
+
+        expectCleanTurnOutput(result, 'surrender scenario');
+    });
+
     it('should process test_protective_combat successfully (PROTECTING_ALLY situational tag)', async () => {
         const result = await gameTurnService.processTurn(mockGameStateId, 'test_protective_combat', PLAYER_ID);
 
         expect(result.success, 'test_protective_combat success').toBe(true);
         expect(result.delta?.entities?.[TARGET_GUARD_ID]?.properties?.hp, 'test_protective_combat guard hp').toBeLessThan(0);
-        expect(result.delta?.entities?.[PLAYER_ID]?.properties?.stamina, 'test_protective_combat player stamina').toBeLessThan(0);
+        expect(result.delta?.entities?.[PLAYER_ID]?.properties?.current_stamina, 'test_protective_combat player stamina').toBeLessThan(0);
 
         const newLogs = result.new_logs || [];
         const systemLog = newLogs.find(l => l.role === 'system' && l.content.includes('[Hp:'));

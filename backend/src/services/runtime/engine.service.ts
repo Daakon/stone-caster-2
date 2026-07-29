@@ -499,10 +499,16 @@ export class EngineService {
 
     if (isPhysicalIntent) {
       const staminaDrain = 5 + Math.floor(Math.random() * 6); // 5-10
-      const staminaPath = `entities.${intent.actor_id}.properties.stamina`;
-      const currentStamina = this.getNestedValue(gameState, staminaPath) as number || 100;
+      // Target the resource key that actually exists on the actor.
+      // `current_stamina` is the canonical live resource (per the vitality
+      // ruleset and the client contract); `stamina` is a legacy fallback.
+      const actorProps = (actor?.properties || {}) as Record<string, unknown>;
+      const staminaKey = typeof actorProps.current_stamina === 'number' ? 'current_stamina'
+        : typeof actorProps.stamina === 'number' ? 'stamina'
+          : 'current_stamina';
+      const staminaPath = `entities.${intent.actor_id}.properties.${staminaKey}`;
       numericDeltas[staminaPath] = (numericDeltas[staminaPath] || 0) - staminaDrain;
-      console.log(`[LOGIC_TRACE] [EngineService] Applied stamina drain: ${staminaDrain} (current: ${currentStamina})`);
+      console.log(`[LOGIC_TRACE] [EngineService] Applied stamina drain: ${staminaDrain} to ${staminaPath}`);
     }
 
     // Apply damage reduction hook for INTOXICATED (affects actor's incoming damage)
@@ -564,26 +570,6 @@ export class EngineService {
       })),
       status_tags: {},
     };
-  }
-
-  /**
-   * [METHOD] getNestedValue
-   * ----------------------------------------------------------------
-   * Helper to get nested value from gameState using dot notation path
-   */
-  private getNestedValue(gameState: GameState, path: string): unknown {
-    const parts = path.split('.');
-    let current: any = gameState;
-
-    for (const part of parts) {
-      if (current && typeof current === 'object' && part in current) {
-        current = current[part];
-      } else {
-        return undefined;
-      }
-    }
-
-    return current;
   }
 
   /**

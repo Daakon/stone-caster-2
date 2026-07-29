@@ -10,6 +10,7 @@ import { Mas2ResponseDtoSchema } from '@shared/types/chimera-runtime';
 import { LlmService } from '../llm/llm.service';
 import type { CompiledStory } from '@shared/types/chimera-compiled';
 import { isMockAiEnabled, isTestScenarioInput } from '../../config/ai-flags';
+import type { ConditionTransition } from './condition-rules';
 
 export class Mas2Service {
   private llmService: LlmService;
@@ -31,6 +32,8 @@ export class Mas2Service {
    * @param compiledStory - Optional compiled story for lore context
    * @param directorIntent - The Director's Unified Intent (ripples/accident context)
    * @param playerInput - The raw player input (test-scenario bypass detection)
+   * @param conditionTransitions - Rules-engine condition transitions (injury/
+   *        collapse/surrender) this turn — facts the Narrator renders as prose
    * @returns Mas2ResponseDto with ripple_narrative and tier0_mutations
    */
   async narrate(
@@ -40,14 +43,15 @@ export class Mas2Service {
     worldStyle?: string,
     compiledStory?: CompiledStory,
     directorIntent?: DirectorUnifiedIntent,
-    playerInput?: string
+    playerInput?: string,
+    conditionTransitions?: ConditionTransition[]
   ): Promise<Mas2ResponseDto> {
     if (isMockAiEnabled() || isTestScenarioInput(playerInput)) {
-      return this.mockNarrate(engineResult, gameState, triggerId);
+      return this.mockNarrate(engineResult, gameState, triggerId, conditionTransitions);
     }
 
     const system = this.buildNarratorSystemPrompt(worldStyle, compiledStory, triggerId);
-    const user = this.buildNarratorUserPrompt(engineResult, gameState, directorIntent);
+    const user = this.buildNarratorUserPrompt(engineResult, gameState, directorIntent, conditionTransitions);
 
     // NO FALLBACK: state is not persisted until after narration, so a failed
     // turn is cleanly retryable by the player.
@@ -109,7 +113,8 @@ Use "state_updates" ONLY for social ripple effects on bystanders (how witnesses 
   private buildNarratorUserPrompt(
     engineResult: EngineResultDto,
     gameState: GameState,
-    directorIntent?: DirectorUnifiedIntent
+    directorIntent?: DirectorUnifiedIntent,
+    conditionTransitions?: ConditionTransition[]
   ): string {
     const entities = gameState.tier1_mechanical?.entities || {};
     const getEntityName = (id: string): string => {
@@ -135,6 +140,14 @@ Use "state_updates" ONLY for social ripple effects on bystanders (how witnesses 
         return `- Intended: ${intended} → Actually affected: ${actual} (${tr.resolution_summary})${accident ? ' ⚠ THE ACTION WENT ASTRAY — narrate the accident' : ''}`;
       });
       sections.push(`## Target Results\n${lines.join('\n')}`);
+    }
+
+    // Condition transitions (rules-engine facts: injuries, collapse, surrender)
+    if (conditionTransitions && conditionTransitions.length > 0) {
+      const lines = conditionTransitions.map(t =>
+        `- ${getEntityName(t.entity_id)}: ${t.from || 'previous state'} → ${t.to}`
+      );
+      sections.push(`## Condition Changes (these ALREADY happened — show them through action and sensory detail, like a DM would; NEVER print these labels)\n${lines.join('\n')}\nExamples of intent: "Surrendered" → they throw down their weapon and yield; "Unconscious" → they crumple and do not rise; "Defeated" → the fight leaves them entirely; "Exhausted"/"Collapsed" → their body betrays them mid-motion.`);
     }
 
     // Unseen ripples (Director's social/emotional shifts)
@@ -178,7 +191,8 @@ Use "state_updates" ONLY for social ripple effects on bystanders (how witnesses 
   private mockNarrate(
     engineResult: EngineResultDto,
     gameState: GameState,
-    triggerId?: string
+    triggerId?: string,
+    conditionTransitions?: ConditionTransition[]
   ): Mas2ResponseDto {
     console.log('[MAS2] Using Mock Mode (deterministic narrative generation)');
 
@@ -219,6 +233,27 @@ Use "state_updates" ONLY for social ripple effects on bystanders (how witnesses 
       rippleNarrative = `You prepare to travel. The journey from the tavern will take time and energy. The night air outside promises new adventures.`;
     } else {
       rippleNarrative = `You ${triggerId || 'act'}. ${engineResult.success ? 'The action succeeds.' : 'The action fails.'}`;
+    }
+
+    // Render condition transitions as prose, the way the real Narrator would —
+    // the labels themselves never reach the player.
+    if (conditionTransitions && conditionTransitions.length > 0) {
+      const conditionProse: Record<string, string> = {
+        Wounded: 'staggers, blood seeping through torn cloth',
+        Critical: 'sways on unsteady legs, barely able to stand',
+        Surrendered: 'throws down their weapon and raises trembling hands in surrender',
+        Defeated: 'collapses in a heap, the fight gone out of them entirely',
+        Unconscious: 'crumples to the ground and does not rise',
+        Fatigued: 'is breathing hard now, movements slowing',
+        Exhausted: 'can barely lift their arms, utterly spent',
+        Collapsed: 'drops to their knees as their body gives out',
+      };
+      const sentences = conditionTransitions.map(t => {
+        const name = getEntityName(t.entity_id);
+        const prose = conditionProse[t.to] || `is visibly changed`;
+        return `${name} ${prose}.`;
+      });
+      rippleNarrative += ` ${sentences.join(' ')}`;
     }
 
     // Generate tier0 mutations based on the action

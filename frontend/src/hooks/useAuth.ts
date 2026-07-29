@@ -23,6 +23,7 @@ export function useAuth() {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    retry: false,
   });
 }
 

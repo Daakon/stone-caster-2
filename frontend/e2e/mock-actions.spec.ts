@@ -222,6 +222,61 @@ test.describe('Mock Actions Verification', () => {
         await expect(page.locator('text=You lash out and the guard staggers back.')).toBeVisible();
     });
 
+    test('clicking a character in the chat opens the inspector with real details and injury state', async ({ page }) => {
+        // Turn wounds Garret and marks the condition transition in the delta
+        await page.route(`**/api/games/${GAME_ID}/turn`, async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    ok: true,
+                    data: {
+                        turn: { id: 'turn-1', turn_index: 1 },
+                        delta: {
+                            entities: {
+                                [PLAYER_ID]: { properties: { current_stamina: -15 } },
+                                [GUARD_ID]: { properties: { hp: -30, combat_condition: 'Wounded' } }
+                            }
+                        },
+                        new_logs: [
+                            { id: 'l1', role: 'player', content: 'test_combat', timestamp: new Date().toISOString() },
+                            // Condition labels never appear in the system log —
+                            // the narrator line below carries the injury as prose
+                            { id: 'l2', role: 'system', content: 'Garret [Hp: -30]', timestamp: new Date().toISOString() },
+                            { id: 'l3', role: 'narrator', content: 'Garret staggers back, clutching his side.', timestamp: new Date().toISOString() }
+                        ]
+                    }
+                })
+            });
+        });
+
+        await page.goto(`/play/${GAME_ID}`);
+
+        const input = page.locator('textarea');
+        await input.fill('test_combat');
+        await input.press('Enter');
+
+        await expect(page.locator('text=Garret staggers back, clutching his side.')).toBeVisible();
+
+        // The character name inside the narrative is a clickable entity link
+        const entityLink = page.getByTitle('View details').filter({ hasText: 'Garret' }).first();
+        await expect(entityLink).toBeVisible();
+        await entityLink.click();
+
+        // Inspector modal shows the resolved name — never "Unknown Entity"
+        const modal = page.locator('.fixed.inset-0');
+        await expect(modal.locator('h3')).toHaveText('Garret');
+        await expect(modal.locator('text=Unknown Entity')).toHaveCount(0);
+
+        // Vitals reflect the additive delta (50 - 30 = 20) and the injury badge
+        await expect(modal.locator('text=20 / 50')).toBeVisible();
+        await expect(modal.locator('text=Wounded').first()).toBeVisible();
+
+        // Escape closes it
+        await page.keyboard.press('Escape');
+        await expect(modal).toHaveCount(0);
+    });
+
     test('mobile vitals bar is visible and updates with the turn', async ({ page, isMobile }) => {
         test.skip(!isMobile, 'Mobile-only: the vitals strip replaces the hidden sidebars');
 

@@ -49,6 +49,14 @@ export function MobileVitalsBar({ onInspect }: MobileVitalsBarProps) {
                     <div className="h-full bg-blue-500 transition-all duration-500 ease-out" style={{ width: `${satietyPct}%` }} />
                 </div>
             </div>
+            {vitals.condition && (
+                <span
+                    data-testid="mobile-condition"
+                    className="text-[10px] font-bold uppercase tracking-wide text-destructive shrink-0"
+                >
+                    {vitals.condition}
+                </span>
+            )}
         </button>
     );
 }

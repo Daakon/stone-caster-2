@@ -1,7 +1,8 @@
 import { cn } from '@/lib/utils';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import { useActiveGameStore } from '@/stores/useActiveGameStore';
 import { useMemo } from 'react';
+import { resolveEntityDisplay } from '../../utils/entity-utils';
 
 interface StoryBlockProps {
     text: string;
@@ -19,23 +20,24 @@ export function StoryBlock({ text, role, className, timestamp }: StoryBlockProps
         if (!text || isPlayer || !entities) return text;
 
         let enriched = text;
-        const validEntities = Object.values(entities).filter((e: any) => e.name || e.display_name);
+        // Resolve names across all known shapes (top-level, properties,
+        // raw_data.identity) and skip placeholder names
+        const validEntities = Object.values(entities)
+            .map((e: any) => ({ entity: e, display: resolveEntityDisplay(e) }))
+            .filter(({ display }) => !display.isUnknown);
 
         // Sort by length desc to handle overlapping names (e.g. "Guard Captain" before "Guard")
-        validEntities.sort((a, b) => {
-            const nameA = a.display_name || a.name || "";
-            const nameB = b.display_name || b.name || "";
-            return nameB.length - nameA.length;
-        });
+        validEntities.sort((a, b) => b.display.name.length - a.display.name.length);
 
-        validEntities.forEach((entity: any) => {
-            const name = entity.display_name || entity.name;
+        validEntities.forEach(({ entity, display }: any) => {
+            const name = display.name;
             if (!name) return;
 
             try {
                 // Determine if we should link (prevent double linking if logic was complex, but simple replace here)
-                // Use word boundary to match names
-                const regex = new RegExp(`\\b(${name})\\b`, 'g');
+                // Use word boundary to match names; escape regex metacharacters
+                const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`\\b(${escapedName})\\b`, 'g');
                 enriched = enriched.replace(regex, `[$1](entity:${entity.id})`);
             } catch (e) {
                 // Ignore regex errors
@@ -56,6 +58,9 @@ export function StoryBlock({ text, role, className, timestamp }: StoryBlockProps
         >
             {/* Rich Text Rendering */}
             <ReactMarkdown
+                // react-markdown strips unknown URL schemes by default, which
+                // silently killed entity: links — allow them through explicitly
+                urlTransform={(url) => url.startsWith('entity:') ? url : defaultUrlTransform(url)}
                 components={{
                     p: ({ children }) => <p className="mb-4 last:mb-0 leading-loose">{children}</p>,
                     a: ({ node, href, children, ...props }) => {

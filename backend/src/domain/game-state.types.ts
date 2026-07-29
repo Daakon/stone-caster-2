@@ -16,6 +16,10 @@ export interface ActiveEntity {
     // Dynamic bucket for Ruleset variables (HP: 100, STR: 10)
     // The Factory will default numeric values here.
     properties: EntityProperties;
+    // How this entity feels toward others, 0-20 per axis (baseline 5).
+    // Canonical location for relationship state: the engine's ripple deltas,
+    // MAS2 social updates, the client delta merge, and persistence all use it.
+    relationships?: Record<string, number>;
 }
 
 export interface MechanicalState {
