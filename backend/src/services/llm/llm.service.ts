@@ -6,18 +6,24 @@
  */
 
 import { z, type ZodSchema } from 'zod';
-import { createLlmProvider, fetchWithTimeoutRetry, type LlmProvider } from '../runtime/llm.provider';
+import { createLlmProvider, type LlmProvider } from '../runtime/llm.provider';
+import { chatCompletion, createChatEndpoint, EmptyContentError } from '../runtime/openai-compatible';
+import { resolveLlmRoleConfig, type LlmRole } from '../../config/llm-config';
 import { ServiceError } from '../../utils/serviceError';
 import { ApiErrorCode } from '@shared';
-import { isMockAiEnabled } from '../../config/ai-flags';
 
 export class LlmService {
   private provider: LlmProvider;
-  private model: string;
+  private role: LlmRole;
+  private modelOverride?: string;
 
-  constructor(provider?: LlmProvider, model?: string) {
-    this.provider = provider || createLlmProvider();
-    this.model = model || process.env.LLM_MODEL || 'gpt-4o-mini';
+  /**
+   * @param role - Pipeline role whose provider/model config applies (director | narrator | genesis)
+   */
+  constructor(provider?: LlmProvider, model?: string, role: LlmRole = 'narrator') {
+    this.role = role;
+    this.modelOverride = model;
+    this.provider = provider || createLlmProvider(role);
   }
 
   /**
@@ -28,6 +34,25 @@ export class LlmService {
    * @returns Parsed and validated JSON response
    */
   async generateJSON<T>(
+    system: string,
+    user: string,
+    schema?: ZodSchema<T>
+  ): Promise<T> {
+    // Routed free models (openrouter/free) re-roll the underlying model per request, so a
+    // schema-invalid answer (wrong types, invented ids) is worth a couple of fresh attempts.
+    const attempts = resolveLlmRoleConfig(this.role).provider === 'openrouter' ? 3 : 1;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.generateJSONOnce(system, user, schema);
+      } catch (error) {
+        const invalid = error instanceof ServiceError && error.error?.code === ApiErrorCode.VALIDATION_FAILED;
+        if (!invalid || attempt >= attempts) throw error;
+        console.warn(`[LlmService] ${this.role}: schema-invalid output (attempt ${attempt}/${attempts}); retrying`);
+      }
+    }
+  }
+
+  private async generateJSONOnce<T>(
     system: string,
     user: string,
     schema?: ZodSchema<T>
@@ -75,39 +100,7 @@ export class LlmService {
 
       // Handle API failures
       if (error instanceof Error) {
-        // Check for API key errors
-        if (error.message.includes('API key') || error.message.includes('OPENAI_API_KEY')) {
-          throw new ServiceError(500, {
-            code: ApiErrorCode.INTERNAL_ERROR,
-            message: 'LLM API key not configured. Please set OPENAI_API_KEY environment variable.',
-            details: { originalError: error.message },
-          });
-        }
-
-        // Check for request timeout
-        if (error.message.includes('timed out')) {
-          throw new ServiceError(504, {
-            code: ApiErrorCode.UPSTREAM_TIMEOUT,
-            message: 'The storyteller is taking too long to respond. Please try again.',
-            details: { originalError: error.message },
-          });
-        }
-
-        // Check for rate limiting
-        if (error.message.includes('rate limit') || error.message.includes('429')) {
-          throw new ServiceError(429, {
-            code: ApiErrorCode.RATE_LIMITED,
-            message: 'LLM API rate limit exceeded',
-            details: { originalError: error.message },
-          });
-        }
-
-        // Generic API error
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: `LLM API error: ${error.message}`,
-          details: { originalError: error.message },
-        });
+        throw LlmService.mapError(error);
       }
 
       // Unknown error type
@@ -117,6 +110,36 @@ export class LlmService {
         details: { error: String(error) },
       });
     }
+  }
+
+  /** Map provider/transport failures to ServiceErrors (shared by JSON and text paths). */
+  private static mapError(error: Error): ServiceError {
+    if (error.message.includes('API key') || error.message.includes('_API_KEY')) {
+      return new ServiceError(500, {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: 'LLM API key not configured. Set OPENAI_API_KEY or OPENROUTER_API_KEY for the selected provider.',
+        details: { originalError: error.message },
+      });
+    }
+    if (error.message.includes('timed out')) {
+      return new ServiceError(504, {
+        code: ApiErrorCode.UPSTREAM_TIMEOUT,
+        message: 'The storyteller is taking too long to respond. Please try again.',
+        details: { originalError: error.message },
+      });
+    }
+    if (error.message.includes('rate limit') || error.message.includes('429')) {
+      return new ServiceError(429, {
+        code: ApiErrorCode.RATE_LIMITED,
+        message: 'LLM API rate limit exceeded',
+        details: { originalError: error.message },
+      });
+    }
+    return new ServiceError(500, {
+      code: ApiErrorCode.INTERNAL_ERROR,
+      message: `LLM API error: ${error.message}`,
+      details: { originalError: error.message },
+    });
   }
 
   /**
@@ -134,8 +157,13 @@ export class LlmService {
     try {
       // [MOCK AI] Cost-Saving Toggle — must run before the key check so mock
       // mode works without any API key configured
-      if (isMockAiEnabled()) {
-        console.log('[LlmService] Mock AI Enabled - Skipping API Call');
+      const config = { ...resolveLlmRoleConfig(this.role) };
+      if (this.modelOverride && config.provider !== 'mock') config.model = this.modelOverride;
+      if (config.unconfigured) {
+        throw new Error('LLM API key not configured (set OPENAI_API_KEY or OPENROUTER_API_KEY, or set ENABLE_MOCK_AI=true)');
+      }
+      if (config.provider === 'mock') {
+        console.log(`[LlmService] ${this.role}: mock provider - skipping API call`);
 
         // If JSON mode, return structured mock
         if (options?.jsonMode) {
@@ -159,45 +187,23 @@ export class LlmService {
         return "[MOCK] Narrative text generated by Mock AI.";
       }
 
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.',
-        });
+      const endpoint = createChatEndpoint({ ...config, role: this.role });
+      const attempts = 1 + (endpoint.contentRetries ?? 0);
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await chatCompletion(endpoint, system, user, {
+            temperature: options?.temperature ?? 0.8, // Higher temperature for creative writing
+            maxTokens: options?.maxTokens ?? 1000,
+            jsonMode: options?.jsonMode,
+          });
+        } catch (error) {
+          if (error instanceof EmptyContentError && attempt < attempts) {
+            console.warn(`[LlmService] ${this.role}: empty model output (attempt ${attempt}/${attempts}); retrying`);
+            continue;
+          }
+          throw error;
+        }
       }
-
-      const response = await fetchWithTimeoutRetry('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          temperature: options?.temperature ?? 0.8, // Higher temperature for creative writing
-          max_tokens: options?.maxTokens ?? 1000,   // Increased default
-          response_format: options?.jsonMode ? { type: 'json_object' } : undefined
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
-      }
-
-      const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-      const content = data.choices?.[0]?.message?.content;
-
-      if (!content) {
-        throw new Error('No content in OpenAI response');
-      }
-
-      return content;
     } catch (error) {
       // Handle API failures
       if (error instanceof ServiceError) {
@@ -205,39 +211,7 @@ export class LlmService {
       }
 
       if (error instanceof Error) {
-        // Check for API key errors
-        if (error.message.includes('API key') || error.message.includes('OPENAI_API_KEY')) {
-          throw new ServiceError(500, {
-            code: ApiErrorCode.INTERNAL_ERROR,
-            message: 'LLM API key not configured. Please set OPENAI_API_KEY environment variable.',
-            details: { originalError: error.message },
-          });
-        }
-
-        // Check for request timeout
-        if (error.message.includes('timed out')) {
-          throw new ServiceError(504, {
-            code: ApiErrorCode.UPSTREAM_TIMEOUT,
-            message: 'The storyteller is taking too long to respond. Please try again.',
-            details: { originalError: error.message },
-          });
-        }
-
-        // Check for rate limiting
-        if (error.message.includes('rate limit') || error.message.includes('429')) {
-          throw new ServiceError(429, {
-            code: ApiErrorCode.RATE_LIMITED,
-            message: 'LLM API rate limit exceeded',
-            details: { originalError: error.message },
-          });
-        }
-
-        // Generic API error
-        throw new ServiceError(500, {
-          code: ApiErrorCode.INTERNAL_ERROR,
-          message: `LLM API error: ${error.message}`,
-          details: { originalError: error.message },
-        });
+        throw LlmService.mapError(error);
       }
 
       // Unknown error type

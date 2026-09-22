@@ -52,6 +52,17 @@ interface ActiveGameState {
 }
 
 /**
+ * Implied baselines for entity resource properties that the server creates on first write
+ * (mirrors backend StateService.PROPERTY_BASELINES). A delta against an absent resource
+ * applies to the baseline, exactly as the server persists it (100 + -9 => 91, not -9).
+ */
+const RESOURCE_BASELINES: Record<string, number> = {
+    hp: 100, maxHp: 100, max_hp: 100,
+    current_stamina: 100, stamina: 100,
+    satiety: 100, saturation: 100,
+};
+
+/**
  * Apply a server delta additively: numbers add onto numbers, nested objects
  * merge recursively, everything else overwrites.
  */
@@ -65,6 +76,8 @@ const applyAdditiveDelta = (target: any, source: any) => {
             applyAdditiveDelta(target[key], val);
         } else if (typeof val === 'number' && typeof target[key] === 'number') {
             target[key] += val;
+        } else if (typeof val === 'number' && target[key] === undefined && key in RESOURCE_BASELINES) {
+            target[key] = RESOURCE_BASELINES[key] + val;
         } else {
             target[key] = val;
         }

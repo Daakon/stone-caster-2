@@ -22,7 +22,7 @@ export class Mas1Service {
   private llmService: LlmService;
 
   constructor(llmService?: LlmService) {
-    this.llmService = llmService || new LlmService();
+    this.llmService = llmService || new LlmService(undefined, undefined, 'director');
   }
 
   /**

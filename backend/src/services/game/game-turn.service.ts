@@ -16,6 +16,7 @@ import { TIER_MULTIPLIERS } from '../runtime/tier-value-mapper.js';
 import { GameStateBundle, MechanicalState, NarrativeFocus, SceneRegistry } from '../../domain/game-state.types.js';
 import { ServiceError } from '../../utils/serviceError.js';
 import { ApiErrorCode } from '@shared';
+import { startLlmUsageCapture, summarizeLlmCalls, type LlmCallRecord } from '../runtime/llm-telemetry.js';
 
 interface TurnResult {
     success: boolean;
@@ -59,6 +60,7 @@ export class GameTurnService {
      */
     async processTurn(gameStateId: string, playerInput: string, userId: string): Promise<TurnResult> {
         console.log(`[Turn Start] Game: ${gameStateId}, Input: "${playerInput}"`);
+        const llmCalls = startLlmUsageCapture();
         console.log('[Turn] 🚀 NEW FLOW: MAS1 -> Engine -> MAS2 (Proper Architecture)');
 
         try {
@@ -303,14 +305,10 @@ export class GameTurnService {
                 }
             });
 
-            // [TELEMETRY] Link Turn to Audit Log if Trace ID exists
-            const traceId = mas2Result.meta?.traceId || (firstIntent as any)?.meta?.traceId;
-            if (traceId && recordedTurn?.id) {
-                await this.storiesRepo.linkAuditLogToTurn(traceId, recordedTurn.id);
-                console.log('[GameLoop] Linked Audit Log:', { traceId, turnId: recordedTurn.id });
-            } else {
-                console.warn('[GameLoop] Failed to link audit log: Missing ID', { traceId, turnId: recordedTurn?.id });
-            }
+            // [TELEMETRY] One audit row per turn, linked at insert: the turn's real model usage
+            // (per-role tokens/cost/latency) captured by llm-telemetry. Legacy meta.traceId rows are
+            // still linked when a narrator path supplies one.
+            await this.recordTurnAudit(state.id!, recordedTurn, playerInput, mas2Result.ripple_narrative || '', llmCalls, mas2Result.meta?.traceId);
 
             console.log('[GameLoop] Turn Recorded:', { id: recordedTurn.id, index: recordedTurn.turn_index });
 
@@ -547,6 +545,37 @@ export class GameTurnService {
     /**
      * Convert GameStateBundle to GameState format expected by MAS1/MAS2
      */
+    private async recordTurnAudit(
+        gameId: string,
+        recordedTurn: { id?: string; turn_index?: number } | undefined,
+        playerInput: string,
+        narration: string,
+        llmCalls: LlmCallRecord[],
+        legacyTraceId?: string
+    ): Promise<void> {
+        if (!recordedTurn?.id) {
+            console.warn('[GameLoop] Turn audit skipped: turn was not recorded', { gameId });
+            return;
+        }
+        try {
+            if (legacyTraceId) await this.storiesRepo.linkAuditLogToTurn(legacyTraceId, recordedTurn.id);
+            const usage = summarizeLlmCalls(llmCalls);
+            const models = [...new Set(llmCalls.map((c) => c.served))];
+            await this.storiesRepo.recordTurnAudit({
+                gameId,
+                turnId: recordedTurn.id,
+                turnIndex: recordedTurn.turn_index ?? 0,
+                actionType: 'TURN',
+                promptText: playerInput,
+                rawResponse: narration,
+                tokenUsage: usage,
+                modelUsed: models.length ? models.join(',') : 'mock',
+            });
+        } catch (err) {
+            console.warn('[GameLoop] Turn audit failed (non-fatal):', err instanceof Error ? err.message : err);
+        }
+    }
+
     private convertStateToGameState(state: GameStateBundle): any {
         // Extract player_id from mechanical state
         const playerId = state.mechanical?.index?.player_id;

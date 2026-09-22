@@ -5,6 +5,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase-client.js';
+import { getChimeraSupabaseAdminClient } from '../supabase-client.js';
 import type { CompiledStory } from '@shared/types/chimera-compiled';
 import type { GameState } from '@shared/types/chimera-runtime';
 import { CompiledStorySchema } from '@shared/types/chimera-compiled';
@@ -361,6 +362,42 @@ export class StoriesRepository {
     }
 
     return (data?.turn_index ?? -1) + 1;
+  }
+
+  /**
+   * Writes the per-turn AI audit row (already linked to its turn). Best-effort: never fails a turn.
+   */
+  async recordTurnAudit(params: {
+    gameId: string;
+    turnId: string;
+    turnIndex: number;
+    actionType: string;
+    promptText: string;
+    rawResponse: string;
+    tokenUsage: Record<string, unknown>;
+    modelUsed: string;
+  }): Promise<string | null> {
+    // Audit rows are system-written (no INSERT policy for players): use the service client
+    const { data, error } = await (getChimeraSupabaseAdminClient() as any)
+      .from('ai_audit_logs')
+      .insert({
+        game_id: params.gameId,
+        turn_id: params.turnId,
+        turn_index: params.turnIndex,
+        action_type: params.actionType,
+        prompt_text: params.promptText,
+        raw_response: params.rawResponse,
+        token_usage: params.tokenUsage,
+        cost_stones: 0,
+        model_used: params.modelUsed.slice(0, 100),
+      })
+      .select('id')
+      .single();
+    if (error) {
+      console.warn(`[StoriesRepo] Failed to record audit for turn ${params.turnId}: ${error.message}`);
+      return null;
+    }
+    return data?.id ?? null;
   }
 
   /**

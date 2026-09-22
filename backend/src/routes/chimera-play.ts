@@ -12,7 +12,7 @@ import { StoriesRepository } from '../db/repos/stories.repo.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared/types/api';
 import { requireAuth } from '../middleware/auth.unified.js';
-import { isMockAiEnabled } from '../config/ai-flags.js';
+import { resolveLlmRoleConfig } from '../config/llm-config.js';
 
 const router = Router();
 
@@ -57,7 +57,7 @@ router.get(
 
       // Mock mode: seed the scripted scenario chips so they're available on
       // first load, before any Director call has populated action_queue
-      if (isMockAiEnabled()) {
+      if (resolveLlmRoleConfig('director').provider === 'mock') {
         gameState.action_queue = [
             "test_combat", "test_social", "test_mixed", "test_travel",
             "test_drunk_combat", "test_protective_combat"

@@ -316,6 +316,12 @@ export class ProfileService {
         });
 
       if (error) {
+        // PGRST202: the legacy guest-migration function is not part of the current (Chimera) schema,
+        // so there is no legacy guest data to migrate. Treat as a no-op instead of failing sign-in.
+        if (error.code === 'PGRST202') {
+          console.warn('[ProfileService] link_guest_account_to_user not present in schema; skipping legacy guest migration');
+          return { success: true, charactersMigrated: 0, gamesMigrated: 0, stonesMigrated: 0, ledgerEntriesCreated: 0 };
+        }
         throw new Error(`Failed to link guest account: ${error.message}`);
       }
 

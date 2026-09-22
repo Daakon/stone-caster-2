@@ -10,8 +10,9 @@ const router = Router();
 
 // Apply authentication to all profile routes except guest routes
 router.use((req, res, next) => {
-  // Skip auth for guest routes
-  if (req.path.startsWith('/guest') || req.path === '/link-guest') {
+  // Skip auth for guest routes. /link-guest is NOT one of them: it links guest data to the
+  // authenticated caller and reads req.ctx.userId, which only requireAuth populates.
+  if (req.path.startsWith('/guest')) {
     return next();
   }
   return requireAuth(req, res, next);

@@ -45,7 +45,7 @@ export class DirectorService {
   private llmService: LlmService;
 
   constructor(llmService?: LlmService) {
-    this.llmService = llmService || new LlmService();
+    this.llmService = llmService || new LlmService(undefined, undefined, 'director');
   }
 
   /**
@@ -216,7 +216,8 @@ Return a JSON object matching the DirectorUnifiedIntent schema:
 2. **Lore Integration**: ALWAYS use provided Lore fragments to inform NPC reactions. If lore says an NPC protects someone, that NPC MUST react when that person is threatened.
 3. **Proximity**: For ANY physical action (combat, throwing, etc.), populate \`proximity_cluster\` with nearby entity IDs.
 4. **Tiered Magnitudes**: Be consistent with tier assignments. A "glance" is Minor, a "crushing blow" is Severe.
-5. **NPC Reactions**: NPCs should react based on their personality, relationships, and lore. A "noble, fiercely loyal" NPC will have a Major/Severe negative reaction to violence against their allies.`;
+5. **NPC Reactions**: NPCs should react based on their personality, relationships, and lore. A "noble, fiercely loyal" NPC will have a Major/Severe negative reaction to violence against their allies.
+6. **IDs are exact UUIDs**: Every \`actor_id\`, \`target_id\`, \`intended_targets\` and \`proximity_cluster\` value MUST be a UUID copied verbatim from the Current Game State above (the player's own intents use the Player actor_id). NEVER invent ids or use names/slugs like "stranger_001". If the player addresses someone who is not in the entity list, leave \`intended_targets\` and \`unseen_ripples\` empty and set \`resolution_mode: "narrative"\`.`;
   }
 
   /**
@@ -224,38 +225,45 @@ Return a JSON object matching the DirectorUnifiedIntent schema:
    */
   private summarizeGameState(gameState: GameState): string {
     const summary: string[] = [];
+    // The turn pipeline passes { player_id, tier1_mechanical, tier0_narrative, tier2_spatial };
+    // older callers/tests use { mechanical_state, narrative_focus, scene_registry }.
+    const gs = gameState as any;
+    const mechanical = gs.tier1_mechanical || gs.mechanical_state || {};
+    const entities: Record<string, any> = mechanical.entities || mechanical.tier1_entities || {};
+    const playerId: string | undefined = gs.player_id || mechanical.index?.player_id;
 
-    // Extract mechanical state (Tier 1)
-    const mechanical = gameState.mechanical_state || {};
-    const entities = (mechanical as any).tier1_entities || {};
+    if (playerId) {
+      summary.push(`**Player actor_id (use as actor_id for the player's own intents)**: ${playerId}`);
+    }
+
     const entityKeys = Object.keys(entities);
-
     if (entityKeys.length > 0) {
-      summary.push(`**Entities Present**: ${entityKeys.length} entities in scene`);
+      summary.push(`**Entities Present** (${entityKeys.length}) - these are the ONLY valid entity UUIDs:`);
       entityKeys.forEach(id => {
         const entity = entities[id] as any;
-        const name = entity?.properties?.display_name || entity?.display_name || `entity-${id.substring(0, 8)}`;
-        const stats = entity?.stats ? JSON.stringify(entity.stats) : 'No stats';
-        summary.push(`  - ${name} (${id}): ${stats}`);
-        
-        // Include relationship info if available
+        const props = entity?.properties || {};
+        const name = props.display_name || props.name || entity?.display_name || `entity-${id.substring(0, 8)}`;
+        const kind = entity?.type ? ` [${entity.type}]` : '';
+        const stats = entity?.stats ? JSON.stringify(entity.stats) : '';
+        summary.push(`  - ${name}${kind} (${id})${stats ? ': ' + stats : ''}${id === playerId ? ' <- the player' : ''}`);
+
         if (entity?.social?.relationships?.player) {
           const rel = entity.social.relationships.player;
           summary.push(`    Relationships: affinity=${rel.affinity || 'unknown'}, resentment=${rel.resentment || 'unknown'}`);
         }
       });
+    } else {
+      summary.push('**Entities Present**: none besides the player. Do not invent NPC ids.');
     }
 
-    // Extract narrative state (Tier 0)
-    const narrative = gameState.narrative_focus || {};
+    const narrative = gs.tier0_narrative || gs.narrative_focus || {};
     if (Object.keys(narrative).length > 0) {
-      summary.push(`**Narrative Context**: ${JSON.stringify(narrative)}`);
+      summary.push(`**Narrative Context**: ${JSON.stringify(narrative).substring(0, 1500)}`);
     }
 
-    // Extract scene registry
-    const scene = gameState.scene_registry || {};
+    const scene = gs.tier2_spatial || gs.scene_registry || {};
     if (Object.keys(scene).length > 0) {
-      summary.push(`**Scene Registry**: ${JSON.stringify(scene)}`);
+      summary.push(`**Scene Registry**: ${JSON.stringify(scene).substring(0, 800)}`);
     }
 
     return summary.length > 0 ? summary.join('\n') : 'No significant state information available.';

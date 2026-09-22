@@ -9,14 +9,15 @@ import type { GameState, EngineResultDto, Mas2ResponseDto, DirectorUnifiedIntent
 import { Mas2ResponseDtoSchema } from '@shared/types/chimera-runtime';
 import { LlmService } from '../llm/llm.service';
 import type { CompiledStory } from '@shared/types/chimera-compiled';
-import { isMockAiEnabled, isTestScenarioInput } from '../../config/ai-flags';
+import { isTestScenarioInput } from '../../config/ai-flags';
+import { resolveLlmRoleConfig } from '../../config/llm-config';
 import type { ConditionTransition } from './condition-rules';
 
 export class Mas2Service {
   private llmService: LlmService;
 
   constructor(llmService?: LlmService) {
-    this.llmService = llmService || new LlmService();
+    this.llmService = llmService || new LlmService(undefined, undefined, 'narrator');
   }
 
   /**
@@ -46,7 +47,7 @@ export class Mas2Service {
     playerInput?: string,
     conditionTransitions?: ConditionTransition[]
   ): Promise<Mas2ResponseDto> {
-    if (isMockAiEnabled() || isTestScenarioInput(playerInput)) {
+    if (resolveLlmRoleConfig('narrator').provider === 'mock' || isTestScenarioInput(playerInput)) {
       return this.mockNarrate(engineResult, gameState, triggerId, conditionTransitions);
     }
 

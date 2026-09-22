@@ -295,7 +295,12 @@ export interface Database {
  * @returns Typed Supabase client configured with anon key and optional auth token
  */
 export function getChimeraSupabaseClient(req?: Request): SupabaseClient<Database> {
-  const client = createClient<Database>(
+  // The user's JWT must be sent as a global Authorization header so PostgREST evaluates RLS as that user.
+  // (auth.setSession() with an empty refresh token silently fails and leaves the client acting as `anon`.)
+  const authHeader = req?.headers.authorization;
+  const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader : undefined;
+
+  return createClient<Database>(
     config.supabase.url,
     config.supabase.anonKey,
     {
@@ -303,24 +308,9 @@ export function getChimeraSupabaseClient(req?: Request): SupabaseClient<Database
         persistSession: false,
         autoRefreshToken: false,
       },
+      ...(bearer ? { global: { headers: { Authorization: bearer } } } : {}),
     }
   );
-
-  // If request has a bearer token, set it for auth context
-  if (req) {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      client.auth.setSession({
-        access_token: token,
-        refresh_token: '',
-      } as any).catch(() => {
-        // Ignore errors - token might be invalid, but let RLS handle it
-      });
-    }
-  }
-
-  return client;
 }
 
 /**

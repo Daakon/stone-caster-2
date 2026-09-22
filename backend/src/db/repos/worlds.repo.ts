@@ -8,6 +8,18 @@ import type { Database } from '../supabase-client.js';
 import type { WorldDefinition } from '@shared/types/chimera-authoring';
 import { WorldDefinitionSchema } from '@shared/types/chimera-authoring';
 
+/**
+ * Stored definitions may carry `description: null` (the column allows it; the schema requires a string).
+ * Fall back to the long/short description, mirroring the list-path fallback below.
+ */
+function normalizeWorldDefinition(definition: any): any {
+  if (!definition || typeof definition.description === 'string') return definition;
+  return {
+    ...definition,
+    description: definition.description_long || definition.description_short || '',
+  };
+}
+
 export class WorldsRepository {
   constructor(private supabase: SupabaseClient<Database>) { }
 
@@ -70,7 +82,7 @@ export class WorldsRepository {
       return null;
     }
 
-    return WorldDefinitionSchema.parse(data.definition);
+    return WorldDefinitionSchema.parse(normalizeWorldDefinition(data.definition));
   }
 
   /**
@@ -96,7 +108,7 @@ export class WorldsRepository {
       return null;
     }
 
-    return WorldDefinitionSchema.parse(data.definition);
+    return WorldDefinitionSchema.parse(normalizeWorldDefinition(data.definition));
   }
 
   /**

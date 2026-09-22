@@ -1,13 +1,19 @@
 // [CHIMERA V3] Architecture: Greenfield | Layer: Backend
 /**
  * LLM Provider
- * Abstracts LLM API calls with OpenAI adapter and mock fallback
+ * Abstracts LLM API calls: mock, OpenAI and OpenRouter (OpenAI-compatible) adapters.
+ * Which one a pipeline role (director/narrator/genesis) gets is decided in config/llm-config.ts.
  */
 
 import type { Mas1Intent } from '@shared/types/chimera-runtime';
 import { Mas1IntentSchema } from '@shared/types/chimera-runtime';
-import { z } from 'zod';
-import { isMockAiEnabled } from '../../config/ai-flags';
+import { DEFAULT_MODELS, resolveLlmRoleConfig, type LlmRole } from '../../config/llm-config';
+import {
+  chatCompletion, EmptyContentError, InvalidJsonError, openAiEndpoint, openRouterEndpoint, parseJsonContent,
+  type ChatEndpoint,
+} from './openai-compatible';
+
+export { fetchWithTimeoutRetry } from './openai-compatible';
 
 export interface LlmProvider {
   /**
@@ -19,127 +25,89 @@ export interface LlmProvider {
   generateJson<T>(systemPrompt: string, userPrompt: string): Promise<T>;
 }
 
-const DEFAULT_LLM_TIMEOUT_MS = 30_000;
+const TEST_SCENARIOS = [
+  'test_combat', 'test_attack', 'test_mixed', 'test_social',
+  'test_travel', 'test_drunk_combat', 'test_protective_combat',
+];
 
 /**
- * fetch with an abort timeout and a single retry on transient failures
- * (timeout, network error, 429, 5xx). Non-transient HTTP errors (4xx) are
- * returned to the caller without retry.
+ * Shared implementation for real (network) providers.
  */
-export async function fetchWithTimeoutRetry(
-  url: string,
-  init: RequestInit,
-  options: { timeoutMs?: number; retries?: number } = {}
-): Promise<Response> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_LLM_TIMEOUT_MS;
-  const retries = options.retries ?? 1;
-
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, { ...init, signal: controller.signal });
-      // Retry only transient HTTP failures
-      if ((response.status === 429 || response.status >= 500) && attempt < retries) {
-        lastError = new Error(`Transient HTTP ${response.status}`);
-        continue;
-      }
-      return response;
-    } catch (error) {
-      lastError = error;
-      const isAbort = error instanceof Error && error.name === 'AbortError';
-      if (attempt < retries) {
-        console.warn(`[LLM Provider] ${isAbort ? 'Timeout' : 'Network error'} on attempt ${attempt + 1}, retrying...`);
-        continue;
-      }
-      if (isAbort) {
-        throw new Error(`LLM request timed out after ${timeoutMs}ms`);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
-}
-
-/**
- * OpenAI LLM Provider Implementation
- */
-export class OpenAILlmProvider implements LlmProvider {
-  private apiKey: string;
-  private model: string;
-
-  constructor(apiKey?: string, model: string = 'gpt-4o-mini') {
-    this.apiKey = apiKey || process.env.OPENAI_API_KEY || '';
-    this.model = model;
-  }
+abstract class ChatLlmProvider implements LlmProvider {
+  role?: LlmRole;
+  protected abstract readonly label: string;
+  protected abstract endpoint(): ChatEndpoint;
 
   async generateJson<T>(systemPrompt: string, userPrompt: string): Promise<T> {
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key is not configured');
-    }
+    const endpoint = { ...this.endpoint(), role: this.role }; // a missing key fails before any scenario shortcut
 
-    // Check if this is a test scenario - if so, delegate to MockLlmProvider
-    // This allows test scenarios to work even when OPENAI_API_KEY is set
-    const normalizedInput = userPrompt.toLowerCase().trim();
-    const isTestScenario = [
-      'test_combat',
-      'test_attack',
-      'test_mixed',
-      'test_social',
-      'test_travel',
-      'test_drunk_combat',
-      'test_protective_combat'
-    ].includes(normalizedInput);
-
+    // Scripted test scenarios stay deterministic even when a real provider is configured
+    const isTestScenario = TEST_SCENARIOS.includes(userPrompt.toLowerCase().trim());
     if (isTestScenario && (
       systemPrompt.includes('Action Interpreter') ||
       systemPrompt.includes('map the user') ||
       systemPrompt.includes('Director') ||
       systemPrompt.includes('Strategic Lead')
     )) {
-      console.log('[OpenAILlmProvider] Detected test scenario, delegating to MockLlmProvider');
-      const mockProvider = new MockLlmProvider();
-      return mockProvider.generateJson<T>(systemPrompt, userPrompt);
+      console.log(`[${this.label}LlmProvider] Detected test scenario, delegating to MockLlmProvider`);
+      return new MockLlmProvider().generateJson<T>(systemPrompt, userPrompt);
     }
 
-    try {
-      const response = await fetchWithTimeoutRetry('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.7,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`OpenAI API error: ${response.status} ${error}`);
+    const attempts = 1 + (endpoint.contentRetries ?? 0);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const content = await chatCompletion(endpoint, systemPrompt, userPrompt, { temperature: 0.7, jsonMode: true });
+        return parseJsonContent<T>(content);
+      } catch (error) {
+        const retryable = error instanceof EmptyContentError || error instanceof InvalidJsonError;
+        if (retryable && attempt < attempts) {
+          console.warn(`[LLM Provider] ${this.label} attempt ${attempt}/${attempts} unusable (${(error as Error).message.slice(0, 120)}); retrying`);
+          continue;
+        }
+        console.error(`[LLM Provider] ${this.label} API error:`, error);
+        throw error;
       }
-
-      const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-      const content = data.choices?.[0]?.message?.content;
-
-      if (!content) {
-        throw new Error('No content in OpenAI response');
-      }
-
-      return JSON.parse(content) as T;
-    } catch (error) {
-      console.error('[LLM Provider] OpenAI API error:', error);
-      throw error;
     }
+  }
+}
+
+/**
+ * OpenAI LLM Provider Implementation
+ */
+export class OpenAILlmProvider extends ChatLlmProvider {
+  protected readonly label = 'OpenAI';
+  private apiKey: string;
+  private model: string;
+
+  constructor(apiKey?: string, model: string = DEFAULT_MODELS.openai) {
+    super();
+    this.apiKey = apiKey || process.env.OPENAI_API_KEY || '';
+    this.model = model;
+  }
+
+  protected endpoint(): ChatEndpoint {
+    if (!this.apiKey) throw new Error('OpenAI API key is not configured');
+    return openAiEndpoint(this.apiKey, this.model);
+  }
+}
+
+/**
+ * OpenRouter LLM Provider (OpenAI-compatible API at https://openrouter.ai/api/v1)
+ */
+export class OpenRouterLlmProvider extends ChatLlmProvider {
+  protected readonly label = 'OpenRouter';
+  private apiKey: string;
+  private model: string;
+
+  constructor(apiKey?: string, model: string = DEFAULT_MODELS.openrouter) {
+    super();
+    this.apiKey = apiKey || process.env.OPENROUTER_API_KEY || '';
+    this.model = model;
+  }
+
+  protected endpoint(): ChatEndpoint {
+    if (!this.apiKey) throw new Error('OpenRouter API key is not configured (OPENROUTER_API_KEY)');
+    return openRouterEndpoint(this.apiKey, this.model);
   }
 }
 
@@ -571,23 +539,18 @@ export class MockLlmProvider implements LlmProvider {
 }
 
 /**
- * Factory function to create the appropriate LLM provider
- * Checks for ENABLE_MOCK_AI or USE_MOCK_LLM flag to force mock mode for testing
+ * Factory: build the provider for a pipeline role from env (see config/llm-config.ts).
+ * ENABLE_MOCK_AI=true forces mock for every role.
  */
-export function createLlmProvider(): LlmProvider {
-  // Check for explicit mock flag (takes precedence over API key)
-  if (isMockAiEnabled()) {
-    console.log('[LLM Provider] Mock mode forced via ENABLE_MOCK_AI, using Mock provider');
-    return new MockLlmProvider();
+export function createLlmProvider(role: LlmRole = 'narrator'): LlmProvider {
+  const { provider, model } = resolveLlmRoleConfig(role);
+  console.log(`[LLM Provider] ${role}: ${provider}${provider === 'mock' ? '' : ` (${model})`}`);
+  switch (provider) {
+    case 'openai':
+      return Object.assign(new OpenAILlmProvider(process.env.OPENAI_API_KEY, model), { role });
+    case 'openrouter':
+      return Object.assign(new OpenRouterLlmProvider(process.env.OPENROUTER_API_KEY, model), { role });
+    default:
+      return new MockLlmProvider();
   }
-
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (apiKey) {
-    return new OpenAILlmProvider(apiKey);
-  }
-
-  console.warn('[LLM Provider] No OPENAI_API_KEY found, using Mock provider');
-  return new MockLlmProvider();
 }
-

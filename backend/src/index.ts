@@ -23,6 +23,8 @@ import { openapiRouter } from './routes/openapi.js';
 import { earlyAccessGuard } from './middleware/earlyAccessGuard.js';
 import { initializeActionRegistry } from './actions/boot.js';
 import chimeraRouter from './routes/chimera.js';
+import { isMockAiEnabled } from './config/ai-flags.js';
+import { describeLlmConfig } from './config/llm-config.js';
 
 const app = express();
 
@@ -94,6 +96,8 @@ app.get('/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     testTxEnabled: process.env.TEST_TX_ENABLED === 'true',
+    mockAi: isMockAiEnabled(),
+    llm: describeLlmConfig(),
   });
 });
 

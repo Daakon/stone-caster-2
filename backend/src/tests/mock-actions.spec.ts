@@ -128,6 +128,7 @@ describe('Mock Actions Verification', () => {
             getNextTurnIndex: vi.fn().mockResolvedValue(1),
             recordTurn: vi.fn().mockResolvedValue({ id: 'turn-id-123', turn_index: 1 }),
             linkAuditLogToTurn: vi.fn().mockResolvedValue(undefined),
+            recordTurnAudit: vi.fn().mockResolvedValue("audit-id-1"),
             updateGameState: vi.fn().mockResolvedValue(undefined),
             loadGameState: vi.fn().mockResolvedValue(getInitialGameState()),
         };
@@ -190,6 +191,21 @@ describe('Mock Actions Verification', () => {
         expect(systemLog?.content, 'test_combat Unknown Entity not in log').not.toContain('Unknown Entity');
 
         expectCleanTurnOutput(result, 'test_combat');
+    });
+
+    it('writes one audit row per turn, linked to the recorded turn (no "Failed to link audit log" warning)', async () => {
+        const warn = vi.spyOn(console, 'warn');
+        await gameTurnService.processTurn(mockGameStateId, 'test_combat', PLAYER_ID);
+
+        const repo = (gameTurnService as any).storiesRepo;
+        expect(repo.recordTurnAudit).toHaveBeenCalledTimes(1);
+        expect(repo.recordTurnAudit.mock.calls[0][0]).toMatchObject({
+            turnId: 'turn-id-123', turnIndex: 1, actionType: 'TURN', promptText: 'test_combat',
+        });
+        expect(repo.recordTurnAudit.mock.calls[0][0].tokenUsage).toMatchObject({ calls: 0 });
+        const warned = warn.mock.calls.map((c) => String(c[0])).join('\n');
+        expect(warned).not.toContain('Failed to link audit log');
+        warn.mockRestore();
     });
 
     it('should process test_social successfully', async () => {
