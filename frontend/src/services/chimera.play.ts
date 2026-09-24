@@ -20,52 +20,6 @@ export interface ChimeraGameState {
   updated_at: string;
 }
 
-export interface CastStoneRequest {
-  text_input: string;
-}
-
-export interface CastStoneResponse {
-  ripple_narrative: string;
-  debug_info?: {
-    mas_1_input: string;
-    mas_1_output: {
-      actionDto: {
-        action: string;
-        target?: string;
-        parameters?: Record<string, unknown>;
-      };
-      resolvedQuery: string;
-      detectedSentiment: {
-        tone: string;
-        intensity: number;
-      };
-    };
-    engine_outcome: {
-      success: boolean;
-      message?: string;
-      details?: Record<string, unknown>;
-    };
-    mas_2_response: {
-      ripple_narrative: string;
-      mutations: Array<{
-        op: 'set' | 'add' | 'remove';
-        path: string;
-        value: unknown;
-      }>;
-      engine_requests?: Array<{
-        action: string;
-        target?: string;
-        parameters?: Record<string, unknown>;
-      }>;
-    };
-    final_mutations: Array<{
-      op: 'set' | 'add' | 'remove';
-      path: string;
-      value: unknown;
-    }>;
-  };
-}
-
 export interface CharacterSchema {
   world_name: string;
   ui_schema_merged: Record<string, unknown>;
@@ -163,23 +117,7 @@ export const chimeraPlayService = {
     }
     return result.data!;
   },
-
-  /**
-   * Cast a stone (execute player action)
-   */
-  async castStone(
-    gameStateId: string,
-    request: CastStoneRequest,
-    debug?: boolean
-  ): Promise<CastStoneResponse> {
-    const url = `/api/chimera/play/${gameStateId}/cast-stone${debug ? '?debug=true' : ''}`;
-    console.log('[ChimeraService] Casting Stone:', { url, request });
-    const result = await apiPost<CastStoneResponse>(url, request);
-    console.log('[ChimeraService] Cast Result:', result);
-    if (!result.ok) {
-      throw new Error(result.error.message || 'Failed to cast stone');
-    }
-    return result.data!;
-  },
+  // Turn submission lives in features/active-game/services/activeGameApi.ts
+  // (POST /api/games/:id/turn); the legacy /cast-stone route was removed.
 };
 

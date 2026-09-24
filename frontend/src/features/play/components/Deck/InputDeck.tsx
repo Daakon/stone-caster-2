@@ -49,8 +49,8 @@ export function InputDeck() {
                     placeholder={isLocked ? "Consulting the Oracle..." : "What do you want to do?"}
                     disabled={isLocked}
                     className={cn(
-                        "min-h-[60px] max-h-[120px] resize-none pr-12 py-3 bg-muted/30 border-primary/20 focus:border-primary",
-                        isLocked && "opacity-50 cursor-wait"
+                        "min-h-[60px] max-h-[120px] resize-none pr-12 py-3 bg-muted/30 border-primary/20 focus:border-primary transition-opacity",
+                        isLocked && "opacity-50 cursor-wait bg-muted"
                     )}
                 />
             </div>

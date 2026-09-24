@@ -34,8 +34,11 @@ export function TurnBlock({ data }: TurnBlockProps) {
             {system.length > 0 && (
                 <div className="flex flex-col items-center gap-1 my-2 w-full">
                     {system.map(log => (
-                        <div key={log.id} className="w-full text-center py-1 text-xs text-muted-foreground/60 font-mono uppercase tracking-[0.2em]">
-                            {log.text}
+                        <div key={log.id} className="w-full text-center my-1 px-4 py-2 text-xs font-mono bg-slate-950/50 border border-slate-800 rounded-md text-cyan-500/90 shadow-sm backdrop-blur-[2px] animate-in fade-in zoom-in-95 duration-300">
+                            <div className="flex items-center justify-center gap-2">
+                                <span className="opacity-50 uppercase tracking-widest text-[10px] text-cyan-700 font-bold border border-cyan-900/30 px-1 rounded-[2px]">[SYSTEM]</span>
+                                <span className="tracking-wide">{log.text}</span>
+                            </div>
                         </div>
                     ))}
                 </div>

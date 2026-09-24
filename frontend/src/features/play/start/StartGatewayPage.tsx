@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getCompiledStory, getMyCharacters } from '@/api/chimera-client';
@@ -28,7 +28,7 @@ export default function StartGatewayPage() {
     const [viewMode, setViewMode] = useState<ViewMode>('SELECTION');
     const [selectedTab, setSelectedTab] = useState<Tab>('MY_CHARACTERS');
 
-    // 1. Fetch Compiled Story
+    // 1. Fetch Compiled Story - MUST be called before any conditional returns
     const { data: storyData, isLoading: storyLoading, error: storyError } = useQuery({
         queryKey: ['chimera-story', storyId],
         queryFn: () => getCompiledStory(storyId!) as Promise<any>,
@@ -37,7 +37,8 @@ export default function StartGatewayPage() {
 
     const story = storyData?.data;
 
-    // 2. Fetch User Characters (filtered by world if possible - using world_id from snapshot if available)
+    // 2. Fetch User Characters - MUST be called before any conditional returns
+    // Extract worldId safely (may be undefined initially)
     const worldId = story?.snapshot_world?.id;
 
     const { data: charactersData, isLoading: charsLoading } = useQuery({
@@ -47,6 +48,12 @@ export default function StartGatewayPage() {
     });
 
     const characters = charactersData?.data || [];
+
+    // Merge Schema - MUST be called before any conditional returns
+    const mergedSchema = useMemo(() => {
+        if (!story) return null;
+        return mergeCharacterSchema(story);
+    }, [story]);
 
     const handleSelectCharacter = async (char: any) => {
         // Start game with existing character
@@ -133,10 +140,7 @@ export default function StartGatewayPage() {
         return <SchemaDebug world={world} rulesets={rulesets} />;
     }
 
-    // Merge Schema
-    const mergedSchema = mergeCharacterSchema(story);
-
-    if (viewMode === 'CREATION') {
+    if (viewMode === 'CREATION' && mergedSchema) {
         return (
             <CharacterCreatorWizard
                 storyId={storyId!}

@@ -5,10 +5,33 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import net from 'net';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function canListen(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+
+    server.once('error', () => resolve(false));
+    server.once('listening', () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+async function findOpenPort(startPort) {
+  for (let port = startPort; port < startPort + 100; port += 1) {
+    if (await canListen(port)) {
+      return port;
+    }
+  }
+
+  throw new Error(`No open port found between ${startPort} and ${startPort + 99}`);
+}
 
 async function startDevServer() {
   // Load dotenv if available and a .env file exists
@@ -30,11 +53,16 @@ async function startDevServer() {
   process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'openai-local';
   process.env.PRIMARY_AI_MODEL = process.env.PRIMARY_AI_MODEL || 'gpt-4';
   process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'dev-session-secret';
-  process.env.PORT = process.env.PORT || '3000';
+  const requestedPort = Number(process.env.PORT || 3000);
+  const port = await findOpenPort(requestedPort);
+  process.env.PORT = String(port);
   process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_local_dev_key';
   process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_local_dev_secret';
 
   console.info('[dev-with-default-env] Starting backend with local defaults (development only)');
+  if (port !== requestedPort) {
+    console.info(`[dev-with-default-env] Port ${requestedPort} is in use; using ${port} instead`);
+  }
 
   const isWin = process.platform === 'win32';
   const workingDir = path.resolve(__dirname, '..');

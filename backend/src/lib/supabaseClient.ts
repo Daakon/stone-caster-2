@@ -14,7 +14,12 @@ import type { Request } from 'express';
  * @returns Supabase client configured with anon key and optional auth token
  */
 export function getSupabaseClient(req?: Request): SupabaseClient {
-  const client = createClient(
+  // Send the user's JWT as a global Authorization header so RLS is evaluated as that user.
+  // (auth.setSession() with an empty refresh token silently fails and leaves the client acting as `anon`.)
+  const authHeader = req?.headers.authorization;
+  const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader : undefined;
+
+  return createClient(
     config.supabase.url,
     config.supabase.anonKey,
     {
@@ -22,26 +27,7 @@ export function getSupabaseClient(req?: Request): SupabaseClient {
         persistSession: false,
         autoRefreshToken: false,
       },
+      ...(bearer ? { global: { headers: { Authorization: bearer } } } : {}),
     }
   );
-
-  // If request has a bearer token, set it for auth context
-  // Note: For RLS, we need to set the auth context properly
-  if (req) {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      // Set auth header for subsequent requests
-      // Supabase client will use this token for RLS checks
-      client.auth.setSession({
-        access_token: token,
-        refresh_token: '',
-      } as any).catch(() => {
-        // Ignore errors - token might be invalid, but let RLS handle it
-      });
-    }
-  }
-
-  return client;
 }
-

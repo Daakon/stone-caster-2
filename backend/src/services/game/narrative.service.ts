@@ -8,6 +8,7 @@ import { LlmService } from '../llm/llm.service.js';
 import { GameStateBundle } from '../../domain/game-state.types.js';
 import { getChimeraSupabaseAdminClient } from '../../db/supabase-client.js';
 import { AiTurnResult } from './ai-types.js';
+import { resolveLlmRoleConfig } from '../../config/llm-config.js';
 
 // Define GameState interface locally if not strictly exported as such, 
 // or alias GameStateBundle if that is what the user meant by "state".
@@ -37,14 +38,13 @@ const pacingStyles: Record<string, string> = {
     Concise: "Be direct. Avoid flowery language or excessive adjectives."
 };
 
-// [DEBUG] Mock Mode Flag
-const USE_MOCK_AI = true;
-
 export class NarrativeService {
-    private llm: LlmService;
+    private llm: LlmService;        // narrator role (turn reactions)
+    private genesisLlm: LlmService; // genesis role (opening scene)
 
     constructor(llmService?: LlmService) {
-        this.llm = llmService || new LlmService();
+        this.llm = llmService || new LlmService(undefined, undefined, 'narrator');
+        this.genesisLlm = llmService || new LlmService(undefined, undefined, 'genesis');
     }
 
     /**
@@ -62,15 +62,24 @@ export class NarrativeService {
         const hp = player.properties?.hp ?? '??';
         const stamina = player.properties?.stamina ?? '??';
 
+        // Extract entity names from state for context
+        const entities = mech.entities || {};
+        const guardId = '39757d45-2426-4377-a5d0-e99e9681d1ff';
+        const bartenderId = '00f2f66c-4ece-46df-ace9-af89a488c077';
+        const guard = entities[guardId] as any;
+        const bartender = entities[bartenderId] as any;
+        const guardName = guard?.properties?.display_name || guard?.properties?.name || 'Guard';
+        const bartenderName = bartender?.properties?.display_name || bartender?.properties?.name || 'Bartender';
+
         if (lower.includes('attack') || lower.includes('fight') || lower.includes('hit')) {
             intentTag = "Combat";
-            narrative = `MOCK MODE (COMBAT): You lash out with your weapon! The enemy flinches. (HP: ${hp}, Stamina: ${stamina})`;
+            narrative = `MOCK MODE (COMBAT): You lash out with your weapon against ${guardName}! The clash is intense. ${guardName === 'Garret' ? 'The Guard Captain staggers back.' : 'Your opponent flinches.'} The ${bartenderName} glares at you from behind the bar. (Stamina: ${stamina})`;
         } else if (lower.includes('look') || lower.includes('search') || lower.includes('examine')) {
             intentTag = "Observation";
-            narrative = `MOCK MODE (LOOK): You scan the area. The details are sharp. (HP: ${hp}, Stamina: ${stamina})`;
+            narrative = `MOCK MODE (LOOK): You scan the tavern. The ${bartenderName} is busy behind the bar. ${guardName} watches from the corner. The Bard plays his lute on stage. (Stamina: ${stamina})`;
         } else {
             intentTag = "General";
-            narrative = `MOCK MODE (DEFAULT): You perform the action: "${playerInput}". The world reacts accordingly. (HP: ${hp}, Stamina: ${stamina})`;
+            narrative = `MOCK MODE (DEFAULT): You perform the action: "${playerInput}". The world reacts accordingly. The tavern continues its bustling activity around you. (Stamina: ${stamina})`;
         }
 
         return {
@@ -93,9 +102,8 @@ export class NarrativeService {
      * and the initial game state.
      */
     async generateOpeningNarrative(state: GameState, systemPromptOverride?: string): Promise<string> {
-        // [DEBUG] Check Mock Mode
-        if (USE_MOCK_AI) {
-            console.warn('[NarrativeService] Using Mock Genesis.');
+        if (resolveLlmRoleConfig('genesis').provider === 'mock') {
+            console.warn('[NarrativeService] Using Mock Genesis (mock provider).');
             return "MOCK MODE: The story begins in a test environment. Everything is stable. The air smells of ozone and debugging.";
         }
 
@@ -187,15 +195,23 @@ JSON TEMPLATE:
 
         // 3. Call LLM
         try {
-            const rawResponse = await this.llm.generateText(systemPrompt, userPrompt, {
-                maxTokens: 1500,
-                temperature: 0.8,
-                jsonMode: true
-            });
+            // Routed models (e.g. openrouter/free) sometimes answer with a stray non-scene reply
+            // (safety-classifier verdicts); re-roll a couple of times before falling back.
+            let rawResponse = '';
+            let cleanJson = '';
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                rawResponse = await this.genesisLlm.generateText(systemPrompt, userPrompt, {
+                    maxTokens: 1500,
+                    temperature: 0.8,
+                    jsonMode: true
+                });
 
-            // [PHASE 6.6] JSON Sanitization & Parsing
-            // Regex removes markdown code blocks or stray backticks
-            const cleanJson = rawResponse.replace(/```json|```/g, '').trim();
+                // [PHASE 6.6] JSON Sanitization & Parsing
+                // Regex removes markdown code blocks or stray backticks
+                cleanJson = rawResponse.replace(/```json|```/g, '').trim();
+                if (cleanJson.startsWith('{') || cleanJson.length >= 60) break;
+                console.warn(`[NarrativeService] Genesis attempt ${attempt}/3 returned a non-scene reply ("${cleanJson.slice(0, 40)}"); retrying`);
+            }
 
             // Calculate mock cost (approx 4 chars per token)
             const promptTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
@@ -214,7 +230,8 @@ JSON TEMPLATE:
             } catch (parseErr) {
                 console.warn('[NarrativeService] Genesis JSON Parse Failed, attempting heuristic repair or fallback:', parseErr);
                 // Simple Fallback if parsing completely fails but we have text
-                if (cleanJson.length > 10 && !cleanJson.trim().startsWith('{')) {
+                // >= 60 chars: shorter non-JSON output is a stray model reply (e.g. a safety classifier's "User Safety: safe"), not prose
+                if (cleanJson.length >= 60 && !cleanJson.trim().startsWith('{')) {
                     result = {
                         narrative: cleanJson,
                         scene_context: {
@@ -242,7 +259,7 @@ JSON TEMPLATE:
                 rawResponse: cleanJson,
                 tokenUsage,
                 costStones,
-                modelUsed: process.env.LLM_MODEL || 'gpt-4o-mini' // Default or ENV
+                modelUsed: resolveLlmRoleConfig('genesis').model
             });
 
             return result.narrative;
@@ -310,9 +327,8 @@ JSON TEMPLATE:
      * Returns structured data: narrative prose, system logs, and state mutations.
      */
     async generateReaction(state: GameState, playerInput: string, systemPromptOverride?: string): Promise<AiTurnResult> {
-        // [DEBUG] Mock Mode
-        if (USE_MOCK_AI) {
-            console.warn('[NarrativeService] Using Mock Reaction.');
+        if (resolveLlmRoleConfig('narrator').provider === 'mock') {
+            console.warn('[NarrativeService] Using Mock Reaction (mock provider).');
             const mockResult = this.mockReaction(state, playerInput);
 
             // [AI AUDIT] Log the mock transaction so it appears in DB
@@ -380,13 +396,11 @@ Return the structured JSON object EXACTLY as defined in the output schema.
         `.trim();
 
         try {
-            const jsonResponseText = await this.llm.generateText({
-                systemPrompt: typeof systemPrompt === 'object' ? JSON.stringify(systemPrompt) : systemPrompt,
-                userPrompt: userPrompt,
-                temperature: 0.7,
-                maxTokens: 500,
-                jsonMode: true
-            });
+            const jsonResponseText = await this.llm.generateText(
+                typeof systemPrompt === 'object' ? JSON.stringify(systemPrompt) : systemPrompt,
+                userPrompt,
+                { temperature: 0.7, maxTokens: 500, jsonMode: true }
+            );
 
             // Parse JSON
             let result: AiTurnResult;
@@ -409,7 +423,7 @@ Return the structured JSON object EXACTLY as defined in the output schema.
                 rawResponse: jsonResponseText,
                 tokenUsage: { total: Math.ceil(jsonResponseText.length / 4) },
                 costStones: 0,
-                modelUsed: process.env.LLM_MODEL || 'mock-rules-engine'
+                modelUsed: resolveLlmRoleConfig('narrator').model
             });
 
             return result;

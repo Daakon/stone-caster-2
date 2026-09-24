@@ -10,8 +10,8 @@
     "tools/author-cli"
   ],
   "scripts": {
-    "dev": "npm run dev:clean",
-    "dev:clean": "npm run kill:ports && npm run dev:parallel",
+    "dev": "node scripts/dev-local.js",
+    "dev:clean": "npm run dev",
     "dev:parallel": "npm run dev:server & npm run dev:client",
     "dev:client": "npm run dev --workspace=frontend",
     "dev:server": "npm run dev:server:local",
@@ -54,7 +54,18 @@
     "verify:config": "npm run verify:config --workspace=backend",
     "test:env-setup": "npm run test:env-setup --workspace=backend",
     "deploy": "npm run deploy --workspace=backend",
-    "audit:awf": "tsx scripts/diagnostics/awf-prompt-audit.ts"
+    "audit:awf": "tsx scripts/diagnostics/awf-prompt-audit.ts",
+    "local:up": "node scripts/stonecaster-local.mjs stack:up",
+    "local:down": "node scripts/stonecaster-local.mjs stack:down",
+    "local:dev": "node scripts/stonecaster-local.mjs dev --mock",
+    "local:dev:mock": "node scripts/stonecaster-local.mjs dev --mock",
+    "local:dev:real": "node scripts/stonecaster-local.mjs dev --real",
+    "local:reset": "node scripts/stonecaster-local.mjs reset",
+    "local:health": "node scripts/stonecaster-local.mjs health",
+    "local:smoke": "node scripts/stonecaster-local.mjs smoke --mock",
+    "local:smoke:real": "node scripts/stonecaster-local.mjs smoke --real",
+    "local:seed:export": "node supabase/scripts/export-hosted-base.mjs",
+    "local:smoke:browser": "npm exec --workspace=frontend -- playwright test -c playwright.local.config.ts"
   },
   "keywords": [
     "rpg",
@@ -67,6 +78,7 @@
   "devDependencies": {
     "@types/node": "^20.10.0",
     "kill-port": "^2.0.1",
+    "supabase": "2.117.0",
     "typescript": "^5.3.2"
   },
   "dependencies": {

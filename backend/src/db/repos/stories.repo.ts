@@ -5,10 +5,13 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase-client.js';
+import { getChimeraSupabaseAdminClient } from '../supabase-client.js';
 import type { CompiledStory } from '@shared/types/chimera-compiled';
 import type { GameState } from '@shared/types/chimera-runtime';
 import { CompiledStorySchema } from '@shared/types/chimera-compiled';
 import { GameStateSchema } from '@shared/types/chimera-runtime';
+import { ServiceError } from '../../utils/serviceError.js';
+import { ApiErrorCode } from '@shared';
 
 export class StoriesRepository {
   constructor(private supabase: SupabaseClient<Database>) { }
@@ -135,7 +138,11 @@ export class StoriesRepository {
    * @param gameStateId - The ID of the game state
    * @param partialState - The shards to update (mechanical, narrative, registry, etc.)
    */
-  async updateGameState(gameStateId: string, partialState: Partial<GameState>): Promise<void> {
+  async updateGameState(
+    gameStateId: string,
+    partialState: Partial<GameState>,
+    expectedUpdatedAt?: string
+  ): Promise<void> {
     // Map DTO keys to DB columns (they match in the new schema, but good to be explicit)
     const updatePayload: any = {
       updated_at: new Date().toISOString()
@@ -146,13 +153,28 @@ export class StoriesRepository {
     if (partialState.scene_registry) updatePayload.scene_registry = partialState.scene_registry;
     if (partialState.action_queue) updatePayload.action_queue = partialState.action_queue;
 
-    const { error } = await this.supabase
+    let query = this.supabase
       .from('chimera_game_states')
       .update(updatePayload)
       .eq('id', gameStateId);
 
+    // Optimistic concurrency: only write if the row hasn't changed since load.
+    // Protects against two concurrent turns silently clobbering each other.
+    if (expectedUpdatedAt) {
+      query = query.eq('updated_at', expectedUpdatedAt);
+    }
+
+    const { data, error } = await query.select('id');
+
     if (error) {
       throw new Error(`Failed to update game state: ${error.message}`);
+    }
+
+    if (expectedUpdatedAt && (!data || data.length === 0)) {
+      throw new ServiceError(409, {
+        code: ApiErrorCode.CONFLICT,
+        message: 'This game was updated by another action. Please retry.',
+      });
     }
   }
 
@@ -165,9 +187,9 @@ export class StoriesRepository {
     gameStateId: string;
     turnIndex: number;
     playerInput: string;
-    mas1Intent: any;
+    directorIntent: any;
     mechanicalDelta: any;
-    mas2Narration: any;
+    narratorOutput: any;
   }): Promise<any> { // Returns GameTurn logic ideally
     const { data, error } = await this.supabase
       .from('chimera_turns')
@@ -175,9 +197,9 @@ export class StoriesRepository {
         game_state_id: turnData.gameStateId,
         turn_index: turnData.turnIndex,
         player_input: turnData.playerInput,
-        mas1_intent: turnData.mas1Intent || {},
+        director_intent: turnData.directorIntent || {},
         mechanical_delta: turnData.mechanicalDelta || {},
-        mas2_narration: turnData.mas2Narration || {}
+        narrator_output: turnData.narratorOutput || {}
       })
       .select('*')
       .single();
@@ -217,7 +239,7 @@ export class StoriesRepository {
   async getCompiledStory(storyKey: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
       .eq('story_id', storyKey) // Check story_id column (which often holds the key/slug/uuid)
       .order('version', { ascending: false })
       .limit(1)
@@ -245,7 +267,7 @@ export class StoriesRepository {
   async getCompiledStoryById(id: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
       .eq('id', id)
       .single();
 
@@ -271,7 +293,7 @@ export class StoriesRepository {
   async getCompiledStoryByDraftId(storyId: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
       .eq('story_id', storyId)
       .order('version', { ascending: false })
       .limit(1)
@@ -340,6 +362,42 @@ export class StoriesRepository {
     }
 
     return (data?.turn_index ?? -1) + 1;
+  }
+
+  /**
+   * Writes the per-turn AI audit row (already linked to its turn). Best-effort: never fails a turn.
+   */
+  async recordTurnAudit(params: {
+    gameId: string;
+    turnId: string;
+    turnIndex: number;
+    actionType: string;
+    promptText: string;
+    rawResponse: string;
+    tokenUsage: Record<string, unknown>;
+    modelUsed: string;
+  }): Promise<string | null> {
+    // Audit rows are system-written (no INSERT policy for players): use the service client
+    const { data, error } = await (getChimeraSupabaseAdminClient() as any)
+      .from('ai_audit_logs')
+      .insert({
+        game_id: params.gameId,
+        turn_id: params.turnId,
+        turn_index: params.turnIndex,
+        action_type: params.actionType,
+        prompt_text: params.promptText,
+        raw_response: params.rawResponse,
+        token_usage: params.tokenUsage,
+        cost_stones: 0,
+        model_used: params.modelUsed.slice(0, 100),
+      })
+      .select('id')
+      .single();
+    if (error) {
+      console.warn(`[StoriesRepo] Failed to record audit for turn ${params.turnId}: ${error.message}`);
+      return null;
+    }
+    return data?.id ?? null;
   }
 
   /**

@@ -5,22 +5,7 @@
  */
 
 import { apiFetch, apiPost } from '@/lib/api';
-import type { GameState, Mas2ResponseDto } from '@shared/types/chimera-runtime';
-
-export interface CastStoneResponse {
-  mas1: {
-    action_slug: string;
-    parameters: Record<string, unknown>;
-    sentiment: string;
-  };
-  engine: {
-    success: boolean;
-    outcome_summary: string;
-    numeric_deltas: Record<string, number>;
-  };
-  mas2: Mas2ResponseDto;
-  updatedState: GameState;
-}
+import type { GameState } from '@shared/types/chimera-runtime';
 
 export interface StartGameResponse {
   gameStateId: string;
@@ -42,28 +27,8 @@ export async function startGame(compiledStoryId: string): Promise<StartGameRespo
 }
 
 /**
- * Cast a stone (process player input through the game loop)
- */
-export async function castStone(
-  gameStateId: string,
-  text: string
-): Promise<CastStoneResponse> {
-  const result = await apiPost<CastStoneResponse>(
-    `/api/chimera/play/${gameStateId}/cast`,
-    {
-      userText: text,
-    }
-  );
-
-  if (!result.ok) {
-    throw new Error(result.error.message || 'Failed to cast stone');
-  }
-
-  return result.data!;
-}
-
-/**
  * Load the current game state
+ * (Turn submission lives in features/active-game/services/activeGameApi.ts)
  */
 export async function loadState(gameStateId: string): Promise<GameState> {
   const result = await apiFetch<GameState>(`/api/chimera/play/${gameStateId}`);

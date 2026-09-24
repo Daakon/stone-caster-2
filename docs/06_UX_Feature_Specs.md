@@ -525,9 +525,9 @@ Accessible from the Detail/Edit view of any item.
 
 **Layout:**
 
-- **Game Log (Primary Column):** Stacked narration entries, player inputs, and system notices. Each turn groups `Player Input → MAS-1 summary → MAS-2 narration`.
+- **Game Log (Primary Column):** Stacked narration entries, player inputs, and system notices. Each turn groups `Player Input → Director summary → Narrator prose`.
 - **State Sidebar (Secondary Column):** Displays Tier1 stats (stamina, hunger, emotional valence), time band, location, NPC spotlight, inventory-less resources (wealth tier), condition badges, and session metadata (turn count, last save).
-- **Action Composer (Footer):** Multiline text box with suggestions panel, slash-command helper, MAS-1 parser preview, and Send CTA. Includes keyboard shortcuts and “Submit + Auto-Advance” toggle.
+- **Action Composer (Footer):** Multiline text box with suggestions panel, slash-command helper, Director parser preview, and Send CTA. Includes keyboard shortcuts and "Submit + Auto-Advance" toggle.
 - **System Controls:** Buttons for Return to Play hub, Abandon Session, Download Transcript, Bug Report, Lore Peek (shows retrieved fragments), and Resolution Drawer toggle (exposes state_delta/roll breakdown).
 
 **Status & Notes — Play Session**

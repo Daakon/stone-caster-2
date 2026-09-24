@@ -58,6 +58,7 @@ export class ChimeraEntitiesService {
             .single();
 
         if (error) throw error;
+        return data;
     }
 
     /**

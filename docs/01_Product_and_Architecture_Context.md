@@ -4,9 +4,9 @@
 ## 1. Product Vision
 StoneCaster is a **player-driven narrative RPG engine** powered by structured rulesets, deterministic state updates, and guided narrative generation. Authors define **Worlds**, **Entities**, **Rulesets**, and **Lore**, which are compiled into a playable **Chimera Story Bundle**. The engine scales from rule-heavy tactical adventures to 'cozy' atmospheric simulations where relationships and ambiance take precedence over combat. Players experience this bundle through an interactive loop governed by:
 
-1. **MAS-1** – intent analysis, action classification, and deterministic parameter extraction.  
+1. **Director** – intent analysis, action classification, and deterministic parameter extraction.  
 2. **Engine** – state updates, ruleset resolution, time advancement, resource systems, contest logic.  
-3. **MAS-2** – fully guided narration constrained by state, rulesets, entity context, active conditions, values, emotions, time bands, and relationship memory.
+3. **Narrator** – fully guided narration constrained by state, rulesets, entity context, active conditions, values, emotions, time bands, and relationship memory.
 
 The MVP’s purpose is not to demonstrate full feature breadth, but to deliver a **stable, repeatable, tightly scoped proof of the core storytelling loop**, with enough authoring capability for real-world viability.
 
@@ -57,7 +57,7 @@ The compiler will:
 - Validate ruleset dependencies + exclusion groups.  
 - Merge all ruleset actions, instructions, and state schema into a unified model.  
 - Produce:
-  - **Tier definitions** - **State definitions** - **AI instruction bundles** (MAS-1 & MAS-2)  
+  - **Tier definitions** - **State definitions** - **AI instruction bundles** (Director & Narrator)  
   - **Global mechanics** (skill system, stamina, hunger, combat states, wealth tiers, etc.)  
   - **RAG ingestion** of lore  
   - **Initial game state**
@@ -69,12 +69,12 @@ Compiler success → game can launch with deterministic expectations.
 ### Runtime (Play Loop)
 The runtime supports the loop:
 
-1. **MAS-1** interprets player text → intent, parameters, difficulty, tags.  
+1. **Director** interprets player text → intent, parameters, difficulty, tags.  
 2. **Engine** uses rulesets to:
    - Resolve contests (e.g., D100 5-pillars, D100 roll-under engine, cinematic combat).  
    - Update stamina, hunger, emotional valence, relationship tags, time band advancement, etc.  
    - Apply threshold logic, forced conditions, and contextual triggers from rulesets.  
-3. **MAS-2** produces narration strictly constrained by:
+3. **Narrator** produces narration strictly constrained by:
    - Rule-defined style injections  
    - State readouts  
    - System conditions  
@@ -100,15 +100,15 @@ This defines **exactly what IS included**.
 - Ruleset dependency resolution and exclusion checks.  
 - JSON schema merging from rulesets + world.  
 - Generation of:  
-  - MAS-1 instructions  
-  - MAS-2 style injections + state readouts  
+  - Director instructions  
+  - Narrator style injections + state readouts  
   - Engine state machine (tiered)  
   - Time advancement logic  
   - Deterministic update pipeline  
 - Error reporting with actionable feedback.
 
 #### C. Runtime
-- MAS-1 intent analysis (one round).  
+- Director intent analysis (one round).  
 - Engine:  
   - D100 skill system (roll-under; cascade roots)  
   - Stamina drain & restoration  
@@ -117,11 +117,11 @@ This defines **exactly what IS included**.
   - Combat Lite (Healthy → Wounded → Defeated)  
   - Wealth capability checks  
   - NPC personality, quirks, agendas, values, phobias, relationships with memory-scoring  
-- MAS-2 narrative output, constrained and state-aware.
+- Narrator narrative output, constrained and state-aware.
 
 #### D. Minimal UI
-- Core play client: multiline action composer + MAS guidance.  
-- Game log (message history) with MAS-1/MAS-2 groupings.  
+- Core play client: multiline action composer + Director guidance.  
+- Game log (message history) with Director/Narrator groupings.  
 - State sidebar (stats, conditions, NPC spotlight, time band).  
 - Play hub (`/play`) for session management (resume/abandon).  
 - Discovery browsers (Worlds, NPCs, Stories) with cross-linking detail modals.  
@@ -156,8 +156,8 @@ These features **will not** be implemented:
 ## 7. Constraints
 - Runtime must remain under **4 seconds** p95 for action → full narrative response.  
 - Compiler must remain under **2 seconds** p95 for medium-sized worlds.  
-- MAS-2 narrative must **never contradict state**.  
-- MAS-1 must route intents consistently using ruleset keywords + skill mappings.  
+- Narrator narrative must **never contradict state**.  
+- Director must route intents consistently using ruleset keywords + skill mappings.  
 - The engine must enforce **hard gates** such as:  
   - Collapse preventing movement/combat (vitality rules).  
   - Hunger starvation impacting narrative description and action viability.  
@@ -227,7 +227,7 @@ The result is a platform where:
 2. **Modular Ruleset Ecosystem** The system lets authors shape the physics, emotions, combat, survival, and social logic of their world simply by selecting rulesets.  
    This leverages the rich foundations already present in your database (e.g., D100 Pillars, Vitality/Stamina, NPC Values, Personality, Quirks, Combat Lite, etc.).
 
-3. **Narrative Consistency with Zero Micromanagement** MAS-2 ensures tone, behavior, emotions, survival needs, time-of-day, and relationships remain coherent across all scenes without the author needing to script every scenario.
+3. **Narrative Consistency with Zero Micromanagement** Narrator ensures tone, behavior, emotions, survival needs, time-of-day, and relationships remain coherent across all scenes without the author needing to script every scenario.
 
 4. **Deterministic Simulation Backbone** Authors retain total control over how the world works because underlying mechanics (stamina, hunger, relationship scoring, contests, etc.) are deterministic, readable, and inspectable.
 
@@ -246,7 +246,7 @@ The result is a platform where:
 
 2. **Fair, Understandable Mechanics** Clear deterministic rules (e.g., D100 roll-under, stamina thresholds, hunger states) reinforce transparency and fairness.
 
-3. **Narrative That Honors Player Decisions** Every action updates world state and NPC attitudes, and MAS-2 narration strictly follows these updates—never contradicting the underlying mechanics.
+3. **Narrative That Honors Player Decisions** Every action updates world state and NPC attitudes, and Narrator narration strictly follows these updates—never contradicting the underlying mechanics.
 
 4. **Replayability** Changing rulesets, entities, or lore produces dramatically different worlds and outcomes.
 
@@ -267,13 +267,13 @@ The architecture separates:
 - Rulesets  
 - Compiler outputs  
 - Runtime logic  
-- MAS-1 and MAS-2 instructions
+- Director and Narrator instructions
 
 This ensures long-term maintainability and easier evolution into modular “Chimera Engine Packs.”
 
 ### C. **Production-Grade Stability with Low Operational Overhead**
 Deterministic rules + structured state = predictable compute/runtime costs.  
-MAS-1 and MAS-2 calls remain bounded and optimized.
+Director and Narrator calls remain bounded and optimized.
 
 ---
 
@@ -285,9 +285,9 @@ MAS-1 and MAS-2 calls remain bounded and optimized.
 - **Ruleset Compatibility Stability** All selectable predefined rulesets must successfully pass dependency + exclusion validation.
 
 ### Category B — **Runtime Stability**
-- **Action Loop Performance** - MAS-1 + Engine + MAS-2 combined response time: **p95 < 4 seconds**.  
+- **Action Loop Performance** - Director + Engine + Narrator combined response time: **p95 < 4 seconds**.  
 - **State Determinism** - 100 percent of actions must produce reproducible state transitions given the same initial state and input.  
-- **Narrative Coherence** - MAS-2 must not contradict engine state or rule-defined constraints in **99 percent+** of responses.
+- **Narrative Coherence** - Narrator must not contradict engine state or rule-defined constraints in **99 percent+** of responses.
 
 ### Category C — **Player Experience**
 - **Emotional Reactivity** NPCs update relational memories, values, and emotional states in at least **90 percent** of relevant interactions.  
@@ -295,7 +295,7 @@ MAS-1 and MAS-2 calls remain bounded and optimized.
 - **Session Completion** 60 percent of players should complete a defined story arc or continue beyond the first 10 turns.
 
 ### Category D — **Content Quality / Consistency**
-- **Ruleset-Driven Narrative Fidelity** MAS-2 must incorporate at least **one active state_readout or style_injection** from active rulesets in **80 percent** of responses.  
+- **Ruleset-Driven Narrative Fidelity** Narrator must incorporate at least **one active state_readout or style_injection** from active rulesets in **80 percent** of responses.  
 - **Tone & Style Enforcement** Rich rulesets (personality, quirks, values, agendas, hunger, stamina, combat condition, wealth/capability, etc.) must appear naturally in narration.
 
 ---
@@ -304,7 +304,7 @@ MAS-1 and MAS-2 calls remain bounded and optimized.
 
 These prevent regressions during MVP development:
 
-1. **Zero Contradictions Rule** No MAS-2 output may contradict state fields such as  
+1. **Zero Contradictions Rule** No Narrator output may contradict state fields such as  
    stamina level, hunger state, emotional valence, relationship tags, combat condition, time band, or any rule-defined constraints.
 
 2. **Deterministic Rule Execution** Engine logic must produce identical results given identical inputs (no random number drift, no hidden state).
@@ -346,7 +346,7 @@ StoneCaster is structured as a **three-layer system**:
    Output → CompiledStory (the canonical state + instructions package).
 
 3. **Runtime Layer (Play Engine)** Executes the interactive loop:  
-   **MAS-1 → Engine → MAS-2**, maintaining deterministic world state and constrained narration.
+   **Director → Engine → Narrator**, maintaining deterministic world state and constrained narration.
 
 These layers are connected by strict JSON schemas and a hybrid data model ensuring reproducibility and clear separation of concerns.
 
@@ -384,14 +384,14 @@ The compiler transforms author data and ruleset definitions into a unified, vali
   - **Tier2** – system/global mechanics (success bands, difficulty tiers, etc.)
 
 #### 2.2.3 Instruction Aggregation
-- Builds **MAS-1 instructions**:
+- Builds **Director instructions**:
   - Intent keyword mapping  
   - Difficulty extraction  
   - Duration tagging (Time Bands)  
   - Skill/attribute routing  
   - Forbidden or limited actions (collapse, hunger, fatigue enforcement)
 
-- Builds **MAS-2 instructions**:
+- Builds **Narrator instructions**:
   - Style injections (tone, sensory detail, emotional coloration)  
   - State readouts for narration  
   - Agenda-driven nudging  
@@ -401,7 +401,7 @@ The compiler transforms author data and ruleset definitions into a unified, vali
 
 #### 2.2.4 Lore Processing
 - Chunks and embeds lore entries  
-- Stores embeddings in vector DB for MAS-2 retrieval  
+- Stores embeddings in vector DB for Narrator retrieval  
 - Creates a retrieval plan (max fragments, scoring criteria)
 
 #### 2.2.5 Initial Game State Construction
@@ -413,7 +413,7 @@ The compiler transforms author data and ruleset definitions into a unified, vali
 - Unified state schema  
 - Initial state snapshot  
 - Ruleset-derived mechanics  
-- MAS-1 & MAS-2 instructions  
+- Director & Narrator instructions  
 - Lore embeddings  
 - Story metadata
 
@@ -426,9 +426,9 @@ This bundle is passed to the runtime with no further transformation.
 ### 3.1 The Core Loop
 Each turn follows the deterministic pipeline:
 
-**MAS-1 → Engine → MAS-2 → Updated State**
+**Director → Engine → Narrator → Updated State**
 
-1. **MAS-1 (Action Interpreter)** - Converts free-text player input into:  
+1. **Director (Strategic Lead)** - Converts free-text player input into:  
      - intent  
      - parameters (targets, difficulty cues, tactic tags)  
      - duration tags  
@@ -451,7 +451,7 @@ Each turn follows the deterministic pipeline:
    - **state_delta** (all changes)  
    - **resolution_summary** (structured interpretation of mechanical results)
 
-3. **MAS-2 (Narrative Composer)** Using the updated state + ruleset instructions, MAS-2 generates constrained narrative that respects:  
+3. **Narrator (Cinematic Lead)** Using the updated state + ruleset instructions, Narrator generates constrained narrative that respects:  
    - Personality, moods, values, quirks, agendas, phobias  
    - Relationship memory  
    - Hunger, stamina, combat condition  
@@ -460,7 +460,7 @@ Each turn follows the deterministic pipeline:
    - Time band sensory framing  
    - RAG-fed lore context
 
-MAS-2 **cannot contradict state**. All narrative conditions must come from the compiled ruleset instructions or live state.
+Narrator **cannot contradict state**. All narrative conditions must come from the compiled ruleset instructions or live state.
 
 4. **State Writeback** State updates are persisted and exposed to the UI.
 
@@ -501,7 +501,7 @@ Drives NPC embodiment:
 World Cycle & Time Bands:
 - Assigns duration tags (moment, scene, journey, rest).  
 - Advances tick and recalculates time band.  
-- Supplies sensory framing for MAS-2.
+- Supplies sensory framing for Narrator.
 
 ---
 
@@ -532,7 +532,7 @@ This provides:
 | Ruleset Templates | JSONB + SQL cols | Modular mechanics; selected by author |
 | Compiled Stories | JSONB | Aggregated runtime instructions |
 | Game States | JSONB | Full player state at each turn |
-| Lore | JSONB + pgvector | RAG retrieval for MAS-2 |
+| Lore | JSONB + pgvector | RAG retrieval for Narrator |
 
 ---
 
@@ -568,7 +568,7 @@ Minimalist but functional for MVP:
 - `POST /play/start`  
 - `POST /play/cast`  
   - Input: action text  
-  - Output: MAS-1 → Engine → MAS-2 compiled result
+  - Output: Director → Engine → Narrator compiled result
 
 ### 6.3 Utility Endpoints
 - `GET /rulesets`  
@@ -599,7 +599,7 @@ Complete details will be defined in **07_API_Contract.md**.
 - Request logs  
 - Compiler error metrics  
 - Runtime latency tracking  
-- MAS-1/MAS-2 cost metrics
+- Director/Narrator cost metrics
 
 ---
 
@@ -609,7 +609,7 @@ Complete details will be defined in **07_API_Contract.md**.
 Engine outputs must be reproducible.
 
 ### Narratively Strict Coherence  
-MAS-2 cannot contradict or overwrite engine state.
+Narrator cannot contradict or overwrite engine state.
 
 ### Ruleset Integrity  
 Rulesets cannot mutate fields outside their allowed schema.
@@ -628,7 +628,7 @@ The MVP system architecture ensures:
 - Authors can build worlds quickly.  
 - Rulesets define mechanics, not code.  
 - The Compiler produces a complete and deterministic runtime bundle.  
-- Runtime executes a clean MAS-1 → Engine → MAS-2 pipeline.  
+- Runtime executes a clean Director → Engine → Narrator pipeline.  
 - Narration is immersive, rule-governed, and consistent.  
 - The database and deployment strategy allow for scalability and long-term growth.
 
@@ -675,7 +675,7 @@ Phase 4 – Enterprise     → B2B SaaS platform (separate product)
 
 * Establish Domain Model (Tier0/Tier1/Tier2)
 * Create initial ruleset catalog
-* Define MAS-1 and MAS-2 schemas & templates
+* Define Director and Narrator schemas & templates
 * Establish prompt-governance system (Chimera)
 * Create DB schema + RLS rules
 * Define UX flows
@@ -714,15 +714,15 @@ This is the **playable story** milestone.
    * Lore index embedding
 
 3. **Runtime Engine**
-   * MAS-1 interpretive layer
+   * Director interpretive layer
    * Deterministic engine (stamina, hunger, contests)
-   * MAS-2 narrative generator
+   * Narrator narrative generator
    * Turn-based loop
 
 4. **Player Experience**
     * Start session and resume existing ones via the Play hub
     * Story view (narration + action composer + state panel)
-    * Enter actions and review MAS-1/MAS-2 output with resolution drawer
+    * Enter actions and review Director/Narrator output with resolution drawer
     * Browse published Worlds/NPCs/Stories via modal-rich discovery views
     * Access Profile/Author hubs to view creations, manage account/billing, and initiate conversions (stones/subscriptions)
 
@@ -835,7 +835,7 @@ Turns StoneCaster into a platform.
 Each includes:
 * Genre-specific rulesets
 * Tone injectors
-* MAS-2 behavior extensions
+* Narrator behavior extensions
 
 ---
 
@@ -891,8 +891,8 @@ If a feature touches more than **two architectures** (Compiler, Engine, MAS) sim
 The MVP is successful when:
 
 > * ✓ A player completes a story with minimal errors
-> * ✓ MAS-1 correctly parses 95% of actions
-> * ✓ MAS-2 produces stable narrative with no contradictions
+> * ✓ Director correctly parses 95% of actions
+> * ✓ Narrator produces stable narrative with no contradictions
 > * ✓ State evolution remains consistent and debuggable
 > * ✓ Authors can create/compile worlds without engineering support
 > * ✓ No critical security or RLS failures

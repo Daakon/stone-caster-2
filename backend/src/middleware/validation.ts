@@ -95,7 +95,17 @@ export function validateRequest<T>(
           message: err.message,
           code: err.code,
         }));
-        
+
+        // Log validation errors with request details for debugging
+        console.error('[Validation] Request validation failed:', {
+          method: req.method,
+          path: req.path,
+          validationErrors: details,
+          requestBody: req.body,
+          requestParams: req.params,
+          requestQuery: req.query,
+        });
+
         return sendErrorWithStatus(
           res,
           ApiErrorCode.VALIDATION_FAILED,

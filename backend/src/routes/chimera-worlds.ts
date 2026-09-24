@@ -38,8 +38,8 @@ const CreateWorldSchema = z.object({
   tag_names: z.array(z.string()).default([]),
   tags: z.array(z.string()).optional().default([]), // Direct tags array on world
   images: z.array(ChimeraAssetRefSchema).optional().default([]), // CRITICAL: Include images in schema
-  genre: z.string().optional(),
-  setting: z.string().optional(),
+  genre: z.string().optional().nullable(),
+  setting: z.string().optional().nullable(),
 });
 
 // UpdateWorldSchema explicitly excludes visibility - it can only be changed via publish endpoint

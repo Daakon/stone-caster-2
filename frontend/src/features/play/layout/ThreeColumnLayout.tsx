@@ -8,15 +8,24 @@ interface ThreeColumnLayoutProps {
     rightSidebar?: ReactNode;
     children: ReactNode;
     footer?: ReactNode;
+    /** Compact strip below the header, mobile-only (sidebars are hidden below md) */
+    mobileBar?: ReactNode;
 }
 
-export function ThreeColumnLayout({ header, leftSidebar, rightSidebar, children, footer }: ThreeColumnLayoutProps) {
+export function ThreeColumnLayout({ header, leftSidebar, rightSidebar, children, footer, mobileBar }: ThreeColumnLayoutProps) {
     return (
         <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
             {/* Global Header - Fixed Height z-20 */}
             <div className="flex-none h-14 z-20 relative">
                 {header}
             </div>
+
+            {/* Mobile Vitals Strip */}
+            {mobileBar && (
+                <div className="flex-none md:hidden z-10">
+                    {mobileBar}
+                </div>
+            )}
 
             {/* Body - Flex Row */}
             <div className="flex-1 flex flex-row overflow-hidden relative">

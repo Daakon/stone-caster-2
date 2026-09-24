@@ -11,44 +11,44 @@ alwaysApply: true
 
 This rule enforces the canonical Chimera V3 architecture as defined in `@docs/PROJECT_CONTEXT_MAP.md` and `@docs/CHIMERA_ARCHITECTURE_SPEC.md`.
 
-## Hybrid Schema Pattern
+## 1. Hybrid Schema Pattern
 
 **MANDATORY:** All new tables must use the Hybrid Pattern:
 - **SQL Columns:** For fields needed in `WHERE` clauses (`name`, `slug`, `visibility`, `tags`, `owner_user_id`). These enable fast filtering and indexing.
-- **JSONB `definition`:** For the full canonical object (`WorldDefinition`, `RulesetDefinition`, etc.). This is the source of truth.
-
-**Examples:**
-- ✅ `chimera_worlds`: SQL columns (`name`, `slug`, `visibility`, `tags`) + JSONB `definition` (full `WorldDefinition`)
-- ✅ `chimera_ruleset_templates`: SQL columns (`key`, `ui_category`, `exclusion_group`) + JSONB `definition` (full `RulesetDefinition`)
-- ❌ **DO NOT** create tables with only JSONB (no SQL columns for querying)
-- ❌ **DO NOT** create tables with only SQL columns (no JSONB for canonical data)
+- **JSONB definition:** For the full canonical object (`WorldDefinition`, `RulesetDefinition`, etc.). This is the source of truth.
 
 **Migration Rule:** If a field is needed for a `WHERE` clause, it gets a column. If it is only needed for the Compiler/Client, it stays in JSONB.
 
-## Service Layer Architecture
+## 2. Runtime Data Contracts
+
+**MANDATORY:**
+1. **MAS-1 Output:** Must be wrapped in an object:
+```json
+{
+  "intents": [
+    {
+      "trigger_id": "combat_action",
+      "target_ids": ["uuid-1"],
+      "parameters": {
+        "verb": "slash",
+        "tactic_tag": "aggressive"
+      },
+      "duration_tag": "moment"
+    }
+  ]
+}
+```
+2. **Persistence:** The `GameLoopService` must save the **Final Snapshot** from `StateService.getState()`. DO NOT attempt to merge `engine_deltas` into the DB state manually.
+3. **Mocking:** The `LlmProvider` must detect test scenarios and bypass AI if `userText` starts with `test_`.
+
+## 3. Service Layer Architecture
 
 **MANDATORY:** Backend logic must follow **Route -> Service -> Repo** pattern:
 
 ### Routes (`backend/src/routes/`)
 - **Purpose:** Zod validation of HTTP inputs. Calls Service. Returns DTO.
-- **Pattern:** Thin controllers that validate, call service, return response.
 - ❌ **DO NOT** put business logic in routes.
 - ❌ **DO NOT** make direct DB calls from routes.
-
-**Example:**
-```typescript
-// ✅ CORRECT
-router.post('/chimera/worlds', authenticateToken, async (req, res) => {
-  const input = CreateWorldSchema.parse(req.body);
-  const world = await worldsService.create(input, req.user.id);
-  res.json({ ok: true, data: world });
-});
-
-// ❌ WRONG - Logic in route
-router.post('/chimera/worlds', async (req, res) => {
-  const world = await db.query('INSERT INTO chimera_worlds...'); // NO!
-});
-```
 
 ### Services (`backend/src/services/`)
 - **Purpose:** Pure Business Logic.
@@ -56,125 +56,22 @@ router.post('/chimera/worlds', async (req, res) => {
   - `compile/`: The 4-Step Compiler
   - `runtime/`: The Game Loop (mas1, engine, mas2)
   - `authoring/`: CRUD logic for Worlds, Lore, Rulesets, Entities
-  - `assets/`: R2/S3 integrations
-- ✅ **DO** put all business logic here.
 - ✅ **DO** call repos for DB operations.
-
-**Example:**
-```typescript
-// ✅ CORRECT
-export async function createWorld(input: CreateWorldInput, userId: string) {
-  // Business logic here
-  const world = await worldsRepo.create({ ...input, owner_user_id: userId });
-  return world;
-}
-```
 
 ### Repos (`backend/src/db/repos/`)
 - **Purpose:** Supabase/SQL interactions. No business logic.
-- **Pattern:** Typed repository methods for CRUD operations.
-- ❌ **DO NOT** put business logic in repos.
 - ✅ **DO** use Supabase client for all DB operations.
 
-**Example:**
-```typescript
-// ✅ CORRECT
-export async function findById(id: string) {
-  const { data, error } = await supabase
-    .from('chimera_worlds')
-    .select('*')
-    .eq('id', id)
-    .single();
-  if (error) throw error;
-  return data;
-}
-```
-
-## Compiler (4-Step Process)
-
-**MANDATORY:** Any changes to `backend/src/services/compile/` must follow the 4-Step Pipeline:
-
-1. **Base Loader:** Load `BaseCharacter` + Merge `World` extensions
-2. **Resolution:** Validate `Ruleset` dependencies and `Exclusion Groups`
-3. **Schema Build:** Merge `actions`, `stats`, and `lore` into a Master Schema
-4. **Artifact Gen:** Output `CompiledStory` (JSON) + `LoreIndex` (Vector)
-
-**DO NOT:**
-- Skip steps or combine them
-- Add logic outside the 4-step structure
-- Modify the step order
-
-**Reference:** `@docs/CHIMERA_ARCHITECTURE_SPEC.md#the-compiler-strategy-4-step-pipeline`
-
-## Kill List (Legacy Code Ban)
+## 4. Kill List (Legacy Code Ban)
 
 **MANDATORY:** The following patterns are **FORBIDDEN**:
-
-### File Patterns
-- ❌ **DO NOT** create files matching `awf_*` (e.g., `awf-bundle-assembler.ts`)
-- ❌ **DO NOT** create files matching `stone_*` (e.g., `stonePacks.service.ts`)
-- ❌ **DO NOT** create files matching `mod_*` (e.g., `mod-packs.service.ts`)
-
-### Directory Patterns
-- ❌ **DO NOT** create directories: `backend/src/mods/`, `backend/src/marketplace/`
-
-### Table Patterns
-- ❌ **DO NOT** create tables matching `awf_*`, `stone_*`, `mod_*`
-- ❌ **DO NOT** create legacy tables: `worlds`, `world_templates`, `adventures`, `games`, `sessions`, `turns`
-
-### Concepts
-- ❌ **DO NOT** reference "Adventures" (use "Stories" / `compiled_stories`)
-- ❌ **DO NOT** reference "World Identity Resolution" (use Hybrid Schema with `slug`/`key`)
-
-**If you see legacy code, flag it for removal. Do not extend or maintain it.**
-
-**Reference:** `@docs/PROJECT_CONTEXT_MAP.md#1-the-kill-list-legacy-protocol`
-
-## Lore Strategy (RAG/Vector)
-
-**MANDATORY:** Lore must use the RAG/Vector pattern:
-
-- **Storage:** `chimera_lore` table with `fragment` (JSONB) + `embedding` (vector(1536))
-- **Ingestion:** When World/Element/Force is saved, chunk text, embed, save to `chimera_lore`
-- **Retrieval:** At runtime, MAS2 queries `chimera_lore` by vector similarity
-
-**DO NOT:**
-- Store embeddings in JSONB (use separate `embedding` column)
-- Skip vectorization for lore fragments
-- Use text search instead of vector similarity
-
-**Reference:** `@docs/CHIMERA_ARCHITECTURE_SPEC.md#6-the-lore-strategy-ragvector`
-
-## Data Contract
-
-**MANDATORY:** All JSONB structures must match `@docs/chimera-full-schemas.json`:
-
-- `WorldDefinition`: Must contain canonical fields (`name`, `slug`, `key`, `version`, `summary`, `images`, `tags`, `visibility`) even if duplicated in SQL columns
-- `ChimeraAssetRef`: Must match Zod schema with `meta.copyright`, `meta.artist`, `meta.license`
-- `LoreFragment`: Must include `triggers` and `weight` fields
-
-**DO NOT:**
-- Create custom JSONB structures that don't match the schema
-- Omit required fields from canonical definitions
-- Store data in JSONB that should be in SQL columns (for querying)
-
-## Runtime Loop (MAS1 → Engine → MAS2)
-
-**MANDATORY:** Runtime must follow the 3-stage loop:
-
-1. **MAS1:** Interprets user text → `ActionDto` with sentiment
-2. **Engine:** Deterministic resolution → `numeric_deltas` and `outcome_summary`
-3. **MAS2:** LLM narrator with RAG → `ripple_narrative` and Tier0 mutations
-
-**DO NOT:**
-- Skip stages or combine them
-- Put MAS logic in Engine or vice versa
-- Bypass RAG for MAS2 narrative generation
-
-**Reference:** `@docs/CHIMERA_ARCHITECTURE_SPEC.md#5-the-runtime-loop-mas1--engine--mas2`
+- ❌ **DO NOT** create files matching `awf_*`, `stone_*`, or `mod_*`.
+- ❌ **DO NOT** create directories: `backend/src/mods/` or `backend/src/marketplace/`.
+- ❌ **DO NOT** reference "Adventures" (use "Stories").
 
 ---
 
 **When in doubt, consult:**
-- `@docs/PROJECT_CONTEXT_MAP.md` - The Absolute Truth
-- `@docs/CHIMERA_ARCHITECTURE_SPEC.md` - Unified Architecture Specification
+- `@docs/PROJECT_CONTEXT_MAP.md`
+- `@docs/CHIMERA_ARCHITECTURE_SPEC.md`
+- `@docs/07_Architecture_Patterns_and_Standards.md`
