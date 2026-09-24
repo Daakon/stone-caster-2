@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Redesign, states and components</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1180px; box-sizing: border-box; padding: 48px; display: flex; flex-direction: column; gap: 28px; background: #0b0a13; color: #ece8f6; font-family: 'DM Sans', system-ui, sans-serif">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 36px; font-weight: 600">States and small parts</h1>
+<p style="margin: 0; font-size: 15px; line-height: 1.6; color: #bfb9d3; max-width: 860px">The pieces the screens are built from: composer states, waiting and error feedback, the peek card, and the shared vocabularies for disposition, knowledge and condition.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start">
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Composer, idle</span>
+<div style="box-sizing: border-box; padding: 12px; border-radius: 16px; background: #191627; border: 1px solid #3b3556; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; padding: 3px; border-radius: 10px; background: #12101c; gap: 2px; align-self: flex-start"><span style="height: 26px; padding: 0 12px; border-radius: 8px; background: #a78bfa; color: #100a24; font-size: 13px; font-weight: 700; display: flex; align-items: center">Do</span><span style="height: 26px; padding: 0 12px; color: #bfb9d3; font-size: 13px; display: flex; align-items: center">Say</span><span style="height: 26px; padding: 0 12px; color: #bfb9d3; font-size: 13px; display: flex; align-items: center">Look</span></div>
+<span style="font-size: 15px; color: #8f89a8; padding: 4px">What do you do?</span>
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="display: flex; gap: 6px"><span style="padding: 3px 10px; border-radius: 999px; border: 1px solid #3b3556; font-size: 12px; color: #bfb9d3">Observe</span><span style="padding: 3px 10px; border-radius: 999px; border: 1px solid #3b3556; font-size: 12px; color: #bfb9d3">Rest</span><span style="padding: 3px 10px; border-radius: 999px; border: 1px solid #3b3556; font-size: 12px; color: #bfb9d3">Wait</span></span><span style="width: 34px; height: 34px; border-radius: 50%; background: #a78bfa; opacity: 0.4"></span></div>
+</div>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">Send stays dim until there is text. Chips fill the draft; the player confirms.</span>
+</div>
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Composer, slash commands</span>
+<div style="box-sizing: border-box; border-radius: 12px; background: #191627; border: 1px solid #3b3556; overflow: hidden">
+<div style="padding: 10px 12px; font-size: 15px; border-bottom: 1px solid #2b2640">/<span style="color: #8f89a8">journal</span></div>
+<div style="display: flex; flex-direction: column; padding: 6px">
+<div style="display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 8px; background: rgba(167,139,250,0.14)"><span style="font-size: 14px; font-weight: 600; color: #cdbdff">/journal</span><span style="font-size: 13px; color: #bfb9d3">Open your journal</span></div>
+<div style="display: flex; justify-content: space-between; padding: 8px 10px"><span style="font-size: 14px; font-weight: 600">/lore</span><span style="font-size: 13px; color: #bfb9d3">What the world has told you</span></div>
+<div style="display: flex; justify-content: space-between; padding: 8px 10px"><span style="font-size: 14px; font-weight: 600">/status</span><span style="font-size: 13px; color: #bfb9d3">Vitals and conditions</span></div>
+<div style="display: flex; justify-content: space-between; padding: 8px 10px"><span style="font-size: 14px; font-weight: 600">/who</span><span style="font-size: 13px; color: #bfb9d3">Who is here</span></div>
+</div>
+</div>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">Answers the "Check inventory" and "Status" chips without a hidden feature.</span>
+</div>
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Turn in progress</span>
+<div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px">
+<div style="display: flex; align-items: center; gap: 10px; color: #bfb9d3"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8dc16b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Reading what you meant</div>
+<div style="display: flex; align-items: center; gap: 10px; color: #bfb9d3"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8dc16b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Rolling the dice</div>
+<div style="display: flex; align-items: center; gap: 10px; color: #cdbdff; font-weight: 600"><span style="width: 15px; height: 15px; box-sizing: border-box; border-radius: 50%; border: 2px solid #a78bfa; border-top-color: transparent"></span>Writing the scene</div>
+</div>
+<p style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-size: 16px; line-height: 1.6">Kiera's smile doesn't reach her eyes. "Paid in silver, asked for<span style="display: inline-block; width: 2px; height: 16px; background: #a78bfa; margin-left: 2px; vertical-align: -2px"></span></p>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">One voice for waiting. The composer dims, and per the behavior spec a turn cannot be cancelled.</span>
+</div>
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Error, action not spent</span>
+<div style="padding: 14px; border-radius: 12px; background: rgba(239,91,91,0.1); border: 1px solid rgba(239,91,91,0.4); display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 14px; font-weight: 600; color: #f7a3a3">The storyteller lost the thread.</span>
+<span style="font-size: 13px; line-height: 1.5; color: #bfb9d3">Nothing changed. Your stamina and the scene are as they were.</span>
+<div style="display: flex; gap: 8px"><span style="height: 34px; padding: 0 16px; border-radius: 8px; background: #a78bfa; color: #100a24; font-size: 13px; font-weight: 700; display: flex; align-items: center">Try again</span><span style="height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid #3b3556; font-size: 13px; font-weight: 500; display: flex; align-items: center">Edit action</span></div>
+</div>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">Replaces the toast that vanishes. The turn stays visible until resolved.</span>
+</div>
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Peek, unidentified</span>
+<div style="padding: 12px; border-radius: 12px; background: #191627; border: 1px solid #3b3556; display: flex; gap: 12px; align-items: center">
+<div style="width: 40px; height: 40px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px dashed #655f80; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8f89a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></div>
+<div style="display: flex; flex-direction: column; gap: 1px; font-size: 13px; line-height: 1.4"><span style="font-weight: 700; font-size: 14px">Hooded Stranger</span><span style="color: #8f89a8">Unidentified · Still</span><span style="color: #8f89a8">You know 1 thing</span></div>
+</div>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">Hover on desktop, long-press on touch. Words, never raw numbers.</span>
+</div>
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Vital hit feedback</span>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px"><span style="display: flex; align-items: center; gap: 8px; color: #bfb9d3">Health<span style="padding: 0 6px; border-radius: 999px; background: rgba(224,87,90,0.16); color: #f2a0a2; font-size: 12px; font-weight: 600">−30</span></span><span style="font-weight: 600">54 → 24</span></div>
+<div style="position: relative; height: 8px; border-radius: 4px; background: #2b2640"><div style="position: absolute; left: 0; width: 54%; height: 100%; border-radius: 4px; background: rgba(239,91,91,0.3)"></div><div style="position: absolute; left: 0; width: 24%; height: 100%; border-radius: 4px; background: #ef5b5b"></div></div>
+</div>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">The lost portion ghosts for a moment. A drop over 25% in one turn adds a red edge pulse. Under 30%, the bar grows and shows numbers.</span>
+</div>
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Disposition bands (0 to 20)</span>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<sc-for list="{{bands}}" as="b" hint-placeholder-count="6">
+<div style="display: flex; align-items: center; gap: 10px; font-size: 13px"><span style="width: 10px; height: 10px; border-radius: 50%; background: {{b.color}}"></span><span style="width: 70px; font-weight: 600">{{b.name}}</span><span style="color: #8f89a8">{{b.range}}</span></div>
+</sc-for>
+</div>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">Bands are a proposal. The engine already stores this scale with 5 as neutral.</span>
+</div>
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Where you learned it</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{sources}}" as="s" hint-placeholder-count="6">
+<span style="padding: 4px 12px; border-radius: 999px; border: 1px solid #3b3556; font-size: 13px; color: {{s.color}}">{{s.name}}</span>
+</sc-for>
+</div>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">Every fact in a dossier carries one of these and the turn it was learned. Rumors are marked unverified.</span>
+</div>
+
+<div style="padding: 20px; border-radius: 14px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Conditions</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{conditions}}" as="c" hint-placeholder-count="6">
+<span style="padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: {{c.bg}}; color: {{c.color}}">{{c.name}}</span>
+</sc-for>
+</div>
+<span style="font-size: 13px; line-height: 1.5; color: #8f89a8">Neutral states like Rested and Healthy stay quiet. Only meaningful ones get a badge.</span>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+const bands = [
+{ name: 'Hostile', range: '0 to 2', color: '#ef5b5b' },
+{ name: 'Wary', range: '3 to 4', color: '#e0a458' },
+{ name: 'Neutral', range: '5 to 7', color: '#8f89a8' },
+{ name: 'Friendly', range: '8 to 12', color: '#a78bfa' },
+{ name: 'Trusted', range: '13 to 17', color: '#cdbdff' },
+{ name: 'Devoted', range: '18 to 20', color: '#e2d8ff' }
+];
+const sources = [
+{ name: 'Seen', color: '#ece8f6' },
+{ name: 'Overheard', color: '#ece8f6' },
+{ name: 'Observed', color: '#ece8f6' },
+{ name: 'Told by someone', color: '#ece8f6' },
+{ name: 'Deduced', color: '#2dd4bf' },
+{ name: 'Rumor, unverified', color: '#e0a458' }
+];
+const conditions = [
+{ name: 'Wounded', bg: 'rgba(239,91,91,0.16)', color: '#f7a3a3' },
+{ name: 'Critical', bg: 'rgba(239,91,91,0.3)', color: '#ffc4c4' },
+{ name: 'Winded', bg: 'rgba(224,164,88,0.16)', color: '#cdbdff' },
+{ name: 'Hungry', bg: 'rgba(224,164,88,0.16)', color: '#cdbdff' },
+{ name: 'Surrendered', bg: 'rgba(154,144,128,0.2)', color: '#e0dcef' },
+{ name: 'Unconscious', bg: 'rgba(92,192,238,0.16)', color: '#99f0e4' },
+{ name: 'Defeated', bg: 'rgba(154,144,128,0.2)', color: '#bfb9d3' }
+];
+return { bands, sources, conditions };
+}
+}
+</script>
+</body>
+</html>

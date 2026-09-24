@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Redesign, NPC dossier</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; background: #0b0a13; color: #ece8f6; overflow: hidden; font-family: 'DM Sans', system-ui, sans-serif">
+
+<header style="height: 52px; flex: none; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: #12101c; border-bottom: 1px solid #2b2640">
+<div style="display: flex; align-items: center; gap: 12px; width: 344px">
+<button aria-label="Back to stories" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #8f89a8; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+<div style="display: flex; flex-direction: column; line-height: 1.25"><span style="font-family: 'Fraunces', Georgia, serif; font-size: 15px; font-weight: 600">The Gilded Ledger</span><span style="font-size: 12px; color: #8f89a8; display: flex; align-items: center; gap: 6px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #8dc16b"></span>Saved · Turn 14</span></div>
+</div>
+<div style="display: flex; align-items: center; gap: 12px">
+<div style="display: flex; align-items: center; gap: 8px; font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>The Gilded Stag</div>
+<span style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: #191627; border: 1px solid #2b2640; font-size: 12px; font-weight: 600; color: #bfb9d3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>Deep Night</span>
+<span style="font-size: 12px; font-style: italic; color: #8f89a8">Lighthearted</span>
+</div>
+<div style="display: flex; align-items: center; gap: 4px; width: 344px; justify-content: flex-end">
+<button style="height: 36px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #bfb9d3; display: flex; align-items: center; gap: 8px; font: 500 13px 'DM Sans', sans-serif"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7Z"/></svg>Journal</button>
+<button aria-label="Search and commands" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #bfb9d3; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+<button aria-label="Menu" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #bfb9d3; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+</div>
+</header>
+
+<div style="flex-grow: 1; min-height: 0; display: flex">
+
+<aside style="width: 288px; flex: none; box-sizing: border-box; background: #12101c; border-right: 1px solid #2b2640; padding: 20px 16px; display: flex; flex-direction: column; gap: 20px; overflow: hidden">
+<button style="display: flex; align-items: center; gap: 14px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left">
+<div style="width: 60px; height: 60px; flex: none; box-sizing: border-box; border-radius: 50%; border: 2px solid #a78bfa; background: #211d33; display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', Georgia, serif; font-size: 26px; font-weight: 600; color: #a78bfa">D</div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600">Daakon</span><span style="font-size: 13px; color: #8f89a8">Adventurer · Brave, Stoic</span></div>
+</button>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Vitals</span><span style="font-size: 12px; color: #8f89a8">Rested · Sated</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px"><span style="display: flex; align-items: center; gap: 8px; color: #bfb9d3"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e0575a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/></svg>Health</span><span style="font-weight: 600">100<span style="color: #8f89a8; font-weight: 400"> / 100</span></span></div>
+<div style="height: 6px; border-radius: 3px; background: #2b2640"><div style="width: 100%; height: 100%; border-radius: 3px; background: #e0575a"></div></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px"><span style="display: flex; align-items: center; gap: 8px; color: #bfb9d3"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8dc16b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Stamina</span><span style="font-weight: 600">90<span style="color: #8f89a8; font-weight: 400"> / 100</span></span></div>
+<div style="height: 6px; border-radius: 3px; background: #2b2640"><div style="width: 90%; height: 100%; border-radius: 3px; background: #8dc16b"></div></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px"><span style="display: flex; align-items: center; gap: 8px; color: #bfb9d3"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>Satiety</span><span style="font-weight: 600">80<span style="color: #8f89a8; font-weight: 400"> / 100</span></span></div>
+<div style="height: 6px; border-radius: 3px; background: #2b2640"><div style="width: 80%; height: 100%; border-radius: 3px; background: #2dd4bf"></div></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Pillars</span>
+<sc-for list="{{pillars}}" as="p" hint-placeholder-count="5">
+<div style="display: flex; align-items: center; gap: 10px; font-size: 13px"><span style="width: 74px; color: #bfb9d3">{{p.label}}</span><div style="flex-grow: 1; height: 4px; border-radius: 2px; background: #2b2640"><div style="height: 100%; border-radius: 2px; background: #bfb9d3; width: {{p.pct}}"></div></div><span style="width: 22px; text-align: right; font-weight: 600">{{p.val}}</span></div>
+</sc-for>
+</div>
+<div style="padding: 14px; border-radius: 12px; background: #191627; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #a78bfa"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>Objective</div>
+<div style="font-size: 14px; line-height: 1.45">Find out who the stranger is waiting for.</div>
+<div style="font-size: 12px; color: #8f89a8">2 clues gathered</div>
+</div>
+</aside>
+
+<main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: #0b0a13">
+<div style="flex-grow: 1; overflow: hidden">
+<div style="width: 620px; margin: 0 auto; padding: 28px 0 0 0; display: flex; flex-direction: column; gap: 22px">
+<div style="display: flex; align-items: center; gap: 12px; color: #8f89a8; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase"><div style="flex-grow: 1; height: 1px; background: #2b2640"></div>Turn 14 · Deep Night<div style="flex-grow: 1; height: 1px; background: #2b2640"></div></div>
+<div style="align-self: flex-end; max-width: 460px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #a78bfa"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8l4 4-4 4"/></svg>You do</span>
+<div style="padding: 12px 16px; border-radius: 16px 16px 4px 16px; background: #211d33; border: 1px solid #3b3556; font-size: 16px; line-height: 1.5">I lean on the bar and ask Kiera who the stranger is.</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: #8f89a8">
+<span style="padding: 5px 10px; border-radius: 8px; background: #12101c; border: 1px solid #2b2640">Insight · rolled 34 vs 45 · <span style="color: #8dc16b; font-weight: 500">Success</span></span>
+<span style="padding: 5px 10px; border-radius: 8px; background: #12101c; border: 1px solid #2b2640">Kiera <span style="color: #a78bfa">+2 warmer</span></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 18px; font-family: 'Newsreader', Georgia, serif; font-size: 19px; line-height: 1.75; color: #ece8f6">
+<p style="margin: 0"><span style="padding: 1px 6px; border-radius: 6px; background: rgba(167,139,250,0.18); color: #cdbdff; font-weight: 500">Kiera</span>'s smile doesn't reach her eyes. "Paid in silver, asked for nothing, hasn't touched his ale," she murmurs, polishing a mug she has already polished twice. "Either he's waiting for someone, or someone's waiting for him."</p>
+</div>
+</div>
+</div>
+
+<div style="flex: none; padding: 0 0 20px 0">
+<div style="width: 620px; margin: 0 auto; box-sizing: border-box; padding: 12px; border-radius: 18px; background: #191627; border: 1px solid #a78bfa; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<div style="display: flex; padding: 3px; border-radius: 10px; background: #12101c; gap: 2px">
+<span style="height: 28px; padding: 0 12px; border-radius: 8px; color: #bfb9d3; font-size: 13px; font-weight: 500; display: flex; align-items: center">Do</span>
+<span style="height: 28px; padding: 0 12px; border-radius: 8px; background: #a78bfa; color: #100a24; font-size: 13px; font-weight: 700; display: flex; align-items: center">Say</span>
+<span style="height: 28px; padding: 0 12px; border-radius: 8px; color: #bfb9d3; font-size: 13px; font-weight: 500; display: flex; align-items: center">Look</span>
+</div>
+<span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; background: rgba(167,139,250,0.14); color: #cdbdff; font-size: 12px; font-weight: 600">Speaking to Kiera<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+</div>
+<div style="min-height: 44px; padding: 6px 4px; font-size: 16px; line-height: 1.5">"Kiera, what's the ledger behind the bar? Does it have something to do with him?"</div>
+<div style="display: flex; align-items: center; justify-content: space-between">
+<span style="font-size: 12px; color: #8f89a8">Drafted from the dossier. Edit it, or press Enter to send.</span>
+<button aria-label="Send" style="width: 40px; height: 40px; border: 0; border-radius: 50%; background: #a78bfa; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#100a24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
+</div>
+</div>
+</div>
+</main>
+
+<aside style="width: 380px; flex: none; box-sizing: border-box; background: #12101c; border-left: 1px solid #2b2640; display: flex; flex-direction: column; overflow: hidden">
+
+<div style="flex: none; padding: 18px 20px 16px 20px; display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid #2b2640">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8f89a8">Dossier</span><button aria-label="Close dossier" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: #8f89a8; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+<div style="display: flex; gap: 16px; align-items: center">
+<div style="width: 72px; height: 72px; flex: none; box-sizing: border-box; border-radius: 50%; border: 3px solid #a78bfa; background: #211d33; display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', Georgia, serif; font-size: 32px; font-weight: 600; color: #a78bfa">K</div>
+<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'Fraunces', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1.1">Kiera</span><span style="font-size: 13px; color: #bfb9d3">Bartender and Tavern Owner</span><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8f89a8"><span style="width: 6px; height: 6px; border-radius: 50%; background: #8dc16b"></span>In the room · Speaking with you</span></div>
+</div>
+<div style="padding: 12px; border-radius: 12px; background: #191627; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-size: 12px; color: #8f89a8">Toward you</span><span style="display: flex; align-items: center; gap: 8px"><span style="font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 600; color: #cdbdff">Friendly</span><span style="padding: 0 6px; border-radius: 999px; background: rgba(167,139,250,0.16); color: #cdbdff; font-size: 12px; font-weight: 600">+2</span></span></div>
+<div style="position: relative; height: 6px; border-radius: 3px; background: #2b2640"><div style="width: 55%; height: 100%; border-radius: 3px; background: #a78bfa"></div><div style="position: absolute; left: 25%; top: -3px; width: 2px; height: 12px; background: #8f89a8"></div></div>
+<div style="display: flex; justify-content: space-between; font-size: 12px; color: #8f89a8"><span>Hostile</span><span>Neutral</span><span>Devoted</span></div>
+</div>
+</div>
+
+<div style="flex: none; display: flex; gap: 20px; padding: 0 20px; border-bottom: 1px solid #2b2640">
+<span style="padding: 12px 0; font-size: 14px; font-weight: 600; color: #cdbdff; border-bottom: 2px solid #a78bfa">What you know <span style="font-weight: 500; color: #8f89a8">4</span></span>
+<span style="padding: 12px 0; font-size: 14px; font-weight: 500; color: #8f89a8">History <span>2</span></span>
+<span style="padding: 12px 0; font-size: 14px; font-weight: 500; color: #8f89a8">Rumors <span>1</span></span>
+</div>
+
+<div style="flex-grow: 1; min-height: 0; overflow: hidden; padding: 16px 20px 0 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #bfb9d3"><span style="padding: 3px 10px; border-radius: 999px; background: #211d33; border: 1px solid #3b3556; font-weight: 600">Mood: Guarded</span><span style="color: #8f89a8">how she reads to you</span></div>
+
+<sc-for list="{{facts}}" as="f" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 15px; line-height: 1.4">{{f.text}}</div>
+<div style="font-size: 12px; color: #8f89a8">{{f.source}} · {{f.when}}</div>
+</div>
+</sc-for>
+
+<div style="padding: 12px; border-radius: 12px; border: 1px dashed #3b3556; display: flex; align-items: center; gap: 12px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8f89a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 14px; color: #8f89a8; letter-spacing: 0.15em">█████ ████ ███████</span><span style="font-size: 12px; color: #bfb9d3">Ask her about the Silver Ledgers to learn more.</span></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12px; color: #8f89a8">Still unknown:</span><span style="padding: 2px 10px; border-radius: 999px; border: 1px dashed #3b3556; font-size: 12px; color: #8f89a8">Age</span><span style="padding: 2px 10px; border-radius: 999px; border: 1px dashed #3b3556; font-size: 12px; color: #8f89a8">Origin</span><span style="padding: 2px 10px; border-radius: 999px; border: 1px dashed #3b3556; font-size: 12px; color: #8f89a8">Allegiance</span></div>
+</div>
+
+<div style="flex: none; padding: 14px 20px 20px 20px; border-top: 1px solid #2b2640; background: #12101c; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; gap: 8px">
+<button style="flex: 1; height: 40px; border: 0; border-radius: 10px; background: #a78bfa; color: #100a24; font: 700 14px 'DM Sans', sans-serif; display: flex; align-items: center; justify-content: center; gap: 8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>Speak to Kiera</button>
+<button style="flex: 1; height: 40px; border-radius: 10px; border: 1px solid #3b3556; background: transparent; color: #ece8f6; font: 600 14px 'DM Sans', sans-serif; display: flex; align-items: center; justify-content: center; gap: 8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>Look closer</button>
+</div>
+<div style="height: 36px; box-sizing: border-box; padding: 0 12px; border-radius: 10px; background: #191627; border: 1px solid #2b2640; display: flex; align-items: center; font-size: 13px; color: #8f89a8">Add a private note about Kiera…</div>
+</div>
+
+</aside>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+const pillars = [
+{ label: 'Force', val: 40, pct: '40%' },
+{ label: 'Finesse', val: 60, pct: '60%' },
+{ label: 'Awareness', val: 55, pct: '55%' },
+{ label: 'Insight', val: 45, pct: '45%' },
+{ label: 'Influence', val: 50, pct: '50%' }
+];
+const facts = [
+{ text: 'Runs the Gilded Stag and lives above it.', source: 'Seen', when: 'Turn 3' },
+{ text: 'Keeps a ledger behind the bar.', source: 'Overheard', when: 'Turn 9' },
+{ text: 'Polishes mugs when she is nervous.', source: 'Observed', when: 'Turn 14' },
+{ text: 'Distrusts the hooded stranger.', source: 'Told by Kiera', when: 'Turn 14' }
+];
+return { pillars, facts };
+}
+}
+</script>
+</body>
+</html>

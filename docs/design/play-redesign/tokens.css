@@ -1,0 +1,68 @@
+/*
+ * Stone Caster play-screen design tokens (violet + teal, dark first).
+ * Source of truth for the redesign boards in ./boards.
+ *
+ * Integration: map these onto the existing shadcn HSL variables in
+ * frontend/src/index.css (.dark block) and extend tailwind.config.js.
+ * Do not hardcode hex values in components; use the tokens.
+ * Hex is shown here for reference; convert to HSL triplets when wiring shadcn.
+ */
+:root.dark, .dark {
+  /* Surfaces, darkest to lightest */
+  --sc-bg-page:      #0b0a13;  /* app background */
+  --sc-bg-panel:     #12101c;  /* rails, header, composer */
+  --sc-bg-card:      #191627;  /* cards, chips */
+  --sc-bg-raised:    #211d33;  /* popovers, user bubble, avatar fill */
+  --sc-border:       #2b2640;  /* default hairline */
+  --sc-border-strong:#3b3556;  /* inputs, outlined chips */
+
+  /* Text */
+  --sc-text:         #ece8f6;
+  --sc-text-soft:    #bfb9d3;
+  --sc-text-muted:   #8f89a8;  /* 4.5:1 minimum on panel; do not go lighter for small text */
+  --sc-text-faint:   #655f80;  /* decorative only */
+
+  /* Brand */
+  --sc-primary:      #a78bfa;  /* violet: primary actions, active tab, player voice */
+  --sc-primary-soft: #cdbdff;  /* text on dark, NPC links */
+  --sc-on-primary:   #100a24;  /* text on violet fills */
+  --sc-accent:       #2dd4bf;  /* teal: mechanics, bonds, "learned", places */
+  --sc-accent-soft:  #7ee7d8;
+
+  /* Semantic */
+  --sc-danger:       #ef5b5b;  /* health, combat vignette */
+  --sc-danger-soft:  #f7a3a3;
+  --sc-stamina:      #8dc16b;
+  --sc-warn:         #e0a458;  /* items, partial success */
+  --sc-warn-soft:    #f0c27a;
+  --sc-lore:         #7aa2ff;  /* lore terms */
+  --sc-lore-soft:    #a9c2ff;
+  --sc-faction:      #f28fb0;
+
+  /* Entity link colours (paired with underline shape, never colour alone) */
+  --sc-ent-npc:      var(--sc-primary-soft);  /* dotted */
+  --sc-ent-unknown:  var(--sc-text-soft);     /* dotted, grey */
+  --sc-ent-place:    var(--sc-accent-soft);   /* dashed */
+  --sc-ent-item:     var(--sc-warn-soft);     /* solid */
+  --sc-ent-lore:     var(--sc-lore-soft);     /* double */
+  --sc-ent-faction:  var(--sc-faction);       /* wavy */
+
+  /* Type */
+  --sc-font-display: 'Fraunces', Georgia, serif;          /* names, titles */
+  --sc-font-prose:   'Newsreader', Georgia, serif;        /* story text */
+  --sc-font-ui:      'DM Sans', system-ui, sans-serif;    /* interface */
+  --sc-font-mono:    'JetBrains Mono', ui-monospace, monospace; /* system lines, rolls */
+
+  /* Scale (px). UI text never below 12. */
+  --sc-text-xs: 12px;   /* labels, overlines (uppercase, 0.08em tracking) */
+  --sc-text-sm: 13px;
+  --sc-text-base: 15px; /* UI body */
+  --sc-text-prose-mobile: 17px;  /* line-height 1.65 */
+  --sc-text-prose-desktop: 19px; /* line-height 1.7 */
+
+  /* Shape and touch */
+  --sc-radius-card: 14px;
+  --sc-radius-chip: 999px;
+  --sc-radius-sheet: 22px;
+  --sc-tap: 44px;       /* minimum interactive target, mobile and desktop */
+}

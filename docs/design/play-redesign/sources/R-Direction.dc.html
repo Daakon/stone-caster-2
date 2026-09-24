@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Direction</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; padding: 48px 56px; background: #0b0a13; color: #ece8f6; overflow: hidden; display: flex; flex-direction: column; gap: 28px; font-family: 'DM Sans', system-ui, sans-serif">
+
+<div style="display: flex; flex-direction: column; gap: 10px; max-width: 980px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #a78bfa">Design direction</span>
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 40px; font-weight: 600; line-height: 1.1">A tabletop you can read, with a companion you can talk to</span>
+<span style="font-family: 'Newsreader', Georgia, serif; font-size: 19px; line-height: 1.55; color: #bfb9d3">RPG feel comes from a world that stays visible: where you are, who is here, what you know, what is at stake. Chatbot richness comes from one good composer, threaded turns, follow-ups and a response you can act on. The story stays the hero; everything else is a tap away.</span>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; flex-grow: 1; min-height: 0">
+
+<div style="padding: 22px; border-radius: 16px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 14px">
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600">Principles</span>
+<sc-for list="{{principles}}" as="p" hint-placeholder-count="5">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 600; color: #cdbdff">{{p.title}}</span><span style="font-size: 14px; line-height: 1.45; color: #bfb9d3">{{p.body}}</span></div>
+</sc-for>
+</div>
+
+<div style="padding: 22px; border-radius: 16px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 14px">
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600">Gaps, and where they land</span>
+<sc-for list="{{gaps}}" as="g" hint-placeholder-count="8">
+<div style="display: flex; gap: 10px; font-size: 14px; line-height: 1.4"><span style="flex: none; width: 26px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #a78bfa; padding-top: 1px">{{g.pri}}</span><span><span style="color: #ece8f6; font-weight: 500">{{g.gap}}</span><span style="color: #8f89a8"> → {{g.fix}}</span></span></div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 20px; min-height: 0">
+<div style="padding: 22px; border-radius: 16px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px">
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600">Needs from the engine</span>
+<sc-for list="{{needs}}" as="n" hint-placeholder-count="4">
+<div style="font-size: 14px; line-height: 1.45; color: #bfb9d3"><span style="color: #ece8f6; font-weight: 500">{{n.title}}.</span> {{n.body}}</div>
+</sc-for>
+</div>
+<div style="padding: 22px; border-radius: 16px; background: #12101c; border: 1px solid #2b2640; display: flex; flex-direction: column; gap: 12px; flex-grow: 1">
+<span style="font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600">Open questions</span>
+<sc-for list="{{questions}}" as="q" hint-placeholder-count="3">
+<div style="font-size: 14px; line-height: 1.45; color: #bfb9d3">{{q}}</div>
+</sc-for>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+const principles = [
+{ title: 'Story first', body: 'Reading column stays central; rails and sheets support it, never compete.' },
+{ title: 'The world stays visible', body: 'Location, time band and who is present are always one glance away.' },
+{ title: 'Every name is a door', body: 'Narration is typed blocks. Tap any NPC, place, item or term for a peek, hold for verbs, select text to ask.' },
+{ title: 'Show only what the player learned', body: 'Facts carry a source and turn. Unknown slots are visible but redacted.' },
+{ title: 'Honest waiting, no cancelling', body: 'Three named phases while the turn runs. Retry only on error, per the UX spec.' },
+{ title: 'Built from the story', body: 'HUD modules come from active rulesets: cozy bonds, Chimera pillars, d20 or Pathfinder blocks, or custom.' },
+{ title: 'Thumb-zone on mobile', body: 'Composer, chips and critical vitals sit in the bottom third; everything else is a sheet.' }
+];
+const gaps = [
+{ pri: 'P0', gap: 'Navigation', fix: 'Top bar with Journal, search and menu; Codex modal' },
+{ pri: 'P0', gap: 'Mobile', fix: 'Five sheets, vitals strip, cast stack, action tray' },
+{ pri: 'P0', gap: 'Accessibility', fix: '44px targets, 12px minimum type, labelled icon buttons' },
+{ pri: 'P1', gap: 'Chip gesture', fix: 'Single tap drafts; explicit send button' },
+{ pri: 'P1', gap: 'Waiting voices', fix: 'Three-phase progress card' },
+{ pri: 'P1', gap: 'Entity links', fix: 'Dotted gold names with peek popover' },
+{ pri: 'P1', gap: 'System lines', fix: 'Collapsible mono receipt and resolution ladder' },
+{ pri: 'P1', gap: 'Vitals mismatch', fix: 'One vitals model; critical state undocks on mobile' },
+{ pri: 'P1', gap: 'Right rail', fix: 'Here panel: scene, cast, lore' },
+{ pri: 'P2', gap: 'Header fallbacks, brand, reading rhythm', fix: 'Serif prose, violet and teal tokens' }
+];
+const needs = [
+{ title: 'Per-entity knowledge log', body: 'Nothing today records what the player has learned about each NPC. Needs fact, source, turn and revealed flag.' },
+{ title: 'HUD manifest per ruleset', body: 'Module ids, field paths, labels and max values so the UI renders any system.' },
+{ title: 'Unknown-slot hints', body: 'Engine should return which fields remain undiscovered and a lead to unlock each.' },
+{ title: 'Typed narration blocks', body: 'Narrator emits typed blocks with entity refs; the server validates and links against an alias table.' },
+{ title: 'Turn phases over the socket', body: 'Stream phase events so the progress card reflects real work.' }
+];
+const questions = [
+'Do NPC facts ever get corrected or contradicted later, and how should History show that?',
+'Should private notes sync to the server or stay per device?',
+'Is a full map out of scope for now, or does Here need a place graph later?',
+'Which sensory FX tiers ship in the first pass?'
+];
+return { principles, gaps, needs, questions };
+}
+}
+</script>
+</body>
+</html>
