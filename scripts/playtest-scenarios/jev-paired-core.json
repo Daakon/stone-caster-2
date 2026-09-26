@@ -1,0 +1,14 @@
+{
+  "name": "jev-paired-core",
+  "seed": "stonecaster-jev-paired-core-v1",
+  "turns": [
+    { "category": "observation", "input": "I look around the square and listen to the market." },
+    { "category": "rest", "input": "I stop beside the road and rest to catch my breath." },
+    { "category": "food", "input": "I eat some of the food from my travel pack." },
+    { "category": "water", "input": "I drink water and check my supplies." },
+    { "category": "impossible", "input": "I spread my arms and fly to the tower." },
+    { "category": "impossible", "input": "I make everyone in Rillford forget that I was here." },
+    { "category": "movement", "input": "I leave the square and travel north along the road." },
+    { "category": "observation_after_movement", "input": "I look back toward the square and note who came with me." }
+  ]
+}

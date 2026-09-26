@@ -28,6 +28,7 @@ describe('Mock Actions Verification', () => {
     let engineService: EngineService;
     let mas2Service: Mas2Service;
     let directorService: DirectorService;
+    let jevShadowService: { evaluate: ReturnType<typeof vi.fn> };
     let gameTurnService: GameTurnService;
 
     // A mock representation of the initial state based on test requirements
@@ -104,6 +105,9 @@ describe('Mock Actions Verification', () => {
         mockLlmProvider = new MockLlmProvider();
         engineService = new EngineService();
         mas2Service = new Mas2Service(mockLlmProvider);
+        jevShadowService = {
+            evaluate: vi.fn().mockResolvedValue({ mode: 'shadow', enabled: true, available: true, decisions: [], report: {} }),
+        };
         const mockLlmService = {
             generateJSON: vi.fn().mockImplementation((sys: string, user: string) => mockLlmProvider.generateJson(sys, user))
         };
@@ -114,7 +118,8 @@ describe('Mock Actions Verification', () => {
             undefined, // narrativeService legacy
             directorService,
             engineService,
-            mas2Service
+            mas2Service,
+            jevShadowService as any
         );
 
         // Mock database operations
@@ -206,6 +211,21 @@ describe('Mock Actions Verification', () => {
         const warned = warn.mock.calls.map((c) => String(c[0])).join('\n');
         expect(warned).not.toContain('Failed to link audit log');
         warn.mockRestore();
+    });
+
+    it('persists Jev shadow telemetry beside the authoritative Director output', async () => {
+        await gameTurnService.processTurn(mockGameStateId, 'test_combat', PLAYER_ID);
+        expect(jevShadowService.evaluate).toHaveBeenCalledOnce();
+        const record = (gameTurnService as any).storiesRepo.recordTurn.mock.calls[0][0];
+        expect(record.directorIntent.jev_shadow).toMatchObject({ mode: 'shadow', enabled: true, available: true });
+        expect(record.directorIntent.engine_intent).toBeDefined();
+    });
+
+    it('persists the scene registry (presence/location) every turn, not just mechanical + narrative state', async () => {
+        await gameTurnService.processTurn(mockGameStateId, 'test_combat', PLAYER_ID);
+        const updateMock = (gameTurnService as any).storiesRepo.updateGameState;
+        const payload = updateMock.mock.calls[updateMock.mock.calls.length - 1][1];
+        expect(payload.scene_registry, 'scene_registry persisted').toBeDefined();
     });
 
     it('should process test_social successfully', async () => {

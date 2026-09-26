@@ -28,6 +28,9 @@ export const useStoryDraftStore = create<StoryDraftState>((set, get) => ({
         try {
             // Create blank draft
             const newStory = await createStoryDraft();
+            if (!newStory.id) {
+                throw new Error('Story creation returned no ID');
+            }
             set({ storyId: newStory.id, draft: newStory, isLoading: false });
             return newStory.id;
         } catch (error) {

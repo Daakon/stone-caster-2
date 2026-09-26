@@ -1,0 +1,33 @@
+{
+  "name": "jev-shadow-dataset",
+  "description": "Mixed deterministic and natural-language shadow cases. Run with mock for repeatable rule coverage and real mode for OpenRouter Director/Narrator behavior.",
+  "turns": [
+    { "category": "observation", "input": "I look around the square and listen to the market." },
+    { "category": "conversation_named_target", "input": "I ask Constable Bram what has been happening in Rillford." },
+    { "category": "conversation_named_target", "input": "I greet Kiera and ask whether she saw anything suspicious." },
+    { "category": "conversation_ambiguous_target", "input": "I ask someone nearby who controls the road north." },
+    { "category": "combat_named_target", "input": "I attack Constable Bram with my knife." },
+    { "category": "combat_counterattack_continuity", "input": "I brace myself against Bram's counterattack." },
+    { "category": "movement", "input": "I leave the square and travel north along the road." },
+    { "category": "rest_resource", "input": "I stop beside the road and rest to catch my breath." },
+    { "category": "food_resource", "input": "I eat some of the food from my travel pack." },
+    { "category": "water_resource", "input": "I drink water and check my supplies." },
+    { "category": "impossible_flight", "input": "I spread my arms and fly to the tower." },
+    { "category": "impossible_reality_edit", "input": "I make everyone in Rillford forget that I was here." },
+    { "category": "unnamed_target", "input": "I threaten the guard at the gate." },
+    { "category": "ambiguous_action", "input": "I try something clever with the locked gate." },
+    { "category": "continuity_observation", "input": "I look back toward the square and note who came with me." },
+    { "category": "movement_return", "input": "I return to the Copper Kettle and enter the tavern." },
+    { "category": "persuasion", "input": "I persuade Constable Bram to let me pass through the north gate." },
+    { "category": "flirting", "input": "I flirt with Kiera and compliment her sharp eyes." },
+    { "category": "threat", "input": "I threaten the gate guard and demand answers." },
+    { "category": "multi_action", "input": "I greet Bram, ask about the road, and eat some bread from my pack." },
+    { "category": "unsupported_engine", "input": "I use mind control to make the locked gate open itself." },
+    { "category": "unsupported_engine", "input": "I conjure a mountain of gold for the market." },
+    { "category": "malformed_input", "input": "asdf qwerty 123 !!!" },
+    { "category": "nonsensical_input", "input": "The purple toaster owes the moon a sword-shaped apology." },
+    { "category": "unnamed_npc_action", "input": "I ask the bartender whether anyone saw the constable leave." },
+    { "category": "ambiguous_multi_target", "input": "I insult them and challenge the people near the fountain." },
+    { "category": "continuity_return", "input": "I remember the promise I made to Bram and check whether Kiera is still nearby." }
+  ]
+}

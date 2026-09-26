@@ -111,6 +111,18 @@ export const DirectorUnifiedIntentSchema = z.object({
      * 3-5 short imperative phrases (e.g. "Question the bartender").
      */
     suggested_actions: z.array(z.string()).max(6).default([]),
+    /**
+     * The Director's ruling on whether the attempted action can happen in this world with this
+     * character (supernatural feats, items they do not have, rewriting reality). 'impossible' skips
+     * the engine and the Narrator renders the attempt failing.
+     */
+    feasibility: z.enum(['possible', 'impossible']).optional(),
+    feasibility_reason: z.string().optional(),
+    /** The player moved to a distinct new place this turn. Companions (UUIDs) travel with them; everyone else stays behind. */
+    location_change: z.object({
+      name: z.string().min(1),
+      companions: z.array(z.string().uuid()).default([]),
+    }).nullish(),
   }),
   unseen_ripples: z.array(z.object({
     target_id: z.string().uuid(),

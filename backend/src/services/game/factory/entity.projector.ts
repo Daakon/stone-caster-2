@@ -18,10 +18,14 @@ export class EntityProjector {
 
         // 1. Merge Defaults with Template Data (Template takes precedence)
         // The template stores raw props in 'state_snapshot.tier1_entity' which is the explicit stats block
-        const rawProps = {
+        const rawProps: Record<string, any> = {
             ...mechanicalDefaults,
-            ...(template.state_snapshot?.tier1_entity || {})
+            ...((template.state_snapshot as any)?.tier1_entity || (template.state_snapshot as any)?.properties || {})
         };
+
+        // The character's name is part of who they are in every stage (Director, Narrator, HUD)
+        if (!rawProps.name && (template as any).name) rawProps.name = (template as any).name;
+        if (!rawProps.display_name && rawProps.name) rawProps.display_name = rawProps.name;
 
         // 2. Separate Visuals (that might have snuck into props or are in visuals defaults)
         const visuals: Record<string, string> = { ...visualDefaults };

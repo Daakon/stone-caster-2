@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStoryDraftStore } from './stores/useStoryDraftStore';
 import { updateStoryDraft, bindStory } from '@/services/chimera-api';
@@ -17,14 +18,17 @@ import { toast } from 'sonner';
 export function CastingCircleWizard() {
     const { id, step } = useParams<{ id: string; step?: string }>();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [isFinalizing, setIsFinalizing] = useState(false);
+    // Treat malformed URLs such as /stories/undefined/compose as a new-story entry point.
+    const routeStoryId = id && id !== 'undefined' && id !== 'null' ? id : null;
 
     // Default to 'world' if no step provided
     const activeStep = step || 'world';
 
     const handleTabChange = (value: string) => {
-        if (id) {
-            navigate(`/stories/${id}/compose/${value}`);
+        if (routeStoryId) {
+            navigate(`/stories/${routeStoryId}/compose/${value}`);
         }
     };
 
@@ -53,6 +57,13 @@ export function CastingCircleWizard() {
 
             // Trigger compilation
             await bindStory(draft.id);
+
+            // My Creations keeps its private story list cached. Refresh it before
+            // returning so the newly bound story appears immediately.
+            await queryClient.invalidateQueries({
+                queryKey: ['my-stories'],
+                refetchType: 'all',
+            });
 
             toast.success("Story successfully bound. Ready for compilation.");
             navigate(`/my-creations`);
@@ -83,10 +94,10 @@ export function CastingCircleWizard() {
     // Initial load logic
     useEffect(() => {
         const load = async () => {
-            if (id) {
+            if (routeStoryId) {
                 // ID in URL: Fetch existing draft
                 try {
-                    await hydrateDraft(id);
+                    await hydrateDraft(routeStoryId);
                 } catch (err) {
                     toast.error('Failed to load story draft');
                     navigate('/dashboard/creations'); // Fallback
@@ -104,12 +115,12 @@ export function CastingCircleWizard() {
         };
 
         // Only run if storyId doesn't match URL ID (or if strictly mounting)
-        if (id && storyId !== id) {
+        if (routeStoryId && storyId !== routeStoryId) {
             load();
-        } else if (!id && !storyId) {
+        } else if (!routeStoryId && !storyId) {
             load();
         }
-    }, [id, storyId, initializeDraft, hydrateDraft, navigate]);
+    }, [routeStoryId, storyId, initializeDraft, hydrateDraft, navigate]);
 
     if (isLoading && !storyId) {
         return (

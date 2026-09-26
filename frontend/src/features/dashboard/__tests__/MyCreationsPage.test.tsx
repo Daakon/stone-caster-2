@@ -1,24 +1,38 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { MyCreationsPage } from '../MyCreationsPage';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import * as ChimeraApi from '@/services/chimera-api';
 
+const mockInitializeDraft = vi.hoisted(() => vi.fn());
+
 // Mock dependencies
-vi.mock('@/services/chimera-api', () => ({
-    useMyStories: vi.fn(),
-    useMyWorlds: vi.fn(),
-    useMyEntities: vi.fn(),
-    useCreateWorld: vi.fn()
+vi.mock('@/services/chimera-api', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/services/chimera-api')>();
+    return {
+        ...actual,
+        useMyStories: vi.fn(),
+        useMyWorlds: vi.fn(),
+        useMyEntities: vi.fn(),
+        useCreateWorld: vi.fn(),
+        useDeleteEntity: vi.fn(),
+        useDeleteStory: vi.fn()
+    };
+});
+
+// Mock the backend-backed story draft store used by the compose entry point.
+vi.mock('@/features/casting-circle/stores/useStoryDraftStore', () => ({
+    useStoryDraftStore: (selector: (state: { initializeDraft: typeof mockInitializeDraft }) => unknown) =>
+        selector({ initializeDraft: mockInitializeDraft })
 }));
 
-// Mock store
-vi.mock('@/features/create-story', () => ({
-    useStoryDraftStore: () => ({
-        initializeDraft: vi.fn(),
-        clearDraft: vi.fn()
-    })
+vi.mock('../components/editors/WorldEditorModal', () => ({
+    WorldEditorModal: () => null
+}));
+
+vi.mock('../components/editors/EntityEditorModal', () => ({
+    EntityEditorModal: () => null
 }));
 
 // Mock Radix Tabs (Simplified version again, focusing on rendering structure)
@@ -56,11 +70,14 @@ vi.mock('@/components/ui/tabs', () => {
 describe('MyCreationsPage Routing', () => {
     beforeEach(() => {
         // Reset mocks
+        mockInitializeDraft.mockReset();
         (ChimeraApi.useMyStories as any).mockReturnValue({ data: [], isLoading: false });
         (ChimeraApi.useMyWorlds as any).mockReturnValue({ data: [], isLoading: false });
         (ChimeraApi.useMyEntities as any).mockReturnValue({ data: [], isLoading: false });
         // Make useCreateWorld return a dummy hook result to avoid crashes if it's rendered
         (ChimeraApi.useCreateWorld as any).mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+        (ChimeraApi.useDeleteEntity as any).mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+        (ChimeraApi.useDeleteStory as any).mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
     });
 
     it('defaults to stories tab when no param provided', () => {
@@ -95,6 +112,28 @@ describe('MyCreationsPage Routing', () => {
         // More robust: spy on the hook arguments.
         expect(ChimeraApi.useMyWorlds).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
         expect(ChimeraApi.useMyEntities).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    });
+
+    it('creates a backend draft before routing to the compose wizard', async () => {
+        mockInitializeDraft.mockResolvedValue('story-123');
+
+        function LocationProbe() {
+            return <output data-testid="location">{useLocation().pathname}</output>;
+        }
+
+        render(
+            <MemoryRouter initialEntries={['/my-creations']}>
+                <MyCreationsPage />
+                <LocationProbe />
+            </MemoryRouter>
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /compose story/i }));
+
+        await waitFor(() => {
+            expect(mockInitializeDraft).toHaveBeenCalledTimes(1);
+            expect(screen.getByTestId('location')).toHaveTextContent('/stories/story-123/compose/world');
+        });
     });
 
     it('switches tab updates URL (simulated via mock)', async () => {

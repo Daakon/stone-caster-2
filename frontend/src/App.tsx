@@ -30,6 +30,7 @@ import WorldDetailPage from './pages/worlds/WorldDetailPage';
 import NPCDetailPage from './pages/npcs/NPCDetailPage';
 import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
 import ProfilePage from './pages/ProfilePage';
+import MyStoriesPage from './pages/MyStoriesPage';
 // import MyCreationsDashboard from './pages/dashboard/creations/index';
 import { MyCreationsPage } from './features/dashboard/MyCreationsPage';
 
@@ -106,7 +107,7 @@ function AppContent() {
           <Route path="/support" element={<SupportPage pageType="faq" />} />
           <Route path="/_test_gallery" element={<TestGalleryPage />} />
 
-          {/* Protected routes - require early access approval */}
+          {/* Story routes - authoring is authenticated; play remains early-access gated */}
           <Route path="/stories" element={
             <ProtectedRoute>
               <StoriesPage />
@@ -114,7 +115,7 @@ function AppContent() {
           } />
           <Route path="/stories/compose" element={
             <ProtectedRoute>
-              <CreateStoryPage />
+              <CastingCircleWizard />
             </ProtectedRoute>
           } />
 
@@ -136,6 +137,11 @@ function AppContent() {
           <Route path="/play/start/:storyId" element={
             <EarlyAccessRoute>
               <StartStoryPage />
+            </EarlyAccessRoute>
+          } />
+          <Route path="/play/story/:storyId" element={
+            <EarlyAccessRoute>
+              <StoryPlayRedirect />
             </EarlyAccessRoute>
           } />
           <Route path="/play/:gameStateId" element={
@@ -163,65 +169,40 @@ function AppContent() {
               <PlayerGatewayPage />
             </EarlyAccessRoute>
           } />
-          <Route path="/worlds" element={
-            <EarlyAccessRoute>
-              <WorldsPage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/worlds/:slug" element={
-            <EarlyAccessRoute>
-              <WorldDetailPage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/npcs" element={
-            <EarlyAccessRoute>
-              <NPCsPage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/npcs/:id" element={
-            <EarlyAccessRoute>
-              <NPCDetailPage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/rulesets" element={
-            <EarlyAccessRoute>
-              <RulesetsPage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/rulesets/:id" element={
-            <EarlyAccessRoute>
-              <RulesetDetailPage />
-            </EarlyAccessRoute>
-          } />
+          {/* Public catalog routes - browseable without early-access approval */}
+          <Route path="/worlds" element={<WorldsPage />} />
+          <Route path="/worlds/:slug" element={<WorldDetailPage />} />
+          <Route path="/npcs" element={<NPCsPage />} />
+          <Route path="/npcs/:id" element={<NPCDetailPage />} />
+          <Route path="/rulesets" element={<RulesetsPage />} />
+          <Route path="/rulesets/:id" element={<RulesetDetailPage />} />
 
-          {/* Protected routes - require authentication + early access */}
+          {/* Protected routes - require authentication */}
           <Route path="/profile" element={
             <ProtectedRoute>
-              <EarlyAccessRoute>
-                <ProfilePage />
-              </EarlyAccessRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-adventures" element={<Navigate to="/my-stories" replace />} />
+          <Route path="/my-stories" element={
+            <ProtectedRoute>
+              <MyStoriesPage />
             </ProtectedRoute>
           } />
           <Route path="/dashboard/creations" element={
             <ProtectedRoute>
-              <EarlyAccessRoute>
-                <Navigate to="/my-creations" replace />
-              </EarlyAccessRoute>
+              <Navigate to="/my-creations" replace />
             </ProtectedRoute>
           } />
           <Route path="/dashboard/creations/:tab" element={
             <ProtectedRoute>
-              <EarlyAccessRoute>
-                <LegacyCreationsRedirect />
-              </EarlyAccessRoute>
+              <LegacyCreationsRedirect />
             </ProtectedRoute>
           } />
           {/* Story Creation Wizard Routes */}
           <Route path="/my-creations" element={
             <ProtectedRoute>
-              <EarlyAccessRoute>
-                <MyCreationsPage />
-              </EarlyAccessRoute>
+              <MyCreationsPage />
             </ProtectedRoute>
           } />
           <Route path="/create-story" element={
@@ -444,6 +425,11 @@ function App() {
 function LegacyCreationsRedirect() {
   const { tab } = useParams<{ tab: string }>();
   return <Navigate to={`/my-creations${tab ? `?tab=${tab}` : ''}`} replace />;
+}
+
+function StoryPlayRedirect() {
+  const { storyId } = useParams<{ storyId: string }>();
+  return <Navigate to={`/play/start/${storyId}`} replace />;
 }
 
 export default App;

@@ -40,6 +40,17 @@ describe('MyAdventuresPage', () => {
     vi.resetAllMocks();
   });
 
+  it('routes New Story directly to the story composer', () => {
+    mockedGetMyAdventures.mockResolvedValue({ ok: true, data: [] });
+
+    renderPage();
+
+    expect(screen.getByRole('link', { name: /start a new story/i })).toHaveAttribute(
+      'href',
+      '/stories/compose'
+    );
+  });
+
   it('shows empty state when no adventures are available', async () => {
     mockedGetMyAdventures.mockResolvedValue({ ok: true, data: [] });
 

@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { BookOpen, Globe, Users } from 'lucide-react';
-import { useStoryDraftStore } from '@/features/create-story';
+import { useStoryDraftStore } from '@/features/casting-circle/stores/useStoryDraftStore';
 import { makeTitle } from '@/lib/meta';
 
 // Services & Hooks
@@ -37,7 +37,6 @@ export function MyCreationsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initializeDraft = useStoryDraftStore((state) => state.initializeDraft);
-  const clearDraft = useStoryDraftStore((state) => state.clearDraft);
 
   // Derive active tab from URL or default to 'stories'
   const activeTab = searchParams.get('tab') || 'stories';
@@ -71,17 +70,14 @@ export function MyCreationsPage() {
   // const deleteWorldMutation = useDeleteWorld(); // Need to verify if this exists, likely does if pattern holds. I'll stick to Entity deletion first as requested.
 
   // Handlers
-  const handleNewStory = () => {
-    clearDraft();
-    const draftId = `draft-${Date.now()}`;
-    initializeDraft(draftId, {
-      title: '',
-      summary: '',
-      genre_tags: [],
-      safety_filters: ['pg'],
-      ruleset_keys: [],
-    });
-    navigate('/stories/compose');
+  const handleNewStory = async () => {
+    try {
+      // Create the server-side draft before entering the ID-based wizard route.
+      const draftId = await initializeDraft();
+      navigate(`/stories/${draftId}/compose/world`);
+    } catch (error) {
+      console.error('Failed to start new story:', error);
+    }
   };
 
   const handleCreateWorld = () => {

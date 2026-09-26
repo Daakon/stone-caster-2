@@ -16,6 +16,7 @@
  */
 
 import type { GameState, Mas1Intent, EngineResultDto, DirectorUnifiedIntent } from '@shared/types/chimera-runtime';
+import { collectEntityResourceDeltas } from './rule-steps.js';
 import { EngineResultDtoSchema } from '@shared/types/chimera-runtime';
 import {
   resolveD100Check,
@@ -472,8 +473,9 @@ export class EngineService {
           const deltaPath = `entities.${actualTargets[0]}.properties.hp`;
           numericDeltas[deltaPath] = (numericDeltas[deltaPath] || 0) - impactDelta;
           console.log(`[LOGIC_TRACE] [EngineService] Applying ${impactTier} impact (${impactDelta} damage) to ${actualTargets[0]}`);
-        } else if (resolution.summary === 'fumble') {
-          // Fumble still hits the accident target, but with reduced impact
+        } else if (resolution.summary === 'fumble' && actualTargets[0] !== intendedTargetId) {
+          // Fumble only hurts someone when it was REDIRECTED onto a bystander (proximity cascade).
+          // With nobody to redirect to, the attack simply goes wide: no damage to the intended target.
           const fumbleDelta = Math.round(impactDelta * 0.5); // Half damage on accident
           const deltaPath = `entities.${actualTargets[0]}.properties.hp`;
           numericDeltas[deltaPath] = (numericDeltas[deltaPath] || 0) - fumbleDelta;
@@ -556,6 +558,11 @@ export class EngineService {
           numericDeltas[key] = value;
         }
       }
+    }
+
+    // Rules-defined resource effects on the acting entity (rest restores stamina, food adds satiety, ...)
+    for (const [path, amount] of Object.entries(collectEntityResourceDeltas(action, intent.actor_id, actor))) {
+      numericDeltas[path] = (numericDeltas[path] || 0) + amount;
     }
 
     return {
@@ -719,6 +726,7 @@ export class EngineService {
       combat_action: 'resolve_clash',
       social_action: 'apply_relationship_delta',
       rest_action: 'take_rest',
+      eat_action: 'consume_food',
       attempt_action: 'attempt_action',
       navigate: 'navigate',
     };

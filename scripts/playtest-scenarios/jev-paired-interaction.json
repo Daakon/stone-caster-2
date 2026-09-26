@@ -1,0 +1,14 @@
+{
+  "name": "jev-paired-interaction",
+  "seed": "stonecaster-jev-paired-interaction-v1",
+  "turns": [
+    { "category": "conversation_named", "input": "I ask Constable Bram what has been happening in Rillford." },
+    { "category": "persuasion", "input": "I persuade Constable Bram to let me pass through the north gate." },
+    { "category": "flirting", "input": "I flirt with Kiera and compliment her sharp eyes." },
+    { "category": "threat", "input": "I threaten the gate guard and demand answers." },
+    { "category": "combat", "input": "I attack Constable Bram with my knife." },
+    { "category": "counterattack", "input": "I brace myself against Bram's counterattack." },
+    { "category": "unnamed_npc", "input": "I ask the bartender whether anyone saw the constable leave." },
+    { "category": "ambiguous", "input": "I insult them and challenge the people near the fountain." }
+  ]
+}

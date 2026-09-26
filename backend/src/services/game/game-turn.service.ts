@@ -14,9 +14,18 @@ import { resolveConditionRules, type ConditionRules, type ConditionTransition } 
 import { TIER_MULTIPLIERS } from '../runtime/tier-value-mapper.js';
 
 import { GameStateBundle, MechanicalState, NarrativeFocus, SceneRegistry } from '../../domain/game-state.types.js';
+import type { DirectorUnifiedIntent } from '@shared/types/chimera-runtime';
 import { ServiceError } from '../../utils/serviceError.js';
 import { ApiErrorCode } from '@shared';
+import { applyLocationChange } from '../runtime/scene-context.js';
 import { startLlmUsageCapture, summarizeLlmCalls, type LlmCallRecord } from '../runtime/llm-telemetry.js';
+import {
+    isJevCanaryEnabled,
+    readJevCanaryConfig,
+    JevShadowService,
+    type JevShadowTelemetry,
+} from '../runtime/jev-shadow.service.js';
+import { TurnTimelineTracker, type TurnTimeline } from '../runtime/turn-timeline.js';
 
 interface TurnResult {
     success: boolean;
@@ -25,6 +34,7 @@ interface TurnResult {
     delta?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
     new_logs?: any[]; // The new dialogue entries created during this turn
     message?: string;
+    runtime_timeline?: TurnTimeline;
 }
 
 export class GameTurnService {
@@ -35,13 +45,15 @@ export class GameTurnService {
     private directorService: DirectorService;
     private engineService: EngineService; // NEW: Resolution Ladder Engine
     private mas2Service: Mas2Service;
+    private jevShadowService: JevShadowService;
 
     constructor(
         private supabase: SupabaseClient<Database>,
         narrativeService?: NarrativeService,
         directorService?: DirectorService,
         engineService?: EngineService,
-        mas2Service?: Mas2Service
+        mas2Service?: Mas2Service,
+        jevShadowService?: JevShadowService
     ) {
         this.storiesRepo = new StoriesRepository(supabase); // Initialize Repo
         this.compiledStoriesRepo = new CompiledStoriesRepository(supabase);
@@ -51,6 +63,7 @@ export class GameTurnService {
         this.directorService = directorService || new DirectorService();
         this.engineService = engineService || new EngineService(); // NEW: Use Resolution Ladder Engine
         this.mas2Service = mas2Service || new Mas2Service();
+        this.jevShadowService = jevShadowService || new JevShadowService();
     }
 
     /**
@@ -58,7 +71,14 @@ export class GameTurnService {
      * Proper Flow: MAS1 (Interpreter) -> Engine (Deterministic) -> MAS2 (Narrator)
      * Mocks ONLY for MAS1 and MAS2 AI results, Engine is fully deterministic
      */
-    async processTurn(gameStateId: string, playerInput: string, userId: string): Promise<TurnResult> {
+    async processTurn(
+        gameStateId: string,
+        playerInput: string,
+        userId: string,
+        timeline = new TurnTimelineTracker(),
+    ): Promise<TurnResult> {
+        const turnStarted = Date.now();
+        timeline.mark('request_received');
         console.log(`[Turn Start] Game: ${gameStateId}, Input: "${playerInput}"`);
         const llmCalls = startLlmUsageCapture();
         console.log('[Turn] 🚀 NEW FLOW: MAS1 -> Engine -> MAS2 (Proper Architecture)');
@@ -96,12 +116,87 @@ export class GameTurnService {
             // Step 2: Director (Strategic Lead) - Can have mock AI results
             // Converts player input into Unified Intent DTO with intent_queue, unseen_ripples, and proximity_cluster
             console.log('[Turn] Step 2: Calling Director (Strategic Lead)...');
-            const directorIntent = await this.directorService.resolve(
-                playerInput,
-                this.convertStateToGameState(state),
-                actionsMap,
-                [] // TODO: Retrieve lore fragments via RAG
-            );
+            const gameState = this.convertStateToGameState(state);
+            const jevCanaryConfig = readJevCanaryConfig();
+            let directorIntent: DirectorUnifiedIntent;
+            let jevShadowPromise: Promise<JevShadowTelemetry>;
+            const evaluateJev = (
+                mode: 'shadow' | 'canary',
+                intent?: DirectorUnifiedIntent,
+            ): Promise<JevShadowTelemetry> => {
+                timeline.mark('jev_start');
+                return this.jevShadowService.evaluate(
+                    playerInput,
+                    gameState,
+                    intent,
+                    actionsMap,
+                    mode,
+                ).finally(() => timeline.mark('jev_end'));
+            };
+            const resolveDirector = (): Promise<DirectorUnifiedIntent> => {
+                timeline.mark('director_start');
+                return this.directorService.resolve(
+                    playerInput,
+                    gameState,
+                    actionsMap,
+                    [],
+                ).finally(() => timeline.mark('director_end'));
+            };
+
+            if (isJevCanaryEnabled()) {
+                // Canary mode evaluates Jev before the Director result is consumed by the Engine.
+                // Jev can only constrain the two explicitly enabled fields; the Engine remains the
+                // only state authority and the Director remains the immediate fallback.
+                console.log('[Turn] Jev canary enabled:', jevCanaryConfig);
+                const jevCanaryPromise = evaluateJev('canary');
+                const runDirector = jevCanaryConfig.compare || !jevCanaryConfig.skip_gpt;
+                const directorPromise = runDirector
+                    ? resolveDirector()
+                    : Promise.resolve(null);
+                const [jevCanaryTelemetry, gptDirectorIntent] = await Promise.all([jevCanaryPromise, directorPromise]);
+                let application = this.jevShadowService.applyCanaryAuthority(
+                    jevCanaryTelemetry,
+                    gptDirectorIntent,
+                    gameState,
+                    actionsMap,
+                    jevCanaryConfig,
+                );
+
+                if (!application.intent) {
+                    // Jev failed validation/confidence or could not safely construct a minimal
+                    // intent. Invoke the existing Director path immediately as the fallback.
+                    const fallbackIntent = gptDirectorIntent || await resolveDirector();
+                    application = this.jevShadowService.applyCanaryAuthority(
+                        jevCanaryTelemetry,
+                        fallbackIntent,
+                        gameState,
+                        actionsMap,
+                        jevCanaryConfig,
+                    );
+                    application.telemetry.canary = application.telemetry.canary
+                        ? {
+                            ...application.telemetry.canary,
+                            gpt_director_ran: true,
+                            primary_model_called: true,
+                            final_authority: 'primary',
+                            fallback_occurred: true,
+                            gpt_cost_avoided_usd: 0,
+                            fallback_reason: [application.telemetry.canary.fallback_reason, 'GPT Director fallback invoked'].filter(Boolean).join(' | '),
+                        }
+                        : undefined;
+                    application.telemetry.primary_model_called = true;
+                    application.telemetry.final_authority = 'primary';
+                    application.telemetry.fallback_occurred = true;
+                }
+                directorIntent = application.intent!;
+                jevShadowPromise = Promise.resolve(application.telemetry);
+            } else {
+                // Default path is unchanged: GPT/OpenRouter Director is authoritative and Jev,
+                // when shadow mode is enabled, runs only as an independent observer.
+                console.log('[Turn] Step 2: Calling Director (Strategic Lead)...');
+                directorIntent = await resolveDirector();
+                jevShadowPromise = evaluateJev('shadow', directorIntent);
+            }
             console.log('[Turn] Director Result:', {
                 resolutionMode: directorIntent.turn_meta.resolution_mode,
                 intentQueueLength: directorIntent.intent_queue.length,
@@ -133,9 +228,6 @@ export class GameTurnService {
             // Uses Resolution Ladder (4-tier priority system) for D100 resolution
             console.log('[Turn] Step 3: Calling Engine (Deterministic with Resolution Ladder)...');
 
-            // Convert state to GameState format for EngineService
-            const gameState = this.convertStateToGameState(state);
-
             // Extract schema from CompiledStory for strict validation
             const schema = compiledStory.master_schema ? {
                 tier1_allowlist: compiledStory.master_schema.tier1_allowlist || [],
@@ -146,17 +238,28 @@ export class GameTurnService {
             const stateService = new StateService(gameState, schema);
 
             // Execute all intents via EngineService (uses Resolution Ladder)
-            const engineResult = await this.engineService.executeActionSteps(
-                mas1Intents,
+            // Run the Director's intent_queue directly: actor_id (NPC counter-actions), impact_tier and
+            // proximity_cluster (fumble cascade) all matter. The legacy mas1 bridge dropped them.
+            timeline.mark('engine_start');
+            const engineResult = await this.engineService.executeIntentQueue(
+                directorIntent,
                 stateService.getState(),
                 actionsMap
             );
+            timeline.mark('engine_end');
 
             console.log('[Turn] Engine Result:', {
                 success: engineResult.success,
                 deltaKeys: Object.keys(engineResult.numeric_deltas),
                 stateUpdated: Object.keys(engineResult.numeric_deltas).length > 0
             });
+
+            // The Director ruled the attempt impossible (flight, conjured items, reality edits):
+            // nothing changes in the world and the Narrator must render the attempt failing.
+            if (directorIntent.turn_meta.feasibility === 'impossible') {
+                engineResult.success = false;
+                engineResult.outcome_summary = `Impossible: ${directorIntent.turn_meta.feasibility_reason || 'the world does not allow this'}. The attempt does not work and nothing changes.`;
+            }
 
             // Convert Director unseen_ripples into relationship deltas on the
             // target entity (0-20 scale, tier-based magnitude). 'status'
@@ -222,9 +325,15 @@ export class GameTurnService {
                 processedState = state;
             }
 
+            // The Director ruled the player moved: update scene location + who is present BEFORE narration
+            if (applyLocationChange(processedState, directorIntent.turn_meta.location_change)) {
+                console.log('[Turn] Location change:', directorIntent.turn_meta.location_change?.name);
+            }
+
             // Step 4: MAS2 (Narrator) - Can have mock AI results
             // Generates narrative and may trigger additional relationship changes
             console.log('[Turn] Step 4: Calling MAS2 (Narrator)...');
+            timeline.mark('narrator_start');
             const mas2Result = await this.mas2Service.narrate(
                 {
                     ...engineResult,
@@ -241,6 +350,7 @@ export class GameTurnService {
                 playerInput, // test_* scenario bypass detection
                 conditionTransitions // Injury/collapse/surrender facts to render as fiction
             );
+            timeline.mark('narrator_end');
             console.log('[Turn] MAS2 Result:', {
                 ripple_narrative: mas2Result.ripple_narrative?.substring(0, 100),
                 hasMutations: !!(mas2Result.tier0_mutations && Object.keys(mas2Result.tier0_mutations).length > 0)
@@ -293,11 +403,38 @@ export class GameTurnService {
                 parameters: firstIntent?.parameters || {}
             };
 
+            const jevTelemetry = await jevShadowPromise;
+            if (jevTelemetry.canary) {
+                const directorCall = llmCalls.find((call) => call.role === 'director');
+                const gptDirectorRan = !!directorCall || jevTelemetry.canary.gpt_director_ran;
+                const stateUpdated = Object.keys(engineResultFormatted.delta || {}).length > 0;
+                jevTelemetry.canary = {
+                    ...jevTelemetry.canary,
+                    gpt_director_ran: gptDirectorRan,
+                    gpt_cost_avoided_usd: gptDirectorRan ? 0 : jevTelemetry.canary.gpt_cost_avoided_usd,
+                    end_to_end_latency_ms: Date.now() - turnStarted,
+                    gameplay_outcome: {
+                        success: engineResultFormatted.success,
+                        state_updated: stateUpdated,
+                        delta_keys: Object.keys(engineResultFormatted.delta || {}),
+                        outcome_summary: engineResultFormatted.outcome_summary || null,
+                        possible_divergence: jevTelemetry.canary.disagreement === true && (stateUpdated || directorIntent.turn_meta.feasibility === 'impossible'),
+                    },
+                };
+            }
+
+            timeline.mark('persistence_start');
             const recordedTurn = await this.storiesRepo.recordTurn({
                 gameStateId: state.id,
                 turnIndex: nextIndex,
                 playerInput: playerInput,
-                directorIntent: mas1Intent, // TODO: Convert to DirectorUnifiedIntent format
+                directorIntent: {
+                    ...directorIntent,
+                    engine_intent: mas1Intent,
+                    // Persist the comparison beside the authoritative Director result so it can
+                    // be aggregated later without changing the gameplay state contract.
+                    jev_shadow: jevTelemetry,
+                },
                 mechanicalDelta: engineResultFormatted.delta || {},
                 narratorOutput: {
                     narration: mas2Result.ripple_narrative || '',
@@ -333,6 +470,7 @@ export class GameTurnService {
                 mechanicalDelta: engineResultFormatted.delta || {},
                 intent: mas1Intent
             }, nextIndex, playerInput, suggestedActions);
+            timeline.mark('persistence_end');
 
             return {
                 success: true,
@@ -342,7 +480,8 @@ export class GameTurnService {
                     ...(engineResultFormatted.delta || {}),
                     ...(suggestedActions.length > 0 ? { action_queue: suggestedActions } : {})
                 },
-                new_logs: newLogs
+                new_logs: newLogs,
+                runtime_timeline: timeline.snapshot(),
             };
         } catch (error) {
             // NO FALLBACK: Fail fast with clear error message
@@ -493,6 +632,8 @@ export class GameTurnService {
         const updatePayload = {
             mechanical_state: state.mechanical, // Use the authoritative state from processTurn
             narrative_focus: state.narrative || {}, // Ensure narrative exists
+            // Who is where (presence/location changes) must survive to the next turn
+            ...(state.registry ? { scene_registry: state.registry } : {}),
             action_queue: suggestedActions, // Next-turn suggestions from the Director
             // turn_index updated by Repo
         };

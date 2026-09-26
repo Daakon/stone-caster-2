@@ -424,7 +424,7 @@ router.get('/npcs', async (req: Request, res: Response) => {
     // Phase 4.3: Use chimera_entities instead of deleted npcs table
     let query = supabaseAdmin
       .from('chimera_entities')
-      .select('id, key, entity_type, owner_user_id, visibility, raw_data, created_at, updated_at', { count: 'exact' })
+      .select('id, slug, entity_type, owner_user_id, visibility, world_id, display_name, primary_image_url, raw_data, created_at, updated_at', { count: 'exact' })
       .eq('entity_type', 'NPC') // Only NPCs
       .eq('visibility', 'public'); // Only public entities
 
@@ -456,9 +456,9 @@ router.get('/npcs', async (req: Request, res: Response) => {
     // Phase 4.3: Extract data from raw_data JSONB and transform to catalog DTO
     let npcs = (data || []).map((entity: any) => {
       const rawData = entity.raw_data || {};
-      const displayName = rawData.display_name || rawData.name || entity.key;
+      const displayName = entity.display_name || rawData.display_name || rawData.name || entity.slug;
       const description = rawData.description_short || rawData.description || '';
-      const worldId = rawData.world_id || null;
+      const worldId = entity.world_id || rawData.world_id || null;
 
       // Extract images from raw_data if available
       const images = rawData.images || [];
@@ -467,14 +467,14 @@ router.get('/npcs', async (req: Request, res: Response) => {
       return {
         id: entity.id,
         name: displayName,
-        slug: entity.key, // Use key as slug
+        slug: entity.slug,
         description: description,
         worldId: worldId,
         status: 'active', // Chimera entities are always active
         visibility: entity.visibility,
         archetype: rawData.archetype || null,
         roleTags: rawData.role_tags || rawData.tags || [],
-        portraitUrl: rawData.portrait_url || null,
+        portraitUrl: rawData.portrait_url || entity.primary_image_url || null,
         cover_media: coverImage ? {
           id: coverImage.id || null,
           provider_key: coverImage.url || coverImage.provider_key || null,
@@ -529,13 +529,18 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
 
     // Phase 4.3: Use chimera_entities instead of deleted npcs table
-    const { data: entity, error } = await supabaseAdmin
+    let entityQuery = supabaseAdmin
       .from('chimera_entities')
-      .select('id, key, entity_type, owner_user_id, visibility, raw_data, created_at, updated_at')
-      .eq('id', id)
+      .select('id, slug, entity_type, owner_user_id, visibility, world_id, display_name, primary_image_url, raw_data, created_at, updated_at')
       .eq('entity_type', 'NPC')
-      .eq('visibility', 'public')
-      .single();
+      .eq('visibility', 'public');
+
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    entityQuery = uuidPattern.test(id)
+      ? entityQuery.eq('id', id)
+      : entityQuery.eq('slug', id);
+
+    const { data: entity, error } = await entityQuery.single();
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -556,9 +561,9 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
 
     // Phase 4.3: Extract data from raw_data JSONB
     const rawData = entity.raw_data || {};
-    const displayName = rawData.display_name || rawData.name || entity.key;
+    const displayName = entity.display_name || rawData.display_name || rawData.name || entity.slug;
     const description = rawData.description_short || rawData.description || '';
-    const worldId = rawData.world_id || null;
+    const worldId = entity.world_id || rawData.world_id || null;
 
     // Extract images from raw_data if available
     const images = rawData.images || [];
@@ -567,14 +572,14 @@ router.get('/npcs/:id', async (req: Request, res: Response) => {
     const npcDto = {
       id: entity.id,
       name: displayName,
-      slug: entity.key, // Use key as slug
+      slug: entity.slug,
       description: description,
       worldId: worldId,
       status: 'active', // Chimera entities are always active
       visibility: entity.visibility,
       archetype: rawData.archetype || null,
       roleTags: rawData.role_tags || rawData.tags || [],
-      portraitUrl: rawData.portrait_url || null,
+      portraitUrl: rawData.portrait_url || entity.primary_image_url || null,
       cover_media: coverImage ? {
         id: coverImage.id || null,
         provider_key: coverImage.url || coverImage.provider_key || null,

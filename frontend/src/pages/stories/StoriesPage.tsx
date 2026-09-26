@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { CatalogCard } from '@/components/catalog/CatalogCard';
 import { CatalogSkeleton } from '@/components/catalog/CatalogSkeleton';
 import { EmptyState } from '@/components/catalog/EmptyState';
 import { WorldsFilterBar } from '@/components/filters/WorldsFilterBar';
+import { Button } from '@/components/ui/button';
 import { trackCatalogView, trackCatalogCardClick } from '@/lib/analytics';
 import { useURLFilters } from '@/lib/useURLFilters';
 import type { FilterValue } from '@/lib/useURLFilters';
@@ -13,6 +16,46 @@ import { absoluteUrl, makeDescription, makeTitle, ogTags, twitterTags, upsertLin
 interface StoryFilters {
   q: string;
   [key: string]: FilterValue;
+}
+
+function StoriesPageHeader() {
+  return (
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 className="text-3xl font-bold">Browse Stories</h1>
+        <p className="text-muted-foreground mt-2">
+          Discover adventures and scenarios to play
+        </p>
+      </div>
+      <Button asChild>
+        <Link to="/stories/compose" aria-label="Create your own story">
+          <Plus className="mr-2 h-4 w-4" /> Create your own
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+function StoriesPageShell({
+  children,
+  filters,
+  updateFilters,
+  reset,
+}: {
+  children: ReactNode;
+  filters: StoryFilters;
+  updateFilters: (patch: Partial<StoryFilters>) => void;
+  reset: () => void;
+}) {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="space-y-6">
+        <StoriesPageHeader />
+        <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
+        {children}
+      </div>
+    </div>
+  );
 }
 
 export default function StoriesPage() {
@@ -64,91 +107,48 @@ export default function StoriesPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Browse Stories</h1>
-            <p className="text-muted-foreground mt-2">
-              Discover adventures and scenarios to play
-            </p>
-          </div>
-          
-          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
-          
-          <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
-            {Array.from({ length: 6 }).map((_, index) => (
-              <CatalogSkeleton key={index} />
-            ))}
-          </CatalogGrid>
-        </div>
-      </div>
+      <StoriesPageShell filters={filters} updateFilters={updateFilters} reset={reset}>
+        <CatalogGrid columns={{ mobile: 1, tablet: 2, desktop: 3 }}>
+          {Array.from({ length: 6 }).map((_, index) => (
+            <CatalogSkeleton key={index} />
+          ))}
+        </CatalogGrid>
+      </StoriesPageShell>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Browse Stories</h1>
-            <p className="text-muted-foreground mt-2">
-              Discover adventures and scenarios to play
-            </p>
-          </div>
-          
-          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
-          
-          <EmptyState
-            title="Error loading stories"
-            description="There was a problem loading the stories. Please try again."
-            actionLabel="Refresh page"
-            onAction={() => window.location.reload()}
-          />
-        </div>
-      </div>
+      <StoriesPageShell filters={filters} updateFilters={updateFilters} reset={reset}>
+        <EmptyState
+          title="Error loading stories"
+          description="There was a problem loading the stories. Please try again."
+          actionLabel="Refresh page"
+          onAction={() => window.location.reload()}
+        />
+      </StoriesPageShell>
     );
   }
 
   if (stories.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Browse Stories</h1>
-            <p className="text-muted-foreground mt-2">
-              Discover adventures and scenarios to play
-            </p>
-          </div>
-          
-          <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
-          
-          <EmptyState
-            title="No stories found"
-            description={
-              filters.q
-                ? "No stories match your search. Try adjusting your search terms."
-                : "No stories are available at the moment. Check back later for new adventures."
-            }
-            actionLabel="Clear filters"
-            onAction={reset}
-          />
-        </div>
-      </div>
+      <StoriesPageShell filters={filters} updateFilters={updateFilters} reset={reset}>
+        <EmptyState
+          title="No stories found"
+          description={
+            filters.q
+              ? "No stories match your search. Try adjusting your search terms."
+              : "No stories are available at the moment. Check back later for new adventures."
+          }
+          actionLabel="Clear filters"
+          onAction={reset}
+        />
+      </StoriesPageShell>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Browse Stories</h1>
-          <p className="text-muted-foreground mt-2">
-            Discover adventures and scenarios to play
-          </p>
-        </div>
-        
-        <WorldsFilterBar filters={filters} updateFilters={updateFilters} reset={reset} placeholder="Search stories..." />
-        
+    <StoriesPageShell filters={filters} updateFilters={updateFilters} reset={reset}>
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {stories.length} {stories.length === 1 ? 'story' : 'stories'} found
@@ -176,7 +176,6 @@ export default function StoriesPage() {
             />
           ))}
         </CatalogGrid>
-      </div>
-    </div>
+    </StoriesPageShell>
   );
 }

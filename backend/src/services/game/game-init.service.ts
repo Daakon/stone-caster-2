@@ -1,4 +1,5 @@
 
+import { normalizeStarEntity } from './genesis/star-entity.js';
 import { StoriesRepository } from '../../db/repos/stories.repo.js';
 import { GameStateFactory } from './factory/game-state.factory.js';
 import { RulesetHarvester } from './factory/ruleset.harvester.js';
@@ -117,7 +118,8 @@ export class GameInitService {
         .in('id', starIds);
 
       if (!starsError && stars) {
-        resolvedStars = stars;
+        // Raw chimera_entities rows -> runtime entity shape (name/traits under properties)
+        resolvedStars = stars.map((row) => normalizeStarEntity(row));
       } else {
         console.warn(`[GameInit] Failed to resolve stars:`, starsError);
       }

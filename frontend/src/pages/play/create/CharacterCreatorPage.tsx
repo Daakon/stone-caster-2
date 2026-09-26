@@ -268,7 +268,7 @@ export default function CharacterCreatorPage() {
         world_id: worldId
       };
 
-      const pcResult = await apiPost('/api/v2/chimera/player-characters', templatePayload);
+      const pcResult = await apiPost<{ id: string }>('/api/v2/chimera/player-characters', templatePayload);
 
       if (!pcResult.ok) {
         throw new Error(pcResult.error.message || 'Failed to save character template');
@@ -276,6 +276,27 @@ export default function CharacterCreatorPage() {
 
       const pc = pcResult.data;
       console.log("[Forge] Template Created:", pc.id);
+
+      // Start the game with the character we just created. The previous flow
+      // navigated to /play/story/:storyId, which is not a registered gameplay
+      // route and left the player on the app's 404 page.
+      const gameResult = await apiPost<{ id: string }>('/api/chimera/game/init', {
+        storyId,
+        characterId: pc.id,
+        playerInput: {
+          identity: {
+            name: processedFormData.name || 'Unnamed',
+            pronouns: processedFormData.pronouns,
+            role: processedFormData.role || processedFormData.archetype_handle,
+          },
+          input_type: 'system_start',
+          content: 'Initialize Narrative',
+        },
+      });
+
+      if (!gameResult.ok) {
+        throw new Error(gameResult.error.message || 'Failed to start game');
+      }
 
       // NOTE: We do NOT instantiate an entity in chimera_entities for Players.
       // The Engine loads them directly from chimera_player_characters.
@@ -285,8 +306,8 @@ export default function CharacterCreatorPage() {
       toast.dismiss(toastId);
       toast.success(`Welcome to ${story?.title || 'the story'}`);
 
-      // Redirect to story play view
-      navigate(`/play/story/${storyId}`, { replace: true });
+      // Redirect to the active gameplay session
+      navigate(`/play/${gameResult.data.id}`, { replace: true });
 
     } catch (error) {
       console.error("Submission failed:", error);

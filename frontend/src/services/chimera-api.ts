@@ -450,6 +450,10 @@ export async function initializeGame(
  * Fetch a draft by ID (Real API)
  */
 export async function fetchDraft(draftId: string): Promise<ChimeraStoryV2> {
+  if (!draftId || draftId === 'undefined' || draftId === 'null') {
+    throw new Error('A story ID is required to fetch a draft');
+  }
+
   const result = await apiFetch<ChimeraStoryV2>(`/api/v2/chimera/stories/${draftId}`);
   if (!result.ok) {
     throw new Error(result.error.message || 'Failed to fetch draft');
@@ -670,6 +674,9 @@ export function useMyStories(options?: { enabled?: boolean }) {
     queryKey: ['my-stories'],
     queryFn: fetchMyStories,
     enabled: options?.enabled,
+    // This list changes when a draft is bound or deleted. Do not rely solely
+    // on the app-wide cache defaults for a private authoring collection.
+    refetchOnMount: true,
     retry: (failureCount, error: any) => {
       if (error?.status === 401 || error?.status === 403) return false;
       return failureCount < 3;

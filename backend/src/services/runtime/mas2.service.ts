@@ -12,6 +12,72 @@ import type { CompiledStory } from '@shared/types/chimera-compiled';
 import { isTestScenarioInput } from '../../config/ai-flags';
 import { resolveLlmRoleConfig } from '../../config/llm-config';
 import type { ConditionTransition } from './condition-rules';
+import { entityDisplayName, readSceneEntities, presentEntityIds } from './scene-context';
+
+/**
+ * The Narrator may only nudge how EXISTING bystanders feel about the player. Ids it invents
+ * (or the player's own id) are dropped so the model can never create or corrupt entities.
+ */
+export function sanitizeNarratorOutput(result: Mas2ResponseDto, gameState: any): Mas2ResponseDto {
+  const { entities, playerId } = readSceneEntities(gameState);
+  const updates = result.state_updates?.entity_updates;
+  if (!updates || Object.keys(entities).length === 0) return result;
+  const kept = updates.filter((u: any) => u?.id && entities[u.id] && u.id !== playerId);
+  if (kept.length !== updates.length) {
+    console.warn(`[MAS2] Dropped ${updates.length - kept.length} narrator entity_update(s) targeting unknown/player ids`);
+  }
+  return { ...result, state_updates: { ...result.state_updates, entity_updates: kept } } as Mas2ResponseDto;
+}
+
+/**
+ * Renders the engine result as plain outcome sentences for the Narrator: explicit HIT/MISS/FAILS
+ * statements, severity words instead of numbers, and who was actually affected.
+ */
+export function renderOutcomeFacts(
+  engineResult: EngineResultDto,
+  getEntityName: (id: string) => string,
+  directorIntent?: DirectorUnifiedIntent
+): string {
+  const lines: string[] = [];
+  const summary = engineResult.outcome_summary || '';
+  const deltas = engineResult.numeric_deltas || {};
+  const damageTo = (ids: string[]) => ids.reduce((sum, id) => sum + Math.max(0, -(deltas[`entities.${id}.properties.hp`] ?? 0)), 0);
+  const severity = (dmg: number) => (dmg <= 0 ? '' : dmg <= 5 ? 'a light wound' : dmg <= 12 ? 'a solid wound' : 'a heavy wound');
+
+  if (/^Impossible:/.test(summary)) {
+    lines.push(`- ${summary}`);
+  } else {
+    lines.push(`- Overall: ${engineResult.success ? 'the action succeeded' : 'the action failed'}`);
+    if (summary && !/Roll:/.test(summary) && !(engineResult.target_results?.length)) lines.push(`- Summary: ${summary}`);
+  }
+
+  for (const tr of engineResult.target_results || []) {
+    const intended = tr.intended_targets.map(getEntityName).join(', ') || 'no one';
+    // Who performed it: with several actions in a turn (attack + counter-attack) the Narrator must know
+    const source = directorIntent?.intent_queue?.[tr.intent_index];
+    const by = source ? `${getEntityName(source.actor_id)}'s ${source.parameters.verb} on ` : '';
+    const actualIds = tr.actual_targets;
+    const actual = actualIds.map(getEntityName).join(', ') || 'no one';
+    const redirected = JSON.stringify(tr.intended_targets) !== JSON.stringify(actualIds);
+    const sev = severity(damageTo(actualIds));
+    switch (tr.resolution_summary) {
+      case 'crit':
+        lines.push(`- ${by}${intended}: SUCCEEDS spectacularly${sev ? ` and inflicts ${sev}` : ''}.`);
+        break;
+      case 'success':
+        lines.push(`- ${by}${intended}: SUCCEEDS${sev ? ` and inflicts ${sev}` : ''}.`);
+        break;
+      case 'fumble':
+        lines.push(redirected
+          ? `- ${by}${intended}: FAILS badly and the blow goes astray, striking ${actual} instead${sev ? ` (${sev})` : ''}. ${intended} is unharmed.`
+          : `- ${by}${intended}: FAILS badly (the attacker slips or overextends). Nobody is hurt.`);
+        break;
+      default:
+        lines.push(`- ${by}${intended}: FAILS (dodged, parried, refused or ineffective). ${intended} is unharmed.`);
+    }
+  }
+  return `## Outcome (already decided — render exactly this, do not change it)\n${lines.join('\n')}`;
+}
 
 export class Mas2Service {
   private llmService: LlmService;
@@ -52,11 +118,12 @@ export class Mas2Service {
     }
 
     const system = this.buildNarratorSystemPrompt(worldStyle, compiledStory, triggerId);
-    const user = this.buildNarratorUserPrompt(engineResult, gameState, directorIntent, conditionTransitions);
+    const user = this.buildNarratorUserPrompt(engineResult, gameState, directorIntent, conditionTransitions, playerInput);
 
     // NO FALLBACK: state is not persisted until after narration, so a failed
     // turn is cleanly retryable by the player.
-    return await this.llmService.generateJSON(system, user, Mas2ResponseDtoSchema);
+    const result = await this.llmService.generateJSON(system, user, Mas2ResponseDtoSchema);
+    return sanitizeNarratorOutput(result, gameState);
   }
 
   /**
@@ -81,12 +148,18 @@ export class Mas2Service {
   - Major/High → staggering damage, a dramatic change, an unmistakable turn
   - Severe → devastating, life-altering, the scene itself changes
 - NEVER contradict the outcome facts you are given. If the engine says an action failed, it failed.
+- Read outcome words literally: "success"/"critical success" = the action lands (a critical is spectacular). "fail" = an ordinary miss: dodged, parried, blocked, ignored, refused. NOT a fumble. "critical failure (accident)" = the attempt goes badly wrong (a slip, a stumble), and only then may the mishap hit a bystander if Target Results say so. Damage happens ONLY to targets listed as actually affected; anyone else is unharmed. "Impossible" = the attempt simply does not work and nothing changes.
 
 ## Narration Rules
 1. Write **1–3 paragraphs** of Markdown prose in second person ("You…").
 2. **The Accident**: if the actual targets differ from the intended targets, the action went astray — narrate the mishap landing on the actual target(s).
 3. **Unseen Ripples**: weave the provided ripple reasons into the scene as behavior, glances, and mood — the world reacting to what it just witnessed.
-4. Ground the prose in the scene context and the named characters provided. Never invent new named characters or locations.
+4. Ground the prose in the scene context and the named characters provided. Refer to cast members BY NAME. Never invent new named characters, locations, or plot facts; unnamed background color (a passing vendor, a barking dog) is fine.
+5. **Answer the Player Action.** Your first sentences must show the player's actual attempt (what they said, asked, examined or did), not a generic "you carry out your plan". Never write filler like "you successfully complete your action".
+6. **Dialogue.** When the player speaks to or asks something of a character, that character REPLIES in quoted speech that fits their traits and personality, using only facts present in the context. If they would not know or would not tell, they deflect or say so in character. Characters a player hasn't addressed should not suddenly monologue.
+7. **Invalid or impossible actions.** If the player attempts something impossible, absurd, or that the scene does not support (flying, conjuring items or money from nothing, using an item they were never given, commanding people who owe them nothing), narrate the attempt failing or being met with confusion or refusal in a natural way. Do NOT grant items, wealth, powers, information, quests or rewards that are not in the context.
+8. **Continuity.** Stay consistent with Recent Events and the scene location and time. Do not move the player to a new location unless the outcome facts say they traveled. Do not repeat earlier prose.
+9. **Memory.** When the player or a character recalls past events, answer ONLY from Recent Events and the Cast list. If the answer is not there, the character does not remember or does not know: never invent names, places or facts to fill the gap.
 ${styleLine}
 ${loreContext ? `\n## Lore Context\n${loreContext}` : ''}
 
@@ -105,7 +178,7 @@ Return a single JSON object (no markdown fences) with exactly this shape:
     "world_updates": { "narrative.atmosphere": "<one-word atmosphere, only if it changed>" }
   }
 }
-Use "state_updates" ONLY for social ripple effects on bystanders (how witnesses feel about the player after this turn). Omit "world_updates" keys that did not change. Keep entity_updates to at most 3 entries.`;
+Use "state_updates" ONLY when a specific bystander has a genuine, visible reaction to something the player did or said this turn. Passive or solitary actions (looking around, walking, resting, thinking) or actions nobody reacts to MUST leave "entity_updates" as an empty array. Use "state_updates" ONLY for social ripple effects on bystanders (how witnesses feel about the player after this turn). Omit "world_updates" keys that did not change. Keep entity_updates to at most 3 entries.`;
   }
 
   /**
@@ -115,33 +188,22 @@ Use "state_updates" ONLY for social ripple effects on bystanders (how witnesses 
     engineResult: EngineResultDto,
     gameState: GameState,
     directorIntent?: DirectorUnifiedIntent,
-    conditionTransitions?: ConditionTransition[]
+    conditionTransitions?: ConditionTransition[],
+    playerInput?: string
   ): string {
-    const entities = gameState.tier1_mechanical?.entities || {};
-    const getEntityName = (id: string): string => {
-      const entity = entities[id] as any;
-      return entity?.properties?.display_name ||
-             entity?.properties?.name ||
-             entity?.display_name ||
-             entity?.raw_data?.identity?.name ||
-             `an unnamed figure`;
-    };
+    const { entities, playerId } = readSceneEntities(gameState);
+    const getEntityName = (id: string): string => entityDisplayName(entities[id], 'an unnamed figure');
 
     const sections: string[] = [];
 
-    // Outcome facts
-    sections.push(`## Outcome (already decided — render, do not change)\n- Overall: ${engineResult.success ? 'the action succeeded' : 'the action failed'}\n- Summary: ${engineResult.outcome_summary || 'No summary provided'}`);
-
-    // Target results (accident detection)
-    if (engineResult.target_results && engineResult.target_results.length > 0) {
-      const lines = engineResult.target_results.map(tr => {
-        const intended = tr.intended_targets.map(getEntityName).join(', ') || 'no one';
-        const actual = tr.actual_targets.map(getEntityName).join(', ') || 'no one';
-        const accident = JSON.stringify(tr.intended_targets) !== JSON.stringify(tr.actual_targets);
-        return `- Intended: ${intended} → Actually affected: ${actual} (${tr.resolution_summary})${accident ? ' ⚠ THE ACTION WENT ASTRAY — narrate the accident' : ''}`;
-      });
-      sections.push(`## Target Results\n${lines.join('\n')}`);
+    // What the player actually did: the prose must answer THIS, not a generic action
+    if (playerInput) {
+      const who = playerId ? getEntityName(playerId) : 'the player';
+      sections.push(`## Player Action (this is what ${who} just did or said - respond to it directly)\n"${playerInput}"`);
     }
+
+    // Outcome facts, stated plainly (raw rolls/numbers are easy for a model to misread)
+    sections.push(renderOutcomeFacts(engineResult, getEntityName, directorIntent));
 
     // Condition transitions (rules-engine facts: injuries, collapse, surrender)
     if (conditionTransitions && conditionTransitions.length > 0) {
@@ -160,24 +222,39 @@ Use "state_updates" ONLY for social ripple effects on bystanders (how witnesses 
     }
 
     // Cast present
-    const castLines = Object.entries(entities).slice(0, 12).map(([id, e]: [string, any]) => {
+    const presentIds = new Set(presentEntityIds(gameState));
+    const away = Object.keys(entities).filter((id) => !presentIds.has(id));
+    const castLines = Object.entries(entities).filter(([id]) => presentIds.has(id)).slice(0, 12).map(([id, e]: [string, any]) => {
       const name = getEntityName(id);
-      const desc = e?.properties?.description || e?.raw_data?.identity?.description || '';
-      return `- ${name} (${id})${desc ? `: ${desc}` : ''}`;
+      const p = e?.properties || {};
+      const bits = [
+        id === playerId && 'the PLAYER character',
+        p.species && `species: ${p.species}`,
+        p.archetype && `role: ${p.archetype}`,
+        Array.isArray(p.traits) && p.traits.length && `traits: ${p.traits.join(', ')}`,
+        Array.isArray(p.personality) && p.personality.length && `personality: ${p.personality.join(', ')}`,
+        Array.isArray(p.ai_hints) && p.ai_hints.length && `note: ${p.ai_hints.join('; ')}`,
+        p.description || e?.raw_data?.identity?.description,
+      ].filter(Boolean).join('; ');
+      return `- ${name} (${id})${bits ? ': ' + bits : ''}`;
     });
     if (castLines.length > 0) {
-      sections.push(`## Cast Present\n${castLines.join('\n')}`);
+      sections.push(`## Cast Present (the only characters who can appear, speak or react)\n${castLines.join('\n')}`);
     }
+    if (away.length > 0) {
+      sections.push(`## Elsewhere (NOT here: they cannot appear, speak or react this turn)\n${away.map((id) => `- ${getEntityName(id)}`).join('\n')}`);
+    }
+    sections.push('## Player Possessions\nOrdinary travel gear only (a pack, simple tools, a knife, food and water). Nothing magical, rare or valuable, and no companions beyond the cast above.');
 
     // Scene context
     const scene = (gameState.tier0_narrative as any)?.scene_context;
     if (scene) {
-      sections.push(`## Scene\n- Location: ${scene.location || scene.name || 'Unknown'}\n- Time: ${scene.time || 'Unknown'}\n- Atmosphere: ${scene.atmosphere || 'Neutral'}`);
+      sections.push(`## Scene (the player is HERE right now: narrate this place, not places they have left)\n- Location: ${scene.location || scene.name || 'Unknown'}\n- Time: ${scene.time || 'Unknown'}\n- Atmosphere: ${scene.atmosphere || 'Neutral'}`);
     }
 
     // Recent dialogue for continuity
     const history = ((gameState.tier0_narrative as any)?.dialogue_history || []) as Array<{ role: string; content: string }>;
-    const recent = history.slice(-4).map(h => `${h.role}: ${h.content}`).join('\n');
+    const recent = history.slice(-10).map(h => `${h.role}: ${String(h.content).slice(0, 350)}`).join('\n');
     if (recent) {
       sections.push(`## Recent Events\n${recent}`);
     }

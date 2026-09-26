@@ -266,7 +266,9 @@ export function useWorld(idOrSlug: string) {
 const StorySchema = z.object({
   id: z.string(), // Can be UUID or slug
   slug: z.string().nullable().optional(),
-  type: z.enum(['scenario', 'adventure']).optional(), // Backend uses 'type', not 'kind'
+  // The catalog endpoint returns `story` for Chimera stories and
+  // `scenario`/`adventure` for legacy entry points.
+  type: z.enum(['story', 'scenario', 'adventure']).optional(),
   title: z.string(),
   subtitle: z.string().nullable().optional(),
   description: z.string().optional(), // Backend uses 'description', not 'short_desc'
