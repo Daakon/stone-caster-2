@@ -23,6 +23,12 @@ Goal: make the gameplay screen feel like a good RPG (a world that stays visible,
 - Respect `prefers-reduced-motion`: replace pulses and the combat vignette animation with static equivalents.
 - Sample content in boards (Kiera, Bram, Thessaly, Ryn, the Gilded Stag, sample numbers) is placeholder. Do not hardcode.
 
+### 2.1 Transport for turns: no persistent WebSocket
+
+Resolved 2026-09-26. Stonecaster is single-player: every screen update follows from a turn the player themselves submitted. Nothing needs to reach a client except in response to its own request (no other player, no GM/spectator view, no idle-tab push). That is the one condition that would justify a persistent, full-duplex WebSocket, and it doesn't hold here; a large share of the AI-RPG category (AI Dungeon included) started single-player and only bolted on multiplayer later, and multiplayer AI-DM products remain fragmented and unreliable industry-wide (context blowup, uneven "spotlight," turn collision) rather than a solved pattern worth architecting around pre-emptively.
+
+So: the turn-in-progress card and streamed narration (Phase 1 and Phase 2) run over an HTTP-streamed response on the existing `POST /api/games/:gameId/turn` (chunked/fetch-stream, ordered JSON events, then the committed turn), not a separate WebSocket connection. For resilience, persist turn phase server-side keyed by `client_request_id` and add a plain `GET` status/poll endpoint a client can call if its stream drops (phone locked, network blip); it does not need to reconnect to a specific server instance, since nothing is pinned to a live socket. If genuine multiplayer or spectating is ever scoped in, treat it as its own initiative with its own transport decision, not something this redesign hedges for.
+
 ## 3. Component map (current to target)
 
 | Current file (frontend/src) | Change |
@@ -121,7 +127,7 @@ These do not exist today and block the phases noted in `ROADMAP.md`:
 - Alias table per story with visibility flag, plus ref ids in Narrator context. Blocks Phase 2.
 - Shared block schema package for backend and frontend, and a `mentions` table (entity, turn, block, source).
 - Provisional entities: the Director approves `new:` refs before they become real.
-- Turn phase events over the websocket for the progress card.
+- Turn phase events over the HTTP-streamed turn response, with a status-poll endpoint for resume (see §2.1). No persistent WebSocket.
 - Undiscovered-field list per entity with a hint per field, for redacted slots.
 - Ruleset HUD manifest (Phase 6).
 
@@ -132,3 +138,5 @@ These do not exist today and block the phases noted in `ROADMAP.md`:
 - Is a map out of scope, or does Here need a place graph later?
 - Which sensory effect tiers ship first?
 - Final tag syntax for Narrator output (the boards show an illustrative syntax); settle against how the Narrator output is parsed today.
+
+Resolved: transport is HTTP-streamed, not WebSocket (see §2.1).
