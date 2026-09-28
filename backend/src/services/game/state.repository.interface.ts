@@ -4,7 +4,7 @@ export interface IGameStateRepository {
     /**
      * Persist the initial state bundle for a new game session.
      */
-    createState(storyId: string, state: GameStateBundle, userId: string): Promise<string>;
+    createState(storyId: string | null, state: GameStateBundle, userId: string, compiledStoryId: string, playerCharacterId: string): Promise<string>;
 
     /**
      * Load ONLY the mechanical state (efficient fetch).

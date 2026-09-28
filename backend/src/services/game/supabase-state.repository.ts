@@ -9,18 +9,21 @@ export class SupabaseGameStateRepository implements IGameStateRepository {
     /**
      * Persist the initial state bundle for a new game session.
      */
-    async createState(storyId: string, bundle: GameStateBundle, userId: string): Promise<string> {
+    async createState(storyId: string | null, bundle: GameStateBundle, userId: string, compiledStoryId: string, playerCharacterId: string): Promise<string> {
         const { data, error } = await this.supabase
             .from('chimera_game_states')
             .insert({
                 story_id: storyId,
+                compiled_story_id:compiledStoryId,
+                player_character_id:playerCharacterId,
+                state_initialization_version:1,
                 player_id: userId,
 
                 mechanical_state: bundle.mechanical,
                 narrative_focus: bundle.narrative,
                 scene_registry: bundle.registry,
                 action_queue: bundle.queue || [],
-                compiled_system_prompt: bundle.compiled_system_prompt || null
+                compiled_system_prompt:null
             })
             .select('id')
             .single();

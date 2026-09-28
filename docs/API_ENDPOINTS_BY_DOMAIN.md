@@ -237,11 +237,11 @@ These routes talk directly to repository classes (db/repos/*) and return pure JS
 - POST /api/chimera/assets/sign-upload - Body may include {filename?, fileType?, contentType?, folder?}. Returns {uploadUrl, accessUrl, path} (alias of the previous endpoint with broader inputs).
 
 ### Compiler & Runtime (/api/chimera/compile, /api/chimera/play, /api/chimera/game)
-- POST /api/chimera/compile - Body CompileSelectionSchema {worldId:uuid, rulesetIds:string[], entityIds?:uuid[]}. Invokes CompilerService and returns {id} for the compiled story. Errors map to ApiErrorCode (e.g., WORLD_NOT_FOUND, RULESET_NOT_FOUND).
+- POST /api/chimera/compile - Admin-only frozen compile. Body `{world:{kind:"world",owner_namespace:"first_party",key}, rulesets?:ContentKeyRef[], entities?:ContentKeyRef[], lore?:ContentKeyRef[], title?}`; every reference is a stable key. Resolves dependencies at one catalog generation, stores content-addressed blobs/refs, and returns `{id}`. UUID-based `POST /api/chimera/compile/:storyId`, story `rebuild`, and `bind` compilation are retired.
 - GET /api/chimera/play/:gameStateId - Authenticated. Returns the serialized game state from StoriesRepository.loadGameState (turn history, state snapshot, etc.).
-- POST /api/chimera/play/:gameStateId/cast - Body CastStoneRequestSchema {userText}. Runs GameLoopService.castStone and returns the turn result (narrative, choices, AI metadata) or an error code.
-- POST /api/chimera/play/start - Body StartSessionRequestSchema {compiledStoryId}. Initializes a new session and returns {gameStateId}.
-- POST /api/chimera/game/init - Body InitializeGameRequestSchema {storyId, playerInput{identity{name,pronouns?,role?,age?}, appearance?, backstory?, personality_traits?, drive?, flaw?, ...}}. Initializes a game/character and returns {id: gameStateId}.
+- POST /api/games/:gameId/turn - Authenticated turn on the session's pinned compiled payload.
+- POST /api/chimera/play/start - Retired; returns HTTP 410 with the replacement route.
+- POST /api/chimera/game/init - Admin or approved prelaunch tester only. Body `{storyId: compiledStoryId, characterId: playerOwnedCharacterId, playerInput:{identity:{name,...},...}}`. Pins the compiled payload and character; returns `{id: gameStateId}`.
 - GET /api/chimera/game/stories/:id - Returns the compiled story document (matches StoriesRepository.getCompiledStoryById / @shared/types/chimera-compiled).
 
 ## API Documentation Endpoints

@@ -137,6 +137,7 @@ export class Mas2Service {
   ): string {
     const loreContext = this.extractLoreContext(compiledStory, triggerId);
     const styleLine = worldStyle ? `\n**World Style**: ${worldStyle}` : '';
+    const frozenStyle = compiledStory?.prompt_narrator_style ? `\n## Frozen story narration rules\n${compiledStory.prompt_narrator_style}` : '';
 
     return `You are the **Narrator** of the Chimera Engine — a constrained observer. The mechanical outcome of this turn has ALREADY been decided by a deterministic engine. Your only job is to render that outcome as cinematic prose. You have NO authority to change what happened.
 
@@ -161,6 +162,7 @@ export class Mas2Service {
 8. **Continuity.** Stay consistent with Recent Events and the scene location and time. Do not move the player to a new location unless the outcome facts say they traveled. Do not repeat earlier prose.
 9. **Memory.** When the player or a character recalls past events, answer ONLY from Recent Events and the Cast list. If the answer is not there, the character does not remember or does not know: never invent names, places or facts to fill the gap.
 ${styleLine}
+${frozenStyle}
 ${loreContext ? `\n## Lore Context\n${loreContext}` : ''}
 
 ## Output Format

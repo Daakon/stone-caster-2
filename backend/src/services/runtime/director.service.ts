@@ -164,9 +164,11 @@ export class DirectorService {
     userText: string,
     gameState: GameState,
     actionsMap: Record<string, unknown>,
-    loreFragments?: Array<{ id: string; content: string; title?: string }>
+    loreFragments?: Array<{ id: string; content: string; title?: string }>,
+    pinnedInstructions?: string,
   ): Promise<DirectorUnifiedIntent> {
-    const systemPrompt = this.buildSystemPrompt(gameState, actionsMap, loreFragments);
+    const systemPrompt = this.buildSystemPrompt(gameState, actionsMap, loreFragments)
+      + (pinnedInstructions ? `\n\n## Frozen story rules\n${pinnedInstructions}` : '');
     
     console.log('[DirectorService] Resolving user input:', userText);
     console.log('[DirectorService] Resolution mode detection enabled');

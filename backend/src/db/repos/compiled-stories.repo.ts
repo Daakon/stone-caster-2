@@ -73,7 +73,7 @@ export class CompiledStoriesRepository {
   async findByKey(storyKey: string): Promise<CompiledStory | null> {
     const { data, error } = await (this.supabase
       .from('chimera_compiled_stories') as any)
-      .select('id, story_id, version, payload_blob_hash, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, creation_manifest, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, genesis_config, created_at')
+      .select('id, story_id, version, payload_blob_hash, created_at')
       .eq('story_id', storyKey)
       .order('version', { ascending: false })
       .limit(1)
@@ -101,7 +101,7 @@ export class CompiledStoriesRepository {
   async findById(id: string): Promise<CompiledStory | null> {
     const { data, error } = await (this.supabase
       .from('chimera_compiled_stories') as any)
-      .select('id, story_id, version, payload_blob_hash, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, creation_manifest, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, payload_blob_hash, created_at')
       .eq('id', id)
       .single();
 
@@ -124,16 +124,8 @@ export class CompiledStoriesRepository {
    * Optimized for Character Forge loading
    */
   async getManifestByKey(storyKey: string): Promise<{ creation_manifest: any, snapshot_world: any } | null> {
-    const { data, error } = await (this.supabase
-      .from('chimera_compiled_stories') as any)
-      .select('creation_manifest, snapshot_world')
-      .eq('story_id', storyKey)
-      .order('version', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error || !data) return null;
-
+    const data = await this.findByKey(storyKey);
+    if (!data) return null;
     return {
       creation_manifest: data.creation_manifest,
       snapshot_world: data.snapshot_world
@@ -141,23 +133,24 @@ export class CompiledStoriesRepository {
   }
 
   private async mapCompiledStory(data: any): Promise<CompiledStory> {
-    let payload: Record<string, any> | null = null;
-    if (data.payload_blob_hash) {
-      const {data:blob, error} = await (this.supabase.from('chimera_content_blobs') as any)
-        .select('body').eq('sha256', data.payload_blob_hash).single();
-      if (error || !blob) throw new Error(`Frozen compiled payload is unavailable: ${error?.message ?? data.payload_blob_hash}`);
-      payload = blob.body?.body ?? null;
-      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Frozen compiled payload has an invalid body');
+    if (!data.payload_blob_hash) throw new Error('Compiled story has no frozen payload hash');
+    const {data:blob, error} = await (this.supabase.from('chimera_content_blobs') as any)
+      .select('body').eq('sha256', data.payload_blob_hash).single();
+    if (error || !blob) throw new Error(`Frozen compiled payload is unavailable: ${error?.message ?? data.payload_blob_hash}`);
+    const payload = blob.body?.body;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Frozen compiled payload has an invalid body');
+    for (const field of ['config_engine', 'prompt_interpreter_logic', 'prompt_narrator_style', 'snapshot_world', 'snapshot_entities']) {
+      if (!Object.hasOwn(payload, field)) throw new Error(`Frozen compiled payload is missing ${field}`);
     }
     return {
       id:data.id,
       story_key:data.story_id ?? undefined,
-      config_engine:payload?.config_engine ?? data.config_engine ?? {},
-      creation_manifest:payload?.creation_manifest ?? data.creation_manifest ?? {},
-      prompt_interpreter_logic:payload?.prompt_interpreter_logic ?? data.prompt_interpreter_logic,
-      prompt_narrator_style:payload?.prompt_narrator_style ?? data.prompt_narrator_style,
-      snapshot_world:payload?.snapshot_world ?? data.snapshot_world ?? {},
-      snapshot_entities:payload?.snapshot_entities ?? data.snapshot_entities ?? [],
+      config_engine:payload.config_engine,
+      creation_manifest:payload.creation_manifest ?? {},
+      prompt_interpreter_logic:payload.prompt_interpreter_logic,
+      prompt_narrator_style:payload.prompt_narrator_style,
+      snapshot_world:payload.snapshot_world,
+      snapshot_entities:payload.snapshot_entities,
       tier1_allowlist:new Set([]),
       tier0_allowlist:new Set([]),
       version:data.version,

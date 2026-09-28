@@ -70,6 +70,9 @@ export interface SceneRegistry {
 // --- Composite Bundle for Creation ---
 export interface GameStateBundle {
     id?: string; // Optional during creation phase
+    compiled_story_id?: string;
+    player_character_id?: string;
+    state_initialization_version?: number;
     mechanical: MechanicalState;
     narrative: NarrativeFocus;
     registry: SceneRegistry;

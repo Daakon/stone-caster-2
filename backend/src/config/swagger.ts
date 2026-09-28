@@ -1329,24 +1329,10 @@ const options: swaggerJsdoc.Options = {
       },
       '/api/chimera/play/start': {
         post: {
-          summary: 'Initialize a new game session',
+          summary: 'Retired session start route; use /api/chimera/game/init',
           tags: ['Chimera'],
           security: [{ BearerAuth: [] }],
-          requestBody: {
-            required: true,
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  required: ['compiledStoryId'],
-                  properties: {
-                    compiledStoryId: { type: 'string', format: 'uuid' },
-                  },
-                },
-              },
-            },
-          },
-          responses: { '201': { description: 'Created' } },
+          responses: { '410': { description: 'Gone; session start requires a frozen compile and player-owned character' } },
         },
       },
       '/api/chimera/game/init': {

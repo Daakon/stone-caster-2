@@ -14,7 +14,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2, RefreshCw, Save, Plus, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { chimeraStoriesService } from '@/services/chimera.stories';
-import { chimeraPlayService } from '@/services/chimera.play';
 import { CreateLoreModal } from '@/components/chimera/modals/CreateLoreModal';
 import { CreateEntityModal } from '@/components/chimera/modals/CreateEntityModal';
 
@@ -23,7 +22,6 @@ export default function StoryManage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isRebuilding, setIsRebuilding] = useState(false);
-  const [isStartingGame, setIsStartingGame] = useState(false);
   const [storyDefinitionJson, setStoryDefinitionJson] = useState('');
   const [isLoreModalOpen, setIsLoreModalOpen] = useState(false);
   const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
@@ -86,26 +84,7 @@ export default function StoryManage() {
 
   const handlePlay = async () => {
     if (!id) return;
-
-    setIsStartingGame(true);
-    try {
-      const gameState = await chimeraPlayService.startGame(id);
-      navigate(`/play/${gameState.id}`);
-    } catch (error: any) {
-      console.error('Error starting game:', error);
-      // Check if character creation is required - redirect to gateway instead
-      if (error.requiresCharacterCreation) {
-        navigate(`/player-gateway/${id}`);
-        return;
-      }
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to start game. Make sure the story has been compiled first.'
-      );
-    } finally {
-      setIsStartingGame(false);
-    }
+    navigate(`/player-gateway/${id}`);
   };
 
   if (isLoading) {
@@ -272,22 +251,12 @@ export default function StoryManage() {
                 </Button>
                 <Button
                   onClick={handlePlay}
-                  disabled={isStartingGame || isRebuilding}
+                  disabled={isRebuilding}
                   size="lg"
                   variant="default"
                   className="w-full sm:w-auto"
                 >
-                  {isStartingGame ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Starting...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-4 w-4" />
-                      Play Story
-                    </>
-                  )}
+                  <><Play className="mr-2 h-4 w-4" />Play Story</>
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -324,4 +293,3 @@ export default function StoryManage() {
     </div>
   );
 }
-

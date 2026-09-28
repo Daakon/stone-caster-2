@@ -76,15 +76,10 @@ export class GameLoopService {
       throw new Error(`Game state not found: ${gameStateId}`);
     }
 
-    // Load compiled story to get actions_map
-    const storyId = await this.getStoryIdFromGameState(gameStateId);
-    if (!storyId) {
-      throw new Error(`Story ID not found for game state: ${gameStateId}`);
-    }
-
-    const compiledStory = await this.storiesRepo.getCompiledStoryById(storyId);
+    // The session pin is the only runtime source of compiled content.
+    const compiledStory = await this.storiesRepo.getCompiledStoryById(gameState.compiled_story_id);
     if (!compiledStory) {
-      throw new Error(`Compiled story not found: ${storyId}`);
+      throw new Error(`Pinned compiled story not found: ${gameState.compiled_story_id}`);
     }
 
     // Convert CompiledStory to the format we need
@@ -174,25 +169,9 @@ export class GameLoopService {
    * 4. Return game state ID
    */
   async initializeSession(compiledStoryId: string, playerId: string): Promise<string> {
-    const compiledStory = await this.storiesRepo.getCompiledStoryById(compiledStoryId);
-    if (!compiledStory) {
-      throw new Error(`Compiled story not found: ${compiledStoryId}`);
-    }
-
-    // Create initial game state from compiled story
-    const initialState: GameState = {
-      tier1_mechanical: this.createInitialTier1(compiledStory),
-      tier0_narrative: this.createInitialTier0(compiledStory),
-    };
-
-    // Save to database
-    const gameStateId = await this.storiesRepo.createGameState(
-      compiledStoryId,
-      initialState,
-      playerId
-    );
-
-    return gameStateId;
+    void compiledStoryId;
+    void playerId;
+    throw new Error('Session initialization requires a player-owned character; use POST /api/chimera/game/init.');
   }
 
   /**
@@ -250,10 +229,6 @@ export class GameLoopService {
    * 2. Return story ID or null
    */
 
-  private async getStoryIdFromGameState(gameStateId: string): Promise<string | null> {
-    return this.storiesRepo.getStoryIdFromGameState(gameStateId);
-  }
-
   /**
    * [METHOD] createInitialTier1
    * ----------------------------------------------------------------
@@ -302,4 +277,3 @@ export class GameLoopService {
     return gatingKeywords.some(keyword => summary.includes(keyword));
   }
 }
-
