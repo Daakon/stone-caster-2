@@ -26,9 +26,11 @@ npm run local:health         # stack + seed + RLS + backend + frontend checks
 npm run local:smoke          # API gameplay smoke test (backend must be running in MOCK mode)
 npm run local:smoke:real     # same in REAL mode (backend must be running via local:dev:real)
 npm run local:smoke:browser  # live Playwright test: UI login → turn → hard refresh (backend in MOCK mode)
-npm run local:reset          # destroy + recreate the local DB from migrations + seeds, then run the health check
+npm run local:reset          # reset the local DB, sync content/first-party, run F0a local DB checks, then health
 npm run local:up | local:down   # start / stop only the Supabase stack (data is kept)
-npm run local:seed:export    # re-export BASE content from hosted (READ-ONLY, see below)
+npm run content:validate     # validate stable keys, references, supported formats and canonical hashes
+npm run content:sync -- --target=local  # standalone content-only sync to the local DB
+npm run test:f0a:local       # direct DB privilege, ownership, generation-fence and snapshot checks
 ```
 
 The backend runs in **watch mode** (`backend`: `npm run dev:watch` = `tsup --watch` + restart `node dist/index.js`): saving any file under `backend/src` or `shared/src` rebuilds and restarts it automatically (a few seconds). Frontend uses Vite HMR.
@@ -49,10 +51,12 @@ Both paths are the app's existing ones (`ENABLE_MOCK_AI` in `backend/src/config/
 
 ```
 supabase/config.toml                 isolated ports + project id
-supabase/migrations/2026020100000{0-5}_*.sql   canonical schema (structure identical to hosted) + CORRECTED RLS/grants
+supabase/migrations/2026020100000{0-5}_*.sql   checked-in local baseline; hosted schema must be independently verified
+supabase/migrations/20260925000000_content_snapshots.sql  F0a ownership, sync, compile and reset-marker schema
 supabase/seed/00_dev_users.sql       deterministic local auth users / roles
-supabase/seed/10_base_*.sql          GENERATED base content copied from hosted (no user data)
-supabase/scripts/export-hosted-base.mjs   regenerates the 10_base_* files (read-only GETs)
+content/first-party/                 current first-party payloads and key-only references
+scripts/seed-first-party-local.mjs   local-only deploy-role setup, content sync and F0a DB acceptance checks
+supabase/ops/                        backup checker, wipe tooling and local-only integration checks
 .env.stonecaster-local               local endpoints + public Supabase demo keys (no secrets)
 scripts/stonecaster-local.mjs        launcher / health / reset
 scripts/stonecaster-smoke.mjs        API smoke test
@@ -67,13 +71,11 @@ Hosted `.env` files are untouched. `scripts/stonecaster-local.mjs` injects `.env
 environment; dotenv (backend) never overrides existing variables and Vite gives process env priority over `frontend/.env`, so local values win only for these processes.
 The Supabase CLI parses the repo-root `.env`; its leading UTF-8 BOM (invisible, values unchanged) was removed because the CLI rejects it.
 
-### Base content seeds (what was copied from hosted)
-prompts (13), official world `mystika` (1), ruleset templates (16), public entities (5), lore of that world (4, embeddings omitted),
-tags (42) + asset tags, mechanics skills/conditions/resources, `app_config`/`pricing_config`/`ai_config`/`feature_flags`/`config_meta`, slots,
-premade characters, localization glossary/rules, injection map, dialogue config/graphs, quest graphs.
-**Not copied:** users, stories, player characters, game states, turns, telemetry, payments, media assets, private/test worlds, embeddings.
-All ownership columns are remapped to the local admin id, so no production user ids are in the repo.
-Re-export: `npm run local:seed:export` (uses the hosted service key already in `backend/.env`; issues GET requests only), then `npm run local:reset`.
+### Authored content seeding
+
+Authored content now comes from `content/first-party/` through the restricted local `content:sync` command. The current checked-in set has 16 rulesets, 2 worlds, 7 entities, 7 titled lore rows, 42 tags, and the remaining linked mechanics, localization, pack, dialogue-config and premade payloads. The `test` world and its confirmed admin-owned content are `internal`. Four SQL-NULL-owner lore rows and unresolved legacy AWF graph rows are held out; see [the reconciliation record](../content-reconciliation-f0a.md).
+
+`npm run local:reset` invokes `supabase db reset`, then provisions a short-lived local-only password for `stonecaster_content_deployer`, runs `content:sync -- --target=local`, and tests the database boundary. It never uses hosted credentials. The old generated authored-content SQL and hosted seed exporter were removed after the read-only reconciliation audit. System prompts, local dev users and system configuration remain SQL-seeded.
 
 ## Fix log (application defects found by running the full loop against corrected RLS)
 

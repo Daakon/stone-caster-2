@@ -1,0 +1,299 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "world",
+      "key": "mystika",
+      "body": {
+        "key": "mystika",
+        "name": "Mystika",
+        "slug": "mystika",
+        "description_short": "A grounded high fantasy world of ward-scarred forests, where Shifters bind to spirit animals and magic is defined by Essence and elemental domains.",
+        "genre": null,
+        "genre_tags": [
+          "fantasy",
+          "magic"
+        ],
+        "setting": null,
+        "character_schema_contributions": {
+          "tier1_entity": {
+            "form_hints": {
+              "race_handle": {
+                "label": "Species / Race",
+                "control": "dropdown",
+                "default": "Human",
+                "options": [
+                  "Human",
+                  "Elf",
+                  "Dwarf",
+                  "Shifter"
+                ]
+              },
+              "spirit_animal_handle": {
+                "label": "Spirit Animal Form",
+                "groups": [
+                  {
+                    "label": "Predators",
+                    "options": [
+                      "Wolf",
+                      "Bear",
+                      "Jaguar",
+                      "Eagle",
+                      "Viper",
+                      "Shark"
+                    ]
+                  },
+                  {
+                    "label": "Prey / Foragers",
+                    "options": [
+                      "Great Elk",
+                      "Wild Boar",
+                      "Hare",
+                      "Stallion",
+                      "Crane",
+                      "Tortoise"
+                    ]
+                  }
+                ],
+                "control": "dropdown",
+                "depends_on": {
+                  "field": "race_handle",
+                  "value": "Shifter"
+                }
+              }
+            },
+            "definitions": {
+              "race_handle": {
+                "value": "Human",
+                "description": "The biological species of the entity.",
+                "context_priority": "ai_visible"
+              },
+              "spirit_animal_handle": {
+                "value": "None",
+                "description": "The specific animal form this Shifter binds to.",
+                "context_priority": "ai_visible"
+              }
+            }
+          }
+        },
+        "definition": {
+          "key": "mystika",
+          "name": "Mystika",
+          "slug": "mystika",
+          "tags": [],
+          "images": [
+            {
+              "url": "https://imagedelivery.net/H1wcHgsbpczAJHyB61JpRw/625c47b4-db82-4b15-1e85-e947d9aa6c00/public",
+              "role": "banner",
+              "label": "Main Banner"
+            }
+          ],
+          "summary": null,
+          "description": null,
+          "description_long": null,
+          "description_short": "A grounded high fantasy world of ward-scarred forests, where Shifters bind to spirit animals and magic is defined by Essence and elemental domains."
+        },
+        "ruleset_keys": [
+          "needs-survival-basic",
+          "stamina-based-magic",
+          "d100-5-pillars",
+          "cinematic-combat-lite",
+          "world-cycle-time-bands",
+          "vitality-stamina-system",
+          "npc-relationships",
+          "npc-values-motivations",
+          "npc-value-impact-tagging",
+          "npc-roles-background",
+          "npc-quirks-habits",
+          "npc-preferences-phobias",
+          "npc-plot-drivers",
+          "npc-personalities"
+        ]
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "needs-survival-basic"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "stamina-based-magic"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "d100-5-pillars"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "cinematic-combat-lite"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "world-cycle-time-bands"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "vitality-stamina-system"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-relationships"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-values-motivations"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-value-impact-tagging"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-roles-background"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-quirks-habits"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-preferences-phobias"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-plot-drivers"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-personalities"
+        }
+      ]
+    },
+    {
+      "kind": "world",
+      "key": "test",
+      "body": {
+        "key": "test",
+        "name": "Test",
+        "slug": "test",
+        "description_short": "test",
+        "description_long": "asdfasd f",
+        "genre": null,
+        "genre_tags": [
+          "fantasy",
+          "magic"
+        ],
+        "setting": null,
+        "character_schema_contributions": {},
+        "definition": {
+          "name": "Test",
+          "images": [
+            {
+              "url": "https://imagedelivery.net/H1wcHgsbpczAJHyB61JpRw/fe076407-b753-46ab-27c1-a6ba0530f800/public",
+              "role": "banner"
+            }
+          ],
+          "description_long": "asdfasd f",
+          "description_short": "test",
+          "key": "test"
+        },
+        "ruleset_keys": [
+          "vitality-stamina-system",
+          "cinematic-combat-lite",
+          "d100-5-pillars",
+          "world-cycle-time-bands",
+          "wealth-capability-lite",
+          "stamina-based-magic",
+          "npc-values-motivations",
+          "npc-personalities",
+          "npc-roles-background",
+          "npc-quirks-habits",
+          "npc-preferences-phobias",
+          "npc-plot-drivers",
+          "npc-relationships"
+        ]
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "vitality-stamina-system"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "cinematic-combat-lite"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "d100-5-pillars"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "world-cycle-time-bands"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "wealth-capability-lite"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "stamina-based-magic"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-values-motivations"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-personalities"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-roles-background"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-quirks-habits"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-preferences-phobias"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-plot-drivers"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-relationships"
+        }
+      ]
+    }
+  ]
+}

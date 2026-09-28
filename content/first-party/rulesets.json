@@ -1,0 +1,2407 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "ruleset",
+      "key": "cinematic-combat-lite",
+      "body": {
+        "key": "cinematic-combat-lite",
+        "ui_category": "foundation",
+        "exclusion_group": "combat_core",
+        "dependencies": [],
+        "definition": {
+          "name": "Cinematic Combat Lite",
+          "target": "GLOBAL",
+          "actions": {
+            "resolve_clash": {
+              "kind": "player_initiated",
+              "logic": [
+                {
+                  "args": {
+                    "path": "tier1_entity.current_stamina",
+                    "amount": -5
+                  },
+                  "step_id": "deduct_cost",
+                  "function": "state.modify"
+                },
+                {
+                  "args": {
+                    "path": "tier1_world.narrative.atmosphere",
+                    "value": "Tense"
+                  },
+                  "step_id": "set_atmosphere",
+                  "function": "state.set"
+                },
+                {
+                  "args": {
+                    "map": {
+                      "reckless": -20,
+                      "trickery": 20,
+                      "defensive": -10,
+                      "aggressive": 10
+                    },
+                    "input": "input.tactic_tag",
+                    "default": 0
+                  },
+                  "step_id": "calculate_advantage",
+                  "function": "logic.map",
+                  "output_to": "tactic_modifier"
+                },
+                {
+                  "args": {
+                    "actor_mod": "tactic_modifier",
+                    "actor_stat_path": "tier1_entity.combat_prowess",
+                    "target_stat_path": "tier1_entity.combat_prowess"
+                  },
+                  "step_id": "roll_contest",
+                  "function": "resolution.contest",
+                  "output_to": "clash_result"
+                },
+                {
+                  "args": {
+                    "map": {
+                      "Healthy": "Minor Injury",
+                      "Major Injury": "Defeated",
+                      "Minor Injury": "Major Injury"
+                    },
+                    "target": "tier1_entity.combat_condition"
+                  },
+                  "step_id": "escalate_wound_target",
+                  "function": "state.transition",
+                  "conditions": [
+                    {
+                      "op": "eq",
+                      "left": "clash_result",
+                      "right": "actor_win"
+                    }
+                  ]
+                },
+                {
+                  "args": {
+                    "path": "tier1_player.combat_condition",
+                    "value": "Wounded"
+                  },
+                  "step_id": "wound_player",
+                  "function": "state.set",
+                  "conditions": [
+                    {
+                      "op": "eq",
+                      "left": "clash_result",
+                      "right": "target_win"
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "combat_action"
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.combat_condition",
+                  "label": "OPPONENT STATUS"
+                },
+                {
+                  "path": "tier1_player.combat_condition",
+                  "label": "PLAYER STATUS"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "If [OPPONENT STATUS] becomes 'Defeated': Contextualize the finish based on the player's last intent. If they were Aggressive/Lethal -> describe a fatal blow. If they were Trickery/Subtle -> describe a knockout or incapacitation. If Honorable -> describe a surrender.",
+                  "category": "narrative_closure",
+                  "priority": 100,
+                  "unique_id": "combat_resolution_flavor"
+                }
+              ]
+            },
+            "mas1_interpreter": {
+              "intent_keywords": [
+                {
+                  "tags": [
+                    "aggressive"
+                  ],
+                  "verb": "attack",
+                  "trigger_id": "combat_action"
+                },
+                {
+                  "tags": [
+                    "defensive"
+                  ],
+                  "verb": "defend",
+                  "trigger_id": "combat_action"
+                },
+                {
+                  "tags": [
+                    "defensive"
+                  ],
+                  "verb": "dodge",
+                  "trigger_id": "combat_action"
+                },
+                {
+                  "tags": [
+                    "trickery"
+                  ],
+                  "verb": "feint",
+                  "trigger_id": "combat_action"
+                },
+                {
+                  "tags": [
+                    "reckless"
+                  ],
+                  "verb": "charge",
+                  "trigger_id": "combat_action"
+                }
+              ]
+            }
+          },
+          "exclusion_group": "combat_core",
+          "description_long": null,
+          "description_short": "A narrative combat system using abstract States (Healthy -> Defeated) and Skill Checks rather than HP and Damage math",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "combat_prowess": {
+                  "max": 100,
+                  "min": 0,
+                  "label": "Combat Skill / Power",
+                  "control": "slider",
+                  "default": 50,
+                  "ui_step": "attributes",
+                  "ui_group": "Combat Capabilities",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 15
+                }
+              },
+              "definitions": {
+                "combat_prowess": {
+                  "value": 50,
+                  "context_priority": "engine_private"
+                },
+                "combat_condition": {
+                  "value": "Healthy",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "player",
+                "npc"
+              ]
+            }
+          }
+        },
+        "description_short": "A narrative combat system using abstract States (Healthy -> Defeated) and Skill Checks rather than HP and Damage math",
+        "description_long": null
+      },
+      "refs": [
+        {
+          "kind": "exclusion_group",
+          "owner_namespace": "first_party",
+          "key": "combat_core"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "d100-5-pillars",
+      "body": {
+        "key": "d100-5-pillars",
+        "ui_category": "foundation",
+        "exclusion_group": "skill_system_root",
+        "dependencies": [],
+        "definition": {
+          "name": "D100 5 Pillars",
+          "actions": {
+            "resolve_skill_check": {
+              "kind": "system_compute",
+              "logic": [
+                {
+                  "args": {
+                    "entity": "@request.actor_id",
+                    "target_node": "@request.skill_id",
+                    "fallback_strategy": "nearest_root_node"
+                  },
+                  "step_id": "1_resolve_cascade_value",
+                  "function": "state.lookup",
+                  "description": "Look for the specific skill. If null, automatically find the parent 'root_' tag in the schema and use that value."
+                },
+                {
+                  "args": {
+                    "base": "@1_resolve_cascade_value.result",
+                    "modifier": "@request.difficulty_mod"
+                  },
+                  "step_id": "2_calculate_target",
+                  "function": "math.add",
+                  "description": "Add the difficulty modifier to the resolved skill value."
+                },
+                {
+                  "args": {
+                    "mode": "roll_under"
+                  },
+                  "step_id": "3_roll_dice",
+                  "function": "rng.roll",
+                  "description": "Roll the D100 using the physics engine."
+                },
+                {
+                  "args": {
+                    "bands": "@tier2_global.success_bands",
+                    "roll_value": "@3_roll_dice.result",
+                    "target_value": "@2_calculate_target.result"
+                  },
+                  "step_id": "4_determine_outcome",
+                  "function": "logic.compare",
+                  "description": "Compare roll to target. Returns 'CRIT', 'SUCCESS', 'FAIL', 'FUMBLE'."
+                },
+                {
+                  "args": {
+                    "outcome": "@4_determine_outcome.result",
+                    "skill_used": "@request.skill_id",
+                    "stat_source": "@1_resolve_cascade_value.source_node"
+                  },
+                  "step_id": "5_broadcast_narrative",
+                  "function": "output.emit",
+                  "description": "Send the structured result to MAS 2."
+                }
+              ],
+              "trigger": {
+                "type": "request_match",
+                "required_params": [
+                  "actor_id",
+                  "skill_id",
+                  "difficulty_mod"
+                ]
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "style_injections": [
+                {
+                  "content": "Narrate the outcome based on the Stat Source. If the source was FORCE, describe physical impact/strain. If FINESSE, describe speed/grace. If INSIGHT, describe sudden realization. Reflect the Degree of Success (Margin) in the intensity.",
+                  "category": "action_resolution",
+                  "priority": 90,
+                  "unique_id": "5_pillar_flavor"
+                }
+              ]
+            },
+            "mas1_action_parser": {
+              "instructions": [
+                {
+                  "logic": "Analyze the user's verb. If it matches a known Expansion Skill (e.g. 'Hide'), request that ID. If not, map to the nearest of the 5 Roots. DEFAULT: 'root_finesse' for dexterity, 'root_force' for strength.",
+                  "intent": "map_intent_to_pillar"
+                }
+              ]
+            }
+          },
+          "exclusion_group": "skill_system_root",
+          "description_long": "Defines the 5 root competencies: Force, Finesse, Awareness, Insight, Influence.",
+          "description_short": "Defines the 5 root competencies: Force, Finesse, Awareness, Insight, Influence",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "root_force": {
+                  "max": 100,
+                  "min": 1,
+                  "label": "FORCE (Power)",
+                  "control": "slider",
+                  "default": 50,
+                  "ui_step": "attributes",
+                  "ui_group": "Core Competencies",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 10
+                },
+                "root_finesse": {
+                  "max": 100,
+                  "min": 1,
+                  "label": "FINESSE (Precision)",
+                  "control": "slider",
+                  "default": 50,
+                  "ui_step": "attributes",
+                  "ui_group": "Core Competencies",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 10
+                },
+                "root_insight": {
+                  "max": 100,
+                  "min": 1,
+                  "label": "INSIGHT (Mind)",
+                  "control": "slider",
+                  "default": 50,
+                  "ui_step": "attributes",
+                  "ui_group": "Core Competencies",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 10
+                },
+                "root_awareness": {
+                  "max": 100,
+                  "min": 1,
+                  "label": "AWARENESS (Senses)",
+                  "control": "slider",
+                  "default": 50,
+                  "ui_step": "attributes",
+                  "ui_group": "Core Competencies",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 10
+                },
+                "root_influence": {
+                  "max": 100,
+                  "min": 1,
+                  "label": "INFLUENCE (Social)",
+                  "control": "slider",
+                  "default": 50,
+                  "ui_step": "attributes",
+                  "ui_group": "Core Competencies",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 10
+                }
+              },
+              "definitions": {
+                "root_force": {
+                  "tags": [
+                    "root_node",
+                    "stat"
+                  ],
+                  "value": 50,
+                  "description": "Physical power: Push, Break, Wrestle.",
+                  "context_priority": "ai_visible"
+                },
+                "root_finesse": {
+                  "tags": [
+                    "root_node",
+                    "stat"
+                  ],
+                  "value": 50,
+                  "description": "Precision: Stealth, Aim, Lockpick.",
+                  "context_priority": "ai_visible"
+                },
+                "root_insight": {
+                  "tags": [
+                    "root_node",
+                    "stat"
+                  ],
+                  "value": 50,
+                  "description": "Analysis: Logic, Lore, Repair.",
+                  "context_priority": "ai_visible"
+                },
+                "root_awareness": {
+                  "tags": [
+                    "root_node",
+                    "stat"
+                  ],
+                  "value": 50,
+                  "description": "Perception: Search, Sense, Track.",
+                  "context_priority": "ai_visible"
+                },
+                "root_influence": {
+                  "tags": [
+                    "root_node",
+                    "stat"
+                  ],
+                  "value": 50,
+                  "description": "Social: Persuade, Deceive, Lead.",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "npc",
+                "player"
+              ]
+            }
+          }
+        },
+        "description_short": "Defines the 5 root competencies: Force, Finesse, Awareness, Insight, Influence",
+        "description_long": "Defines the 5 root competencies: Force, Finesse, Awareness, Insight, Influence."
+      },
+      "refs": [
+        {
+          "kind": "exclusion_group",
+          "owner_namespace": "first_party",
+          "key": "skill_system_root"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "d100-skill-engine",
+      "body": {
+        "key": "d100-skill-engine",
+        "ui_category": "foundation",
+        "exclusion_group": "skill_system_root",
+        "dependencies": [],
+        "definition": {
+          "name": "D100 Skill Engine",
+          "actions": {
+            "resolve_skill_check": {
+              "kind": "system_compute",
+              "logic": [
+                {
+                  "args": {
+                    "base": "@tier1_entity.active_skill_value",
+                    "modifier": "@tier2_global.difficulty_tiers.active_difficulty"
+                  },
+                  "step_id": "calc_target",
+                  "function": "math.add"
+                },
+                {
+                  "args": {
+                    "mode": "roll_under"
+                  },
+                  "step_id": "roll_dice",
+                  "function": "rng.roll"
+                },
+                {
+                  "args": {
+                    "roll": "@roll_dice.result",
+                    "target": "@calc_target.result",
+                    "crit_range": "@tier2_global.success_bands"
+                  },
+                  "step_id": "determine_outcome",
+                  "function": "resolution.compare"
+                }
+              ],
+              "trigger": {
+                "type": "request_match"
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas1_action_parser": {
+              "instructions": [
+                {
+                  "logic": "Map user verb to the most relevant Skill ID. If context implies difficulty (e.g. 'rusty lock'), apply Modifier from Difficulty Tiers.",
+                  "intent": "attempt_action"
+                }
+              ]
+            }
+          },
+          "exclusion_group": "skill_system_root",
+          "description_long": "Defines the physics of the world using a D100 Roll-Under system where 50 is the human average",
+          "description_short": "Defines the physics of the world using a D100 Roll-Under system where 50 is the human average",
+          "state_contributions": {
+            "tier2_system": {
+              "definitions": {
+                "success_bands": {
+                  "value": {
+                    "fumble_threshold": 96,
+                    "critical_threshold": 5
+                  },
+                  "description": "The static ranges for crit/fumble.",
+                  "context_priority": "system_hidden"
+                },
+                "difficulty_tiers": {
+                  "value": {
+                    "EASY": 20,
+                    "HARD": -20,
+                    "NORMAL": 0,
+                    "TRIVIAL": 40,
+                    "IMPOSSIBLE": -40
+                  },
+                  "description": "Modifiers applied to the base skill value.",
+                  "context_priority": "system_hidden"
+                }
+              },
+              "target_kind": [
+                "global_rules"
+              ]
+            }
+          }
+        },
+        "description_short": "Defines the physics of the world using a D100 Roll-Under system where 50 is the human average",
+        "description_long": "Defines the physics of the world using a D100 Roll-Under system where 50 is the human average"
+      },
+      "refs": [
+        {
+          "kind": "exclusion_group",
+          "owner_namespace": "first_party",
+          "key": "skill_system_root"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "needs-survival-basic",
+      "body": {
+        "key": "needs-survival-basic",
+        "ui_category": "foundation",
+        "exclusion_group": null,
+        "dependencies": [
+          "vitality-stamina-system",
+          "world-cycle-time-bands"
+        ],
+        "definition": {
+          "name": "Needs & Survival - Basic",
+          "actions": {
+            "consume_food": {
+              "kind": "player_initiated",
+              "logic": [
+                {
+                  "args": {
+                    "path": "tier1_entity.satiety",
+                    "amount": 40,
+                    "clamp_max": 100
+                  },
+                  "step_id": "restore_satiety",
+                  "function": "state.modify"
+                },
+                {
+                  "args": {
+                    "thresholds": {
+                      "0": "Starving",
+                      "30": "Hungry",
+                      "80": "Well Fed"
+                    },
+                    "output_path": "tier1_entity.hunger_state",
+                    "source_path": "tier1_entity.satiety"
+                  },
+                  "step_id": "update_state_after_food",
+                  "function": "logic.thresholds"
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "eat_action"
+              }
+            },
+            "apply_metabolic_decay": {
+              "kind": "system_compute",
+              "logic": [
+                {
+                  "args": {
+                    "map": {
+                      "scene": -2,
+                      "moment": 0,
+                      "journey": -40,
+                      "long_rest": -25,
+                      "short_rest": -5
+                    },
+                    "default": 0,
+                    "input_value": "input.duration_tag"
+                  },
+                  "step_id": "resolve_decay_amount",
+                  "function": "logic.map",
+                  "output_to": "decay_val"
+                },
+                {
+                  "args": {
+                    "path": "tier1_entity.satiety",
+                    "amount": "@resolve_decay_amount.result",
+                    "clamp_min": 0
+                  },
+                  "step_id": "apply_decay",
+                  "function": "state.modify"
+                },
+                {
+                  "args": {
+                    "thresholds": {
+                      "0": "Starving",
+                      "30": "Hungry",
+                      "80": "Well Fed"
+                    },
+                    "output_path": "tier1_entity.hunger_state",
+                    "source_path": "tier1_entity.satiety"
+                  },
+                  "step_id": "check_hunger_thresholds",
+                  "function": "logic.thresholds"
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "trigger_time_pass"
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [
+            "vitality-stamina-system",
+            "world-cycle-time-bands"
+          ],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.hunger_state",
+                  "label": "HUNGER"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "If [HUNGER] is 'Hungry' or 'Starving', the NPC must express a desire for food. If 'Starving', physical actions suffer (describe trembling/weakness).",
+                  "category": "behavior",
+                  "priority": 80,
+                  "unique_id": "need_voicing"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": "Decays Satiety when the AI signals that time has passed. Applies narrative tags for hunger states.",
+          "description_short": "Manages Hunger and Satiety based on AI-determined duration.",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "satiety": {
+                  "max": 100,
+                  "min": 0,
+                  "label": "Fullness",
+                  "control": "slider",
+                  "default": 80,
+                  "ui_step": "attributes",
+                  "ui_group": "Survival & Vitals",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 20
+                },
+                "current_stamina": {
+                  "max": 100,
+                  "min": 0,
+                  "label": "Initial Energy",
+                  "control": "slider",
+                  "default": 100,
+                  "ui_step": "attributes",
+                  "ui_group": "Survival & Vitals",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 20
+                }
+              },
+              "definitions": {
+                "satiety": {
+                  "value": 80,
+                  "description": "Metabolic fuel (0-100).",
+                  "context_priority": "engine_private"
+                },
+                "hunger_state": {
+                  "value": "Well Fed",
+                  "description": "Narrative condition regarding food.",
+                  "context_priority": "ai_visible"
+                }
+              }
+            }
+          }
+        },
+        "description_short": "Manages Hunger and Satiety based on AI-determined duration.",
+        "description_long": "Decays Satiety when the AI signals that time has passed. Applies narrative tags for hunger states."
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "vitality-stamina-system"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "world-cycle-time-bands"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "npc-personalities",
+      "body": {
+        "key": "npc-personalities",
+        "ui_category": "foundation",
+        "exclusion_group": null,
+        "dependencies": [],
+        "definition": {
+          "name": "NPC Personalities",
+          "actions": {
+            "add_personality_trait": {
+              "kind": "system_auto",
+              "logic": [
+                {
+                  "args": {
+                    "item": "New Trait",
+                    "path": "tier1_entity.core_traits",
+                    "operation": "add"
+                  },
+                  "step_id": "append_trait",
+                  "function": "state.list_op"
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "develop_character"
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.core_traits",
+                  "label": "CORE PERSONALITY"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "You must embody the archetypes listed in [CORE PERSONALITY]. If 'Lazy', avoid physical exertion in description. If 'Cruel', show lack of empathy.",
+                  "category": "tone",
+                  "priority": 90,
+                  "unique_id": "trait_enforcement"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": null,
+          "description_short": "Gives NPCs the foundation for deep personalities",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "core_traits": {
+                  "label": "Personality Archetypes",
+                  "control": "tag_list",
+                  "default": [],
+                  "ui_step": "personality",
+                  "ui_group": "Soul & Drive",
+                  "suggestions": [
+                    "Brave",
+                    "Cowardly",
+                    "Stoic",
+                    "Cruel",
+                    "Kind"
+                  ],
+                  "ui_step_priority": 30,
+                  "ui_group_priority": 10
+                }
+              },
+              "definitions": {
+                "core_traits": {
+                  "value": [
+                    "Neutral"
+                  ],
+                  "description": "The defining adjectives of the character.",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "npc",
+                "player"
+              ]
+            }
+          }
+        },
+        "description_short": "Gives NPCs the foundation for deep personalities",
+        "description_long": null
+      },
+      "refs": []
+    },
+    {
+      "kind": "ruleset",
+      "key": "npc-plot-drivers",
+      "body": {
+        "key": "npc-plot-drivers",
+        "ui_category": "expansion",
+        "exclusion_group": null,
+        "dependencies": [
+          "npc-personalities"
+        ],
+        "definition": {
+          "name": "NPC Plot Drivers",
+          "actions": {},
+          "ui_category": "expansion",
+          "dependencies": [
+            "npc-personalities"
+          ],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.plot_agenda",
+                  "label": "ACTIVE AGENDA"
+                },
+                {
+                  "path": "tier1_entity.agenda_urgency",
+                  "label": "AGENDA URGENCY"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "The NPC wants to achieve [ACTIVE AGENDA]. If [AGENDA URGENCY] is 'Demanding', they should interrupt unrelated actions to remind the player of the goal. If 'Passive', they only mention it if asked.",
+                  "category": "tone",
+                  "priority": 85,
+                  "unique_id": "agenda_pushing"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": "Gives NPCs specific narrative agendas. They will actively encourage the player to pursue these goals, functioning as organic quest givers.",
+          "description_short": "Plot directions encouraged by the NPCs the player surrounds themselves with",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "plot_agenda": {
+                  "label": "Narrative Goal / Quest",
+                  "control": "text_area",
+                  "default": "None",
+                  "ui_step": "personality",
+                  "ui_group": "Narrative Agenda",
+                  "ui_step_priority": 30,
+                  "ui_group_priority": 25
+                },
+                "agenda_urgency": {
+                  "label": "Urgency",
+                  "control": "dropdown",
+                  "default": "Passive",
+                  "options": [
+                    "Passive",
+                    "Suggestive",
+                    "Demanding",
+                    "Desperate"
+                  ],
+                  "ui_step": "personality",
+                  "ui_group": "Narrative Agenda",
+                  "ui_step_priority": 30,
+                  "ui_group_priority": 25
+                }
+              },
+              "definitions": {
+                "plot_agenda": {
+                  "value": "None",
+                  "description": "The specific task the NPC wants the player to accomplish.",
+                  "context_priority": "ai_visible"
+                },
+                "agenda_urgency": {
+                  "value": "Low",
+                  "description": "How pushy the NPC is about this goal.",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "npc"
+              ]
+            }
+          }
+        },
+        "description_short": "Plot directions encouraged by the NPCs the player surrounds themselves with",
+        "description_long": "Gives NPCs specific narrative agendas. They will actively encourage the player to pursue these goals, functioning as organic quest givers."
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-personalities"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "npc-preferences-phobias",
+      "body": {
+        "key": "npc-preferences-phobias",
+        "ui_category": "expansion",
+        "exclusion_group": null,
+        "dependencies": [
+          "npc-personalities"
+        ],
+        "definition": {
+          "name": "NPC Preferences & Phobias",
+          "actions": {
+            "detect_aversion_match": {
+              "kind": "system_auto",
+              "logic": [
+                {
+                  "args": {
+                    "path": "tier1_entity.emotional_valence",
+                    "amount": -15
+                  },
+                  "step_id": "damage_mood",
+                  "function": "state.modify",
+                  "conditions": [
+                    {
+                      "op": "contains_any",
+                      "left": "tier1_entity.aversion_triggers",
+                      "right": "input.keywords"
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "general_conversation"
+              }
+            },
+            "detect_interest_match": {
+              "kind": "system_auto",
+              "logic": [
+                {
+                  "args": {
+                    "path": "tier1_entity.emotional_valence",
+                    "amount": 10
+                  },
+                  "step_id": "boost_mood",
+                  "function": "state.modify",
+                  "conditions": [
+                    {
+                      "op": "contains_any",
+                      "left": "tier1_entity.interest_triggers",
+                      "right": "input.keywords"
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "general_conversation"
+              }
+            }
+          },
+          "ui_category": "expansion",
+          "dependencies": [
+            "npc-personalities"
+          ],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.interest_triggers",
+                  "label": "SUBJECTS OF FASCINATION"
+                },
+                {
+                  "path": "tier1_entity.aversion_triggers",
+                  "label": "SUBJECTS OF FEAR/DISGUST"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "If a topic in [SUBJECTS OF FASCINATION] is mentioned, the NPC becomes enthusiastic and talkative. If a topic in [SUBJECTS OF FEAR/DISGUST] is mentioned, the NPC becomes defensive, terse, or tries to leave.",
+                  "category": "tone",
+                  "priority": 75,
+                  "unique_id": "preference_reaction"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": "Defines specific topics, objects, or actions that trigger strong positive or negative emotional responses in the entity.",
+          "description_short": "Defines specific topics, objects, or actions that trigger strong positive or negative emotional responses in the entity.",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "aversion_triggers": {
+                  "label": "Dislikes / Phobias",
+                  "control": "tag_list",
+                  "default": [],
+                  "ui_step": "personality",
+                  "ui_group": "Quirks & Habits",
+                  "suggestions": [
+                    "Spiders",
+                    "Undead",
+                    "Rudeness"
+                  ],
+                  "ui_step_priority": 30,
+                  "ui_group_priority": 30
+                },
+                "interest_triggers": {
+                  "label": "Likes / Interests",
+                  "control": "tag_list",
+                  "default": [],
+                  "ui_step": "personality",
+                  "ui_group": "Quirks & Habits",
+                  "suggestions": [
+                    "History",
+                    "Gold",
+                    "Magic"
+                  ],
+                  "ui_step_priority": 30,
+                  "ui_group_priority": 30
+                }
+              },
+              "definitions": {
+                "aversion_triggers": {
+                  "value": [],
+                  "description": "Topics that cause fear, disgust, or anger.",
+                  "context_priority": "ai_visible"
+                },
+                "interest_triggers": {
+                  "value": [],
+                  "description": "Topics that improve mood and engagement.",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "npc"
+              ]
+            }
+          }
+        },
+        "description_short": "Defines specific topics, objects, or actions that trigger strong positive or negative emotional responses in the entity.",
+        "description_long": "Defines specific topics, objects, or actions that trigger strong positive or negative emotional responses in the entity."
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-personalities"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "npc-quirks-habits",
+      "body": {
+        "key": "npc-quirks-habits",
+        "ui_category": "expansion",
+        "exclusion_group": null,
+        "dependencies": [
+          "npc-personalities"
+        ],
+        "definition": {
+          "name": "NPC Quirks & Habits",
+          "actions": {
+            "filter_quirks_by_context": {
+              "kind": "system_auto",
+              "logic": [
+                {
+                  "args": {
+                    "path": "tier1_entity.active_quirks",
+                    "operation": "clear"
+                  },
+                  "step_id": "clear_active",
+                  "function": "state.list_op"
+                },
+                {
+                  "args": {
+                    "filter_key": "trigger_state",
+                    "source_list": "tier1_entity.quirk_registry",
+                    "target_list": "tier1_entity.active_quirks",
+                    "match_values": [
+                      "Always",
+                      "tier1_entity.emotional_label"
+                    ]
+                  },
+                  "step_id": "populate_active",
+                  "function": "logic.filter",
+                  "description": "Copies quirks to active_quirks IF their trigger matches 'Always' OR the current mood label."
+                }
+              ],
+              "trigger": {
+                "type": "stat_change",
+                "target": "tier1_entity.emotional_label"
+              }
+            }
+          },
+          "ui_category": "expansion",
+          "dependencies": [
+            "npc-personalities"
+          ],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.active_quirks",
+                  "label": "CURRENT VISIBLE MANNERISMS"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "You must incorporate the [CURRENT VISIBLE MANNERISMS] into the description of the character's actions immediately.",
+                  "category": "sensory",
+                  "priority": 70,
+                  "unique_id": "quirk_narration"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": "Adds behavioral flavor text that triggers only under specific conditions (e.g., Stress, Low Health, Lying).",
+          "description_short": "Adds behavioral flavor text that triggers only under specific conditions (e.g., Stress, Low Health, Lying).",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "quirk_registry": {
+                  "label": "Conditional Behaviors",
+                  "fields": [
+                    {
+                      "key": "behavior",
+                      "type": "text",
+                      "label": "Quirk"
+                    },
+                    {
+                      "key": "trigger_state",
+                      "type": "dropdown",
+                      "label": "Trigger",
+                      "options": [
+                        "Always",
+                        "Nervous",
+                        "Angry"
+                      ]
+                    }
+                  ],
+                  "control": "complex_list",
+                  "default": [],
+                  "ui_step": "personality",
+                  "ui_group": "Quirks & Habits",
+                  "ui_step_priority": 30,
+                  "ui_group_priority": 30
+                }
+              },
+              "definitions": {
+                "active_quirks": {
+                  "value": [],
+                  "description": "The subset of quirks currently relevant to the scene.",
+                  "context_priority": "ai_visible"
+                },
+                "quirk_registry": {
+                  "value": [],
+                  "description": "List of { behavior: string, trigger_state: string } objects.",
+                  "context_priority": "engine_private"
+                }
+              },
+              "target_kind": [
+                "npc"
+              ]
+            }
+          }
+        },
+        "description_short": "Adds behavioral flavor text that triggers only under specific conditions (e.g., Stress, Low Health, Lying).",
+        "description_long": "Adds behavioral flavor text that triggers only under specific conditions (e.g., Stress, Low Health, Lying)."
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-personalities"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "npc-relationships",
+      "body": {
+        "key": "npc-relationships",
+        "ui_category": "foundation",
+        "exclusion_group": null,
+        "dependencies": [],
+        "definition": {
+          "name": "NPC Relationships",
+          "target": "GLOBAL",
+          "actions": {
+            "run_context_spotlight": {
+              "kind": "system_auto",
+              "logic": [
+                {
+                  "args": {
+                    "path": "tier1_entity.current_interaction_context",
+                    "value": "None"
+                  },
+                  "step_id": "reset_context",
+                  "function": "state.set"
+                },
+                {
+                  "args": {
+                    "min_value": 8,
+                    "filter_key": "severity",
+                    "source_list": "tier1_entity.relationships.{target_id}.tags",
+                    "output_format": "object_list"
+                  },
+                  "step_id": "filter_high_severity",
+                  "function": "logic.filter",
+                  "output_to": "critical_memories"
+                },
+                {
+                  "args": {
+                    "path": "tier1_entity.current_interaction_context",
+                    "value": "REMEMBER: {critical_memories[0].origin} ({critical_memories[0].role})"
+                  },
+                  "step_id": "promote_most_recent",
+                  "function": "state.set",
+                  "conditions": [
+                    {
+                      "op": "is_not_empty",
+                      "left": "critical_memories",
+                      "right": true
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "general_interaction"
+              }
+            },
+            "check_intimacy_consent": {
+              "kind": "system_auto",
+              "logic": [
+                {
+                  "args": {
+                    "op": "or",
+                    "conditions": [
+                      {
+                        "op": "gte",
+                        "left": "tier1_entity.relationships.{target_id}.stats.romance",
+                        "right": 75
+                      },
+                      {
+                        "op": "contains_any",
+                        "left": "tier1_entity.relationships.{target_id}.tags.role",
+                        "right": [
+                          "Partner",
+                          "Lover",
+                          "Spouse"
+                        ]
+                      }
+                    ]
+                  },
+                  "step_id": "check_consent_thresholds",
+                  "function": "logic.boolean_eval",
+                  "output_to": "has_consent"
+                },
+                {
+                  "args": {
+                    "reason": "NPC pulls away. Intimacy requires higher Romance (>75) or established relationship."
+                  },
+                  "step_id": "block_action",
+                  "function": "state.stop",
+                  "conditions": [
+                    {
+                      "op": "eq",
+                      "left": "has_consent",
+                      "right": false
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "intimacy_action"
+              }
+            },
+            "apply_relationship_delta": {
+              "kind": "system_compute",
+              "logic": [
+                {
+                  "args": {
+                    "map": {
+                      "flirt": "desire",
+                      "betray": "trust",
+                      "insult": "respect",
+                      "confide": "trust",
+                      "compliment": "warmth"
+                    },
+                    "default": "warmth",
+                    "input_value": "input.verb"
+                  },
+                  "step_id": "map_stat_key",
+                  "function": "logic.map",
+                  "output_to": "target_stat"
+                },
+                {
+                  "args": {
+                    "map": {
+                      "flirt": 5,
+                      "betray": -50,
+                      "insult": -15,
+                      "confide": 10,
+                      "compliment": 5
+                    },
+                    "default": 0,
+                    "input_value": "input.verb"
+                  },
+                  "step_id": "map_val_amount",
+                  "function": "logic.map",
+                  "output_to": "delta_amount"
+                },
+                {
+                  "args": {
+                    "path": "tier1_entity.relationships.{target_id}.stats.{target_stat}",
+                    "amount": "@delta_amount",
+                    "clamp_max": 100,
+                    "clamp_min": 0
+                  },
+                  "step_id": "apply_delta",
+                  "function": "state.modify"
+                },
+                {
+                  "args": {
+                    "item": {
+                      "role": "Confidant",
+                      "origin": "High Trust",
+                      "severity": 5,
+                      "turn_added": "tier1_world.current_turn"
+                    },
+                    "path": "tier1_entity.relationships.{target_id}.tags",
+                    "operation": "add"
+                  },
+                  "step_id": "grant_confidant_tag",
+                  "function": "state.list_op",
+                  "conditions": [
+                    {
+                      "op": "gte",
+                      "left": "tier1_entity.relationships.{target_id}.stats.trust",
+                      "right": 80
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "social_action"
+              }
+            },
+            "propose_relationship_arc": {
+              "kind": "player_initiated",
+              "logic": [
+                {
+                  "args": {
+                    "thresholds": {
+                      "dating": {
+                        "trust": 50,
+                        "romance": 60
+                      },
+                      "alliance": {
+                        "trust": 70,
+                        "respect": 60
+                      }
+                    },
+                    "proposal_type": "input.proposal_type"
+                  },
+                  "step_id": "check_requirements",
+                  "function": "logic.complex_check",
+                  "output_to": "proposal_success"
+                },
+                {
+                  "args": {
+                    "item": {
+                      "role": "Partner",
+                      "origin": "Accepted proposal",
+                      "severity": 10
+                    },
+                    "path": "tier1_entity.relationships.{target_id}.tags",
+                    "operation": "add"
+                  },
+                  "step_id": "apply_partner_tag",
+                  "function": "state.list_op",
+                  "conditions": [
+                    {
+                      "op": "eq",
+                      "left": "proposal_success",
+                      "right": true
+                    }
+                  ]
+                },
+                {
+                  "args": {
+                    "item": {
+                      "role": "Rejected Suitor",
+                      "origin": "Failed proposal",
+                      "severity": 5
+                    },
+                    "path": "tier1_entity.relationships.{target_id}.tags",
+                    "operation": "add"
+                  },
+                  "step_id": "apply_rejection_tag",
+                  "function": "state.list_op",
+                  "conditions": [
+                    {
+                      "op": "eq",
+                      "left": "proposal_success",
+                      "right": false
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "relationship_proposal"
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.current_interaction_context",
+                  "label": "CRITICAL MEMORY SPOTLIGHT"
+                },
+                {
+                  "path": "tier1_entity.relationships.{target_id}.stats",
+                  "label": "RELATIONSHIP METRICS"
+                },
+                {
+                  "path": "tier1_entity.relationships.{target_id}.tags",
+                  "label": "RELATIONSHIP STATUS TAGS"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "Check [CRITICAL MEMORY SPOTLIGHT]. If it is not 'None', you MUST color your dialogue with this specific history. Do not explicitly recite the memory; allow it to dictate your emotional tone (e.g., Cold, Grateful).",
+                  "category": "tone",
+                  "priority": 100,
+                  "unique_id": "spotlight_enforcement"
+                },
+                {
+                  "content": "Review [RELATIONSHIP METRICS]. If 'Romance' > 70, use softer language and lingering glances. If 'Trust' < 30, be guarded and verify information. If 'Resentment' > 50, use passive-aggressive phrasing.",
+                  "category": "tone",
+                  "priority": 95,
+                  "unique_id": "affinity_enforcement"
+                }
+              ]
+            },
+            "mas1_interpreter": {
+              "intent_keywords": [
+                {
+                  "verb": "greet",
+                  "trigger_id": "general_interaction"
+                },
+                {
+                  "verb": "talk",
+                  "trigger_id": "general_interaction"
+                },
+                {
+                  "verb": "ask",
+                  "trigger_id": "general_interaction"
+                },
+                {
+                  "verb": "flirt",
+                  "trigger_id": "social_action"
+                },
+                {
+                  "verb": "compliment",
+                  "trigger_id": "social_action"
+                },
+                {
+                  "verb": "insult",
+                  "trigger_id": "social_action"
+                },
+                {
+                  "verb": "betray",
+                  "trigger_id": "social_action"
+                },
+                {
+                  "verb": "confide",
+                  "trigger_id": "social_action"
+                },
+                {
+                  "verb": "ask_out",
+                  "trigger_id": "relationship_proposal"
+                },
+                {
+                  "verb": "propose",
+                  "trigger_id": "relationship_proposal"
+                },
+                {
+                  "verb": "seduce",
+                  "trigger_id": "relationship_proposal"
+                },
+                {
+                  "verb": "kiss",
+                  "trigger_id": "intimacy_action"
+                },
+                {
+                  "verb": "touch",
+                  "trigger_id": "intimacy_action"
+                },
+                {
+                  "verb": "hug",
+                  "trigger_id": "intimacy_action"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": "Manages the relationship graph and mathematically determines the 'Active Context' for the AI based on tag severity.",
+          "description_short": "Manages the relationship graph and mathematically determines the 'Active Context' for the AI based on tag severity",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "relationships": {
+                  "label": "Relationship Graph",
+                  "control": "hidden"
+                }
+              },
+              "definitions": {
+                "relationships": {
+                  "value": {},
+                  "description": "Map: TargetID -> { stats: { trust: 50, warmth: 50, respect: 50, romance: 0, desire: 0, awe: 0, fear: 0, resentment: 0, suspicion: 0 }, tags: [] }",
+                  "context_priority": "engine_private"
+                },
+                "current_interaction_context": {
+                  "value": "None",
+                  "description": "The single most relevant context string promoted for this turn.",
+                  "context_priority": "ai_visible"
+                }
+              }
+            }
+          }
+        },
+        "description_short": "Manages the relationship graph and mathematically determines the 'Active Context' for the AI based on tag severity",
+        "description_long": "Manages the relationship graph and mathematically determines the 'Active Context' for the AI based on tag severity."
+      },
+      "refs": []
+    },
+    {
+      "kind": "ruleset",
+      "key": "npc-roles-background",
+      "body": {
+        "key": "npc-roles-background",
+        "ui_category": "expansion",
+        "exclusion_group": null,
+        "dependencies": [
+          "npc-personalities"
+        ],
+        "definition": {
+          "name": "NPC Roles & Background",
+          "actions": {},
+          "ui_category": "expansion",
+          "dependencies": [
+            "npc-personalities"
+          ],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.background_origin",
+                  "label": "SOCIAL ORIGIN"
+                },
+                {
+                  "path": "tier1_entity.occupation_tags",
+                  "label": "KNOWN SKILLS/ROLES"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "Assume the character possesses high competence and jargon knowledge related to their [KNOWN SKILLS/ROLES]. Adjust their vocabulary to match their [SOCIAL ORIGIN] (e.g., Highborn uses formal speech, Criminal uses slang).",
+                  "category": "tone",
+                  "priority": 60,
+                  "unique_id": "competence_display"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": "Provides context on the entity's past and profession. Affects their knowledge base, jargon, and social standing.",
+          "description_short": "Provides context on the entity's past and profession. Affects their knowledge base, jargon, and social standing.",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "occupation_tags": {
+                  "label": "Occupations / Roles",
+                  "control": "tag_list",
+                  "default": [],
+                  "ui_step": "identity",
+                  "ui_group": "Background & Origin",
+                  "suggestions": [
+                    "Soldier",
+                    "Merchant",
+                    "Thief",
+                    "Scholar"
+                  ],
+                  "ui_step_priority": 10,
+                  "ui_group_priority": 40
+                },
+                "background_origin": {
+                  "label": "Social Origin",
+                  "control": "dropdown",
+                  "default": "Commoner",
+                  "options": [
+                    "Noble",
+                    "Commoner",
+                    "Outlander",
+                    "Criminal",
+                    "Clergy"
+                  ],
+                  "ui_step": "identity",
+                  "ui_group": "Background & Origin",
+                  "ui_step_priority": 10,
+                  "ui_group_priority": 40
+                }
+              },
+              "definitions": {
+                "occupation_tags": {
+                  "value": [],
+                  "description": "Jobs or roles held (past and present).",
+                  "context_priority": "ai_visible"
+                },
+                "background_origin": {
+                  "value": "Commoner",
+                  "description": "Social class or place of origin.",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "npc",
+                "player"
+              ]
+            }
+          }
+        },
+        "description_short": "Provides context on the entity's past and profession. Affects their knowledge base, jargon, and social standing.",
+        "description_long": "Provides context on the entity's past and profession. Affects their knowledge base, jargon, and social standing."
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-personalities"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "npc-value-impact-tagging",
+      "body": {
+        "key": "npc-value-impact-tagging",
+        "ui_category": "expansion",
+        "exclusion_group": null,
+        "dependencies": [
+          "npc-values-motivations",
+          "npc-relationships"
+        ],
+        "definition": {
+          "name": "NPC Value Impact Tagging",
+          "actions": {
+            "commit_impact_to_memory": {
+              "kind": "system_auto",
+              "logic": [
+                {
+                  "args": {
+                    "list_a": "tier1_entity.core_values",
+                    "list_b": "input.violation_tags"
+                  },
+                  "step_id": "calc_conflict",
+                  "function": "logic.intersection",
+                  "output_to": "violated_value"
+                },
+                {
+                  "args": {
+                    "item": {
+                      "role": "Offender",
+                      "origin": "Player violated my value of {violated_value}",
+                      "severity": 10,
+                      "turn_added": "tier1_world.current_turn"
+                    },
+                    "path": "tier1_entity.relationships.{target_id}.tags",
+                    "operation": "add"
+                  },
+                  "step_id": "write_memory_tag",
+                  "function": "state.list_op",
+                  "conditions": [
+                    {
+                      "op": "neq",
+                      "left": "violated_value",
+                      "right": null
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "impact_event"
+              }
+            }
+          },
+          "ui_category": "expansion",
+          "dependencies": [
+            "npc-values-motivations",
+            "npc-relationships"
+          ],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "style_injections": [
+                {
+                  "content": "If the [CRITICAL MEMORY SPOTLIGHT] mentions a Value Violation (e.g., Honor, Safety), react with personal offense rather than generic anger.",
+                  "category": "mechanics",
+                  "priority": 90,
+                  "unique_id": "value_consistency"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": "Writes lasting relationship tags based on Value Conflicts (e.g., 'Violated Honor')",
+          "description_short": "Writes lasting relationship tags based on Value Conflicts (e.g., 'Violated Honor')",
+          "state_contributions": {}
+        },
+        "description_short": "Writes lasting relationship tags based on Value Conflicts (e.g., 'Violated Honor')",
+        "description_long": "Writes lasting relationship tags based on Value Conflicts (e.g., 'Violated Honor')"
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-values-motivations"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-relationships"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "npc-values-motivations",
+      "body": {
+        "key": "npc-values-motivations",
+        "ui_category": "expansion",
+        "exclusion_group": null,
+        "dependencies": [
+          "npc-personalities"
+        ],
+        "definition": {
+          "name": "NPC Values & Motivations",
+          "actions": {},
+          "ui_category": "expansion",
+          "dependencies": [
+            "npc-personalities"
+          ],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.core_values",
+                  "label": "MORAL COMPASS"
+                },
+                {
+                  "path": "tier1_entity.current_objective",
+                  "label": "CURRENT OBJECTIVE"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "The character MUST refuse requests that conflict with their [MORAL COMPASS]. They must actively steer conversation toward their [CURRENT OBJECTIVE].",
+                  "category": "mechanics",
+                  "priority": 85,
+                  "unique_id": "value_adherence"
+                }
+              ]
+            }
+          },
+          "exclusion_group": null,
+          "description_long": "Defines the moral compass and current objectives of the entity. These act as hard constraints on what the NPC is willing to do.",
+          "description_short": "Defines the moral compass and current objectives of the entity. These act as hard constraints on what the NPC is willing to do",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "core_values": {
+                  "label": "Core Values",
+                  "control": "tag_list",
+                  "default": [],
+                  "ui_step": "personality",
+                  "ui_group": "Moral Compass",
+                  "suggestions": [
+                    "Honor",
+                    "Wealth",
+                    "Family",
+                    "Power"
+                  ],
+                  "ui_step_priority": 30,
+                  "ui_group_priority": 20
+                },
+                "current_objective": {
+                  "label": "Current Goal",
+                  "control": "text_area",
+                  "default": "",
+                  "ui_step": "personality",
+                  "ui_group": "Moral Compass",
+                  "ui_step_priority": 30,
+                  "ui_group_priority": 20
+                }
+              },
+              "definitions": {
+                "core_values": {
+                  "value": [],
+                  "description": "Principles the NPC will not violate (e.g., 'Honor', 'Protect Children').",
+                  "context_priority": "ai_visible"
+                },
+                "current_objective": {
+                  "value": "Survive",
+                  "description": " The immediate goal driving the NPC's actions.",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "npc"
+              ]
+            }
+          }
+        },
+        "description_short": "Defines the moral compass and current objectives of the entity. These act as hard constraints on what the NPC is willing to do",
+        "description_long": "Defines the moral compass and current objectives of the entity. These act as hard constraints on what the NPC is willing to do."
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-personalities"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "stamina-based-magic",
+      "body": {
+        "key": "stamina-based-magic",
+        "ui_category": "foundation",
+        "exclusion_group": "magic_core",
+        "dependencies": [
+          "vitality-stamina-system",
+          "d100-5-pillars"
+        ],
+        "definition": {
+          "name": "Stamina-Based Magic",
+          "actions": {
+            "cast_spell": {
+              "kind": "player_initiated",
+              "logic": [
+                {
+                  "args": {
+                    "path": "tier1_entity.current_stamina",
+                    "amount": -25,
+                    "clamp_min": 0
+                  },
+                  "step_id": "deduct_cost",
+                  "function": "state.modify",
+                  "description": "Magic is heavy. Costs 25 Stamina (1/4 of tank)."
+                },
+                {
+                  "args": {
+                    "entity": "@request.actor_id",
+                    "skill_id": "@tier1_entity.casting_stat_id",
+                    "difficulty_mod": 0
+                  },
+                  "step_id": "resolve_skill",
+                  "function": "resolution.resolve",
+                  "description": "Uses the entity's preferred casting stat (defined in state) to control the energy."
+                },
+                {
+                  "args": {
+                    "thresholds": {
+                      "0": "Collapsed",
+                      "20": "Exhausted",
+                      "100": "Rested"
+                    },
+                    "output_path": "tier1_entity.physical_condition",
+                    "source_path": "tier1_entity.current_stamina"
+                  },
+                  "step_id": "trigger_exhaustion_check",
+                  "function": "logic.thresholds",
+                  "description": "Updates physical condition immediately after cast."
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "cast_magic"
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [
+            "vitality-stamina-system",
+            "d100-5-pillars"
+          ],
+          "provides_tags": [],
+          "ai_instructions": {
+            "tier1_entity": {
+              "form_hints": {
+                "casting_stat_id": {
+                  "label": "Magic Source Stat",
+                  "control": "dropdown",
+                  "options": [
+                    "root_insight",
+                    "root_force",
+                    "root_finesse",
+                    "root_awareness",
+                    "root_influence"
+                  ]
+                }
+              },
+              "definitions": {
+                "casting_stat_id": {
+                  "value": "root_insight",
+                  "description": "The ID of the stat used to resolve spellcasting.",
+                  "context_priority": "engine_private"
+                }
+              },
+              "target_kind": [
+                "npc",
+                "player"
+              ]
+            }
+          },
+          "exclusion_group": "magic_core",
+          "description_long": "Casting spells requires significant physical energy. Overcasting leads to exhaustion or collapse.",
+          "description_short": "Magic that drains physical stamina.",
+          "state_contributions": {}
+        },
+        "description_short": "Magic that drains physical stamina.",
+        "description_long": "Casting spells requires significant physical energy. Overcasting leads to exhaustion or collapse."
+      },
+      "refs": [
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "vitality-stamina-system"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "d100-5-pillars"
+        },
+        {
+          "kind": "exclusion_group",
+          "owner_namespace": "first_party",
+          "key": "magic_core"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "vitality-stamina-system",
+      "body": {
+        "key": "vitality-stamina-system",
+        "ui_category": "foundation",
+        "exclusion_group": "vitality_core",
+        "dependencies": [],
+        "definition": {
+          "name": "Vitality & Stamina System",
+          "target": "GLOBAL",
+          "actions": {
+            "take_rest": {
+              "kind": "player_initiated",
+              "logic": [
+                {
+                  "args": {
+                    "path": "tier1_world.current_tick",
+                    "amount": 20
+                  },
+                  "step_id": "advance_time",
+                  "function": "state.modify",
+                  "description": "Advances the world clock (0-24 scale). Engine handles wrap-around."
+                },
+                {
+                  "args": {
+                    "path": "tier1_entity.current_stamina",
+                    "value": 100
+                  },
+                  "step_id": "restore_stamina",
+                  "function": "state.modify"
+                },
+                {
+                  "args": {
+                    "path": "tier1_entity.satiety",
+                    "amount": -25
+                  },
+                  "step_id": "decay_needs",
+                  "function": "state.modify",
+                  "description": "Cross-System: Decays satiety if Needs system is present. Ignored if not."
+                },
+                {
+                  "args": {
+                    "path": "tier1_entity.physical_condition",
+                    "value": "Rested"
+                  },
+                  "step_id": "set_condition",
+                  "function": "state.set"
+                },
+                {
+                  "args": {
+                    "path": "tier1_world.narrative.atmosphere",
+                    "value": "Peaceful"
+                  },
+                  "step_id": "reset_atmosphere",
+                  "function": "state.set"
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "rest_action"
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.physical_condition",
+                  "label": "PHYSICAL CONDITION"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "If [PHYSICAL CONDITION] is 'Exhausted' or 'Collapsed', NPCs must urge the player to stop. Narration should describe heavy limbs and stumbling.",
+                  "category": "sensory",
+                  "priority": 90,
+                  "unique_id": "fatigue_narration"
+                }
+              ]
+            },
+            "mas1_interpreter": {
+              "instructions": [
+                {
+                  "logic": "Check [PHYSICAL CONDITION]. If it is 'Collapsed', REJECT any intent to 'travel', 'fight', or 'explore'. Force the intent to 'struggle_and_fail' or 'rest_action' only.",
+                  "intent": "enforce_collapse_state"
+                }
+              ],
+              "intent_keywords": [
+                {
+                  "verb": "rest",
+                  "trigger_id": "rest_action"
+                },
+                {
+                  "verb": "camp",
+                  "trigger_id": "rest_action"
+                },
+                {
+                  "verb": "sleep",
+                  "trigger_id": "rest_action"
+                }
+              ]
+            }
+          },
+          "exclusion_group": "vitality_core",
+          "description_long": null,
+          "description_short": "Tracks physical energy. Enforces resting mechanics and pacing through exhaustion penalties",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "satiety": {
+                  "max": 100,
+                  "min": 0,
+                  "label": "Fullness",
+                  "control": "slider",
+                  "default": 80,
+                  "ui_step": "attributes",
+                  "ui_group": "Survival & Vitals",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 20
+                },
+                "current_stamina": {
+                  "max": 100,
+                  "min": 0,
+                  "label": "Initial Energy",
+                  "control": "slider",
+                  "default": 100,
+                  "ui_step": "attributes",
+                  "ui_group": "Survival & Vitals",
+                  "ui_step_priority": 20,
+                  "ui_group_priority": 20
+                }
+              },
+              "definitions": {
+                "current_stamina": {
+                  "value": 100,
+                  "context_priority": "engine_private"
+                },
+                "physical_condition": {
+                  "value": "Rested",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "player",
+                "npc"
+              ]
+            }
+          }
+        },
+        "description_short": "Tracks physical energy. Enforces resting mechanics and pacing through exhaustion penalties",
+        "description_long": null
+      },
+      "refs": [
+        {
+          "kind": "exclusion_group",
+          "owner_namespace": "first_party",
+          "key": "vitality_core"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "wealth-capability-lite",
+      "body": {
+        "key": "wealth-capability-lite",
+        "ui_category": "foundation",
+        "exclusion_group": "capability_core",
+        "dependencies": [],
+        "definition": {
+          "name": "Wealth & Capability Lite",
+          "actions": {
+            "check_affordability": {
+              "kind": "system_auto",
+              "logic": [
+                {
+                  "args": {
+                    "actor_mod": 0,
+                    "actor_stat": "tier1_entity.wealth_tier",
+                    "target_mod": 0,
+                    "target_stat": "input.cost_tier"
+                  },
+                  "step_id": "compare_wealth",
+                  "function": "resolution.contest",
+                  "output_to": "purchase_result"
+                },
+                {
+                  "args": {
+                    "reason": "You cannot afford this lifestyle."
+                  },
+                  "step_id": "deny_purchase",
+                  "function": "state.stop",
+                  "conditions": [
+                    {
+                      "op": "eq",
+                      "left": "purchase_result",
+                      "right": "target_win"
+                    }
+                  ]
+                }
+              ],
+              "trigger": {
+                "type": "intent_match",
+                "keyword_id": "purchase_attempt"
+              }
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_entity.archetype_loadout",
+                  "label": "VISIBLE GEAR"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "Do not list inventory. Instead, describe the character's appearance based on [VISIBLE GEAR]. If 'Heavy Infantry', mention clanking steel. If 'Rogue', mention concealed blades.",
+                  "category": "sensory",
+                  "priority": 80,
+                  "unique_id": "loadout_rendering"
+                }
+              ]
+            }
+          },
+          "exclusion_group": "capability_core",
+          "description_long": "Replaces Inventory and Economy with abstract Tags. Defines what a character 'has' based on who they 'are'",
+          "description_short": "Replaces Inventory and Economy with abstract Tags. Defines what a character 'has' based on who they 'are'",
+          "state_contributions": {
+            "tier1_entity": {
+              "form_hints": {
+                "wealth_tier": {
+                  "max": 4,
+                  "min": 0,
+                  "label": "Wealth Level",
+                  "control": "slider",
+                  "default": 1,
+                  "ui_step": "identity",
+                  "ui_group": "Social Status",
+                  "ui_step_priority": 10,
+                  "ui_group_priority": 30
+                },
+                "archetype_loadout": {
+                  "label": "Combat Loadout",
+                  "control": "dropdown",
+                  "default": "Civilian",
+                  "options": [
+                    "Civilian",
+                    "Light Skirmisher",
+                    "Heavy Infantry",
+                    "Mage",
+                    "Rogue"
+                  ],
+                  "ui_step": "identity",
+                  "ui_group": "Social Status",
+                  "ui_step_priority": 10,
+                  "ui_group_priority": 30
+                }
+              },
+              "definitions": {
+                "wealth_tier": {
+                  "value": 1,
+                  "description": "Economic power (0=Destitute, 1=Struggling, 2=Comfortable, 3=Wealthy, 4=Aristocrat).",
+                  "context_priority": "engine_private"
+                },
+                "archetype_loadout": {
+                  "value": "Civilian",
+                  "description": "Implied gear (e.g., 'Heavy Infantry' implies armor).",
+                  "context_priority": "ai_visible"
+                }
+              },
+              "target_kind": [
+                "player",
+                "npc"
+              ]
+            }
+          }
+        },
+        "description_short": "Replaces Inventory and Economy with abstract Tags. Defines what a character 'has' based on who they 'are'",
+        "description_long": "Replaces Inventory and Economy with abstract Tags. Defines what a character 'has' based on who they 'are'"
+      },
+      "refs": [
+        {
+          "kind": "exclusion_group",
+          "owner_namespace": "first_party",
+          "key": "capability_core"
+        }
+      ]
+    },
+    {
+      "kind": "ruleset",
+      "key": "world-cycle-time-bands",
+      "body": {
+        "key": "world-cycle-time-bands",
+        "ui_category": "foundation",
+        "exclusion_group": "time_core",
+        "dependencies": [],
+        "definition": {
+          "name": "World Cycle & Time Bands",
+          "actions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_world.time_band",
+                  "label": "TIME OF DAY"
+                },
+                {
+                  "path": "tier1_world.current_tick",
+                  "label": "CLOCK TICK (0-24)"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "Use [TIME OF DAY] to strictly dictate lighting and NPC activity levels. 'High Noon' is bright/active. 'Deep Night' is dark/quiet/dangerous. 'Pre-Dawn' is foggy/cold.",
+                  "category": "sensory",
+                  "priority": 95,
+                  "unique_id": "temporal_grounding"
+                }
+              ]
+            },
+            "mas1_interpreter": {
+              "instructions": [
+                {
+                  "logic": "If action implies time passing, attach 'duration_tag'. 'moment' (0h), 'scene' (1h), 'short_rest' (1h), 'long_rest' (8h), 'journey' (4h).",
+                  "intent": "analyze_duration"
+                }
+              ],
+              "intent_keywords": [
+                {
+                  "verb": "wait",
+                  "trigger_id": "trigger_time_pass"
+                },
+                {
+                  "verb": "sleep",
+                  "trigger_id": "trigger_time_pass"
+                },
+                {
+                  "verb": "travel",
+                  "trigger_id": "trigger_time_pass"
+                },
+                {
+                  "verb": "explore",
+                  "trigger_id": "trigger_time_pass"
+                }
+              ]
+            }
+          },
+          "ui_category": "foundation",
+          "dependencies": [],
+          "provides_tags": [],
+          "ai_instructions": {
+            "mas2_narrator": {
+              "state_readouts": [
+                {
+                  "path": "tier1_world.time_band",
+                  "label": "TIME OF DAY"
+                }
+              ],
+              "style_injections": [
+                {
+                  "content": "Use [TIME OF DAY] to color the description. 'Deep Night' implies stealth/danger. 'Midday' implies bustle/heat.",
+                  "category": "sensory",
+                  "priority": 95,
+                  "unique_id": "temporal_grounding"
+                }
+              ]
+            },
+            "mas1_interpreter": {
+              "instructions": [
+                {
+                  "logic": "If the user's action implies time passing, you MUST attach a 'duration_tag' parameter. 'moment' (Talking/Fighting), 'scene' (Searching a room), 'short_rest' (Eating/Bandaging), 'long_rest' (Sleeping), 'journey' (Travel).",
+                  "intent": "analyze_duration"
+                }
+              ],
+              "intent_keywords": [
+                {
+                  "verb": "wait",
+                  "trigger_id": "trigger_time_pass"
+                },
+                {
+                  "verb": "sleep",
+                  "trigger_id": "trigger_time_pass"
+                },
+                {
+                  "verb": "travel",
+                  "trigger_id": "trigger_time_pass"
+                },
+                {
+                  "verb": "explore",
+                  "trigger_id": "trigger_time_pass"
+                }
+              ]
+            }
+          },
+          "exclusion_group": "time_core",
+          "description_long": "The AI determines if an action is a 'Moment', 'Scene', or 'Journey'. The engine advances the clock accordingly.",
+          "description_short": "AI-driven time tracking. Converts narrative duration into world ticks.",
+          "state_contributions": {
+            "tier1_world": {
+              "definitions": {
+                "time_band": {
+                  "value": "Early Morning",
+                  "description": "Narrative phase of the day (e.g. High Noon, Deep Night).",
+                  "context_priority": "ai_visible"
+                },
+                "current_tick": {
+                  "value": 7,
+                  "description": "Abstract time unit (0-24).",
+                  "context_priority": "engine_private"
+                }
+              }
+            }
+          }
+        },
+        "description_short": "AI-driven time tracking. Converts narrative duration into world ticks.",
+        "description_long": "The AI determines if an action is a 'Moment', 'Scene', or 'Journey'. The engine advances the clock accordingly."
+      },
+      "refs": [
+        {
+          "kind": "exclusion_group",
+          "owner_namespace": "first_party",
+          "key": "time_core"
+        }
+      ]
+    }
+  ]
+}

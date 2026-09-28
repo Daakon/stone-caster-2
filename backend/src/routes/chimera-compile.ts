@@ -8,11 +8,9 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { getChimeraSupabaseClient } from '../db/supabase-client.js';
 import { supabaseAdmin } from '../services/supabase.js';
-import { RulesetsRepository } from '../db/repos/rulesets.repo.js';
-import { WorldsRepository } from '../db/repos/worlds.repo.js';
-import { EntitiesRepository } from '../db/repos/entities.repo.js';
+import { ContentCatalogRepository } from '../db/repos/content-catalog.repo.js';
 import { CompiledStoriesRepository } from '../db/repos/compiled-stories.repo.js';
-import { CompilerService } from '../services/compile/compiler.service.js';
+import { FrozenContentCompileService } from '../services/compile/frozen-content-compile.service.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared/types/api.js';
 import { requireAuth } from '../middleware/auth.unified.js';
@@ -23,10 +21,17 @@ const router = Router();
 router.use(requireAuth);
 
 // Request body validation schema
+const ContentKeyRefSchema = z.object({
+  kind:z.string().min(1),
+  owner_namespace:z.literal('first_party'),
+  key:z.string().min(1).max(160),
+});
 const CompileSelectionSchema = z.object({
-  worldId: z.string().uuid(),
-  rulesetIds: z.array(z.string()).min(1, 'At least one ruleset is required'),
-  entityIds: z.array(z.string().uuid()).default([]),
+  world: ContentKeyRefSchema.extend({kind:z.literal('world')}),
+  rulesets:z.array(ContentKeyRefSchema.extend({kind:z.literal('ruleset')})).default([]),
+  entities:z.array(ContentKeyRefSchema.extend({kind:z.literal('entity')})).default([]),
+  lore:z.array(ContentKeyRefSchema.extend({kind:z.literal('lore')})).optional(),
+  title:z.string().trim().max(200).optional(),
 });
 
 /**
@@ -41,18 +46,9 @@ router.post('/', async (req: Request, res: Response) => {
     const supabase = getChimeraSupabaseClient(req);
 
     // Initialize repositories
-    const rulesetsRepo = new RulesetsRepository(supabase);
-    const worldsRepo = new WorldsRepository(supabase);
-    const entitiesRepo = new EntitiesRepository(supabase);
+    const contentRepo = new ContentCatalogRepository(supabase);
     const compiledStoriesRepo = new CompiledStoriesRepository(supabase);
-
-    // Initialize compiler service
-    const compilerService = new CompilerService(
-      rulesetsRepo,
-      worldsRepo,
-      entitiesRepo,
-      compiledStoriesRepo
-    );
+    const compilerService = new FrozenContentCompileService(contentRepo, compiledStoriesRepo);
 
     // Compile the story
     const compiledStoryId = await compilerService.compile(validated);
@@ -230,4 +226,3 @@ router.get('/:storyId/manifest', async (req: Request, res: Response) => {
 });
 
 export default router;
-

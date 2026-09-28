@@ -1,0 +1,333 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "exclusion_group",
+      "key": "capability_core",
+      "body": {
+        "key": "capability_core"
+      },
+      "refs": []
+    },
+    {
+      "kind": "exclusion_group",
+      "key": "combat_core",
+      "body": {
+        "key": "combat_core"
+      },
+      "refs": []
+    },
+    {
+      "kind": "exclusion_group",
+      "key": "magic_core",
+      "body": {
+        "key": "magic_core"
+      },
+      "refs": []
+    },
+    {
+      "kind": "exclusion_group",
+      "key": "skill_system_root",
+      "body": {
+        "key": "skill_system_root"
+      },
+      "refs": []
+    },
+    {
+      "kind": "exclusion_group",
+      "key": "time_core",
+      "body": {
+        "key": "time_core"
+      },
+      "refs": []
+    },
+    {
+      "kind": "exclusion_group",
+      "key": "vitality_core",
+      "body": {
+        "key": "vitality_core"
+      },
+      "refs": []
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:needs-survival-basic",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "needs-survival-basic"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "needs-survival-basic"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:stamina-based-magic",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "stamina-based-magic"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "stamina-based-magic"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:d100-5-pillars",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "d100-5-pillars"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "d100-5-pillars"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:cinematic-combat-lite",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "cinematic-combat-lite"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "cinematic-combat-lite"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:world-cycle-time-bands",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "world-cycle-time-bands"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "world-cycle-time-bands"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:vitality-stamina-system",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "vitality-stamina-system"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "vitality-stamina-system"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:npc-relationships",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "npc-relationships"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-relationships"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:npc-values-motivations",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "npc-values-motivations"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-values-motivations"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:npc-value-impact-tagging",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "npc-value-impact-tagging"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-value-impact-tagging"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:npc-roles-background",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "npc-roles-background"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-roles-background"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:npc-quirks-habits",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "npc-quirks-habits"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-quirks-habits"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:npc-preferences-phobias",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "npc-preferences-phobias"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-preferences-phobias"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:npc-plot-drivers",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "npc-plot-drivers"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-plot-drivers"
+        }
+      ]
+    },
+    {
+      "kind": "world_ruleset_link",
+      "key": "mystika:npc-personalities",
+      "body": {
+        "world_key": "mystika",
+        "ruleset_key": "npc-personalities"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "ruleset",
+          "owner_namespace": "first_party",
+          "key": "npc-personalities"
+        }
+      ]
+    }
+  ]
+}

@@ -51,6 +51,21 @@ The premade table returned these fields: `archetype_key`, `avatar_url`, `base_tr
 
 Exact world-key check: `veloria` absent; `whispercross` absent; `aetherium` absent; `noctis-veil` absent; `paragon-city` absent. There are 2 worlds total, below the approximately ten-world threshold.
 
+## First-party content selected for the repo catalog
+
+A follow-up read-only payload fetch at 2026-09-27 20:52 UTC repeated `GET /rest/v1/chimera_worlds?select=*`, `chimera_entities?select=*`, and `chimera_lore?select=*`. It used the known admin owner ID and row keys to select sanitized content fields locally; the hosted database was not changed.
+
+- Worlds: `mystika` and private admin-owned `test`.
+- Entities: the five checked-in Mystika entities plus admin-owned `d-d` and `daakon` (both relate to `mystika`).
+- Lore: the four checked-in Mystika rows plus admin-owned titled rows “The Fracture of the White Spire”, “The Whispering canyon”, and “The Ironbound Pact” on `test`.
+- Premades: `elven-court-guardian` and `veil-touched-mage` retain `world_key: mystika`; stale `world_id` values are omitted. The five absent-world premades in the table above are omitted.
+
+These confirmed rows are represented under `content/first-party/` and sync with `release_state: internal`. Legacy database IDs, timestamps, owner fields, and visibility flags are not authored references.
+
 ## Inclusion hold
 
-Four private lore rows linked to the private `test` world have SQL `NULL` ownership and no display title: `3b78256b-8ee8-406f-afd5-43016369b824`, `43e801bc-bb8c-496b-8719-f43ac55a188a`, `16c1f374-180f-4cc0-b774-4bc9f4fcfc78`, and `5c364089-f5e7-4348-b573-dd6cba57e4ee`. The other private world/entity/lore rows are owned by the admin/moderator account. The null-owner lore is held out pending owner confirmation; no hosted content has been written and no repo payload has yet been changed.
+Four private lore rows linked to the private `test` world have SQL `NULL` ownership and no display title: `3b78256b-8ee8-406f-afd5-43016369b824`, `43e801bc-bb8c-496b-8719-f43ac55a188a`, `16c1f374-180f-4cc0-b774-4bc9f4fcfc78`, and `5c364089-f5e7-4348-b573-dd6cba57e4ee`. They remain excluded pending owner confirmation; no hosted content has been written.
+
+## Unresolved legacy AWF graph references
+
+A separate read-only GET check at 2026-09-27 20:47 UTC for `adventures` and `worlds` returned PostgREST `PGRST205` for both relations; neither is exposed by the hosted project. The checked-in `dialogue_graphs` rows reference `world.forest_glade` and `adv.herbal_journey`, and the checked-in `quest_graphs` row references `whispercross` as an adventure. Those keys do not map to any hosted Chimera world row or checked-in adventure source. No placeholder world or adventure was created. These graph rows are held out of the initial first-party bundle until their reference treatment is confirmed.

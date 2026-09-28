@@ -831,6 +831,13 @@ router.post(
 
       const { id: storyId } = req.params;
 
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'UUID-based story rebuild is retired; compile with stable ContentKeyRef values through POST /api/chimera/compile.',
+        req
+      );
+
       // Use the rebuild service to compile the story
       // Use the V3 Compiler Service
       // Update story configuration with new entity IDs if provided
@@ -1318,6 +1325,13 @@ router.post(
         return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'Authentication required', req);
       }
       const { id } = req.params;
+
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        'UUID-based story binding is retired; compile with stable ContentKeyRef values through POST /api/chimera/compile.',
+        req
+      );
 
       // Ownership check
       const { data: story, error } = await supabaseAdmin

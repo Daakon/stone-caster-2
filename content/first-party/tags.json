@@ -1,0 +1,425 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "tag",
+      "key": "air",
+      "body": {
+        "key": "air",
+        "tag_name": "AIR",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "antagonist",
+      "body": {
+        "key": "antagonist",
+        "tag_name": "ANTAGONIST",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "arcane",
+      "body": {
+        "key": "arcane",
+        "tag_name": "ARCANE",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "atmosphere",
+      "body": {
+        "key": "atmosphere",
+        "tag_name": "ATMOSPHERE",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "biology",
+      "body": {
+        "key": "biology",
+        "tag_name": "BIOLOGY",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "black-jaguar",
+      "body": {
+        "key": "black-jaguar",
+        "tag_name": "BLACK_JAGUAR",
+        "is_approved": true
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "dwarf",
+      "body": {
+        "key": "dwarf",
+        "tag_name": "DWARF",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "earth",
+      "body": {
+        "key": "earth",
+        "tag_name": "EARTH",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "economy",
+      "body": {
+        "key": "economy",
+        "tag_name": "ECONOMY",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "elemental",
+      "body": {
+        "key": "elemental",
+        "tag_name": "ELEMENTAL",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "elf",
+      "body": {
+        "key": "elf",
+        "tag_name": "ELF",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "faction",
+      "body": {
+        "key": "faction",
+        "tag_name": "FACTION",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "fantasy",
+      "body": {
+        "key": "fantasy",
+        "tag_name": "FANTASY",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "female",
+      "body": {
+        "key": "female",
+        "tag_name": "FEMALE",
+        "is_approved": true
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "fire",
+      "body": {
+        "key": "fire",
+        "tag_name": "FIRE",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "forest",
+      "body": {
+        "key": "forest",
+        "tag_name": "FOREST",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "geography",
+      "body": {
+        "key": "geography",
+        "tag_name": "GEOGRAPHY",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "guide",
+      "body": {
+        "key": "guide",
+        "tag_name": "GUIDE",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "hub",
+      "body": {
+        "key": "hub",
+        "tag_name": "HUB",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "leader",
+      "body": {
+        "key": "leader",
+        "tag_name": "LEADER",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "location",
+      "body": {
+        "key": "location",
+        "tag_name": "LOCATION",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "mage",
+      "body": {
+        "key": "mage",
+        "tag_name": "MAGE",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "magic",
+      "body": {
+        "key": "magic",
+        "tag_name": "MAGIC",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "mechanics",
+      "body": {
+        "key": "mechanics",
+        "tag_name": "MECHANICS",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "place",
+      "body": {
+        "key": "place",
+        "tag_name": "PLACE",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "politics",
+      "body": {
+        "key": "politics",
+        "tag_name": "POLITICS",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "rules",
+      "body": {
+        "key": "rules",
+        "tag_name": "RULES",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "safe-zone",
+      "body": {
+        "key": "safe-zone",
+        "tag_name": "SAFE_ZONE",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "scholar",
+      "body": {
+        "key": "scholar",
+        "tag_name": "SCHOLAR",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "scout",
+      "body": {
+        "key": "scout",
+        "tag_name": "SCOUT",
+        "is_approved": true
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "shifter",
+      "body": {
+        "key": "shifter",
+        "tag_name": "SHIFTER",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "slavers",
+      "body": {
+        "key": "slavers",
+        "tag_name": "SLAVERS",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "slavery",
+      "body": {
+        "key": "slavery",
+        "tag_name": "SLAVERY",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "slaves",
+      "body": {
+        "key": "slaves",
+        "tag_name": "SLAVES",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "species",
+      "body": {
+        "key": "species",
+        "tag_name": "SPECIES",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "tank",
+      "body": {
+        "key": "tank",
+        "tag_name": "TANK",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "time",
+      "body": {
+        "key": "time",
+        "tag_name": "TIME",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "trade",
+      "body": {
+        "key": "trade",
+        "tag_name": "TRADE",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "void",
+      "body": {
+        "key": "void",
+        "tag_name": "VOID",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "water",
+      "body": {
+        "key": "water",
+        "tag_name": "WATER",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "weather",
+      "body": {
+        "key": "weather",
+        "tag_name": "WEATHER",
+        "is_approved": false
+      },
+      "refs": []
+    },
+    {
+      "kind": "tag",
+      "key": "whispercross",
+      "body": {
+        "key": "whispercross",
+        "tag_name": "WHISPERCROSS",
+        "is_approved": false
+      },
+      "refs": []
+    }
+  ]
+}

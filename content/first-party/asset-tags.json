@@ -1,0 +1,194 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "asset_tag",
+      "key": "entity:kiera:shifter",
+      "body": {
+        "asset_kind": "entity",
+        "asset_key": "kiera",
+        "tag_key": "shifter"
+      },
+      "refs": [
+        {
+          "kind": "entity",
+          "owner_namespace": "first_party",
+          "key": "kiera"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "shifter"
+        }
+      ]
+    },
+    {
+      "kind": "asset_tag",
+      "key": "world:mystika:shifter",
+      "body": {
+        "asset_kind": "world",
+        "asset_key": "mystika",
+        "tag_key": "shifter"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "shifter"
+        }
+      ]
+    },
+    {
+      "kind": "asset_tag",
+      "key": "entity:kiera:female",
+      "body": {
+        "asset_kind": "entity",
+        "asset_key": "kiera",
+        "tag_key": "female"
+      },
+      "refs": [
+        {
+          "kind": "entity",
+          "owner_namespace": "first_party",
+          "key": "kiera"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "female"
+        }
+      ]
+    },
+    {
+      "kind": "asset_tag",
+      "key": "world:mystika:elf",
+      "body": {
+        "asset_kind": "world",
+        "asset_key": "mystika",
+        "tag_key": "elf"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "elf"
+        }
+      ]
+    },
+    {
+      "kind": "asset_tag",
+      "key": "entity:kiera:black-jaguar",
+      "body": {
+        "asset_kind": "entity",
+        "asset_key": "kiera",
+        "tag_key": "black-jaguar"
+      },
+      "refs": [
+        {
+          "kind": "entity",
+          "owner_namespace": "first_party",
+          "key": "kiera"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "black-jaguar"
+        }
+      ]
+    },
+    {
+      "kind": "asset_tag",
+      "key": "world:mystika:magic",
+      "body": {
+        "asset_kind": "world",
+        "asset_key": "mystika",
+        "tag_key": "magic"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "magic"
+        }
+      ]
+    },
+    {
+      "kind": "asset_tag",
+      "key": "world:mystika:dwarf",
+      "body": {
+        "asset_kind": "world",
+        "asset_key": "mystika",
+        "tag_key": "dwarf"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "dwarf"
+        }
+      ]
+    },
+    {
+      "kind": "asset_tag",
+      "key": "entity:kiera:scout",
+      "body": {
+        "asset_kind": "entity",
+        "asset_key": "kiera",
+        "tag_key": "scout"
+      },
+      "refs": [
+        {
+          "kind": "entity",
+          "owner_namespace": "first_party",
+          "key": "kiera"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "scout"
+        }
+      ]
+    },
+    {
+      "kind": "asset_tag",
+      "key": "world:mystika:fantasy",
+      "body": {
+        "asset_kind": "world",
+        "asset_key": "mystika",
+        "tag_key": "fantasy"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        },
+        {
+          "kind": "tag",
+          "owner_namespace": "first_party",
+          "key": "fantasy"
+        }
+      ]
+    }
+  ]
+}

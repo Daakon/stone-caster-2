@@ -1,0 +1,84 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "injection_map",
+      "key": "default",
+      "body": {
+        "doc": {
+          "build": {
+            "contract": {
+              "from": "core_contracts.active.doc.contract"
+            },
+            "input_text": {
+              "from": "input.text"
+            },
+            "world_meta": {
+              "from": "worlds[{session.world_ref}].doc"
+            },
+            "core_scales": {
+              "from": "core_contracts.active.doc.core.scales"
+            },
+            "meta_locale": {
+              "from": "session.locale"
+            },
+            "npcs_active": {
+              "from": "npcs.active"
+            },
+            "player_data": {
+              "from": "player_profiles[{session.player_id}].doc"
+            },
+            "core_budgets": {
+              "from": "core_contracts.active.doc.core.budgets",
+              "fallback": {
+                "ifMissing": {
+                  "input_max_tokens": 6000,
+                  "output_max_tokens": 1200
+                }
+              }
+            },
+            "core_ruleset": {
+              "from": "core_rulesets[{session.meta.ruleset_ref}].doc.ruleset"
+            },
+            "meta_turn_id": {
+              "from": "session.turn_id"
+            },
+            "adventure_meta": {
+              "from": "adventures[{session.adventure_ref}].doc"
+            },
+            "game_state_hot": {
+              "from": "game_states[{session.session_id}].hot"
+            },
+            "game_state_cold": {
+              "from": "game_states[{session.session_id}].cold"
+            },
+            "game_state_warm": {
+              "from": "game_states[{session.session_id}].warm"
+            },
+            "core_acts_catalog": {
+              "from": "core_contracts.active.doc.core.acts_catalog"
+            },
+            "meta_is_first_turn": {
+              "from": "session.is_first_turn"
+            }
+          }
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "dialogue_config",
+      "key": "default",
+      "body": {
+        "module_mode": "full",
+        "max_tokens": 220,
+        "max_candidates": 3,
+        "romance_enabled": true,
+        "romance_min_trust": 65,
+        "romance_cooldown_turns": 3,
+        "safety_explicit_block": true
+      },
+      "refs": []
+    }
+  ]
+}
