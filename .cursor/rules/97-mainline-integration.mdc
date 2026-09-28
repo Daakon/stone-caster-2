@@ -1,0 +1,12 @@
+---
+description: Merge completed task branches into main before starting the next branch.
+alwaysApply: true
+---
+
+# Mainline branch handoff
+
+- Create each new task branch from the current local `main`.
+- Finish, verify, and commit the current branch, then merge it into local `main` yourself before moving to another branch or task. Prefer a fast-forward merge. Resolve conflicts and rerun relevant checks if a fast-forward is unavailable.
+- Confirm `main` contains every task commit and has no uncommitted tracked changes before creating the next branch.
+- Do not leave completed work only on a task branch. Only an explicit user-approved exception may defer the merge or permit a new branch from elsewhere.
+- This rule does not authorize a push, pull, deployment, or other remote operation.
