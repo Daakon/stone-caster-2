@@ -7,7 +7,6 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { getChimeraSupabaseClient } from '../db/supabase-client.js';
-import { GameLoopService } from '../services/runtime/game-loop.service.js';
 import { StoriesRepository } from '../db/repos/stories.repo.js';
 import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
 import { ApiErrorCode } from '@shared/types/api';
@@ -15,11 +14,6 @@ import { requireAuth } from '../middleware/auth.unified.js';
 import { resolveLlmRoleConfig } from '../config/llm-config.js';
 
 const router = Router();
-
-// Request body validation schemas
-const StartSessionRequestSchema = z.object({
-  compiledStoryId: z.string().uuid('Invalid compiled story ID'),
-});
 
 /**
  * GET /api/chimera/play/:gameStateId
@@ -83,54 +77,14 @@ router.get(
 
 /**
  * POST /api/chimera/play/start
- * Initialize a new game session from a compiled story
+ * Retired because this route cannot identify and pin a player-owned character.
  */
 router.post(
   '/start',
   requireAuth,
-  async (req: Request, res: Response) => {
-    try {
-      const validated = StartSessionRequestSchema.parse(req.body);
-      const userId = (req as any).user?.id;
-
-      if (!userId) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.UNAUTHORIZED,
-          'User ID not found in request',
-          req
-        );
-      }
-
-      const supabase = getChimeraSupabaseClient(req);
-      const storiesRepo = new StoriesRepository(supabase);
-      const gameLoopService = new GameLoopService(storiesRepo);
-
-      const gameStateId = await gameLoopService.initializeSession(validated.compiledStoryId, userId);
-
-      return sendSuccess(res, { gameStateId }, req, 201);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.VALIDATION_FAILED,
-          'Invalid request body',
-          req,
-          error.errors
-        );
-      }
-
-      console.error('[Chimera Play] Error starting session:', error);
-      const apiErrorCode = (error instanceof Error && (error.cause as ApiErrorCode)) || ApiErrorCode.INTERNAL_ERROR;
-
-      return sendErrorWithStatus(
-        res,
-        apiErrorCode,
-        error instanceof Error ? error.message : 'Failed to start session',
-        req
-      );
-    }
-  }
+  (req: Request, res: Response) => res.status(410).json({
+    error: 'Use POST /api/chimera/game/init with a frozen compiled story and player-owned character.',
+  })
 );
 
 export default router;

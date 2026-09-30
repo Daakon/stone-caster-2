@@ -1,0 +1,74 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "localization_glossary",
+      "key": "en-us",
+      "body": {
+        "locale": "en-US",
+        "entries": []
+      },
+      "refs": []
+    },
+    {
+      "kind": "localization_glossary",
+      "key": "es-es",
+      "body": {
+        "locale": "es-ES",
+        "entries": []
+      },
+      "refs": []
+    },
+    {
+      "kind": "localization_glossary",
+      "key": "fr-fr",
+      "body": {
+        "locale": "fr-FR",
+        "entries": []
+      },
+      "refs": []
+    },
+    {
+      "kind": "localization_rule",
+      "key": "en-us",
+      "body": {
+        "locale": "en-US",
+        "policy": {
+          "formal_you": false,
+          "sentence_caps": 120,
+          "choice_label_max": 48,
+          "forbidden_phrases": []
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "localization_rule",
+      "key": "es-es",
+      "body": {
+        "locale": "es-ES",
+        "policy": {
+          "formal_you": true,
+          "sentence_caps": 130,
+          "choice_label_max": 48,
+          "forbidden_phrases": []
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "localization_rule",
+      "key": "fr-fr",
+      "body": {
+        "locale": "fr-FR",
+        "policy": {
+          "formal_you": true,
+          "sentence_caps": 140,
+          "choice_label_max": 48,
+          "forbidden_phrases": []
+        }
+      },
+      "refs": []
+    }
+  ]
+}

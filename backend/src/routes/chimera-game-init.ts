@@ -124,7 +124,7 @@ router.get(
 );
 const InitializeGameRequestSchema = z.object({
   storyId: z.string().uuid('Invalid story ID'),
-  characterId: z.string().uuid().optional(), // Allow passing explicit character ID
+  characterId: z.string().uuid(),
   playerInput: z.object({
     identity: z.object({
       name: z.string().min(1, 'Name is required'),
@@ -162,6 +162,11 @@ router.post(
       }
 
       const supabase = getChimeraSupabaseClient(req);
+      const {data:mayStart, error:gateError} = await (supabase as any).rpc('can_start_chimera_game');
+      if (gateError) throw new Error(`Cannot check prelaunch session access: ${gateError.message}`);
+      if (!mayStart) {
+        return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Game setup is limited to admins and approved testers during prelaunch.', req);
+      }
       const storiesRepo = new StoriesRepository(supabase);
       const stateRepo = new SupabaseGameStateRepository(supabase);
       const gameInitService = new GameInitService(storiesRepo, stateRepo);
@@ -314,4 +319,3 @@ router.get(
 );
 
 export default router;
-

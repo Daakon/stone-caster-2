@@ -94,3 +94,8 @@ Agent-specific hints
 - Claude: include a brief rationale for architectural changes and highlight cross-package implications (types, builds, tests). Claude users often prefer more context with edits.
 
 If you need to expand this guidance (e.g., include CI YAML snippets or PR checklist templates), open an issue or request a separate update to keep this file concise.
+
+Design and UI (read `AGENTS.md` first)
+- All UI follows `docs/design/` (start at `docs/design/README.md`). Build mobile first at 390x844.
+- Colours, fonts and sizes come only from `docs/design/play-redesign/tokens.css`. No raw hex or Tailwind palette classes in new code; run `node scripts/check-design-tokens.mjs`.
+- Play screen: `docs/design/play-redesign/SPEC.md` (§11 overrides older boards), current task in `PHASE0_BRIEF.md`. Never render stats the story's rulesets don't declare (no ruleset declares Health).

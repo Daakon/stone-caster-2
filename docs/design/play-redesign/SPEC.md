@@ -1,6 +1,6 @@
 # Play screen redesign: spec
 
-Status: design approved for build planning. Boards: `boards/*.png`. Tokens: `tokens.css`. Order of work: `ROADMAP.md`.
+Status: design approved for build planning. **§11 (2026-09-30) records later design decisions and overrides earlier sections where they conflict.** Boards: `boards/*.png`. Tokens: `tokens.css`. Order of work: `ROADMAP.md`.
 
 Goal: make the gameplay screen feel like a good RPG (a world that stays visible, characters you can inspect, typed dialogue and choices) with the richness of a good AI chat (one strong composer, follow-ups, streaming, actions on every response). Text is the primary delivery system, so the text layer is designed as carefully as the layout.
 
@@ -140,3 +140,72 @@ These do not exist today and block the phases noted in `ROADMAP.md`:
 - Final tag syntax for Narrator output (the boards show an illustrative syntax); settle against how the Narrator output is parsed today.
 
 Resolved: transport is HTTP-streamed, not WebSocket (see §2.1).
+
+## 11. Design review decisions (2026-09-30)
+
+These decisions came from the owner's review of the full-app designs (`docs/design/screens/`). They **supersede** earlier sections of this spec and the older boards wherever they conflict. Where a board still shows the old behaviour (for example a Health bar or fixed rails), follow this section.
+
+### 11.1 Mobile first
+
+Most players will be on phones. Design and build at 390x844 first, then enhance for 1100 and 1440. Every play screen has a mobile screen in `docs/design/screens/` (`*-Mobile.png`). The Phase 0 shell must ship the mobile header, vitals strip, cast stack and thumb-zone composer, not only the desktop rails. Mobile app navigation outside play is a bottom tab bar: Stories, My stories, Create, Stones, You.
+
+### 11.2 Player-controlled layout (replaces the fixed rails in §4)
+
+The player decides how much of the game surrounds the story, like a game HUD.
+
+- Each side panel (Character on the left, Here on the right) has three states: **open** (288px / 328px), **slim** (64px icon rail with numbers), **hidden**. Toggle buttons for both live in the top bar.
+- **Focus** hides both panels in one step and restores the previous states. In focus, a small pinned chip in the top bar shows only what the player chose to keep.
+- Every module in a panel has its own hide control in its header.
+- A module set to **On change** stays hidden until its value changes, then pops in as a small raised card and fades (static under reduced motion).
+- A **Layout and HUD** settings screen (`HUD-Settings.png`, `HUD-Settings-Mobile.png`) holds:
+  - presets: Immersive (panels hidden), Balanced (slim), Full HUD (open)
+  - Open / Slim / Hidden for each panel
+  - switches for "collapse panels while I type" and "pop in hidden stats when they change"
+  - a per-module table for the current story, with where it sits (Character, Here, Top bar) and when it shows (Always / On change / Never). Receipts use Show / Summary / Hide.
+- Preferences are per user and apply to every story. A story lists only the modules its rulesets provide. Unknown ruleset fields fall back to a label/value row.
+- Mobile keeps the same settings. There, "panels" are the vitals strip, the cast stack and the floating critical bar.
+
+Store layout state in `useActiveGameStore` for Phase 0. Persist it to user preferences (`user_profiles.preferences.play_layout`) with the reader settings in Phase 7, or earlier if cheap.
+
+### 11.3 Never invent stats (hardens §2 and PLAN's source-of-truth contract)
+
+None of the 16 first-party rulesets declares hit points. What they actually provide:
+
+| Ruleset | Player-visible state |
+|---|---|
+| `vitality-stamina-system` | `current_stamina` (0–100), `physical_condition` word (e.g. "Rested") |
+| `needs-survival-basic` | `satiety` (0–100), `hunger_state` word (e.g. "Well Fed") |
+| `cinematic-combat-lite` | `combat_condition` word (e.g. "Healthy", "Wounded"), `combat_prowess` number |
+| `d100-5-pillars` | five `root_*` pillars |
+| `wealth-capability-lite` | `wealth_tier`, `archetype_loadout` |
+| `world-cycle-time-bands` | `time_band`, `current_tick` |
+| `stamina-based-magic` | no state; `cast_spell` costs 25 stamina |
+
+Rules:
+- Do not render a Health bar or any 100/100 default unless a ruleset declares that field. Show condition as a word (a pill), not a bar.
+- An action with no resource of its own (like Cast) is a macro chip under the composer ("Cast · −25 stamina"), not a panel row.
+- The boards and the older `R-*` PNGs that show "Health 100/100" are wrong on this point.
+
+### 11.4 Dossier and Character panel are assembled from rulesets (extends §6, §8 and Phase 3)
+
+The People dossier (`Play-Codex.png`, `Play-Mobile-Dossier.png`) shows a section only when its ruleset is active in the story. Each section names its source ruleset in small muted text.
+
+| Section | Source ruleset | Content |
+|---|---|---|
+| Relationship | `npc-relationships` | Nine axes from the relationship graph: trust, warmth, respect, romance, desire, awe, fear, resentment, suspicion. The graph is `engine_private`, so each axis shows as a **sensed band** ("Growing", "Low") and a number only after the player learns it; unlearned axes show "Not revealed". Also arc progress from `propose_relationship_arc` thresholds (e.g. Alliance needs trust 70 and respect 60) and "She remembers" from relationship memory tags. |
+| Personality | `npc-personalities`, `npc-quirks-habits` | Known traits, active quirks, locked slot with hint. |
+| Values and aims | `npc-values-motivations`, `npc-value-impact-tagging` | Known values, whether the player has violated one, current objective (locked until learned). |
+| Likes and aversions | `npc-preferences-phobias` | Known interests and aversions. |
+| What they want from you | `npc-plot-drivers` | Agenda and urgency (Passive / Suggestive / Demanding / Desperate). |
+| Background | `npc-roles-background` | Occupation, origin. |
+| Standing with factions | faction entities | Standing, or "Unknown". |
+
+With only `npc-relationships` active, the dossier is the disposition meter plus learned facts (`Play-Codex--relationships-only.png`). Known facts, History, Rumors and Notes tabs exist in every profile. Everything is gated by the knowledge log (§9); the UI never receives raw NPC state.
+
+`Play-Systems.png` shows the same Character panel for four rule mixes (Chimera core, social, combat, custom ruleset). Use it as the Phase 6 acceptance reference alongside `R-Systems`.
+
+### 11.5 Where the new references live
+
+- Full-app screens (desktop and mobile), rendered: `docs/design/screens/*.png`; static sources in `docs/design/screens/source/`.
+- Style guide and component inventory: `docs/design/style-guide/`.
+- Live canvas and style guide (private to the owner; ask for access): links in `docs/design/README.md`.

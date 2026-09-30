@@ -4,7 +4,6 @@ import { NarrativeService } from './narrative.service.js';
 import { ResolutionService } from './resolution.service.js';
 // REFACTOR: Import StoriesRepository (The new DAL)
 import { StoriesRepository } from '../../db/repos/stories.repo.js';
-import { CompiledStoriesRepository } from '../../db/repos/compiled-stories.repo.js';
 // Import proper Director, Engine, and Narrator services for the game loop
 import { DirectorService } from '../runtime/director.service.js';
 import { EngineService } from '../runtime/engine.service.js';
@@ -39,7 +38,6 @@ interface TurnResult {
 
 export class GameTurnService {
     private storiesRepo: StoriesRepository; // REFACTOR: Use Repo
-    private compiledStoriesRepo: CompiledStoriesRepository; // Keep for legacy if needed/removed
     private narrativeService: NarrativeService;
     private resolutionService: ResolutionService; // Legacy - kept for fallback
     private directorService: DirectorService;
@@ -56,7 +54,6 @@ export class GameTurnService {
         jevShadowService?: JevShadowService
     ) {
         this.storiesRepo = new StoriesRepository(supabase); // Initialize Repo
-        this.compiledStoriesRepo = new CompiledStoriesRepository(supabase);
         this.narrativeService = narrativeService || new NarrativeService();
         this.resolutionService = new ResolutionService(); // Legacy fallback
         // Director and Narrator can have mock AI, but Engine is deterministic
@@ -86,25 +83,14 @@ export class GameTurnService {
         try {
             // Step 1: Load State and Compiled Story
             const state = await this.loadState(gameStateId, userId);
-            const compiledPrompt = state.compiled_system_prompt;
-
-            // Load compiled story to get actionsMap for MAS1 and Engine
-            // The game state's story_id is the draft story ID, not the compiled story ID
-            const draftStoryId = await this.getStoryIdFromGameState(gameStateId);
-            if (!draftStoryId) {
-                throw new Error(`Story ID not found for game state: ${gameStateId}`);
+            if (!state.compiled_story_id || !state.player_character_id || state.state_initialization_version !== 1) {
+                throw new Error('Game state is missing required frozen-session pins');
             }
 
-            // Try to get compiled story by draft ID first (most common case)
-            let compiledStory = await this.storiesRepo.getCompiledStoryByDraftId(draftStoryId);
-
-            // Fallback: try by ID in case story_id is actually a compiled story ID
+            // The session pin is the only runtime source of compiled content.
+            const compiledStory = await this.storiesRepo.getCompiledStoryById(state.compiled_story_id);
             if (!compiledStory) {
-                compiledStory = await this.storiesRepo.getCompiledStoryById(draftStoryId);
-            }
-
-            if (!compiledStory) {
-                throw new Error(`Compiled story not found for draft story: ${draftStoryId}`);
+                throw new Error(`Pinned compiled story not found: ${state.compiled_story_id}`);
             }
 
             // Extract actionsMap and condition rules from the compiled story —
@@ -140,6 +126,7 @@ export class GameTurnService {
                     gameState,
                     actionsMap,
                     [],
+                    compiledStory.prompt_interpreter_logic,
                 ).finally(() => timeline.mark('director_end'));
             };
 
@@ -676,14 +663,6 @@ export class GameTurnService {
     }
 
     /**
-     * Get story ID from game state
-     */
-    private async getStoryIdFromGameState(gameStateId: string): Promise<string | null> {
-        const gameState = await this.storiesRepo.loadGameState(gameStateId);
-        return gameState?.story_id || null;
-    }
-
-    /**
      * Convert GameStateBundle to GameState format expected by MAS1/MAS2
      */
     private async recordTurnAudit(
@@ -1004,11 +983,17 @@ export class GameTurnService {
                 message: 'Game not found.',
             });
         }
-        // if (data.player_id !== userId) throw new Error('Unauthorized'); // Repo loads by ID. Authorization should be here or Repo.
+        if (data.player_id !== userId) throw new ServiceError(403, {
+            code: ApiErrorCode.FORBIDDEN,
+            message: 'This game belongs to another player.',
+        });
 
         // Map GameState (DB DTO) to GameStateBundle (Domain)
         return {
             id: data.id!,
+            compiled_story_id: data.compiled_story_id,
+            player_character_id: data.player_character_id,
+            state_initialization_version: data.state_initialization_version,
             mechanical: data.mechanical_state as MechanicalState,
             narrative: data.narrative_focus as NarrativeFocus,
             registry: data.scene_registry as SceneRegistry,

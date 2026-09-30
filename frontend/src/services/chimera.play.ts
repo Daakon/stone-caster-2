@@ -36,32 +36,6 @@ export interface FinalizeCharacterResponse {
 
 export const chimeraPlayService = {
   /**
-   * Start a new game session (Story Space) for a story
-   */
-  /**
-   * Start a new game session (Story Space) for a story
-   */
-  async startGame(storyId: string): Promise<ChimeraGameState> {
-    // Backend expects POST /api/chimera/play/start with body { compiledStoryId: ... }
-    const result = await apiPost<ChimeraGameState>('/api/chimera/play/start', {
-      compiledStoryId: storyId
-    });
-
-    if (!result.ok) {
-      // Check if this is a 403 FORBIDDEN error (player entity required)
-      // The error.http property contains the HTTP status code
-      if (result.error.http === 403 || result.error.code === 'forbidden') {
-        const error = new Error(result.error.message || 'Player character entity is required');
-        (error as any).requiresCharacterCreation = true;
-        (error as any).isForbidden = true;
-        throw error;
-      }
-      throw new Error(result.error.message || 'Failed to start game');
-    }
-    return result.data!;
-  },
-
-  /**
    * Get character creation schema for a story
    */
   async getCharacterSchema(storyId: string): Promise<CharacterSchema> {
@@ -120,4 +94,3 @@ export const chimeraPlayService = {
   // Turn submission lives in features/active-game/services/activeGameApi.ts
   // (POST /api/games/:id/turn); the legacy /cast-stone route was removed.
 };
-

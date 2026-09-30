@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Play · desktop</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 1440px; height: 900px">
+<header style="height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 8px; background: var(--sc-bg-panel); border-bottom: 1px solid var(--sc-border)">
+<button class="iconbtn" aria-label="Save and exit"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+<button class="iconbtn" aria-label="Character panel" aria-pressed="{{leftOpen}}" onClick="{{toggleLeft}}" style="color: {{leftColor}}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 3v18"/></svg></button>
+<div class="sc-col" style="gap: 0; width: 200px"><span style="font: 600 15px/1.2 var(--font-display)">The Gilded Ledger</span><span class="muted" style="font-size: 12px; display: inline-flex; gap: 6px; align-items: center"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--sc-accent)"></span>Saved · Turn 14</span></div>
+<div class="sc-row" style="justify-content: center; gap: 12px; flex-grow: 1"><span class="sc-row" style="gap: 6px; font: 600 17px/1 var(--font-display)"><span style="color: var(--sc-primary-soft)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span>The Gilded Stag</span><span class="pill brand"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg> Deep Night</span></div>
+<sc-if value="{{focusOn}}" hint-placeholder-val="{{false}}"><span class="sc-row" style="gap: 10px; flex-wrap: nowrap; padding: 0 12px; min-height: 36px; border-radius: 999px; border: 1px solid var(--sc-border-strong); background: var(--sc-bg-card)" title="Critical vitals only"><span class="sc-row" style="gap: 4px; flex-wrap: nowrap; color: var(--sc-stamina)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg><span class="mono" style="font-size: 12px; color: var(--sc-text)">90</span></span><span class="sc-row" style="gap: 4px; flex-wrap: nowrap; color: var(--sc-accent)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg><span class="mono" style="font-size: 12px; color: var(--sc-text)">80</span></span><span class="av sm">K</span></span></sc-if>
+<button class="btn ghost sm" onClick="{{toggleFocus}}" aria-pressed="{{focusOn}}"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg> {{focusLabel}}</button>
+<a class="btn ghost sm" href="HUD-Settings.dc.html"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg> Layout</a>
+<a class="iconbtn" href="Play-Codex.dc.html" aria-label="Journal"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></a>
+<button class="iconbtn" aria-label="Here panel" aria-pressed="{{rightOpen}}" onClick="{{toggleRight}}" style="color: {{rightColor}}"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M15 3v18"/></svg></button>
+</header>
+<div style="display: grid; grid-template-columns: {{cols}}; height: 844px">
+<aside class="side" style="overflow: hidden; min-width: 0">
+<sc-if value="{{leftFull}}" hint-placeholder-val="{{true}}"><div style="padding: 20px 16px; display: flex; flex-direction: column; gap: 20px; width: 288px"><div class="sc-row" style="flex-wrap: nowrap; gap: 14px"><span class="av lg">D</span><div class="sc-col" style="gap: 2px"><span class="h-lg" style="font-size: 20px">Daakon</span><span class="soft" style="font-size: 13px">Adventurer · Brave, Stoic</span></div></div>
+<div class="sc-col" style="gap: 12px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="ov">Condition</span><span class="sc-row" style="gap: 4px; flex-wrap: nowrap"><span class="muted" style="font-size: 12px">Rested</span><button class="iconbtn" style="width: 32px; height: 32px; min-height: 0" aria-label="Hide condition"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/></svg></button></span></div>
+<div class="vital st"><div class="top"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>Stamina <span class="delta neg">−10</span><span class="v">90 <small>/ 100</small></span></div><div class="track"><i style="width: 90%"></i></div></div>
+</div>
+<div class="sc-col" style="gap: 12px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="ov">Survival</span><span class="sc-row" style="gap: 4px; flex-wrap: nowrap"><span class="muted" style="font-size: 12px">Well fed</span><button class="iconbtn" style="width: 32px; height: 32px; min-height: 0" aria-label="Hide survival"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/></svg></button></span></div>
+<div class="vital sa"><div class="top"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>Satiety<span class="v">80 <small>/ 100</small></span></div><div class="track"><i style="width: 80%"></i></div></div>
+</div>
+<div class="sc-col" style="gap: 10px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="ov">Pillars</span><span class="sc-row" style="gap: 4px; flex-wrap: nowrap"><button class="iconbtn" style="width: 32px; height: 32px; min-height: 0" aria-label="Hide Pillars"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/></svg></button></span></div>
+<div class="pillar">Force<div class="track thin"><i style="width: 40%"></i></div><span class="v">40</span></div>
+<div class="pillar">Finesse<div class="track thin"><i style="width: 60%"></i></div><span class="v">60</span></div>
+<div class="pillar">Awareness<div class="track thin"><i style="width: 55%"></i></div><span class="v">55</span></div>
+<div class="pillar">Insight<div class="track thin"><i style="width: 45%"></i></div><span class="v">45</span></div>
+<div class="pillar">Influence<div class="track thin"><i style="width: 50%"></i></div><span class="v">50</span></div>
+</div>
+<div class="sc-col" style="gap: 8px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="ov">Means</span><span class="sc-row" style="gap: 4px; flex-wrap: nowrap"><button class="iconbtn" style="width: 32px; height: 32px; min-height: 0" aria-label="Hide Means"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/></svg></button></span></div>
+<div class="sc-row" style="flex-wrap: nowrap; gap: 8px; color: var(--sc-text-soft); font-size: 14px"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg><span>Tier 1 · <b style="color: var(--sc-text)">Civilian</b> loadout</span></div></div></div></sc-if>
+<sc-if value="{{leftSlim}}" hint-placeholder-val="{{false}}"><div style="padding: 16px 0; display: flex; flex-direction: column; align-items: center; gap: 18px; width: 64px"><span class="av" title="Daakon">D</span>
+<div class="sc-col" style="gap: 4px; align-items: center; color: var(--sc-stamina)" title="Stamina 90 of 100"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg><span class="mono" style="font-size: 12px; color: var(--sc-text)">90</span><span class="delta neg" style="font-size: 12px">−10</span></div>
+<div class="sc-col" style="gap: 4px; align-items: center; color: var(--sc-accent)" title="Satiety 80 of 100"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg><span class="mono" style="font-size: 12px; color: var(--sc-text)">80</span></div>
+<button class="iconbtn" aria-label="Pillars" title="Pillars"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect width="12" height="12" x="2" y="10" rx="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/><path d="M6 18h.01"/><path d="M10 14h.01"/><path d="M15 6h.01"/><path d="M18 9h.01"/></svg></button>
+<button class="iconbtn" aria-label="Means" title="Means"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg></button></div></sc-if>
+</aside>
+<main style="display: flex; flex-direction: column; min-width: 0">
+<div style="flex-grow: 1; overflow: hidden; padding: 20px 44px 0; display: flex; flex-direction: column; align-items: center">
+<div style="width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 18px"><div class="turn-div">Turn 14 · Deep Night</div>
+<div class="you"><span class="ov"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> You do</span><div class="bubble">I lean on the bar and ask Kiera who the stranger is.</div></div>
+<div class="sc-row"><span class="mech"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect width="12" height="12" x="2" y="10" rx="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/><path d="M6 18h.01"/><path d="M10 14h.01"/><path d="M15 6h.01"/><path d="M18 9h.01"/></svg>Insight · rolled 34 vs 45 · <span class="ok">Success</span> <svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span><span class="mech">Stamina <span class="neg">−10</span></span><span class="mech">Kiera <span class="pos">+2</span> warmer</span></div>
+<p class="narr">Rain has drummed on the <button class="ent place">Gilded Stag</button>'s shutters for an hour, and the taproom smells of woodsmoke and wet wool. You lean against the bar, close enough to hear the <button class="ent unknown new">hooded stranger</button> breathe.</p>
+<div class="dlg"><span class="spk">Kiera <em>low, polishing a clean mug</em></span><p class="narr">“Paid in <button class="ent item">silver</button>, asked for nothing, hasn't touched his ale. Either he's waiting for someone, or someone's waiting for him.”</p></div>
+<div class="learned"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></svg><span>Learned about <b>Kiera</b>: she recognised the stranger's coin.</span></div>
+<div class="sc-col" style="gap: 10px"><span class="ov">Continue with</span><div class="sc-row"><button class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg> Watch the stranger quietly</button><button class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg> Ask Kiera about the silver</button></div></div></div>
+</div>
+<div style="padding: 16px 44px 20px; display: flex; justify-content: center"><div class="composer" style="width: 100%; max-width: 720px">
+<div class="head"><div class="seg" role="group" aria-label="Turn mode"><button aria-pressed="true">Do</button><button aria-pressed="false">Say</button><button aria-pressed="false">Look</button></div><span class="hint">Enter to send · / for commands</span></div>
+<div class="ta">What do you do?</div>
+<div class="foot"><span class="chip macro"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg> Observe</span><span class="chip macro"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg> Rest</span><span class="chip macro"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></svg> Cast <span class="mono muted" style="font-size: 12px">−25 stamina</span></span><button class="iconbtn send" disabled aria-label="Send"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button></div>
+</div></div>
+</main>
+<aside class="side" style="border-right: 0; border-left: 1px solid var(--sc-border); overflow: hidden; min-width: 0">
+<sc-if value="{{rightFull}}" hint-placeholder-val="{{true}}"><div style="padding: 20px 16px; display: flex; flex-direction: column; gap: 14px; width: 328px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="ov">Here</span><button class="iconbtn" style="width: 32px; height: 32px; min-height: 0" aria-label="Hide scene card"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/></svg></button></div>
+<div class="scene"><div class="hero"><svg viewBox="0 0 328 88" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><rect width="328" height="88" fill="var(--sc-bg-raised)"/><circle cx="256" cy="22" r="48" fill="var(--sc-primary)" opacity="0.38"/><circle cx="72" cy="88" r="53" fill="var(--sc-accent)" opacity="0.22"/><path d="M0 69 C82 58 148 76 230 65 S295 58 328 62 V88 H0Z" fill="var(--sc-bg-panel)" opacity=".85"/><ellipse cx="98" cy="76" rx="33" ry="2" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.50"/><ellipse cx="98" cy="76" rx="66" ry="5" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.38"/><ellipse cx="98" cy="76" rx="105" ry="8" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.26"/></svg><h3>The Gilded Stag</h3></div><div class="bd"><div class="sc-row"><span class="chip tag">Rain</span><span class="chip tag">Woodsmoke</span></div><div class="sc-row" style="justify-content: space-between"><span class="soft" style="font-size: 14px">Deep Night</span><span class="bands"><i></i><i></i><i></i><i></i><i></i><i class="on"></i></span></div></div></div>
+<div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="ov">Present</span><span class="sc-row" style="gap: 4px; flex-wrap: nowrap"><span class="muted" style="font-size: 12px">2</span><button class="iconbtn" style="width: 32px; height: 32px; min-height: 0" aria-label="Hide present cast"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/></svg></button></span></div>
+<a class="cast" href="Play-Codex.dc.html"><span class="av">K</span><div class="txt"><span class="nm">Kiera</span><span class="role">Bartender and tavern owner</span><span class="known">Friendly · Guarded · 4 things known</span></div><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+<div class="cast"><span class="av unknown">?</span><div class="txt"><span class="nm">Hooded stranger</span><span class="role">Unidentified</span><span class="known">Still · 1 thing known</span></div><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></div>
+<div class="card" style="display: flex; gap: 10px; align-items: center; padding: 12px 14px"><span style="color: var(--sc-lore)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span><span style="font-size: 14px; flex-grow: 1">Lore surfaced: Silver of the Ledgers</span><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div></div></sc-if>
+<sc-if value="{{rightSlim}}" hint-placeholder-val="{{false}}"><div style="padding: 16px 0; display: flex; flex-direction: column; align-items: center; gap: 16px; width: 64px"><span title="The Gilded Stag · Deep Night" style="color: var(--sc-accent-soft)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span>
+<span title="Deep Night" style="color: var(--sc-primary-soft)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></span>
+<span class="divider" style="width: 28px"></span>
+<a href="Play-Codex.dc.html" class="av" title="Kiera · Friendly">K</a>
+<span class="av unknown" title="Hooded stranger">?</span></div></sc-if>
+</aside>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+constructor(p) { super(p); this.state = { left: 'full', right: 'full', saved: null }; }
+renderVals() {
+const s = this.state;
+const W = { full: [288, 328], slim: [64, 64], off: [0, 0] };
+const focusOn = s.left === 'off' && s.right === 'off';
+const cycle = (v) => (v === 'full' ? 'slim' : 'full');
+return {
+cols: W[s.left][0] + 'px minmax(0, 1fr) ' + W[s.right][1] + 'px',
+leftFull: s.left === 'full', leftSlim: s.left === 'slim',
+rightFull: s.right === 'full', rightSlim: s.right === 'slim',
+leftOpen: s.left !== 'off', rightOpen: s.right !== 'off',
+leftColor: s.left === 'full' ? 'var(--sc-primary-soft)' : 'var(--sc-text-soft)',
+rightColor: s.right === 'full' ? 'var(--sc-primary-soft)' : 'var(--sc-text-soft)',
+focusOn, focusLabel: focusOn ? 'Show panels' : 'Focus',
+toggleLeft: () => this.setState({ left: cycle(s.left) }),
+toggleRight: () => this.setState({ right: cycle(s.right) }),
+toggleFocus: () => focusOn ? this.setState({ left: (s.saved || {}).left || 'full', right: (s.saved || {}).right || 'full' }) : this.setState({ saved: { left: s.left, right: s.right }, left: 'off', right: 'off' }),
+};
+}
+}
+</script>
+</body>
+</html>

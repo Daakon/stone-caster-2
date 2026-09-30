@@ -11,8 +11,11 @@ import { z } from 'zod';
  */
 export const GameStateSchema = z.object({
   id: z.string().uuid().optional(),
-  story_id: z.string().uuid(),
+  story_id: z.string().uuid().nullable().optional(),
   player_id: z.string().uuid(),
+  compiled_story_id: z.string().uuid(),
+  player_character_id: z.string().uuid(),
+  state_initialization_version: z.number().int().positive(),
 
   /**
    * Tier 1 (Mechanical/Strict) state
@@ -275,4 +278,3 @@ export const Mas2ResponseDtoSchema = z.object({
   }).optional(),
 });
 export type Mas2ResponseDto = z.infer<typeof Mas2ResponseDtoSchema>;
-

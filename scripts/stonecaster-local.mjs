@@ -114,11 +114,17 @@ async function health() {
   const auth = await http(`${localEnv.SUPABASE_URL}/auth/v1/health`, { headers: { apikey: localEnv.SUPABASE_ANON_KEY } });
   add('supabase auth', auth.ok, `HTTP ${auth.status}`);
 
-  const counts = { chimera_worlds: 1, chimera_ruleset_templates: 16, prompts: 13, chimera_entities: 5, mechanics_skills: 15, profiles: 3 };
+  const counts = { prompts: 13, profiles: 3 };
   for (const [t, min] of Object.entries(counts)) {
     const range = await countHeader(`${localEnv.SUPABASE_URL}/rest/v1/${t}?select=*`, svcHeaders);
     const n = Number(/\/(\d+)$/.exec(range)?.[1] ?? NaN);
     add(`seed: ${t} >= ${min}`, n >= min, `${Number.isNaN(n) ? '?' : n} rows`);
+  }
+  const contentCounts = { world: 2, ruleset: 16, entity: 7, mechanic_skill: 15 };
+  for (const [kind, min] of Object.entries(contentCounts)) {
+    const range = await countHeader(`${localEnv.SUPABASE_URL}/rest/v1/chimera_content_source_items?select=content_key&content_kind=eq.${kind}`, svcHeaders);
+    const n = Number(/\/(\d+)$/.exec(range)?.[1] ?? NaN);
+    add(`repo content: ${kind} >= ${min}`, n >= min, `${Number.isNaN(n) ? '?' : n} rows`);
   }
 
   const anon = await http(`${localEnv.SUPABASE_URL}/rest/v1/prompts?select=id`, { headers: { apikey: localEnv.SUPABASE_ANON_KEY, Authorization: `Bearer ${localEnv.SUPABASE_ANON_KEY}` } });
@@ -174,6 +180,8 @@ async function main() {
       stackUp();
       const r = supabase('db reset');
       if (r.status !== 0) process.exit(r.status || 1);
+      const seed = spawnSync('node scripts/seed-first-party-local.mjs', { cwd: root, env: { ...process.env, ...localEnv }, shell: true, stdio: 'inherit' });
+      if (seed.status !== 0) process.exit(seed.status ?? 1);
       return process.exit((await health()) ? 0 : 1);
     }
     case 'health': return process.exit((await health()) ? 0 : 1);

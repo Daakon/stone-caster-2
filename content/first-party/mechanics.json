@@ -1,0 +1,448 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "mechanic_skill",
+      "key": "acrobatics",
+      "body": {
+        "id": "acrobatics",
+        "description": "Balance and agility",
+        "baseline": 8,
+        "tags": [
+          "physical",
+          "combat"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "athletics",
+      "body": {
+        "id": "athletics",
+        "description": "Physical feats and climbing",
+        "baseline": 8,
+        "tags": [
+          "physical",
+          "combat"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "charisma",
+      "body": {
+        "id": "charisma",
+        "description": "Force of personality",
+        "baseline": 10,
+        "tags": [
+          "social",
+          "magic"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "constitution",
+      "body": {
+        "id": "constitution",
+        "description": "Endurance and health",
+        "baseline": 10,
+        "tags": [
+          "physical",
+          "survival"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "deception",
+      "body": {
+        "id": "deception",
+        "description": "Lying and misdirection",
+        "baseline": 8,
+        "tags": [
+          "social",
+          "magic"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "dexterity",
+      "body": {
+        "id": "dexterity",
+        "description": "Agility and reflexes",
+        "baseline": 10,
+        "tags": [
+          "physical",
+          "combat"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "insight",
+      "body": {
+        "id": "insight",
+        "description": "Reading people and situations",
+        "baseline": 8,
+        "tags": [
+          "mental",
+          "social"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "intelligence",
+      "body": {
+        "id": "intelligence",
+        "description": "Reasoning and memory",
+        "baseline": 10,
+        "tags": [
+          "mental",
+          "magic"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "intimidation",
+      "body": {
+        "id": "intimidation",
+        "description": "Inspiring fear",
+        "baseline": 8,
+        "tags": [
+          "social",
+          "combat"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "investigation",
+      "body": {
+        "id": "investigation",
+        "description": "Searching and analyzing",
+        "baseline": 8,
+        "tags": [
+          "mental",
+          "social"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "perception",
+      "body": {
+        "id": "perception",
+        "description": "Noticing details",
+        "baseline": 8,
+        "tags": [
+          "mental",
+          "survival"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "persuasion",
+      "body": {
+        "id": "persuasion",
+        "description": "Convincing others",
+        "baseline": 8,
+        "tags": [
+          "social",
+          "magic"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "stealth",
+      "body": {
+        "id": "stealth",
+        "description": "Hiding and sneaking",
+        "baseline": 8,
+        "tags": [
+          "physical",
+          "social"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "strength",
+      "body": {
+        "id": "strength",
+        "description": "Physical power and muscle",
+        "baseline": 10,
+        "tags": [
+          "physical",
+          "combat"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_skill",
+      "key": "wisdom",
+      "body": {
+        "id": "wisdom",
+        "description": "Perception and insight",
+        "baseline": 10,
+        "tags": [
+          "mental",
+          "survival"
+        ]
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_condition",
+      "key": "bleeding",
+      "body": {
+        "id": "bleeding",
+        "stacking": "add",
+        "cap": 3,
+        "cleanse_keys": [
+          "heal",
+          "bandage"
+        ],
+        "tick_hooks": {
+          "resource_deltas": [
+            {
+              "key": "hp",
+              "delta": -2
+            }
+          ]
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_condition",
+      "key": "blessed",
+      "body": {
+        "id": "blessed",
+        "stacking": "none",
+        "cap": null,
+        "cleanse_keys": [
+          "curse",
+          "dispel"
+        ],
+        "tick_hooks": {
+          "resource_deltas": [
+            {
+              "key": "mana",
+              "delta": 1
+            }
+          ]
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_condition",
+      "key": "exhausted",
+      "body": {
+        "id": "exhausted",
+        "stacking": "add",
+        "cap": 3,
+        "cleanse_keys": [
+          "rest",
+          "energy_boost"
+        ],
+        "tick_hooks": {
+          "resource_deltas": [
+            {
+              "key": "energy",
+              "delta": -1
+            }
+          ]
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_condition",
+      "key": "frightened",
+      "body": {
+        "id": "frightened",
+        "stacking": "none",
+        "cap": null,
+        "cleanse_keys": [
+          "courage",
+          "calm"
+        ],
+        "tick_hooks": {
+          "resource_deltas": [
+            {
+              "key": "stress",
+              "delta": 1
+            }
+          ]
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_condition",
+      "key": "guarded",
+      "body": {
+        "id": "guarded",
+        "stacking": "none",
+        "cap": null,
+        "cleanse_keys": [
+          "dispel",
+          "break_guard"
+        ],
+        "tick_hooks": {}
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_condition",
+      "key": "inspired",
+      "body": {
+        "id": "inspired",
+        "stacking": "none",
+        "cap": null,
+        "cleanse_keys": [
+          "fear",
+          "dispel"
+        ],
+        "tick_hooks": {
+          "resource_deltas": [
+            {
+              "key": "mana",
+              "delta": 2
+            }
+          ]
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_condition",
+      "key": "poisoned",
+      "body": {
+        "id": "poisoned",
+        "stacking": "add",
+        "cap": 5,
+        "cleanse_keys": [
+          "antidote",
+          "cure_poison"
+        ],
+        "tick_hooks": {
+          "resource_deltas": [
+            {
+              "key": "hp",
+              "delta": -1
+            }
+          ]
+        }
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_condition",
+      "key": "stunned",
+      "body": {
+        "id": "stunned",
+        "stacking": "none",
+        "cap": null,
+        "cleanse_keys": [
+          "cure_stun"
+        ],
+        "tick_hooks": {}
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_resource",
+      "key": "energy",
+      "body": {
+        "id": "energy",
+        "min_value": 0,
+        "max_value": 100,
+        "regen_per_tick": 2,
+        "decay_per_tick": 0
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_resource",
+      "key": "favor",
+      "body": {
+        "id": "favor",
+        "min_value": 0,
+        "max_value": 100,
+        "regen_per_tick": 0,
+        "decay_per_tick": 0
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_resource",
+      "key": "hp",
+      "body": {
+        "id": "hp",
+        "min_value": 0,
+        "max_value": 100,
+        "regen_per_tick": 0,
+        "decay_per_tick": 0
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_resource",
+      "key": "mana",
+      "body": {
+        "id": "mana",
+        "min_value": 0,
+        "max_value": 100,
+        "regen_per_tick": 1,
+        "decay_per_tick": 0
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_resource",
+      "key": "stamina",
+      "body": {
+        "id": "stamina",
+        "min_value": 0,
+        "max_value": 100,
+        "regen_per_tick": 1,
+        "decay_per_tick": 0
+      },
+      "refs": []
+    },
+    {
+      "kind": "mechanic_resource",
+      "key": "stress",
+      "body": {
+        "id": "stress",
+        "min_value": 0,
+        "max_value": 100,
+        "regen_per_tick": 0,
+        "decay_per_tick": 1
+      },
+      "refs": []
+    }
+  ]
+}

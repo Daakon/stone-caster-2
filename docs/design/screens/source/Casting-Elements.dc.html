@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Casting Circle · Elements</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 1440px; height: 960px">
+<header class="gh" style="padding: 0 32px">
+<a class="brandmark" href="#"><img src="/_blob/a218653b969eb3b526088be33a62082c" alt="">Casting Circle</a>
+<span class="muted" style="font-size: 13px; margin-left: 4px">Draft · The Gilded Ledger</span>
+<span class="spacer"></span><span class="pill ok"><span class="dot"></span>Saved</span><a class="btn ghost sm" href="#">Close</a>
+</header>
+<div style="padding: 18px 64px; border-bottom: 1px solid var(--sc-border); background: var(--sc-bg-panel); display: flex; justify-content: space-between; align-items: center"><div class="stepper"><a class="st done" href="#"><span class="n">1</span>World</a><span class="sep"></span><a class="st done" href="#"><span class="n">2</span>Forces</a><span class="sep"></span><a class="st now" href="#" aria-current="step"><span class="n">3</span>Elements</a><span class="sep"></span><a class="st " href="#"><span class="n">4</span>Lore</a><span class="sep"></span><a class="st " href="#"><span class="n">5</span>Narrative</a><span class="sep"></span><a class="st " href="#"><span class="n">6</span>Bind</a></div><span class="muted" style="font-size: 13px">World: Mystika</span></div>
+<div style="padding: 32px 64px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 40px">
+<div class="sc-col" style="gap: 20px">
+<div class="sc-col" style="gap: 8px"><h1 class="h-xl">Elements</h1><p class="soft">Choose the characters, places, factions and objects this story starts with. The narrator can only name people and places you add or the world already holds.</p></div>
+<div class="sc-row" style="justify-content: space-between">
+<div class="tabs" role="tablist" style="border: 0"><button role="tab" aria-selected="true">Characters <span class="count">3</span></button><button role="tab">Places <span class="count">2</span></button><button role="tab">Factions <span class="count">1</span></button><button role="tab">Objects</button></div>
+<a class="btn secondary sm" href="#"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg> New character</a>
+</div>
+<div style="position: relative"><label for="es" style="position: absolute; left: -9999px">Search elements</label><input id="es" class="input" placeholder="Search characters in Mystika" style="padding-left: 40px"><span style="position: absolute; left: 12px; top: 13px; color: var(--sc-text-muted)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<div class="opt on" style="align-items: center">
+<span class="av ">K</span>
+<div class="sc-col" style="gap: 2px; flex-grow: 1; min-width: 0"><span class="h-md">Kiera</span><span class="soft" style="font-size: 13px">Character · Tactically sharp, emotionally guarded</span></div>
+<span class="pill brand">Stonecaster</span><span class="check on"></span>
+</div>
+<div class="opt on" style="align-items: center">
+<span class="av ">C</span>
+<div class="sc-col" style="gap: 2px; flex-grow: 1; min-width: 0"><span class="h-md">Cael</span><span class="soft" style="font-size: 13px">Character · Dire Wolf Shifter, fiercely loyal</span></div>
+<span class="pill brand">Stonecaster</span><span class="check on"></span>
+</div>
+<div class="opt" style="align-items: center">
+<span class="av teal">D</span>
+<div class="sc-col" style="gap: 2px; flex-grow: 1; min-width: 0"><span class="h-md">D.D.</span><span class="soft" style="font-size: 13px">Character · Drifter</span></div>
+<span class="pill">Yours</span><span class="check "></span>
+</div>
+<div class="opt on" style="align-items: center">
+<span class="av unknown">?</span>
+<div class="sc-col" style="gap: 2px; flex-grow: 1; min-width: 0"><span class="h-md">The Hooded Stranger</span><span class="soft" style="font-size: 13px">Character · Hidden identity until revealed</span></div>
+<span class="pill">Yours</span><span class="check on"></span>
+</div>
+</div>
+</div>
+<aside class="sc-col" style="gap: 16px">
+<div class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 14px">
+<div class="sc-row" style="justify-content: space-between"><span class="ov">In this story</span><span class="muted mono">6</span></div>
+<div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span style="color: var(--sc-primary-soft)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span style="flex-grow: 1">Kiera</span><button class="iconbtn" aria-label="Remove Kiera" style="width: 36px; height: 36px"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span style="color: var(--sc-primary-soft)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span style="flex-grow: 1">Cael</span><button class="iconbtn" aria-label="Remove Cael" style="width: 36px; height: 36px"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span style="color: var(--sc-text-muted)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span style="flex-grow: 1">The Hooded Stranger</span><button class="iconbtn" aria-label="Remove The Hooded Stranger" style="width: 36px; height: 36px"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span style="color: var(--sc-accent-soft)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span><span style="flex-grow: 1">Rillford Square</span><button class="iconbtn" aria-label="Remove Rillford Square" style="width: 36px; height: 36px"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span style="color: var(--sc-accent-soft)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span><span style="flex-grow: 1">Whispercross Glade</span><button class="iconbtn" aria-label="Remove Whispercross Glade" style="width: 36px; height: 36px"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div><div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span style="color: var(--sc-faction)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg></span><span style="flex-grow: 1">Skimmer Cartel</span><button class="iconbtn" aria-label="Remove Skimmer Cartel" style="width: 36px; height: 36px"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+</div>
+<div class="notice bad"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><div><div class="t">1 reference is missing</div><p>“Old Mill Road” was deleted from your world. Remove it or add a replacement before you bind the story.</p></div></div>
+</aside>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 64px; border-top: 1px solid var(--sc-border); background: var(--sc-bg-panel); display: flex; justify-content: space-between"><a class="btn ghost" href="#"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg> Forces</a><a class="btn primary" href="#">Continue to Lore <svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Play · turn states</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 1440px; height: 640px">
+<div style="padding: 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; height: 100%">
+<div class="sc-col" style="gap: 16px"><span class="ov">1 · Running</span>
+<div class="you"><span class="ov">You say</span><div class="bubble">Who paid you in silver?</div></div>
+<div class="progress" role="status"><div class="ph done"><span class="dot"></span>Reading the room<span class="t">1.2s</span></div><div class="ph now"><span class="dot"></span>Resolving your action<span class="t">0.8s</span></div><div class="ph"><span class="dot"></span>Writing the scene</div></div>
+<div class="composer" style="opacity: .55"><div class="ta">Waiting for the scene…</div><div class="foot"><button class="iconbtn send" disabled aria-label="Send"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button></div></div>
+<p class="muted" style="font-size: 13px">No cancel. Opening this game on another device shows this same card.</p>
+</div>
+<div class="sc-col" style="gap: 16px"><span class="ov">2 · Writing (streamed preview)</span>
+<div class="sc-row"><span class="mech" style="opacity: .7">Influence · 52 vs 50 · <span class="part">Partial</span> · pending</span></div>
+<p class="narr" style="color: var(--sc-text-soft)">Kiera sets the mug down harder than she means to. “Silver's silver,” she says, and for a moment you think that's all you'll get—</p>
+<div class="progress"><div class="ph done"><span class="dot"></span>Reading the room</div><div class="ph done"><span class="dot"></span>Resolving your action</div><div class="ph now"><span class="dot"></span>Writing the scene<span class="t">2.4s</span></div></div>
+<p class="muted" style="font-size: 13px">Preview text is muted and unlinked. It becomes the real turn, with links and receipts, only when saved.</p>
+</div>
+<div class="sc-col" style="gap: 16px"><span class="ov">3 · Failed</span>
+<div class="you"><span class="ov">You say</span><div class="bubble">Who paid you in silver?</div></div>
+<div class="errcard"><span class="t">The scene didn't finish</span><span class="soft" style="font-size: 14px">The storyteller stopped partway. Nothing was charged and your words are kept.</span><div class="sc-row"><button class="btn primary sm"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Try again</button><button class="btn ghost sm">Edit</button></div></div>
+<div class="notice warn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><div><div class="t">Not enough Stones for this turn</div><p>This turn costs 8 and you have 4. Your draft is kept.</p><div class="sc-row" style="margin-top: 8px"><a class="btn secondary sm" href="#">View Stones</a></div></div></div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":640}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

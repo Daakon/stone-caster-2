@@ -143,32 +143,6 @@ export interface Database {
           updated_at?: string;
         };
       };
-      chimera_game_states: {
-        Row: {
-          id: string;
-          story_id: string;
-          state: Record<string, unknown>;
-          player_id: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          story_id: string;
-          state: Record<string, unknown>;
-          player_id: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          story_id?: string;
-          state?: Record<string, unknown>;
-          player_id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
       chimera_instances_v3: {
         Row: {
           id: string;
@@ -245,7 +219,8 @@ export interface Database {
       chimera_game_states: {
         Row: {
           id: string;
-          story_id: string;
+          story_id: string | null;
+          compiled_story_id: string;
           player_id: string;
           mechanical_state: Record<string, unknown>;
           narrative_focus: Record<string, unknown>;
@@ -258,7 +233,8 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          story_id: string;
+          story_id?: string | null;
+          compiled_story_id: string;
           player_id: string;
           mechanical_state?: Record<string, unknown>;
           narrative_focus?: Record<string, unknown>;
@@ -271,7 +247,8 @@ export interface Database {
         };
         Update: {
           id?: string;
-          story_id?: string;
+          story_id?: string | null;
+          compiled_story_id?: string;
           player_id?: string;
           mechanical_state?: Record<string, unknown>;
           narrative_focus?: Record<string, unknown>;
@@ -329,4 +306,3 @@ export function getChimeraSupabaseAdminClient(): SupabaseClient<Database> {
     }
   );
 }
-

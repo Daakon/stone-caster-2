@@ -1,0 +1,172 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "lore",
+      "key": "lore-captured-allies",
+      "body": {
+        "key": "lore-captured-allies",
+        "world_key": "mystika",
+        "fragment": {
+          "type": "general",
+          "entry_text": "Cael, Rynn and multiple shifter children have been captured by slavers in a nearby camp.",
+          "display_name": "Captured Allies"
+        },
+        "keywords": [
+          "Cael",
+          "Rynn",
+          "captured",
+          "slavers",
+          "objective"
+        ]
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "lore",
+      "key": "lore-the-first-fracture",
+      "body": {
+        "key": "lore-the-first-fracture",
+        "world_key": "mystika",
+        "fragment": {
+          "type": "backstory",
+          "entry_text": "I didn't learn to walk between worlds; I fell. It happened during the Eclipse of Three Suns in my homeworld. One moment I was running from the Guard, the next, the cobblestones turned to mist beneath my boots. I fell through the geometry of the universe for what felt like an eternity, eventually landing here—bruised, confused, and smelling of ozone. Now, I don't just see walls; I see suggestions.",
+          "display_name": "The First Fracture"
+        },
+        "keywords": [
+          "origin",
+          "inciting-incident",
+          "dimension-hop",
+          "homeworld"
+        ]
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "lore",
+      "key": "lore-void-sickness",
+      "body": {
+        "key": "lore-void-sickness",
+        "world_key": "mystika",
+        "fragment": {
+          "type": "backstory",
+          "entry_text": "Drifting isn't free. Every time I step through a rift, a little bit of me stays behind in the grey space. If I jump too many times in one day, the colors of the real world start to fade, and I can hear them scratching at the edges of my perception. I have to anchor myself with heavy food and strong drink to remind my body it still exists in three dimensions.",
+          "display_name": "Void Sickness"
+        },
+        "keywords": [
+          "weakness",
+          "cost",
+          "void",
+          "sickness",
+          "limit"
+        ]
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "lore",
+      "key": "lore-the-anchor-compass",
+      "body": {
+        "key": "lore-the-anchor-compass",
+        "world_key": "mystika",
+        "fragment": {
+          "type": "backstory",
+          "entry_text": "This brass compass doesn't point North. It points to the nearest \"High Reality\" zone—places where the fabric of the world is thickest and most stable. I use it to find safe places to sleep. If the needle starts spinning wildly, I know a Rift Storm is coming, or worse... a Reality Eater is nearby.",
+          "display_name": "The Anchor Compass"
+        },
+        "keywords": [
+          "gear",
+          "navigation",
+          "artifact",
+          "compass",
+          "tool"
+        ]
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "lore",
+      "key": "lore-the-fracture-of-the-white-spire",
+      "body": {
+        "key": "lore-the-fracture-of-the-white-spire",
+        "world_key": "test",
+        "fragment": {
+          "entry_text": "In the Year of the Red Comet, the White Spire—center of all arcane study—shattered during the Great Ritual. The explosion didn't just destroy the capital; it tore the veil between the material plane and the Void. For three days, the sky rained violet ash, and those who breathed it gained uncontrollable wild magic. This event marked the end of the Golden Age and the beginning of the Age of Scarcity. Now, the ruins of the Spire float in a gravity-defying cloud, a constant reminder that magic is volatile and dangerous.",
+          "display_name": "The Fracture of the White Spire"
+        },
+        "keywords": []
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "test"
+        }
+      ]
+    },
+    {
+      "kind": "lore",
+      "key": "lore-the-whispering-canyon",
+      "body": {
+        "key": "lore-the-whispering-canyon",
+        "world_key": "test",
+        "fragment": {
+          "entry_text": "A massive fissure running north-to-south across the continent. The winds that blow through the jagged rocks create a sound eerily similar to human speech. Travelers are advised to wear earplugs, as prolonged exposure to the \"voices\" has been known to induce paranoia and hallucinations. The canyon is the only known source of Echo-Crystals, making it a dangerous but necessary trade route for mining guilds.",
+          "display_name": "The Whispering canyon"
+        },
+        "keywords": []
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "test"
+        }
+      ]
+    },
+    {
+      "kind": "lore",
+      "key": "lore-the-ironbound-pact",
+      "body": {
+        "key": "lore-the-ironbound-pact",
+        "world_key": "test",
+        "fragment": {
+          "entry_text": "The Ironbound are not a standing army, but a guild of oath-sworn mercenaries who operate under a strict code of neutrality. They will serve any lord who pays their fee, but they will never break a contract once signed. They are distinguished by their unpainted grey steel armor. Their headquarters, the Iron Keep, is considered sovereign ground where no blood may be shed. Breaking an oath to the Ironbound results in a \"Black Mark,\" ensuring no mercenary will ever serve you again.",
+          "display_name": "The Ironbound Pact"
+        },
+        "keywords": []
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "test"
+        }
+      ]
+    }
+  ]
+}

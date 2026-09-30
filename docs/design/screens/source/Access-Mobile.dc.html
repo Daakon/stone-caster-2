@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in · mobile</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 390px; height: 844px">
+
+<div style="position: relative; height: 220px; overflow: hidden; border-bottom: 1px solid var(--sc-border)"><svg viewBox="0 0 390 220" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><rect width="390" height="220" fill="var(--sc-bg-raised)"/><circle cx="304" cy="55" r="121" fill="var(--sc-primary)" opacity="0.38"/><circle cx="86" cy="220" r="132" fill="var(--sc-accent)" opacity="0.22"/><path d="M0 172 C98 145 176 189 273 163 S351 145 390 154 V220 H0Z" fill="var(--sc-bg-panel)" opacity=".85"/><ellipse cx="117" cy="189" rx="39" ry="6" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.50"/><ellipse cx="117" cy="189" rx="78" ry="12" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.38"/><ellipse cx="117" cy="189" rx="125" ry="20" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.26"/></svg>
+<div style="position: absolute; left: 16px; top: 16px; display: flex; align-items: center; gap: 10px; font: 600 20px/1 var(--font-display)"><img src="/_blob/a218653b969eb3b526088be33a62082c" alt="" style="width: 28px; height: 28px">Stonecaster</div>
+<p class="narr m" style="position: absolute; left: 16px; right: 16px; bottom: 18px; font-size: 17px">“Either he's waiting for someone, or someone's waiting for him.”</p></div>
+<div style="padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 16px"><h1 style="font: 600 28px/1.1 var(--font-display)">Welcome back</h1>
+<div class="tabs" role="tablist"><button role="tab" aria-selected="true">Sign in</button><button role="tab">Request access</button></div>
+<button class="btn secondary block" type="button"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg> Continue with Google</button>
+<div class="field"><label for="mae">Email</label><input id="mae" class="input" value="ed@example.com"></div>
+<div class="field"><label for="map">Password</label><input id="map" class="input" type="password" value="password12"><a href="#" style="font-size: 13px; align-self: flex-end">Forgot password?</a></div>
+<button class="btn primary block" type="button">Sign in</button>
+<p class="muted" style="font-size: 13px; text-align: center">Early access: new accounts need approval.</p></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

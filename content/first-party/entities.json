@@ -1,0 +1,254 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "entity",
+      "key": "cael",
+      "body": {
+        "key": "cael",
+        "world_key": "mystika",
+        "entity_type": "NPC",
+        "display_name": "Cael",
+        "raw_data": {
+          "traits": [
+            "noble",
+            "fiercely loyal"
+          ],
+          "identity": {
+            "name": "Cael",
+            "species": "Dire Wolf Shifter"
+          },
+          "personality": [
+            "guarded",
+            "observant"
+          ],
+          "essence_alignment": [
+            "Life",
+            "Chaos"
+          ]
+        },
+        "icon_image_url": null,
+        "primary_image_url": null
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "entity",
+      "key": "kiera",
+      "body": {
+        "key": "kiera",
+        "world_key": "mystika",
+        "entity_type": "NPC",
+        "display_name": "Kiera",
+        "raw_data": {
+          "stats": {
+            "hp_status": "injured_minor"
+          },
+          "images": [
+            {
+              "url": "https://imagedelivery.net/H1wcHgsbpczAJHyB61JpRw/114ea1e5-1bab-44b5-0232-9f198299aa00/public",
+              "role": "portrait",
+              "label": "Portrait"
+            }
+          ],
+          "traits": [
+            "tactically sharp",
+            "emotionally guarded"
+          ],
+          "ai_hints": [
+            "Cannot speak in animal form",
+            "Shifting drains energy"
+          ],
+          "identity": {
+            "name": "Kiera",
+            "species": "Panther Shifter"
+          },
+          "entity_type": "NPC",
+          "display_name": "Kiera",
+          "relationships": {
+            "player": "trust_0"
+          },
+          "base_state_json": {
+            "name": "Kiera",
+            "stats": {
+              "hp_status": "injured_minor"
+            },
+            "traits": [
+              "tactically sharp",
+              "emotionally guarded"
+            ],
+            "species": "Panther Shifter",
+            "ai_hints": [
+              "Cannot speak in animal form",
+              "Shifting drains energy"
+            ],
+            "relationships": {
+              "player": "trust_0"
+            },
+            "essence_alignment": [
+              "Life"
+            ]
+          },
+          "description_short": null,
+          "essence_alignment": [
+            "Life"
+          ]
+        },
+        "icon_image_url": null,
+        "primary_image_url": null
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "entity",
+      "key": "rillford_square",
+      "body": {
+        "key": "rillford_square",
+        "world_key": "mystika",
+        "entity_type": "LOCATION",
+        "display_name": "Rillford Square",
+        "raw_data": {
+          "name": "Rillford Square",
+          "type": "market",
+          "region": "rillford",
+          "description": "Stalls, gossip, and a wary constable."
+        },
+        "icon_image_url": null,
+        "primary_image_url": null
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "entity",
+      "key": "slavers",
+      "body": {
+        "key": "slavers",
+        "world_key": "mystika",
+        "entity_type": "FACTION",
+        "display_name": "Slavers",
+        "raw_data": {
+          "kind": "raider_network",
+          "notes": "Supply human cargo to distant wealthy markets.",
+          "display_name": "Skimmer Cartel"
+        },
+        "icon_image_url": null,
+        "primary_image_url": null
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "entity",
+      "key": "whispercross_glade",
+      "body": {
+        "key": "whispercross_glade",
+        "world_key": "mystika",
+        "entity_type": "LOCATION",
+        "display_name": "Whispercross Glade",
+        "raw_data": {
+          "name": "Whispercross Glade",
+          "type": "refuge",
+          "region": "whisper_glade",
+          "description": "Sanctuary under trees; watchful eyes."
+        },
+        "icon_image_url": null,
+        "primary_image_url": null
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "entity",
+      "key": "d-d",
+      "body": {
+        "key": "d-d",
+        "world_key": "mystika",
+        "entity_type": "NPC",
+        "display_name": "D.D.",
+        "raw_data": {
+          "tier1_entity": {
+            "satiety": 59,
+            "root_force": 54,
+            "core_values": [
+              "test"
+            ],
+            "race_handle": "Human",
+            "root_finesse": 55,
+            "root_insight": 54,
+            "combat_prowess": 52,
+            "root_awareness": 46,
+            "root_influence": 61,
+            "current_stamina": 59,
+            "occupation_tags": [
+              "Drifter"
+            ],
+            "background_origin": "Commoner",
+            "current_objective": "surviving the day"
+          },
+          "base_state_json": {},
+          "archetype_handle": ""
+        },
+        "icon_image_url": null,
+        "primary_image_url": "https://imagedelivery.net/H1wcHgsbpczAJHyB61JpRw/e024d816-3489-40a5-4cfc-58f56d737100/public"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "entity",
+      "key": "daakon",
+      "body": {
+        "key": "daakon",
+        "world_key": "mystika",
+        "entity_type": "NPC",
+        "display_name": "Daakon",
+        "raw_data": {
+          "base_state_json": {},
+          "archetype_handle": ""
+        },
+        "icon_image_url": null,
+        "primary_image_url": null
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    }
+  ]
+}

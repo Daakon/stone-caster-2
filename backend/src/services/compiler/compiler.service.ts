@@ -48,6 +48,10 @@ export class StoryCompilerService {
      * 4. Saves to chimera_compiled_stories
      */
     static async compileStory(storyId: string, userId: string, entityOverrides?: string[]): Promise<{ success: boolean; compiledId: string }> {
+        void storyId;
+        void userId;
+        void entityOverrides;
+        throw new Error('UUID-based compilation is retired; use the stable-key frozen content compiler.');
         console.log(`[Compiler V3] 🚀 Starting Compilation for ${storyId} (User: ${userId})`);
 
         try {
@@ -522,4 +526,3 @@ export class StoryCompilerService {
         }
     }
 }
-

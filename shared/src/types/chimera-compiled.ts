@@ -104,7 +104,6 @@ export const CompiledStorySchema = z.object({
    * Initial game state - the starting state for new games
    */
   initial_state: z.record(z.unknown()).optional().default({}),
-});
+}).passthrough();
 
 export type CompiledStory = z.infer<typeof CompiledStorySchema>;
-

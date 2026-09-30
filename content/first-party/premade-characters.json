@@ -1,0 +1,131 @@
+{
+  "format_version": 1,
+  "items": [
+    {
+      "kind": "premade_character",
+      "key": "elven-court-guardian",
+      "body": {
+        "key": "elven-court-guardian",
+        "display_name": "Thorne Shifter",
+        "avatar_url": "elven-guardian",
+        "base_traits": {
+          "age": "Adult",
+          "eyes": "Forest Green",
+          "race": "Elf",
+          "build": "Athletic",
+          "class": "shifter_warden",
+          "goals": {
+            "long_term": [
+              "Become a Court Guardian",
+              "Restore balance to the realm"
+            ],
+            "short_term": [
+              "Master court protocols",
+              "Strengthen elven magic"
+            ]
+          },
+          "skills": {
+            "lore": 65,
+            "craft": 60,
+            "combat": 70,
+            "social": 70,
+            "stealth": 75,
+            "medicine": 55,
+            "survival": 60
+          },
+          "traits": [
+            "Noble",
+            "Protective",
+            "Traditional",
+            "Honorable"
+          ],
+          "essence": [
+            "Order",
+            "Life"
+          ],
+          "backstory": "A proud member of the Elven Courts who has sworn to protect the ancient traditions from the chaos of Veil-storms and Crystalborn influence.",
+          "inventory": [
+            "Elven Longsword",
+            "Court Armor",
+            "Ancient Scroll",
+            "Healing Herbs"
+          ],
+          "motivation": "To preserve the ancient ways and protect the realm from corruption"
+        },
+        "summary": "A proud member of the Elven Courts who has sworn to protect the ancient traditions from the chaos of Veil-storms and Crystalborn influence.",
+        "is_active": true,
+        "world_key": "mystika"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    },
+    {
+      "kind": "premade_character",
+      "key": "veil-touched-mage",
+      "body": {
+        "key": "veil-touched-mage",
+        "display_name": "Aria Crystalborn",
+        "avatar_url": "crystalborn-mage",
+        "base_traits": {
+          "age": "Young Adult",
+          "eyes": "Crystalline Blue",
+          "race": "Crystalborn",
+          "build": "Slender",
+          "class": "veil_touched_mage",
+          "goals": {
+            "long_term": [
+              "Become a Veil Master",
+              "Protect the realm from Veil-storms"
+            ],
+            "short_term": [
+              "Master basic Veil-sight",
+              "Find a mentor"
+            ]
+          },
+          "skills": {
+            "lore": 70,
+            "craft": 50,
+            "combat": 65,
+            "social": 60,
+            "stealth": 50,
+            "medicine": 60,
+            "survival": 55
+          },
+          "traits": [
+            "Mystical",
+            "Intuitive",
+            "Otherworldly",
+            "Wise"
+          ],
+          "essence": [
+            "Life",
+            "Order"
+          ],
+          "backstory": "A young Crystalborn who awakened during a devastating Veil-storm. Her crystalline powers allow her to see through the Veil and commune with otherworldly entities.",
+          "inventory": [
+            "Crystal Focus",
+            "Veil-sight Goggles",
+            "Ancient Tome",
+            "Healing Potion"
+          ],
+          "motivation": "To understand the true nature of the Veil and protect others from its dangers"
+        },
+        "summary": "A young Crystalborn who awakened during a devastating Veil-storm. Her crystalline powers allow her to see through the Veil and commune with otherworldly entities.",
+        "is_active": true,
+        "world_key": "mystika"
+      },
+      "refs": [
+        {
+          "kind": "world",
+          "owner_namespace": "first_party",
+          "key": "mystika"
+        }
+      ]
+    }
+  ]
+}

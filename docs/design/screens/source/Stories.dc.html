@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stories catalog</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 1440px; height: 1480px">
+<header class="gh" style="padding: 0 32px">
+<a class="brandmark" href="#"><img src="/_blob/a218653b969eb3b526088be33a62082c" alt="">Stonecaster</a>
+<nav aria-label="Main" style="margin-left: 16px"><a href="#" aria-current="page">Stories</a><a href="#" >Worlds</a><a href="#" >My Stories</a><a href="#" >Create</a></nav>
+<span class="spacer"></span>
+<button class="iconbtn" aria-label="Search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+<a class="stones" href="#" aria-label="Stones balance"><svg class="gem" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1 16.5 7 9 17 1.5 7Z"/><path class="cut" d="M9 1 12 7 9 17 6 7Z"/></svg>1,240</a><span class="av sm" aria-label="Account">E</span>
+</header>
+<div style="padding: 40px 96px 56px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 24px">
+<div class="sc-col" style="gap: 8px"><h1 class="h-xl">Stories</h1><p class="soft">Pick a story to play. Each one sets its own rules and runs on the world it belongs to.</p></div>
+<a class="btn secondary" href="#"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg> Build your own</a>
+</div>
+<div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
+<div style="position: relative; width: 320px"><label for="sq" style="position: absolute; left: -9999px">Search stories</label><input id="sq" class="input" placeholder="Search stories, worlds, people" style="padding-left: 40px"><span style="position: absolute; left: 12px; top: 13px; color: var(--sc-text-muted)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span></div>
+<div class="sc-row"><button class="chip filter" aria-pressed="true">All</button><button class="chip filter" aria-pressed="false">Mystery</button><button class="chip filter" aria-pressed="false">Survival</button><button class="chip filter" aria-pressed="false">Social</button><button class="chip filter" aria-pressed="false">Combat</button><button class="chip filter" aria-pressed="false">Cozy</button></div>
+<span class="spacer" style="flex-grow: 1"></span>
+<label for="sort" class="muted" style="font-size: 13px">Sort</label><select id="sort" class="input select" style="width: 180px"><option>Recommended</option></select>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px"><article class="story" style="">
+<div class="art"><svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><rect width="400" height="225" fill="var(--sc-bg-raised)"/><circle cx="312" cy="56" r="124" fill="var(--sc-primary)" opacity="0.38"/><circle cx="88" cy="225" r="135" fill="var(--sc-accent)" opacity="0.22"/><path d="M0 176 C100 148 180 194 280 166 S360 148 400 158 V225 H0Z" fill="var(--sc-bg-panel)" opacity=".85"/><ellipse cx="120" cy="194" rx="40" ry="6" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.50"/><ellipse cx="120" cy="194" rx="80" ry="13" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.38"/><ellipse cx="120" cy="194" rx="128" ry="20" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.26"/></svg><span class="pill brand" style="position: absolute; top: 12px; left: 12px">Featured</span></div>
+<div class="body">
+<div class="ov teal">Mystika · Mystery</div>
+<h3>The Gilded Ledger</h3>
+<p class="blurb">A stranger pays in silver and waits in the Gilded Stag. Someone in Rillford is keeping accounts.</p>
+<div class="meta"><span>Chimera core</span><span>~2–4 hrs</span></div>
+<div class="foot"><span class="stones" style="min-height: 28px"><svg class="gem" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1 16.5 7 9 17 1.5 7Z"/><path class="cut" d="M9 1 12 7 9 17 6 7Z"/></svg>8 / turn</span><a class="btn primary sm" href="#">Begin</a></div>
+</div>
+</article><article class="story" style="">
+<div class="art"><svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><rect width="400" height="225" fill="var(--sc-bg-raised)"/><circle cx="88" cy="56" r="124" fill="var(--sc-lore)" opacity="0.3"/><circle cx="312" cy="225" r="135" fill="var(--sc-primary)" opacity="0.26"/><path d="M0 176 C100 148 180 194 280 166 S360 148 400 158 V225 H0Z" fill="var(--sc-bg-panel)" opacity=".85"/><ellipse cx="120" cy="194" rx="40" ry="6" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.50"/><ellipse cx="120" cy="194" rx="80" ry="13" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.38"/><ellipse cx="120" cy="194" rx="128" ry="20" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.26"/></svg></div>
+<div class="body">
+<div class="ov teal">Mystika · Survival</div>
+<h3>Whispercross</h3>
+<p class="blurb">A refuge under watchful trees, three days ahead of the Skimmer Cartel.</p>
+<div class="meta"><span>Survival · Time bands</span><span>~3 hrs</span></div>
+<div class="foot"><span class="stones" style="min-height: 28px"><svg class="gem" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1 16.5 7 9 17 1.5 7Z"/><path class="cut" d="M9 1 12 7 9 17 6 7Z"/></svg>6 / turn</span><a class="btn primary sm" href="#">Begin</a></div>
+</div>
+</article><article class="story" style="">
+<div class="art"><svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><rect width="400" height="225" fill="var(--sc-bg-raised)"/><circle cx="260" cy="56" r="124" fill="var(--sc-accent)" opacity="0.26"/><circle cx="140" cy="225" r="135" fill="var(--sc-warn)" opacity="0.18"/><path d="M0 176 C100 148 180 194 280 166 S360 148 400 158 V225 H0Z" fill="var(--sc-bg-panel)" opacity=".85"/><ellipse cx="120" cy="194" rx="40" ry="6" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.50"/><ellipse cx="120" cy="194" rx="80" ry="13" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.38"/><ellipse cx="120" cy="194" rx="128" ry="20" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.26"/></svg></div>
+<div class="body">
+<div class="ov teal">Mystika · Social</div>
+<h3>The Warden's Oath</h3>
+<p class="blurb">Bind to your spirit animal before the court decides whether your kind belongs.</p>
+<div class="meta"><span>Relationships</span><span>~1–2 hrs</span></div>
+<div class="foot"><span class="stones" style="min-height: 28px"><svg class="gem" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1 16.5 7 9 17 1.5 7Z"/><path class="cut" d="M9 1 12 7 9 17 6 7Z"/></svg>8 / turn</span><a class="btn primary sm" href="#">Begin</a></div>
+</div>
+</article><article class="story" style="">
+<div class="art"><svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><rect width="400" height="225" fill="var(--sc-bg-raised)"/><circle cx="140" cy="56" r="124" fill="var(--sc-faction)" opacity="0.24"/><circle cx="260" cy="225" r="135" fill="var(--sc-primary)" opacity="0.28"/><path d="M0 176 C100 148 180 194 280 166 S360 148 400 158 V225 H0Z" fill="var(--sc-bg-panel)" opacity=".85"/><ellipse cx="120" cy="194" rx="40" ry="6" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.50"/><ellipse cx="120" cy="194" rx="80" ry="13" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.38"/><ellipse cx="120" cy="194" rx="128" ry="20" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.26"/></svg><span class="pill" style="position: absolute; top: 12px; left: 12px">New</span></div>
+<div class="body">
+<div class="ov teal">Mystika · Cozy</div>
+<h3>Market Day in Rillford</h3>
+<p class="blurb">Stalls, gossip and a wary constable. Nothing is at stake except everyone’s opinion of you.</p>
+<div class="meta"><span>Cozy · Bonds</span><span>~1 hr</span></div>
+<div class="foot"><span class="stones" style="min-height: 28px"><svg class="gem" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1 16.5 7 9 17 1.5 7Z"/><path class="cut" d="M9 1 12 7 9 17 6 7Z"/></svg>6 / turn</span><a class="btn primary sm" href="#">Begin</a></div>
+</div>
+</article><article class="story" style="">
+<div class="art"><svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><rect width="400" height="225" fill="var(--sc-bg-raised)"/><circle cx="200" cy="56" r="124" fill="var(--sc-primary-soft)" opacity="0.22"/><circle cx="200" cy="225" r="135" fill="var(--sc-accent)" opacity="0.2"/><path d="M0 176 C100 148 180 194 280 166 S360 148 400 158 V225 H0Z" fill="var(--sc-bg-panel)" opacity=".85"/><ellipse cx="120" cy="194" rx="40" ry="6" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.50"/><ellipse cx="120" cy="194" rx="80" ry="13" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.38"/><ellipse cx="120" cy="194" rx="128" ry="20" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.26"/></svg></div>
+<div class="body">
+<div class="ov teal">Mystika · Combat</div>
+<h3>Ash on the Ward</h3>
+<p class="blurb">The forest wards are failing, and Cael will not leave the line without you.</p>
+<div class="meta"><span>Cinematic combat</span><span>~2 hrs</span></div>
+<div class="foot"><span class="stones" style="min-height: 28px"><svg class="gem" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1 16.5 7 9 17 1.5 7Z"/><path class="cut" d="M9 1 12 7 9 17 6 7Z"/></svg>8 / turn</span><a class="btn primary sm" href="#">Begin</a></div>
+</div>
+</article><article class="story" style="">
+<div class="art"><svg viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%" aria-hidden="true"><rect width="400" height="225" fill="var(--sc-bg-raised)"/><circle cx="312" cy="56" r="124" fill="var(--sc-primary)" opacity="0.38"/><circle cx="88" cy="225" r="135" fill="var(--sc-accent)" opacity="0.22"/><path d="M0 176 C100 148 180 194 280 166 S360 148 400 158 V225 H0Z" fill="var(--sc-bg-panel)" opacity=".85"/><ellipse cx="120" cy="194" rx="40" ry="6" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.50"/><ellipse cx="120" cy="194" rx="80" ry="13" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.38"/><ellipse cx="120" cy="194" rx="128" ry="20" fill="none" stroke="var(--sc-accent)" stroke-width="1.5" opacity="0.26"/></svg></div>
+<div class="body">
+<div class="ov teal">Mystika · Magic</div>
+<h3>The Veil Storm</h3>
+<p class="blurb">Your Essence answers before you call it. Learn why before the storm reaches the glade.</p>
+<div class="meta"><span>Stamina magic</span><span>~3 hrs</span></div>
+<div class="foot"><span class="stones" style="min-height: 28px"><svg class="gem" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1 16.5 7 9 17 1.5 7Z"/><path class="cut" d="M9 1 12 7 9 17 6 7Z"/></svg>6 / turn</span><a class="btn primary sm" href="#">Begin</a></div>
+</div>
+</article></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1480}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

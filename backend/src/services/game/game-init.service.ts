@@ -1,11 +1,12 @@
 
 import { normalizeStarEntity } from './genesis/star-entity.js';
+import { applyFrozenStateDefaults } from './frozen-state-initializer.js';
 import { StoriesRepository } from '../../db/repos/stories.repo.js';
 import { GameStateFactory } from './factory/game-state.factory.js';
 import { RulesetHarvester } from './factory/ruleset.harvester.js';
 import { EntityProjector } from './factory/entity.projector.js';
 import { supabaseAdmin } from '../supabase.js';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
 import { IGameStateRepository } from './state.repository.interface.js';
 
 export interface PlayerInputDto {
@@ -14,29 +15,27 @@ export interface PlayerInputDto {
 }
 
 import { NarrativeService } from './narrative.service.js';
-import { PromptAssemblyService } from '../ai/prompt-assembly.service.js';
 
 export class GameInitService {
   private factory: GameStateFactory;
   private narrativeService: NarrativeService;
-  private promptAssemblyService: PromptAssemblyService;
 
   constructor(
     private storiesRepo: StoriesRepository,
-    private stateRepo: IGameStateRepository
+    private stateRepo: IGameStateRepository,
+    narrativeService?: NarrativeService,
   ) {
     // Initialize Factory with dependencies
     this.factory = new GameStateFactory(
       new RulesetHarvester(),
       new EntityProjector()
     );
-    this.narrativeService = new NarrativeService();
-    this.promptAssemblyService = new PromptAssemblyService();
+    this.narrativeService = narrativeService || new NarrativeService();
   }
 
   /**
    * Initialize a new game from a compiled story
-   * @param storyId - The ID of the compiled story (or draft ID)
+   * @param storyId - The ID of the frozen compiled story
    * @param playerInput - (Optional) Overrides
    * @param playerId - The player's user ID (owner)
    * @returns The ID of the created game state
@@ -47,86 +46,39 @@ export class GameInitService {
     playerId: string,
     explicitCharacterId?: string
   ): Promise<string> {
-    // Step 1: Fetch CompiledStory (for Rulesets)
-    let compiled = await this.storiesRepo.getCompiledStoryById(storyId);
-    if (!compiled) {
-      compiled = await this.storiesRepo.getCompiledStoryByDraftId(storyId);
-    }
+    const compiled = await this.storiesRepo.getCompiledStoryById(storyId);
     if (!compiled) {
       throw new Error(`Compiled story not found: ${storyId}`);
     }
-
-    // Step 2: Fetch Linked Character (Protagonist)
-    // We need to look up the Draft Story to see which character is bound
-    // Use the story_key from the compiled story, which is the Draft ID.
-    const draftId = compiled.story_key || storyId;
-
-    console.log(`[GameInit] Looking up draft story for link. InputStoryId: ${storyId}, CompiledKey: ${compiled.story_key}, UsedDraftId: ${draftId}`);
-
-    const { data: draftStory, error: draftError } = await supabaseAdmin
-      .from('chimera_stories')
-      .select('title, protagonist_id, active_ruleset_ids, genesis_config')
-      .eq('id', draftId)
-      .maybeSingle();
-
-    console.log(`[GameInit] Draft lookup result:`, { draftId, draftStory, draftError, explicitCharacterId });
-
-    // PRIORITY: Use explicit ID if provided (override), otherwise use DB bound ID
-    const protagonistId = explicitCharacterId || draftStory?.protagonist_id;
-
-    if (!protagonistId) {
-      throw new Error(`No linked player character found for this story (DraftID: ${draftId}). Please bind a character first.`);
-    }
+    const protagonistId = explicitCharacterId;
+    if (!protagonistId) throw new Error('A player-owned character ID is required to start a frozen story.');
 
     const { data: charTemplate, error: charError } = await supabaseAdmin
       .from('chimera_player_characters')
       .select('*')
       .eq('id', protagonistId)
+      .eq('user_id', playerId)
       .single();
 
     if (charError || !charTemplate) {
-      throw new Error('Linked character record not found.');
+      throw new Error('Selected character was not found for this player.');
     }
 
-    // Step 3: Extract Active Rulesets
-    // Step 3: Extract Active Rulesets
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const configEngine = compiled.config_engine as any;
-    const rawRulesets = configEngine?.active_rulesets || [];
-    // Ensure we have strings (IDs)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const activeRulesets = rawRulesets.map((r: any) => (typeof r === 'string' ? r : r.id));
-
-    // Step 4: Factory Creation
+    // The compiled payload is the only source of world, cast, rules and prompts.
     const bundle = this.factory.createBundle(
       storyId,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       charTemplate as any,
-      activeRulesets
+      []
     );
-
-    // [GENESIS] Resolve Stars (Cast Members)
-    // Fetch full entity records for selected Cast Members
-    const starIds = draftStory?.genesis_config?.cast_members || [];
-    let resolvedStars: any[] = [];
-
-    if (starIds.length > 0) {
-      console.log(`[GameInit] Resolving ${starIds.length} stars for genesis.`);
-      const { data: stars, error: starsError } = await supabaseAdmin
-        .from('chimera_entities')
-        .select('*')
-        .in('id', starIds);
-
-      if (!starsError && stars) {
-        // Raw chimera_entities rows -> runtime entity shape (name/traits under properties)
-        resolvedStars = stars.map((row) => normalizeStarEntity(row));
-      } else {
-        console.warn(`[GameInit] Failed to resolve stars:`, starsError);
-      }
-    }
+    const snapshotEntities = compiled.snapshot_entities;
+    if (!Array.isArray(snapshotEntities)) throw new Error('Frozen compile has an invalid entity snapshot');
+    const resolvedStars = snapshotEntities.map((item: any) => {
+      if (!item || typeof item.key !== 'string') throw new Error('Frozen compile contains an entity without a stable key');
+      return normalizeStarEntity({...item, id:uuidv5(`first_party:entity:${item.key}`, uuidv5.URL)});
+    });
 
     // [GENESIS] Inject Director's Slate into Runtime Globals & Narrative Context
-    const genesisConfig = draftStory?.genesis_config || {};
+    const genesisConfig = (compiled.genesis_config && typeof compiled.genesis_config === 'object') ? compiled.genesis_config as Record<string, any> : {};
 
     // 1. Populate Narrative Context (Director Instructions)
     if (bundle.narrative) {
@@ -137,7 +89,7 @@ export class GameInitService {
       };
 
       // Ensure scene context has the initial set design and metadata
-      bundle.narrative.scene_context.name = draftStory?.title || "Untitled Story";
+      bundle.narrative.scene_context.name = typeof compiled.frozen_title === 'string' ? compiled.frozen_title : String(compiled.snapshot_world.name ?? 'Untitled Story');
       bundle.narrative.scene_context.atmosphere = genesisConfig.narrator_tone || "Anticipation";
       bundle.narrative.scene_context.time = "Night"; // Default start time
 
@@ -154,8 +106,10 @@ export class GameInitService {
     // We aggregate Rules, Tone, and Schema into a single instruction block.
     console.log('[GameInit] Compiling Master System Prompt...');
 
-    // [PROMPT ASSEMBLY] Hydrate Rulesets & Split Contexts
-    const rulesData = await this.promptAssemblyService.getCompiledRules(activeRulesets);
+    const rulesData = {
+      mas1: compiled.prompt_interpreter_logic ?? '',
+      mas2: compiled.prompt_narrator_style ?? '',
+    };
 
     const toneText = genesisConfig.narrator_tone || 'Standard';
     const pacingText = genesisConfig.pacing || 'Balanced';
@@ -269,7 +223,11 @@ ${rulesData.mas2}
 
     // Create state without narrative description first
     // REFACTORED: Use StoriesRepository for sharded persistence
-    const gameStateId = await this.storiesRepo.createGameState(storyId, bundle, playerId);
+    const originStoryId = compiled.story_key && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(compiled.story_key)
+      ? compiled.story_key
+      : null;
+    applyFrozenStateDefaults(bundle, compiled);
+    const gameStateId = await this.storiesRepo.createGameState(originStoryId, bundle, playerId, compiled.id!, protagonistId);
 
     // Inject ID into bundle for downstream services (Narrative/Audit)
     bundle.id = gameStateId;
@@ -284,7 +242,7 @@ ${rulesData.mas2}
 
     // Apply Genesis Text to Bundle
     if (bundle.narrative) {
-      bundle.narrative.description = openingText;
+      bundle.narrative.scene_context.description = openingText;
 
       // Initialize History with Turn 0
       bundle.narrative.dialogue_history = [{
@@ -309,9 +267,9 @@ ${rulesData.mas2}
       gameStateId,
       turnIndex: 0,
       playerInput: "Game Start",
-      mas1Intent: { type: "GENESIS" },
+      directorIntent: { type: "GENESIS" },
       mechanicalDelta: {},
-      mas2Narration: {
+      narratorOutput: {
         narration: openingText,
         thought_chain: "Genesis construction complete."
       }

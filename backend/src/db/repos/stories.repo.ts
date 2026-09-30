@@ -23,35 +23,9 @@ export class StoriesRepository {
    * @returns The ID of the saved compiled story
    */
   async saveCompiled(story: CompiledStory, storyKey?: string): Promise<string> {
-    // Validate the compiled story
-    const validated = CompiledStorySchema.parse(story);
-
-    // Generate a story key if not provided
-    const key = storyKey || `story_${Date.now()}`;
-
-    const { data, error } = await this.supabase
-      .from('chimera_compiled_stories')
-      .insert({
-        story_id: validated.story_key, // Mapping story_key to story_id column as per schema
-        version: validated.version,
-        config_engine: validated.config_engine as unknown as Record<string, unknown>,
-        prompt_interpreter_logic: validated.prompt_interpreter_logic,
-        prompt_narrator_style: validated.prompt_narrator_style,
-        snapshot_world: validated.snapshot_world as unknown as Record<string, unknown>,
-        snapshot_entities: validated.snapshot_entities as unknown as Record<string, unknown>,
-      })
-      .select('id')
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to save compiled story: ${error.message}`);
-    }
-
-    if (!data) {
-      throw new Error('Failed to save compiled story: No data returned');
-    }
-
-    return data.id;
+    CompiledStorySchema.parse(story);
+    void storyKey;
+    throw new Error('Inline compiled-story writes are disabled; use the stable-key frozen compile service.');
   }
 
   /**
@@ -69,22 +43,27 @@ export class StoriesRepository {
    * @returns The ID of the created game state
    */
   async createGameState(
-    storyId: string,
+    storyId: string | null,
     bundle: any,
-    playerId: string
+    playerId: string,
+    compiledStoryId: string,
+    playerCharacterId: string,
   ): Promise<string> {
     const { mechanical, narrative, registry, queue, compiled_system_prompt } = bundle;
 
-    const { data, error } = await this.supabase
-      .from('chimera_game_states')
+    const { data, error } = await (this.supabase
+      .from('chimera_game_states') as any)
       .insert({
         story_id: storyId,
+        compiled_story_id:compiledStoryId,
+        player_character_id:playerCharacterId,
+        state_initialization_version:1,
         player_id: playerId,
         mechanical_state: mechanical || {},
         narrative_focus: narrative || {},
         scene_registry: registry || {},
         action_queue: queue || [],
-        compiled_system_prompt: compiled_system_prompt || null
+        compiled_system_prompt:null
       })
       .select('id')
       .single();
@@ -108,7 +87,7 @@ export class StoriesRepository {
   async loadGameState(id: string): Promise<GameState | null> {
     const { data, error } = await this.supabase
       .from('chimera_game_states')
-      .select('id, story_id, player_id, mechanical_state, narrative_focus, scene_registry, action_queue, compiled_system_prompt, updated_at')
+      .select('id, story_id, compiled_story_id, player_character_id, state_initialization_version, player_id, mechanical_state, narrative_focus, scene_registry, action_queue, updated_at')
       .eq('id', id)
       .single();
 
@@ -119,18 +98,22 @@ export class StoriesRepository {
 
     if (!data) return null;
 
-    // Direct mapping to GameState interface
-    return {
+    const compiled = await this.getCompiledStoryById(data.compiled_story_id);
+    if (!compiled) throw new Error(`Pinned compiled story not found: ${data.compiled_story_id}`);
+    return GameStateSchema.parse({
       id: data.id,
       story_id: data.story_id,
+      compiled_story_id:data.compiled_story_id,
+      player_character_id:data.player_character_id,
+      state_initialization_version:data.state_initialization_version,
       player_id: data.player_id,
       mechanical_state: data.mechanical_state,
       narrative_focus: data.narrative_focus,
       scene_registry: data.scene_registry,
       action_queue: data.action_queue,
-      compiled_system_prompt: data.compiled_system_prompt,
+      compiled_system_prompt:compiled.prompt_narrator_style ?? '',
       updated_at: data.updated_at
-    };
+    });
   }
 
   /**
@@ -214,15 +197,20 @@ export class StoriesRepository {
   /**
    * Helper to reconstruct CompiledStory from DB row
    */
-  private mapRowToCompiledStory(data: any): CompiledStory {
+  private async mapRowToCompiledStory(data: any): Promise<CompiledStory> {
+    if (!data.payload_blob_hash) throw new Error('Compiled story has no frozen payload hash');
+    const {data:blob, error} = await (this.supabase.from('chimera_content_blobs') as any)
+      .select('body').eq('sha256', data.payload_blob_hash).single();
+    if (error || !blob) throw new Error(`Frozen compiled payload is unavailable: ${error?.message ?? data.payload_blob_hash}`);
+    const frozenPayload = blob.body?.body;
+    if (!frozenPayload || typeof frozenPayload !== 'object' || Array.isArray(frozenPayload)) throw new Error('Frozen compiled payload has an invalid body');
+    for (const field of ['config_engine', 'prompt_interpreter_logic', 'prompt_narrator_style', 'snapshot_world', 'snapshot_entities']) {
+      if (!Object.hasOwn(frozenPayload, field)) throw new Error(`Frozen compiled payload is missing ${field}`);
+    }
     return CompiledStorySchema.parse({
+      ...frozenPayload,
       id: data.id,
-      story_key: data.story_id, // Map back story_id column to story_key field
-      config_engine: data.config_engine,
-      prompt_interpreter_logic: data.prompt_interpreter_logic,
-      prompt_narrator_style: data.prompt_narrator_style,
-      snapshot_world: data.snapshot_world,
-      snapshot_entities: data.snapshot_entities,
+      story_key: data.story_id ?? undefined,
       tier1_allowlist: new Set(),
       tier0_allowlist: new Set(),
       version: data.version,
@@ -239,7 +227,7 @@ export class StoriesRepository {
   async getCompiledStory(storyKey: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, payload_blob_hash, created_at')
       .eq('story_id', storyKey) // Check story_id column (which often holds the key/slug/uuid)
       .order('version', { ascending: false })
       .limit(1)
@@ -267,7 +255,7 @@ export class StoriesRepository {
   async getCompiledStoryById(id: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, payload_blob_hash, created_at')
       .eq('id', id)
       .single();
 
@@ -293,7 +281,7 @@ export class StoriesRepository {
   async getCompiledStoryByDraftId(storyId: string): Promise<CompiledStory | null> {
     const { data, error } = await this.supabase
       .from('chimera_compiled_stories')
-      .select('id, story_id, version, config_mechanics, config_interpreter, config_narrator, config_ui, config_engine, prompt_interpreter_logic, prompt_narrator_style, snapshot_world, snapshot_entities, created_at')
+      .select('id, story_id, version, payload_blob_hash, created_at')
       .eq('story_id', storyId)
       .order('version', { ascending: false })
       .limit(1)
@@ -318,10 +306,10 @@ export class StoriesRepository {
    * @param gameStateId - The game state ID
    * @returns The story ID or null if not found
    */
-  async getStoryIdFromGameState(gameStateId: string): Promise<string | null> {
+  async getCompiledStoryIdFromGameState(gameStateId: string): Promise<string | null> {
     const { data, error } = await this.supabase
       .from('chimera_game_states')
-      .select('story_id')
+      .select('compiled_story_id')
       .eq('id', gameStateId)
       .single();
 
@@ -329,14 +317,14 @@ export class StoriesRepository {
       if (error.code === 'PGRST116') {
         return null; // Not found
       }
-      throw new Error(`Failed to get story ID from game state: ${error.message}`);
+      throw new Error(`Failed to get compiled story pin from game state: ${error.message}`);
     }
 
     if (!data) {
       return null;
     }
 
-    return data.story_id;
+    return data.compiled_story_id;
   }
   /**
    * Get the next turn index for a game state

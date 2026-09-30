@@ -4,7 +4,9 @@ Design package for the gameplay screen (after a player picks a story). Created f
 
 Read in this order:
 
-1. `SPEC.md` is the source of truth: what to build, per screen, with behaviour and acceptance criteria.
+1. `SPEC.md` is the source of truth: what to build, per screen, with behaviour and acceptance criteria. Its §11 (2026-09-30) overrides older sections and boards.
+   - Full-app screens, mobile first: `../screens/` (start with `../README.md`). Style guide: `../style-guide/`.
+   - Current task brief: `PHASE0_BRIEF.md`.
 2. `boards/` holds a PNG of every board. Filenames match the board ids used in `SPEC.md`. Use them for layout, spacing and visual tone.
 3. `tokens.css` holds colours, type and sizing. Wire these into `frontend/src/index.css` and `tailwind.config.js`; never hardcode hex in components.
 4. `ROADMAP.md` is the phased build order with acceptance checks.

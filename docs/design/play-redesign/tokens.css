@@ -1,11 +1,16 @@
 /*
- * Stone Caster play-screen design tokens (violet + teal, dark first).
- * Source of truth for the redesign boards in ./boards.
+ * Stonecaster design tokens (violet + teal, dark first).
+ * Source of truth for the whole app: play redesign boards, docs/design/screens,
+ * and the style guide in docs/design/style-guide/STYLE_GUIDE.md.
  *
  * Integration: map these onto the existing shadcn HSL variables in
- * frontend/src/index.css (.dark block) and extend tailwind.config.js.
+ * frontend/src/index.css (see docs/design/play-redesign/PHASE0_BRIEF.md for
+ * the exact mapping) and extend tailwind.config.js.
  * Do not hardcode hex values in components; use the tokens.
  * Hex is shown here for reference; convert to HSL triplets when wiring shadcn.
+ *
+ * 2026-09-30: added a light theme, focus ring, scrim, spacing, control
+ * radius, layout sizes and shadows. Dark values are unchanged.
  */
 :root.dark, .dark {
   /* Surfaces, darkest to lightest */
@@ -30,15 +35,55 @@
   --sc-accent-soft:  #7ee7d8;
 
   /* Semantic */
-  --sc-danger:       #ef5b5b;  /* health, combat vignette */
+  --sc-danger:       #ef5b5b;  /* health, combat vignette, destructive actions */
   --sc-danger-soft:  #f7a3a3;
   --sc-stamina:      #8dc16b;
-  --sc-warn:         #e0a458;  /* items, partial success */
+  --sc-warn:         #e0a458;  /* items, partial success, pending / read-only / at-cap */
   --sc-warn-soft:    #f0c27a;
   --sc-lore:         #7aa2ff;  /* lore terms */
   --sc-lore-soft:    #a9c2ff;
   --sc-faction:      #f28fb0;
 
+  /* Interaction (added 2026-09-30) */
+  --sc-focus:        var(--sc-primary);            /* 2px ring, 2px offset */
+  --sc-scrim:        rgba(5, 4, 10, 0.72);         /* behind sheets, Codex, dialogs */
+  --sc-shadow-pop:   0 12px 32px rgba(0, 0, 0, 0.55);   /* peek, menus, critical bar */
+  --sc-shadow-sheet: 0 -16px 40px rgba(0, 0, 0, 0.6);   /* bottom sheets, Codex */
+}
+
+/* Light theme: same roles, mapped for contrast. Optional in Phase 0 but keep parity. */
+:root:not(.dark), .light {
+  --sc-bg-page:      #f7f5fc;
+  --sc-bg-panel:     #f0edf8;
+  --sc-bg-card:      #ffffff;
+  --sc-bg-raised:    #e9e4f6;
+  --sc-border:       #dcd6ea;
+  --sc-border-strong:#b9b0d3;
+  --sc-text:         #191527;
+  --sc-text-soft:    #3d3654;
+  --sc-text-muted:   #5f587a;
+  --sc-text-faint:   #9a93b3;
+  --sc-primary:      #6a4bd6;
+  --sc-primary-soft: #5536c2;
+  --sc-on-primary:   #ffffff;
+  --sc-accent:       #0e8a7b;  /* marks and fills only; teal text uses --sc-accent-soft */
+  --sc-accent-soft:  #0a6f63;
+  --sc-danger:       #c43434;
+  --sc-danger-soft:  #a42a2a;
+  --sc-stamina:      #467f28;
+  --sc-warn:         #a8660f;
+  --sc-warn-soft:    #86510b;
+  --sc-lore:         #3860d2;
+  --sc-lore-soft:    #2c4fb0;
+  --sc-faction:      #b83d67;
+  --sc-focus:        var(--sc-primary);
+  --sc-scrim:        rgba(25, 21, 39, 0.45);
+  --sc-shadow-pop:   0 12px 28px rgba(40, 28, 90, 0.16);
+  --sc-shadow-sheet: 0 -12px 32px rgba(40, 28, 90, 0.18);
+}
+
+/* Theme-independent tokens */
+:root {
   /* Entity link colours (paired with underline shape, never colour alone) */
   --sc-ent-npc:      var(--sc-primary-soft);  /* dotted */
   --sc-ent-unknown:  var(--sc-text-soft);     /* dotted, grey */
@@ -51,7 +96,7 @@
   --sc-font-display: 'Fraunces', Georgia, serif;          /* names, titles */
   --sc-font-prose:   'Newsreader', Georgia, serif;        /* story text */
   --sc-font-ui:      'DM Sans', system-ui, sans-serif;    /* interface */
-  --sc-font-mono:    'JetBrains Mono', ui-monospace, monospace; /* system lines, rolls */
+  --sc-font-mono:    'JetBrains Mono', ui-monospace, monospace; /* system lines, rolls, Stones amounts */
 
   /* Scale (px). UI text never below 12. */
   --sc-text-xs: 12px;   /* labels, overlines (uppercase, 0.08em tracking) */
@@ -60,9 +105,26 @@
   --sc-text-prose-mobile: 17px;  /* line-height 1.65 */
   --sc-text-prose-desktop: 19px; /* line-height 1.7 */
 
+  /* Spacing, 4px base (added 2026-09-30) */
+  --sc-space-1: 4px;
+  --sc-space-2: 8px;
+  --sc-space-3: 12px;
+  --sc-space-4: 16px;   /* card padding, mobile gutter */
+  --sc-space-5: 24px;
+  --sc-space-6: 32px;   /* desktop gutter */
+  --sc-space-7: 56px;
+
   /* Shape and touch */
+  --sc-radius-control: 10px;  /* buttons, inputs, segmented control (added) */
   --sc-radius-card: 14px;
   --sc-radius-chip: 999px;
   --sc-radius-sheet: 22px;
   --sc-tap: 44px;       /* minimum interactive target, mobile and desktop */
+
+  /* Layout (added 2026-09-30) */
+  --sc-header-h: 56px;
+  --sc-rail-left: 288px;      /* Character panel, open */
+  --sc-rail-right: 328px;     /* Here panel, open */
+  --sc-rail-slim: 64px;       /* either panel, slim */
+  --sc-measure: 720px;        /* prose column max width */
 }

@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "namespace": "first_party",
+  "release_state": "internal",
+  "files": [
+    "rulesets.json",
+    "worlds.json",
+    "entities.json",
+    "lore.json",
+    "tags.json",
+    "asset-tags.json",
+    "mechanics.json",
+    "premade-characters.json",
+    "localization.json",
+    "dialogue.json",
+    "quests.json",
+    "packs.json"
+  ]
+}
