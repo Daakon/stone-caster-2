@@ -400,7 +400,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="system" storageKey="stonecaster-ui-theme">
+      <ThemeProvider defaultTheme="dark" storageKey="stonecaster-ui-theme">
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <AccessStatusProvider>
@@ -433,4 +433,3 @@ function StoryPlayRedirect() {
 }
 
 export default App;
-

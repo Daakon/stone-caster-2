@@ -42,6 +42,7 @@
     "ops:cache-stats": "curl -H 'X-Debug-Token: $DEBUG_ROUTES_TOKEN' http://localhost:3000/api/dev/debug/cache-stats",
     "canary:env-check": "tsx backend/scripts/canary-env-check.ts",
     "lint": "npm run lint --workspaces",
+    "design:check": "node scripts/check-design-tokens.mjs",
     "lint:client": "npm run lint --workspace=frontend",
     "lint:server": "npm run lint --workspace=backend",
     "type-check": "npm run type-check --workspaces",

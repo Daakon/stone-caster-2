@@ -24,6 +24,9 @@ jobs:
     
     - name: Lint
       run: npm run lint
+
+    - name: Design tokens
+      run: npm run design:check
     
     - name: Type check
       run: npm run type-check
