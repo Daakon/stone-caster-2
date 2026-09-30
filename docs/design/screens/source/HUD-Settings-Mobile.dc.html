@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings · Layout and HUD · mobile</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 390px; height: 1360px">
+<header style="height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 4px; background: var(--sc-bg-panel); border-bottom: 1px solid var(--sc-border)"><button class="iconbtn" aria-label="Back"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span style="font: 600 17px/1.2 var(--font-display); flex-grow: 1">Layout and HUD</span></header>
+<div style="padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 16px"><p class="soft" style="font-size: 14px">How much of the game sits around the story. Applies to every story; each story shows only what its rules have.</p>
+<span class="ov">Preset</span>
+<div class="opt"><span class="radio"></span><div><div style="font-weight: 600">Immersive</div><div class="muted" style="font-size: 13px">Story only. Changes pop in and fade.</div></div></div>
+<div class="opt on"><span class="radio"></span><div><div style="font-weight: 600">Balanced</div><div class="muted" style="font-size: 13px">Vitals strip and cast stack under the header.</div></div></div>
+<div class="opt"><span class="radio"></span><div><div style="font-weight: 600">Full HUD</div><div class="muted" style="font-size: 13px">Strip, cast, and a critical bar above the composer.</div></div></div>
+<div class="card" style="display: flex; flex-direction: column; gap: 14px">
+<div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><div><div style="font-weight: 600">Hide the strip while I type</div></div><span class="switch on" role="switch" aria-checked="true" aria-label="Hide the strip while I type"></span></div>
+<div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><div><div style="font-weight: 600">Pop in changes</div></div><span class="switch on" role="switch" aria-checked="true" aria-label="Pop in changes"></span></div>
+<div class="sc-col" style="gap: 8px"><span style="font-weight: 600">Rolls and receipts</span><div class="seg" role="group" aria-label="Rolls and receipts" style="width: 100%"><button aria-pressed="false" style="flex: 1">Show</button><button aria-pressed="true" style="flex: 1">Summary</button><button aria-pressed="false" style="flex: 1">Hide</button></div></div></div>
+<span class="ov">In The Gilded Ledger</span>
+<div><div class="sc-col" style="gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--sc-border)"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span style="font-weight: 600">Stamina and condition</span><span class="muted" style="font-size: 12px">Vitality & Stamina</span></div><div class="seg" role="group" aria-label="Stamina and condition" style="width: 100%"><button aria-pressed="true" style="flex: 1">Always</button><button aria-pressed="false" style="flex: 1">On change</button><button aria-pressed="false" style="flex: 1">Never</button></div></div><div class="sc-col" style="gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--sc-border)"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span style="font-weight: 600">Satiety and hunger</span><span class="muted" style="font-size: 12px">Needs & Survival</span></div><div class="seg" role="group" aria-label="Satiety and hunger" style="width: 100%"><button aria-pressed="false" style="flex: 1">Always</button><button aria-pressed="true" style="flex: 1">On change</button><button aria-pressed="false" style="flex: 1">Never</button></div></div><div class="sc-col" style="gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--sc-border)"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span style="font-weight: 600">Pillars</span><span class="muted" style="font-size: 12px">D100 5 Pillars</span></div><div class="seg" role="group" aria-label="Pillars" style="width: 100%"><button aria-pressed="true" style="flex: 1">Always</button><button aria-pressed="false" style="flex: 1">On change</button><button aria-pressed="false" style="flex: 1">Never</button></div></div><div class="sc-col" style="gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--sc-border)"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span style="font-weight: 600">Means</span><span class="muted" style="font-size: 12px">Wealth & Capability</span></div><div class="seg" role="group" aria-label="Means" style="width: 100%"><button aria-pressed="false" style="flex: 1">Always</button><button aria-pressed="false" style="flex: 1">On change</button><button aria-pressed="true" style="flex: 1">Never</button></div></div><div class="sc-col" style="gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--sc-border)"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span style="font-weight: 600">Present cast and bonds</span><span class="muted" style="font-size: 12px">NPC Relationships</span></div><div class="seg" role="group" aria-label="Present cast and bonds" style="width: 100%"><button aria-pressed="true" style="flex: 1">Always</button><button aria-pressed="false" style="flex: 1">On change</button><button aria-pressed="false" style="flex: 1">Never</button></div></div></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1360}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

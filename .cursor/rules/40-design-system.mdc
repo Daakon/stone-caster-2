@@ -1,0 +1,21 @@
+---
+description: Stonecaster design system and mobile-first play-screen redesign. Applies to all frontend UI work.
+globs:
+  - frontend/src/**/*.{ts,tsx,css}
+  - frontend/tailwind.config.js
+  - frontend/index.html
+alwaysApply: false
+---
+
+# Design system (Stonecaster)
+
+Start at `docs/design/README.md`. Full rules: `.agent/rules/rule-design-system.md` and `.agent/rules/rule-play-screen-design.md`. Shared agent guide: `AGENTS.md`.
+
+- Mobile first: 390x844, then 1100 and 1440. Match `docs/design/screens/*-Mobile.png` before desktop.
+- Tokens only (`docs/design/play-redesign/tokens.css`). No raw hex/rgb or Tailwind palette classes in new or changed code. Run `node scripts/check-design-tokens.mjs`.
+- Text ≥ 12px, targets ≥ 44px, labelled icon buttons, visible focus, reduced motion respected.
+- Play screen: `SPEC.md` §11 overrides older boards. Panels open/slim/hidden, focus mode, modules shown only when the story's rulesets declare them, no invented Health.
+- Current task: `docs/design/play-redesign/PHASE0_BRIEF.md`.
+
+@docs/design/play-redesign/SPEC.md
+@docs/design/play-redesign/PHASE0_BRIEF.md

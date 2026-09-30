@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin · Content release · mobile</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 390px; height: 980px">
+<header style="height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 4px; background: var(--sc-bg-panel); border-bottom: 1px solid var(--sc-border)"><button class="iconbtn" aria-label="Back"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><span style="font: 600 17px/1.2 var(--font-display); flex-grow: 1">Content release</span><button class="iconbtn" aria-label="Admin menu"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/></svg></button></header>
+<div style="padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 16px"><div class="sc-row" style="flex-wrap: nowrap; overflow: hidden"><button class="chip filter" aria-pressed="true" style="min-height: 36px">All</button><button class="chip filter" aria-pressed="false" style="min-height: 36px">Internal</button><button class="chip filter" aria-pressed="false" style="min-height: 36px">Published</button></div>
+<span class="muted" style="font-size: 12px">Last deploy 5d60314 · today 14:02</span>
+<div class="card" style="display: flex; flex-direction: column; gap: 8px; padding: 14px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="mono" style="font-weight: 600; color: var(--sc-text)">d100-5-pillars</span><span class="pill brand">Published</span></div><div class="sc-row" style="justify-content: space-between; font-size: 13px"><span class="muted">ruleset · 3 stories</span><button class="btn ghost sm">Unpublish</button></div></div><div class="card" style="display: flex; flex-direction: column; gap: 8px; padding: 14px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="mono" style="font-weight: 600; color: var(--sc-text)">mystika</span><span class="pill brand">Published</span></div><div class="sc-row" style="justify-content: space-between; font-size: 13px"><span class="muted">world · 6 stories</span><button class="btn ghost sm">Unpublish</button></div></div><div class="card" style="display: flex; flex-direction: column; gap: 8px; padding: 14px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="mono" style="font-weight: 600; color: var(--sc-text)">kiera</span><span class="pill warn">Internal</span></div><div class="sc-row" style="justify-content: space-between; font-size: 13px"><span class="muted">entity · 2 stories</span><button class="btn secondary sm">Publish</button></div></div><div class="card" style="display: flex; flex-direction: column; gap: 8px; padding: 14px"><div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><span class="mono" style="font-weight: 600; color: var(--sc-text)">whispercross_glade</span><span class="pill warn">Internal</span></div><div class="sc-row" style="justify-content: space-between; font-size: 13px"><span class="muted">entity · unused</span><button class="btn secondary sm">Publish</button></div></div>
+<div class="sheet" style="width: auto; border: 1px solid var(--sc-border-strong); border-radius: 22px; padding: 16px"><span class="h-md">Publish “kiera”?</span><p class="soft" style="font-size: 14px; margin: 0">Players can use this character in new stories. Its dependencies are published.</p><div class="field"><label for="mpr">Reason</label><input id="mpr" class="input" value="Ready for playtest"></div><div class="sc-row" style="flex-wrap: nowrap"><button class="btn ghost" style="flex-grow: 1">Keep internal</button><button class="btn primary" style="flex-grow: 1">Publish</button></div></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":980}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

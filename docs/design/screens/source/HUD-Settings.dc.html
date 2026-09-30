@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings · Layout and HUD</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 1440px; height: 1280px">
+<header class="gh" style="padding: 0 32px">
+<a class="brandmark" href="#"><img src="/_blob/a218653b969eb3b526088be33a62082c" alt="">Stonecaster</a>
+<nav aria-label="Main" style="margin-left: 16px"><a href="#" >Stories</a><a href="#" >Worlds</a><a href="#" >My Stories</a><a href="#" >Create</a></nav>
+<span class="spacer"></span>
+<button class="iconbtn" aria-label="Search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+<a class="stones" href="#" aria-label="Stones balance"><svg class="gem" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1 16.5 7 9 17 1.5 7Z"/><path class="cut" d="M9 1 12 7 9 17 6 7Z"/></svg>1,240</a><span class="av sm" aria-label="Account">E</span>
+</header>
+<div style="display: grid; grid-template-columns: 240px minmax(0, 1fr); height: calc(100% - 56px)">
+<nav class="side" style="padding: 20px 12px; display: flex; flex-direction: column; gap: 4px"><div class="ov" style="padding: 0 12px 8px">Settings</div><a class="navitem" href="#"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>Reading</a><a class="navitem on" href="#"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>Layout and HUD</a><a class="navitem" href="#"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/></svg>Controls</a><a class="navitem" href="#"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>Accessibility</a><a class="navitem" href="#"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Account</a></nav>
+<div style="padding: 32px 48px; display: flex; flex-direction: column; gap: 28px; min-width: 0">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 24px">
+<div class="sc-col" style="gap: 6px"><h1 class="h-xl">Layout and HUD</h1><p class="soft" style="max-width: 760px">Choose how much of the game sits around the story. These choices follow you to every story; each story only shows the modules its rules actually have.</p></div>
+<div class="sc-row"><button class="btn ghost">Reset to default</button><a class="btn primary" href="Play.dc.html">Back to story</a></div>
+</div>
+<section class="sc-col" style="gap: 12px"><span class="ov">Preset</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<button class="opt {{clsImm}}" onClick="{{pickImm}}" style="flex-direction: column; gap: 12px; text-align: left; color: var(--sc-text); font: inherit; cursor: pointer; min-width: 0">
+<div style="height: 84px; width: 100%; border-radius: 8px; background: var(--sc-bg-page); border: 1px solid var(--sc-border); display: grid; grid-template-columns: 0px 1fr 0px; gap: 4px; padding: 6px">
+<span style="border-radius: 4px; background: var(--sc-bg-raised)"></span><span style="border-radius: 4px; background: var(--sc-bg-card); display: flex; flex-direction: column; gap: 4px; padding: 8px 10px"><i style="height: 4px; background: var(--sc-text-faint); border-radius: 2px"></i><i style="height: 4px; width: 80%; background: var(--sc-text-faint); border-radius: 2px"></i><i style="height: 4px; width: 60%; background: var(--sc-text-faint); border-radius: 2px"></i></span><span style="border-radius: 4px; background: var(--sc-bg-raised)"></span>
+</div>
+<div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span class="radio"></span><span style="font-weight: 600">Immersive</span></div>
+<span class="soft" style="font-size: 13px">Story only. Panels hidden; changes pop in and fade. Open panels any time from the top bar.</span>
+</button>
+<button class="opt {{clsBal}}" onClick="{{pickBal}}" style="flex-direction: column; gap: 12px; text-align: left; color: var(--sc-text); font: inherit; cursor: pointer; min-width: 0">
+<div style="height: 84px; width: 100%; border-radius: 8px; background: var(--sc-bg-page); border: 1px solid var(--sc-border); display: grid; grid-template-columns: 18px 1fr 18px; gap: 4px; padding: 6px">
+<span style="border-radius: 4px; background: var(--sc-bg-raised)"></span><span style="border-radius: 4px; background: var(--sc-bg-card); display: flex; flex-direction: column; gap: 4px; padding: 8px 10px"><i style="height: 4px; background: var(--sc-text-faint); border-radius: 2px"></i><i style="height: 4px; width: 80%; background: var(--sc-text-faint); border-radius: 2px"></i><i style="height: 4px; width: 60%; background: var(--sc-text-faint); border-radius: 2px"></i></span><span style="border-radius: 4px; background: var(--sc-bg-raised)"></span>
+</div>
+<div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span class="radio"></span><span style="font-weight: 600">Balanced</span></div>
+<span class="soft" style="font-size: 13px">Slim icon rails with numbers. Expand either side when you want detail.</span>
+</button>
+<button class="opt {{clsFull}}" onClick="{{pickFull}}" style="flex-direction: column; gap: 12px; text-align: left; color: var(--sc-text); font: inherit; cursor: pointer; min-width: 0">
+<div style="height: 84px; width: 100%; border-radius: 8px; background: var(--sc-bg-page); border: 1px solid var(--sc-border); display: grid; grid-template-columns: 64px 1fr 72px; gap: 4px; padding: 6px">
+<span style="border-radius: 4px; background: var(--sc-bg-raised)"></span><span style="border-radius: 4px; background: var(--sc-bg-card); display: flex; flex-direction: column; gap: 4px; padding: 8px 10px"><i style="height: 4px; background: var(--sc-text-faint); border-radius: 2px"></i><i style="height: 4px; width: 80%; background: var(--sc-text-faint); border-radius: 2px"></i><i style="height: 4px; width: 60%; background: var(--sc-text-faint); border-radius: 2px"></i></span><span style="border-radius: 4px; background: var(--sc-bg-raised)"></span>
+</div>
+<div class="sc-row" style="flex-wrap: nowrap; gap: 10px"><span class="radio"></span><span style="font-weight: 600">Full HUD</span></div>
+<span class="soft" style="font-size: 13px">Character and Here panels always open, every module shown.</span>
+</button>
+</div></section>
+<section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+<div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px">
+<div class="sc-row" style="justify-content: space-between"><span style="font-weight: 600">Character panel</span><div class="seg" role="group" aria-label="Character panel"><button aria-pressed="true">Open</button><button aria-pressed="false">Slim</button><button aria-pressed="false">Hidden</button></div></div>
+<div class="sc-row" style="justify-content: space-between"><span style="font-weight: 600">Here panel</span><div class="seg" role="group" aria-label="Here panel"><button aria-pressed="true">Open</button><button aria-pressed="false">Slim</button><button aria-pressed="false">Hidden</button></div></div>
+</div>
+<div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px">
+<div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><div><div style="font-weight: 600">Collapse panels while I type</div><div class="muted" style="font-size: 13px">They come back when the scene finishes.</div></div><span class="switch" role="switch" aria-checked="false" aria-label="Collapse panels while I type"></span></div>
+<div class="sc-row" style="justify-content: space-between; flex-wrap: nowrap"><div><div style="font-weight: 600">Pop in hidden stats when they change</div><div class="muted" style="font-size: 13px">A small card shows the change, then fades.</div></div><span class="switch on" role="switch" aria-checked="true" aria-label="Pop in hidden stats when they change"></span></div>
+</div>
+</section>
+<section class="sc-col" style="gap: 12px">
+<div class="sc-row" style="justify-content: space-between"><span class="ov">Modules in The Gilded Ledger</span><label class="muted" for="story-pick" style="font-size: 13px">Showing for <select id="story-pick" class="input select" style="display: inline-block; width: 220px; min-height: 36px; padding: 6px 36px 6px 12px; margin-left: 8px"><option>The Gilded Ledger</option></select></label></div>
+<div class="card" style="padding: 0; overflow-x: auto"><table class="tbl"><thead><tr><th>Module</th><th>From the story's rules</th><th>Where</th><th>Show</th></tr></thead><tbody><tr><td class="strong">Stamina and condition</td><td>Vitality & Stamina</td>
+<td><label style="position: absolute; left: -9999px" for="w901">Where Stamina and condition</label><select id="w901" class="input select" style="min-height: 36px; padding-top: 6px; padding-bottom: 6px; width: 140px"><option>Character</option></select></td>
+<td><div class="seg" role="group" aria-label="Show Stamina and condition"><button aria-pressed="true">Always</button><button aria-pressed="false">On change</button><button aria-pressed="false">Never</button></div></td></tr><tr><td class="strong">Satiety and hunger</td><td>Needs & Survival · Basic</td>
+<td><label style="position: absolute; left: -9999px" for="w875">Where Satiety and hunger</label><select id="w875" class="input select" style="min-height: 36px; padding-top: 6px; padding-bottom: 6px; width: 140px"><option>Character</option></select></td>
+<td><div class="seg" role="group" aria-label="Show Satiety and hunger"><button aria-pressed="false">Always</button><button aria-pressed="true">On change</button><button aria-pressed="false">Never</button></div></td></tr><tr><td class="strong">Pillars</td><td>D100 5 Pillars</td>
+<td><label style="position: absolute; left: -9999px" for="w507">Where Pillars</label><select id="w507" class="input select" style="min-height: 36px; padding-top: 6px; padding-bottom: 6px; width: 140px"><option>Character</option></select></td>
+<td><div class="seg" role="group" aria-label="Show Pillars"><button aria-pressed="true">Always</button><button aria-pressed="false">On change</button><button aria-pressed="false">Never</button></div></td></tr><tr><td class="strong">Means</td><td>Wealth & Capability Lite</td>
+<td><label style="position: absolute; left: -9999px" for="w141">Where Means</label><select id="w141" class="input select" style="min-height: 36px; padding-top: 6px; padding-bottom: 6px; width: 140px"><option>Character</option></select></td>
+<td><div class="seg" role="group" aria-label="Show Means"><button aria-pressed="false">Always</button><button aria-pressed="false">On change</button><button aria-pressed="true">Never</button></div></td></tr><tr><td class="strong">Time band and scene</td><td>World Cycle & Time Bands</td>
+<td><label style="position: absolute; left: -9999px" for="w958">Where Time band and scene</label><select id="w958" class="input select" style="min-height: 36px; padding-top: 6px; padding-bottom: 6px; width: 140px"><option>Top bar</option></select></td>
+<td><div class="seg" role="group" aria-label="Show Time band and scene"><button aria-pressed="true">Always</button><button aria-pressed="false">On change</button><button aria-pressed="false">Never</button></div></td></tr><tr><td class="strong">Present cast and bonds</td><td>NPC Relationships</td>
+<td><label style="position: absolute; left: -9999px" for="w222">Where Present cast and bonds</label><select id="w222" class="input select" style="min-height: 36px; padding-top: 6px; padding-bottom: 6px; width: 140px"><option>Here</option></select></td>
+<td><div class="seg" role="group" aria-label="Show Present cast and bonds"><button aria-pressed="true">Always</button><button aria-pressed="false">On change</button><button aria-pressed="false">Never</button></div></td></tr><tr><td class="strong">Rolls and receipts</td><td>D100 Skill Engine</td>
+<td><label style="position: absolute; left: -9999px" for="w932">Where Rolls and receipts</label><select id="w932" class="input select" style="min-height: 36px; padding-top: 6px; padding-bottom: 6px; width: 140px"><option>Story</option></select></td>
+<td><div class="seg" role="group" aria-label="Show Rolls and receipts"><button aria-pressed="false">Show</button><button aria-pressed="true">Summary</button><button aria-pressed="false">Hide</button></div></td></tr></tbody></table></div>
+<p class="muted" style="font-size: 13px">Stamina magic in this story is an action, not a stat, so it appears as a Cast shortcut under the composer rather than a panel row. A rule this screen doesn't recognise still gets a plain label and value row.</p>
+</section>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1280}}'>
+class Component extends DCLogic {
+constructor(p) { super(p); this.state = { preset: 'Full' }; }
+renderVals() {
+const c = (k) => (this.state.preset === k ? 'on' : '');
+return { clsImm: c('Imm'), clsBal: c('Bal'), clsFull: c('Full'), pickImm: () => this.setState({ preset: 'Imm' }), pickBal: () => this.setState({ preset: 'Bal' }), pickFull: () => this.setState({ preset: 'Full' }) };
+}
+}
+</script>
+</body>
+</html>

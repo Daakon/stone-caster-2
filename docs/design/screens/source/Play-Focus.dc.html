@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Play · focus mode</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="sc.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&amp;family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13;font-family:'DM Sans',system-ui,sans-serif;color:#ece8f6}a{color:#cdbdff}a:hover{color:#ece8f6}</style>
+</helmet>
+<div class="ab" style="width: 1440px; height: 900px">
+<header style="height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 8px; background: var(--sc-bg-page)">
+<button class="iconbtn" aria-label="Save and exit"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+<button class="iconbtn" aria-label="Show character panel"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 3v18"/></svg></button>
+<span style="font: 600 15px/1.2 var(--font-display); width: 200px">The Gilded Ledger</span>
+<span style="flex-grow: 1"></span>
+<span class="sc-row" style="gap: 10px; flex-wrap: nowrap; padding: 0 12px; min-height: 36px; border-radius: 999px; border: 1px solid var(--sc-border-strong); background: var(--sc-bg-card)" title="Pinned: only what you chose to keep"><span class="muted" style="font-size: 12px">Deep Night</span><span class="sc-row" style="gap: 4px; flex-wrap: nowrap; color: var(--sc-stamina)"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg><span class="mono" style="font-size: 12px; color: var(--sc-text)">90</span></span></span>
+<button class="btn ghost sm"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg> Show panels</button>
+<button class="iconbtn" aria-label="Show Here panel"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M15 3v18"/></svg></button>
+</header>
+<div style="display: flex; flex-direction: column; align-items: center; height: 844px">
+<div style="flex-grow: 1; overflow: hidden; padding: 40px 44px 0; width: 100%; display: flex; justify-content: center"><div style="width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 18px"><div class="turn-div">Turn 14 · Deep Night</div>
+<div class="you"><span class="ov"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> You do</span><div class="bubble">I lean on the bar and ask Kiera who the stranger is.</div></div>
+<div class="sc-row"><span class="mech"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect width="12" height="12" x="2" y="10" rx="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/><path d="M6 18h.01"/><path d="M10 14h.01"/><path d="M15 6h.01"/><path d="M18 9h.01"/></svg>Insight · rolled 34 vs 45 · <span class="ok">Success</span> <svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span><span class="mech">Stamina <span class="neg">−10</span></span><span class="mech">Kiera <span class="pos">+2</span> warmer</span></div>
+<p class="narr">Rain has drummed on the <button class="ent place">Gilded Stag</button>'s shutters for an hour, and the taproom smells of woodsmoke and wet wool. You lean against the bar, close enough to hear the <button class="ent unknown new">hooded stranger</button> breathe.</p>
+<div class="dlg"><span class="spk">Kiera <em>low, polishing a clean mug</em></span><p class="narr">“Paid in <button class="ent item">silver</button>, asked for nothing, hasn't touched his ale. Either he's waiting for someone, or someone's waiting for him.”</p></div>
+<div class="learned"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></svg><span>Learned about <b>Kiera</b>: she recognised the stranger's coin.</span></div>
+<div class="sc-col" style="gap: 10px"><span class="ov">Continue with</span><div class="sc-row"><button class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg> Watch the stranger quietly</button><button class="chip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg> Ask Kiera about the silver</button></div></div></div></div>
+<div style="padding: 16px 44px 20px; width: 100%; display: flex; justify-content: center"><div class="composer" style="width: 100%; max-width: 720px">
+<div class="head"><div class="seg" role="group" aria-label="Turn mode"><button aria-pressed="true">Do</button><button aria-pressed="false">Say</button><button aria-pressed="false">Look</button></div><span class="hint">Enter to send · / for commands</span></div>
+<div class="ta">What do you do?</div>
+<div class="foot"><span class="chip macro"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg> Observe</span><span class="chip macro"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg> Rest</span><span class="chip macro"><svg class="ico sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></svg> Cast <span class="mono muted" style="font-size: 12px">−25 stamina</span></span><button class="iconbtn send" disabled aria-label="Send"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button></div>
+</div></div>
+</div>
+<div class="card raised" style="position: absolute; right: 28px; top: 76px; width: 300px; display: flex; flex-direction: column; gap: 6px">
+<span class="ov">Pops in when it changes</span>
+<div class="vital st"><div class="top"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>Stamina <span class="delta neg">−10</span><span class="v">90 <small>/ 100</small></span></div><div class="track"><i style="width: 90%"></i></div></div>
+<span class="muted" style="font-size: 12px">Fades after a few seconds. Set per module in Layout.</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

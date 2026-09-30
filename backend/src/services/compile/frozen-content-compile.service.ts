@@ -16,7 +16,20 @@ export class FrozenContentCompileService {
   ) {}
 
   async compile(selection: FirstPartyCompileSelectionV1): Promise<string> {
-    const generation = await this.catalog.getGeneration();
+    // A sync can commit between catalog reads and the database publish fence.
+    // Discard the entire candidate and resolve every key again at the new generation.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const generation = await this.catalog.getGeneration();
+      try {
+        return await this.compileAtGeneration(selection, generation);
+      } catch (error) {
+        if (attempt === 2 || await this.catalog.getGeneration() === generation) throw error;
+      }
+    }
+    throw new Error('Content catalog changed repeatedly during compile');
+  }
+
+  private async compileAtGeneration(selection: FirstPartyCompileSelectionV1, generation: number): Promise<string> {
     const selected = new Map<string, {row:ContentCatalogRow; role:string}>();
     const resolving = new Set<string>();
     const resolve = async (ref:ContentKeyRef, role:string):Promise<ContentCatalogRow> => {
