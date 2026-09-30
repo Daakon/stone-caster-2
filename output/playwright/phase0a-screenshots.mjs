@@ -1,6 +1,8 @@
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const phase = process.argv[2] || 'before';
+const storedTheme = process.argv.includes('--stored-light') ? 'light' : 'dark';
 const gameState = {
   id: 'phase0a-visual-check',
   mechanical_state: {
@@ -25,9 +27,7 @@ const gameState = {
 for (const width of process.argv[3] ? [Number(process.argv[3])] : [390, 1440]) {
   const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 900 }, deviceScaleFactor: 1 });
   const page = await context.newPage();
-  if (process.argv[2] === 'light') {
-    await page.addInitScript(() => localStorage.setItem('stonecaster-ui-theme', 'light'));
-  }
+  await page.addInitScript(theme => localStorage.setItem('stonecaster-ui-theme', theme), storedTheme);
   page.on('pageerror', error => console.log('PAGE ERROR:', error.message));
   page.on('console', message => { if (message.type() === 'error') console.log('CONSOLE ERROR:', message.text()); });
   await page.route(url => new URL(url).pathname.startsWith('/api/'), async (route) => {
@@ -43,7 +43,11 @@ for (const width of process.argv[3] ? [Number(process.argv[3])] : [390, 1440]) {
   });
   await page.goto('http://localhost:5173/play/phase0a-visual-check', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
-  const phase = process.argv[2] || 'before';
+  if (phase === 'after') {
+    const rootIsDark = await page.locator('html.dark').count() === 1;
+    const toggleIsHidden = await page.getByRole('button', { name: 'Toggle theme' }).count() === 0;
+    if (!rootIsDark || !toggleIsHidden) throw new Error(`Dark-only check failed: rootIsDark=${rootIsDark}, toggleIsHidden=${toggleIsHidden}`);
+  }
   const path = `output/playwright/phase0a-${phase}-${width}.png`;
   await page.screenshot({ path });
   console.log(`${width}: ${page.url()} | ${await page.title()} | ${await page.locator('body').innerText().then(x => x.slice(0, 180))} | ${path}`);

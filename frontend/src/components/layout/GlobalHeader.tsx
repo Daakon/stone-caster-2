@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuthStore } from '@/store/auth';
 import { RoutePreservationService } from '@/services/routePreservation';
 import { useAppConfig } from '@/hooks/useAppConfig';
@@ -96,8 +95,6 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
               </Button>
             )}
             
-            <ThemeToggle />
-            
             {isAuthenticated ? (
               <Button
                 variant="ghost"
@@ -181,4 +178,3 @@ export function GlobalHeader({ variant = 'full', showSearch = false }: GlobalHea
     </header>
   );
 }
-

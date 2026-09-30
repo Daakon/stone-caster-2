@@ -6,25 +6,28 @@ type Theme = 'dark' | 'light' | 'system';
 type ThemeProviderProps = {
   children: React.ReactNode;
   defaultTheme?: Theme;
+  forcedTheme?: Theme;
   storageKey?: string;
 };
 
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
+  forcedTheme,
   storageKey = 'stonecaster-ui-theme',
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
   );
+  const activeTheme = forcedTheme ?? theme;
 
   useEffect(() => {
     const root = window.document.documentElement;
 
     root.classList.remove('light', 'dark');
 
-    if (theme === 'system') {
+    if (activeTheme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
         .matches
         ? 'dark'
@@ -34,14 +37,15 @@ export function ThemeProvider({
       return;
     }
 
-    root.classList.add(theme);
-  }, [theme]);
+    root.classList.add(activeTheme);
+  }, [activeTheme]);
 
   const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
+    theme: activeTheme,
+    setTheme: (nextTheme: Theme) => {
+      if (forcedTheme) return;
+      localStorage.setItem(storageKey, nextTheme);
+      setTheme(nextTheme);
     },
   };
 

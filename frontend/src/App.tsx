@@ -400,7 +400,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark" storageKey="stonecaster-ui-theme">
+      <ThemeProvider defaultTheme="dark" forcedTheme="dark" storageKey="stonecaster-ui-theme">
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <AccessStatusProvider>

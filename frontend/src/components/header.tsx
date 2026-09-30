@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuthStore } from '@/store/auth';
 
 export function Header() {
@@ -59,8 +58,6 @@ export function Header() {
           </div>
           
           <nav className="flex items-center space-x-2">
-            <ThemeToggle />
-            
             {user ? (
               <Button
                 variant="ghost"
