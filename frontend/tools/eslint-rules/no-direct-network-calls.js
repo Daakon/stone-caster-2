@@ -1,7 +1,7 @@
 /**
  * ESLint rule to prevent direct network calls in React components
- * Forbids fetch, axios, supabase imports in **/*.{tsx,jsx} files
- * Allowed only in src/lib/api.ts and src/lib/queries/**
+ * Forbids fetch, axios, and supabase imports in TSX and JSX components.
+ * Network calls belong in src/lib/api.ts or src/lib/queries.
  */
 
 export default {
@@ -88,4 +88,3 @@ export default {
     };
   },
 };
-
