@@ -33,6 +33,27 @@ for (const viewport of [
       .locator("body")
       .evaluate((body) => getComputedStyle(body).fontFamily);
     expect(typography).toContain("DM Sans");
+    const translucentColours = await page.evaluate(() => {
+      const sample = document.createElement("div");
+      sample.className = "bg-stone-900/50 border-stone-800/50";
+      sample.style.display = "none";
+      document.body.append(sample);
+      const actual = {
+        background: getComputedStyle(sample).backgroundColor,
+        border: getComputedStyle(sample).borderTopColor,
+      };
+      sample.style.backgroundColor =
+        "color-mix(in srgb, var(--sc-bg-card) 50%, transparent)";
+      sample.style.borderColor =
+        "color-mix(in srgb, var(--sc-bg-raised) 50%, transparent)";
+      const expected = {
+        background: getComputedStyle(sample).backgroundColor,
+        border: getComputedStyle(sample).borderTopColor,
+      };
+      sample.remove();
+      return { actual, expected };
+    });
+    expect(translucentColours.actual).toEqual(translucentColours.expected);
     await page.evaluate(() => document.fonts.ready.then(() => {}));
     await expect
       .poll(() =>
