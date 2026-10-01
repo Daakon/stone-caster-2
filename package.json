@@ -70,7 +70,23 @@
     "local:health": "node scripts/stonecaster-local.mjs health",
     "local:smoke": "node scripts/stonecaster-local.mjs smoke --mock",
     "local:smoke:real": "node scripts/stonecaster-local.mjs smoke --real",
-    "local:smoke:browser": "npm exec --workspace=frontend -- playwright test -c playwright.local.config.ts"
+    "local:smoke:browser": "npm exec --workspace=frontend -- playwright test -c playwright.local.config.ts",
+    "design:check": "node scripts/check-design-tokens.mjs",
+    "ci:types": "node scripts/ci/check-typescript.mjs",
+    "ci:lint:frontend": "node scripts/ci/run-eslint.mjs frontend",
+    "ci:lint:backend": "node scripts/ci/run-eslint.mjs backend",
+    "ci:lint": "npm run ci:lint:frontend && npm run ci:lint:backend",
+    "ci:tests": "node scripts/ci/check-tests.mjs",
+    "ci:all": "npm run ci:types && npm run ci:strict-types && npm run ci:lint && npm run ci:tests && npm run ci:strict-coverage && npm run design:check && npm run format:check && npm run ci:anti-gaming && npm run ci:architecture && npm run ci:knip",
+    "format:check": "node scripts/ci/check-format.mjs",
+    "format:fix": "node scripts/ci/check-format.mjs --write",
+    "ci:architecture": "npm exec -- depcruise --config .dependency-cruiser.js --ignore-known .dependency-cruiser-known-violations.json backend/src frontend/src",
+    "ci:knip": "node scripts/ci/check-knip.mjs",
+    "ci:anti-gaming": "node scripts/ci/check-anti-gaming.mjs",
+    "ci:strict-types": "node scripts/ci/check-strict-typescript.mjs",
+    "ci:strict-coverage": "node scripts/ci/check-strict-coverage.mjs",
+    "test:e2e:mocked": "npm exec --workspace=frontend -- playwright test -c playwright.mocked.config.ts",
+    "ci:prove-gates": "node scripts/ci/prove-gates.mjs"
   },
   "keywords": [
     "rpg",
@@ -82,7 +98,12 @@
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "dependency-cruiser": "^18.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "kill-port": "^2.0.1",
+    "knip": "^6.39.0",
+    "prettier": "^3.9.9",
     "supabase": "2.117.0",
     "typescript": "^5.3.2"
   },

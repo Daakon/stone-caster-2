@@ -1,13 +1,13 @@
 /**
  * Action Parser Service (MAS 1: Pre-narrative)
  * Phase 4: The Play Engine
- * 
+ *
  * Implements the logic to resolve user intent and sentiment from natural language input.
  * This is the "Pre-narrative" AI that performs Coreference Resolution, Intent Parsing,
  * and Sentiment Analysis.
  */
 
-import type { CompiledStoryJson } from '../chimera/rebuild-service.js';
+import type { CompiledStoryJson } from "../chimera/rebuild-service.js";
 
 /**
  * GameStateTiers structure
@@ -68,15 +68,12 @@ interface ParserContext {
 /**
  * Placeholder function to call MAS API
  * TODO: Replace with actual AI service integration (OpenAI, Anthropic, etc.)
- * 
+ *
  * @param prompt - The formatted prompt for the AI
  * @param model - The model identifier (optional)
  * @returns A promise that resolves to the AI's JSON response
  */
-async function callMasApi(
-  prompt: string,
-  model?: string
-): Promise<Mas1ResponseDto> {
+function callMasApi(prompt: string): Mas1ResponseDto {
   // Placeholder: In production, this would call an actual AI service
   // Example:
   // const response = await openai.chat.completions.create({
@@ -87,28 +84,43 @@ async function callMasApi(
   // return JSON.parse(response.choices[0].message.content) as Mas1ResponseDto;
 
   // Mock response for development
-  console.log('[MAS 1] Mock API call with prompt:', prompt.substring(0, 200) + '...');
-  
+  console.log(
+    "[MAS 1] Mock API call with prompt:",
+    prompt.substring(0, 200) + "...",
+  );
+
   // Simple mock that extracts basic action from input
   // Extract the user input from the prompt (it's at the end after "User Input: ")
   const userInputMatch = prompt.match(/User Input: "([^"]+)"/);
-  const userInput = userInputMatch ? userInputMatch[1].toLowerCase() : prompt.toLowerCase();
-  
-  let action = 'look';
+  const userInput = (userInputMatch?.[1] ?? prompt).toLowerCase();
+
+  let action = "look";
   let target: string | undefined;
-  
+
   // Check in order of specificity (more specific first)
-  if (userInput.includes('pick') || userInput.includes('lock')) {
-    action = 'pick_lock';
-    target = 'door';
-  } else if (userInput.includes('talk') || userInput.includes('speak') || userInput.includes('say')) {
-    action = 'talk';
-    target = 'npc';
-  } else if (userInput.includes('attack') || userInput.includes('hit') || userInput.includes('strike')) {
-    action = 'attack';
-    target = 'enemy';
-  } else if (userInput.includes('move') || userInput.includes('go') || userInput.includes('walk')) {
-    action = 'move';
+  if (userInput.includes("pick") || userInput.includes("lock")) {
+    action = "pick_lock";
+    target = "door";
+  } else if (
+    userInput.includes("talk") ||
+    userInput.includes("speak") ||
+    userInput.includes("say")
+  ) {
+    action = "talk";
+    target = "npc";
+  } else if (
+    userInput.includes("attack") ||
+    userInput.includes("hit") ||
+    userInput.includes("strike")
+  ) {
+    action = "attack";
+    target = "enemy";
+  } else if (
+    userInput.includes("move") ||
+    userInput.includes("go") ||
+    userInput.includes("walk")
+  ) {
+    action = "move";
   }
 
   return {
@@ -116,9 +128,9 @@ async function callMasApi(
       action,
       target,
     },
-    resolvedQuery: prompt.split('\n').pop() || 'User action',
+    resolvedQuery: prompt.split("\n").pop() || "User action",
     detectedSentiment: {
-      tone: 'neutral',
+      tone: "neutral",
       intensity: 5,
     },
   };
@@ -126,33 +138,33 @@ async function callMasApi(
 
 /**
  * Parse user input and extract action, intent, and sentiment
- * 
+ *
  * @param textInput - The user's natural language input
  * @param parserContextJson - The parser context from the compiled story
  * @param gameState - The current game state (all tiers)
  * @returns The parsed response containing actionDto, resolvedQuery, and detectedSentiment
  */
-export async function parseAction(
+export function parseAction(
   textInput: string,
-  parserContextJson: CompiledStoryJson['parser_context_json'],
-  gameState: GameStateTiers
+  parserContextJson: CompiledStoryJson["parser_context_json"],
+  gameState: GameStateTiers,
 ): Promise<Mas1ResponseDto> {
   const context: ParserContext = {
-    prompt_rules: parserContextJson.prompt_rules || [],
-    available_actions: parserContextJson.available_actions || [],
-    available_entities: parserContextJson.available_entities || [],
+    prompt_rules: parserContextJson.prompt_rules,
+    available_actions: parserContextJson.available_actions,
+    available_entities: parserContextJson.available_entities,
   };
 
   // Build the prompt for MAS 1
   const prompt = buildParserPrompt(textInput, context, gameState);
 
   // Call the AI service (mock for now)
-  const response = await callMasApi(prompt);
+  const response = callMasApi(prompt);
 
   // Validate the response
   validateMas1Response(response, context);
 
-  return response;
+  return Promise.resolve(response);
 }
 
 /**
@@ -161,15 +173,17 @@ export async function parseAction(
 function buildParserPrompt(
   textInput: string,
   context: ParserContext,
-  gameState: GameStateTiers
+  gameState: GameStateTiers,
 ): string {
-  const promptRules = context.prompt_rules.join('\n');
-  const availableActions = context.available_actions.length > 0
-    ? `Available actions: ${context.available_actions.join(', ')}`
-    : 'No specific actions defined';
-  const availableEntities = context.available_entities.length > 0
-    ? `Available entities: ${context.available_entities.join(', ')}`
-    : 'No specific entities defined';
+  const promptRules = context.prompt_rules.join("\n");
+  const availableActions =
+    context.available_actions.length > 0
+      ? `Available actions: ${context.available_actions.join(", ")}`
+      : "No specific actions defined";
+  const availableEntities =
+    context.available_entities.length > 0
+      ? `Available entities: ${context.available_entities.join(", ")}`
+      : "No specific entities defined";
 
   // Build a summary of relevant game state for context
   const stateSummary = buildStateSummary(gameState);
@@ -212,15 +226,21 @@ function buildStateSummary(gameState: GameStateTiers): string {
 
   // Include relevant tier 0 state (narrative context)
   if (Object.keys(gameState.tier0_tracked_state).length > 0) {
-    parts.push('Narrative State: ' + JSON.stringify(gameState.tier0_tracked_state, null, 2));
+    parts.push(
+      "Narrative State: " +
+        JSON.stringify(gameState.tier0_tracked_state, null, 2),
+    );
   }
 
   // Include relevant tier 1 state (simple mechanics)
   if (Object.keys(gameState.tier1_singular_state).length > 0) {
-    parts.push('Game Mechanics: ' + JSON.stringify(gameState.tier1_singular_state, null, 2));
+    parts.push(
+      "Game Mechanics: " +
+        JSON.stringify(gameState.tier1_singular_state, null, 2),
+    );
   }
 
-  return parts.join('\n\n') || 'No significant game state';
+  return parts.join("\n\n") || "No significant game state";
 }
 
 /**
@@ -228,30 +248,31 @@ function buildStateSummary(gameState: GameStateTiers): string {
  */
 function validateMas1Response(
   response: Mas1ResponseDto,
-  context: ParserContext
+  context: ParserContext,
 ): void {
-  if (!response.actionDto || !response.actionDto.action) {
-    throw new Error('MAS 1 response missing actionDto.action');
+  if (!response.actionDto.action) {
+    throw new Error("MAS 1 response missing actionDto.action");
   }
 
-  if (!response.resolvedQuery || typeof response.resolvedQuery !== 'string') {
-    throw new Error('MAS 1 response missing or invalid resolvedQuery');
-  }
-
-  if (!response.detectedSentiment) {
-    throw new Error('MAS 1 response missing detectedSentiment');
-  }
-
-  if (!response.detectedSentiment.tone || typeof response.detectedSentiment.tone !== 'string') {
-    throw new Error('MAS 1 response missing or invalid detectedSentiment.tone');
+  if (!response.resolvedQuery || typeof response.resolvedQuery !== "string") {
+    throw new Error("MAS 1 response missing or invalid resolvedQuery");
   }
 
   if (
-    typeof response.detectedSentiment.intensity !== 'number' ||
+    !response.detectedSentiment.tone ||
+    typeof response.detectedSentiment.tone !== "string"
+  ) {
+    throw new Error("MAS 1 response missing or invalid detectedSentiment.tone");
+  }
+
+  if (
+    typeof response.detectedSentiment.intensity !== "number" ||
     response.detectedSentiment.intensity < 1 ||
     response.detectedSentiment.intensity > 10
   ) {
-    throw new Error('MAS 1 response missing or invalid detectedSentiment.intensity (must be 1-10)');
+    throw new Error(
+      "MAS 1 response missing or invalid detectedSentiment.intensity (must be 1-10)",
+    );
   }
 
   // Warn if action is not in available actions (but don't fail - might be a valid new action)
@@ -261,8 +282,7 @@ function validateMas1Response(
   ) {
     console.warn(
       `[MAS 1] Action "${response.actionDto.action}" not in available actions list:`,
-      context.available_actions
+      context.available_actions,
     );
   }
 }
-

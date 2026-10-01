@@ -1,574 +1,610 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test.describe('Unified Game Page - Layer M4', () => {
+test.describe("@stack Unified Game Page - Layer M4", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app
-    await page.goto('/');
-    
+    await page.goto("/");
+
     // Wait for the app to load
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState("networkidle");
   });
 
-  test.describe('Mobile-First Design (375×812)', () => {
-    test('should display unified game interface on mobile', async ({ page }) => {
+  test.describe("@stack Mobile-First Design (375×812)", () => {
+    test("should display unified game interface on mobile", async ({
+      page,
+    }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 812 });
 
       // Mock API responses for game data
-      await page.route('**/api/games/*', async (route) => {
+      await page.route("**/api/games/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'game-123',
-              adventureId: 'adventure-123',
-              adventureTitle: 'The Mystika Tutorial',
-              adventureSlug: 'mystika-tutorial',
-              characterId: 'character-123',
-              worldSlug: 'mystika',
+              id: "game-123",
+              adventureId: "adventure-123",
+              adventureTitle: "The Mystika Tutorial",
+              adventureSlug: "mystika-tutorial",
+              characterId: "character-123",
+              worldSlug: "mystika",
               turnCount: 0,
-              status: 'active',
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              status: "active",
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/characters/*', async (route) => {
+      await page.route("**/api/characters/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'character-123',
-              name: 'Test Hero',
-              worldSlug: 'mystika',
+              id: "character-123",
+              name: "Test Hero",
+              worldSlug: "mystika",
               worldData: {
-                class: 'mage',
-                faction_alignment: 'arcane_order'
+                class: "mage",
+                faction_alignment: "arcane_order",
               },
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/content/worlds', async (route) => {
+      await page.route("**/api/content/worlds", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: [
               {
-                title: 'Mystika',
-                slug: 'mystika',
-                tags: ['magic', 'fantasy'],
-                scenarios: ['The Awakening', 'First Spells'],
+                title: "Mystika",
+                slug: "mystika",
+                tags: ["magic", "fantasy"],
+                scenarios: ["The Awakening", "First Spells"],
                 displayRules: {
                   allowMagic: true,
                   allowTechnology: false,
-                  difficultyLevel: 'medium',
-                  combatSystem: 'd20'
-                }
-              }
+                  difficultyLevel: "medium",
+                  combatSystem: "d20",
+                },
+              },
             ],
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/stones/wallet', async (route) => {
+      await page.route("**/api/stones/wallet", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
               balance: 15,
-              currency: 'stones'
+              currency: "stones",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Navigate to game page
-      await page.goto('/play/game-123');
-      await page.waitForLoadState('networkidle');
+      await page.goto("/play/game-123");
+      await page.waitForLoadState("networkidle");
 
       // Check mobile header with hamburger menu
-      await expect(page.locator('header')).toBeVisible();
+      await expect(page.locator("header")).toBeVisible();
       await expect(page.locator('[aria-label="Toggle menu"]')).toBeVisible();
-      
+
       // Check stone balance in header
-      await expect(page.locator('text=15')).toBeVisible();
+      await expect(page.locator("text=15")).toBeVisible();
 
       // Check main game content
-      await expect(page.locator('h1:has-text("The Mystika Tutorial")')).toBeVisible();
-      await expect(page.locator('text=Playing as Test Hero in Mystika')).toBeVisible();
-      await expect(page.locator('text=Turn 0')).toBeVisible();
+      await expect(
+        page.locator('h1:has-text("The Mystika Tutorial")'),
+      ).toBeVisible();
+      await expect(
+        page.locator("text=Playing as Test Hero in Mystika"),
+      ).toBeVisible();
+      await expect(page.locator("text=Turn 0")).toBeVisible();
 
       // Check story section
-      await expect(page.locator('text=Story')).toBeVisible();
+      await expect(page.locator("text=Story")).toBeVisible();
 
       // Check turn input
-      await expect(page.locator('text=Your Action')).toBeVisible();
-      await expect(page.locator('textarea[placeholder="What do you do?"]')).toBeVisible();
+      await expect(page.locator("text=Your Action")).toBeVisible();
+      await expect(
+        page.locator('textarea[placeholder="What do you do?"]'),
+      ).toBeVisible();
 
       // Check sidebar content (should be stacked on mobile)
-      await expect(page.locator('text=Character')).toBeVisible();
-      await expect(page.locator('text=Test Hero')).toBeVisible();
-      await expect(page.locator('text=mage')).toBeVisible();
-      await expect(page.locator('text=arcane_order')).toBeVisible();
+      await expect(page.locator("text=Character")).toBeVisible();
+      await expect(page.locator("text=Test Hero")).toBeVisible();
+      await expect(page.locator("text=mage")).toBeVisible();
+      await expect(page.locator("text=arcane_order")).toBeVisible();
 
-      await expect(page.locator('text=World Rules')).toBeVisible();
-      await expect(page.locator('text=Casting Stones')).toBeVisible();
-      await expect(page.locator('text=15')).toBeVisible();
+      await expect(page.locator("text=World Rules")).toBeVisible();
+      await expect(page.locator("text=Casting Stones")).toBeVisible();
+      await expect(page.locator("text=15")).toBeVisible();
     });
 
-    test('should handle turn submission and display results', async ({ page }) => {
+    test("should handle turn submission and display results", async ({
+      page,
+    }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 812 });
 
       // Mock API responses
-      await page.route('**/api/games/*', async (route) => {
-        if (route.request().method() === 'GET') {
+      await page.route("**/api/games/*", async (route) => {
+        if (route.request().method() === "GET") {
           await route.fulfill({
             status: 200,
-            contentType: 'application/json',
+            contentType: "application/json",
             body: JSON.stringify({
               ok: true,
               data: {
-                id: 'game-123',
-                adventureId: 'adventure-123',
-                adventureTitle: 'The Mystika Tutorial',
-                adventureSlug: 'mystika-tutorial',
-                characterId: 'character-123',
-                worldSlug: 'mystika',
+                id: "game-123",
+                adventureId: "adventure-123",
+                adventureTitle: "The Mystika Tutorial",
+                adventureSlug: "mystika-tutorial",
+                characterId: "character-123",
+                worldSlug: "mystika",
                 turnCount: 0,
-                status: 'active',
-                createdAt: '2024-01-01T00:00:00Z',
-                updatedAt: '2024-01-01T00:00:00Z',
+                status: "active",
+                createdAt: "2024-01-01T00:00:00Z",
+                updatedAt: "2024-01-01T00:00:00Z",
               },
-              meta: { traceId: 'trace-123' }
-            })
+              meta: { traceId: "trace-123" },
+            }),
           });
         }
       });
 
-      await page.route('**/api/characters/*', async (route) => {
+      await page.route("**/api/characters/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'character-123',
-              name: 'Test Hero',
-              worldSlug: 'mystika',
-              worldData: { class: 'mage' },
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              id: "character-123",
+              name: "Test Hero",
+              worldSlug: "mystika",
+              worldData: { class: "mage" },
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/content/worlds', async (route) => {
+      await page.route("**/api/content/worlds", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: [
               {
-                title: 'Mystika',
-                slug: 'mystika',
-                tags: ['magic', 'fantasy'],
-                scenarios: ['The Awakening'],
-                displayRules: { allowMagic: true }
-              }
+                title: "Mystika",
+                slug: "mystika",
+                tags: ["magic", "fantasy"],
+                scenarios: ["The Awakening"],
+                displayRules: { allowMagic: true },
+              },
             ],
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/stones/wallet', async (route) => {
+      await page.route("**/api/stones/wallet", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
-            data: { balance: 15, currency: 'stones' },
-            meta: { traceId: 'trace-123' }
-          })
+            data: { balance: 15, currency: "stones" },
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Mock turn submission
-      await page.route('**/api/games/*/turn', async (route) => {
+      await page.route("**/api/games/*/turn", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'turn-123',
-              createdAt: '2024-01-01T00:01:00Z',
-              emotion: 'neutral',
-              narrative: 'You cast a simple spell and feel the magic flow through you.',
+              id: "turn-123",
+              createdAt: "2024-01-01T00:01:00Z",
+              emotion: "neutral",
+              narrative:
+                "You cast a simple spell and feel the magic flow through you.",
               choices: [
-                { id: 'choice-1', label: 'Continue practicing' },
-                { id: 'choice-2', label: 'Try a more complex spell' }
+                { id: "choice-1", label: "Continue practicing" },
+                { id: "choice-2", label: "Try a more complex spell" },
               ],
               stoneCost: 1,
               stoneBalance: 14,
               turnCount: 1,
               worldRuleDeltas: {},
-              factionDeltas: {}
+              factionDeltas: {},
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Navigate to game page
-      await page.goto('/play/game-123');
-      await page.waitForLoadState('networkidle');
+      await page.goto("/play/game-123");
+      await page.waitForLoadState("networkidle");
 
       // Submit a turn
-      await page.fill('textarea[placeholder="What do you do?"]', 'I cast a simple spell');
+      await page.fill(
+        'textarea[placeholder="What do you do?"]',
+        "I cast a simple spell",
+      );
       await page.click('button:has-text("Cast Stone")');
 
       // Wait for turn to process
-      await page.waitForSelector('text=Processing...', { timeout: 5000 });
-      await page.waitForSelector('text=You cast a simple spell and feel the magic flow through you.', { timeout: 10000 });
+      await page.waitForSelector("text=Processing...", { timeout: 5000 });
+      await page.waitForSelector(
+        "text=You cast a simple spell and feel the magic flow through you.",
+        { timeout: 10000 },
+      );
 
       // Check that turn count updated
-      await expect(page.locator('text=Turn 1')).toBeVisible();
+      await expect(page.locator("text=Turn 1")).toBeVisible();
 
       // Check that stone balance updated
-      await expect(page.locator('text=14')).toBeVisible();
+      await expect(page.locator("text=14")).toBeVisible();
 
       // Check that player action appears in history
-      await expect(page.locator('text=I cast a simple spell')).toBeVisible();
+      await expect(page.locator("text=I cast a simple spell")).toBeVisible();
     });
 
-    test('should handle turn errors gracefully', async ({ page }) => {
+    test("should handle turn errors gracefully", async ({ page }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 812 });
 
       // Mock API responses for initial load
-      await page.route('**/api/games/*', async (route) => {
-        if (route.request().method() === 'GET') {
+      await page.route("**/api/games/*", async (route) => {
+        if (route.request().method() === "GET") {
           await route.fulfill({
             status: 200,
-            contentType: 'application/json',
+            contentType: "application/json",
             body: JSON.stringify({
               ok: true,
               data: {
-                id: 'game-123',
-                adventureId: 'adventure-123',
-                adventureTitle: 'The Mystika Tutorial',
-                adventureSlug: 'mystika-tutorial',
-                characterId: 'character-123',
-                worldSlug: 'mystika',
+                id: "game-123",
+                adventureId: "adventure-123",
+                adventureTitle: "The Mystika Tutorial",
+                adventureSlug: "mystika-tutorial",
+                characterId: "character-123",
+                worldSlug: "mystika",
                 turnCount: 0,
-                status: 'active',
-                createdAt: '2024-01-01T00:00:00Z',
-                updatedAt: '2024-01-01T00:00:00Z',
+                status: "active",
+                createdAt: "2024-01-01T00:00:00Z",
+                updatedAt: "2024-01-01T00:00:00Z",
               },
-              meta: { traceId: 'trace-123' }
-            })
+              meta: { traceId: "trace-123" },
+            }),
           });
         }
       });
 
-      await page.route('**/api/characters/*', async (route) => {
+      await page.route("**/api/characters/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'character-123',
-              name: 'Test Hero',
-              worldSlug: 'mystika',
-              worldData: { class: 'mage' },
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              id: "character-123",
+              name: "Test Hero",
+              worldSlug: "mystika",
+              worldData: { class: "mage" },
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/content/worlds', async (route) => {
+      await page.route("**/api/content/worlds", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: [
               {
-                title: 'Mystika',
-                slug: 'mystika',
-                tags: ['magic', 'fantasy'],
-                scenarios: ['The Awakening'],
-                displayRules: { allowMagic: true }
-              }
+                title: "Mystika",
+                slug: "mystika",
+                tags: ["magic", "fantasy"],
+                scenarios: ["The Awakening"],
+                displayRules: { allowMagic: true },
+              },
             ],
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/stones/wallet', async (route) => {
+      await page.route("**/api/stones/wallet", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
-            data: { balance: 0, currency: 'stones' }, // No stones
-            meta: { traceId: 'trace-123' }
-          })
+            data: { balance: 0, currency: "stones" }, // No stones
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Mock turn submission failure
-      await page.route('**/api/games/*/turn', async (route) => {
+      await page.route("**/api/games/*/turn", async (route) => {
         await route.fulfill({
           status: 402,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: false,
             error: {
-              code: 'insufficient_stones',
-              message: 'Insufficient casting stones to perform this action',
-              http: 402
+              code: "insufficient_stones",
+              message: "Insufficient casting stones to perform this action",
+              http: 402,
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Navigate to game page
-      await page.goto('/play/game-123');
-      await page.waitForLoadState('networkidle');
+      await page.goto("/play/game-123");
+      await page.waitForLoadState("networkidle");
 
       // Submit a turn
-      await page.fill('textarea[placeholder="What do you do?"]', 'I cast a spell');
+      await page.fill(
+        'textarea[placeholder="What do you do?"]',
+        "I cast a spell",
+      );
       await page.click('button:has-text("Cast Stone")');
 
       // Wait for error to appear
-      await page.waitForSelector('text=Insufficient Casting Stones', { timeout: 10000 });
+      await page.waitForSelector("text=Insufficient Casting Stones", {
+        timeout: 10000,
+      });
 
       // Check error message
-      await expect(page.locator('text=Insufficient Casting Stones')).toBeVisible();
-      await expect(page.locator('text=You don\'t have enough stones to perform this action.')).toBeVisible();
-      await expect(page.locator('button:has-text("Go to Wallet")')).toBeVisible();
+      await expect(
+        page.locator("text=Insufficient Casting Stones"),
+      ).toBeVisible();
+      await expect(
+        page.locator(
+          "text=You don't have enough stones to perform this action.",
+        ),
+      ).toBeVisible();
+      await expect(
+        page.locator('button:has-text("Go to Wallet")'),
+      ).toBeVisible();
       await expect(page.locator('button:has-text("Retry")')).toBeVisible();
     });
   });
 
-  test.describe('Desktop Layout (≥1024px)', () => {
-    test('should display unified game interface on desktop', async ({ page }) => {
+  test.describe("@stack Desktop Layout (≥1024px)", () => {
+    test("should display unified game interface on desktop", async ({
+      page,
+    }) => {
       // Set desktop viewport
       await page.setViewportSize({ width: 1024, height: 768 });
 
       // Mock API responses (same as mobile test)
-      await page.route('**/api/games/*', async (route) => {
+      await page.route("**/api/games/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'game-123',
-              adventureId: 'adventure-123',
-              adventureTitle: 'The Mystika Tutorial',
-              adventureSlug: 'mystika-tutorial',
-              characterId: 'character-123',
-              worldSlug: 'mystika',
+              id: "game-123",
+              adventureId: "adventure-123",
+              adventureTitle: "The Mystika Tutorial",
+              adventureSlug: "mystika-tutorial",
+              characterId: "character-123",
+              worldSlug: "mystika",
               turnCount: 0,
-              status: 'active',
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              status: "active",
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/characters/*', async (route) => {
+      await page.route("**/api/characters/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'character-123',
-              name: 'Test Hero',
-              worldSlug: 'mystika',
-              worldData: { class: 'mage', faction_alignment: 'arcane_order' },
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              id: "character-123",
+              name: "Test Hero",
+              worldSlug: "mystika",
+              worldData: { class: "mage", faction_alignment: "arcane_order" },
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/content/worlds', async (route) => {
+      await page.route("**/api/content/worlds", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: [
               {
-                title: 'Mystika',
-                slug: 'mystika',
-                tags: ['magic', 'fantasy'],
-                scenarios: ['The Awakening'],
-                displayRules: { allowMagic: true }
-              }
+                title: "Mystika",
+                slug: "mystika",
+                tags: ["magic", "fantasy"],
+                scenarios: ["The Awakening"],
+                displayRules: { allowMagic: true },
+              },
             ],
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/stones/wallet', async (route) => {
+      await page.route("**/api/stones/wallet", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
-            data: { balance: 15, currency: 'stones' },
-            meta: { traceId: 'trace-123' }
-          })
+            data: { balance: 15, currency: "stones" },
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Navigate to game page
-      await page.goto('/play/game-123');
-      await page.waitForLoadState('networkidle');
+      await page.goto("/play/game-123");
+      await page.waitForLoadState("networkidle");
 
       // Check desktop layout - should have sidebar
-      await expect(page.locator('aside')).toBeVisible(); // Desktop sidebar
-      
+      await expect(page.locator("aside")).toBeVisible(); // Desktop sidebar
+
       // Check main content area
-      await expect(page.locator('h1:has-text("The Mystika Tutorial")')).toBeVisible();
-      
+      await expect(
+        page.locator('h1:has-text("The Mystika Tutorial")'),
+      ).toBeVisible();
+
       // Check grid layout (main content + sidebar)
-      const mainContent = page.locator('.md\\:col-span-2');
-      const sidebar = page.locator('.space-y-6');
-      
+      const mainContent = page.locator(".md\\:col-span-2");
+      const sidebar = page.locator(".space-y-6");
+
       await expect(mainContent).toBeVisible();
       await expect(sidebar).toBeVisible();
 
       // Check that sidebar content is visible
-      await expect(page.locator('text=Character')).toBeVisible();
-      await expect(page.locator('text=World Rules')).toBeVisible();
-      await expect(page.locator('text=Casting Stones')).toBeVisible();
+      await expect(page.locator("text=Character")).toBeVisible();
+      await expect(page.locator("text=World Rules")).toBeVisible();
+      await expect(page.locator("text=Casting Stones")).toBeVisible();
     });
   });
 
-  test.describe('Accessibility', () => {
-    test('should have proper ARIA labels and keyboard navigation', async ({ page }) => {
+  test.describe("@stack Accessibility", () => {
+    test("should have proper ARIA labels and keyboard navigation", async ({
+      page,
+    }) => {
       // Mock API responses
-      await page.route('**/api/games/*', async (route) => {
+      await page.route("**/api/games/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'game-123',
-              adventureId: 'adventure-123',
-              adventureTitle: 'The Mystika Tutorial',
-              adventureSlug: 'mystika-tutorial',
-              characterId: 'character-123',
-              worldSlug: 'mystika',
+              id: "game-123",
+              adventureId: "adventure-123",
+              adventureTitle: "The Mystika Tutorial",
+              adventureSlug: "mystika-tutorial",
+              characterId: "character-123",
+              worldSlug: "mystika",
               turnCount: 0,
-              status: 'active',
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              status: "active",
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/characters/*', async (route) => {
+      await page.route("**/api/characters/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'character-123',
-              name: 'Test Hero',
-              worldSlug: 'mystika',
-              worldData: { class: 'mage' },
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              id: "character-123",
+              name: "Test Hero",
+              worldSlug: "mystika",
+              worldData: { class: "mage" },
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/content/worlds', async (route) => {
+      await page.route("**/api/content/worlds", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: [
               {
-                title: 'Mystika',
-                slug: 'mystika',
-                tags: ['magic', 'fantasy'],
-                scenarios: ['The Awakening'],
-                displayRules: { allowMagic: true }
-              }
+                title: "Mystika",
+                slug: "mystika",
+                tags: ["magic", "fantasy"],
+                scenarios: ["The Awakening"],
+                displayRules: { allowMagic: true },
+              },
             ],
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
-      await page.route('**/api/stones/wallet', async (route) => {
+      await page.route("**/api/stones/wallet", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
-            data: { balance: 15, currency: 'stones' },
-            meta: { traceId: 'trace-123' }
-          })
+            data: { balance: 15, currency: "stones" },
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Navigate to game page
-      await page.goto('/play/game-123');
-      await page.waitForLoadState('networkidle');
+      await page.goto("/play/game-123");
+      await page.waitForLoadState("networkidle");
 
       // Check ARIA labels
       await expect(page.locator('[aria-label="Toggle menu"]')).toBeVisible();
-      
+
       // Check form labels
       await expect(page.locator('label[for="action"]')).toBeVisible();
       await expect(page.locator('textarea[id="action"]')).toBeVisible();
@@ -576,184 +612,201 @@ test.describe('Unified Game Page - Layer M4', () => {
       // Check button accessibility
       const submitButton = page.locator('button:has-text("Cast Stone")');
       await expect(submitButton).toBeVisible();
-      await expect(submitButton).toHaveAttribute('type', 'submit');
+      await expect(submitButton).toHaveAttribute("type", "submit");
 
       // Test keyboard navigation
-      await page.keyboard.press('Tab');
-      await page.keyboard.press('Tab');
-      await page.keyboard.press('Tab');
-      
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Tab");
+
       // Should be able to focus on the textarea
-      await page.keyboard.type('Test action');
-      await expect(page.locator('textarea[id="action"]')).toHaveValue('Test action');
+      await page.keyboard.type("Test action");
+      await expect(page.locator('textarea[id="action"]')).toHaveValue(
+        "Test action",
+      );
     });
   });
 
-  test.describe('Offline Narrative Loading', () => {
-    test('should load initialize narrative without AI call', async ({ page }) => {
+  test.describe("@stack Offline Narrative Loading", () => {
+    test("should load initialize narrative without AI call", async ({
+      page,
+    }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 812 });
 
       // Mock session turns API with initialize narrative
-      await page.route('**/api/games/*/session-turns', async (route) => {
+      await page.route("**/api/games/*/session-turns", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
               turns: [
                 {
-                  id: 'turn-1',
-                  session_id: 'game-123',
+                  id: "turn-1",
+                  session_id: "game-123",
                   sequence: 1,
-                  user_prompt: 'Start the game',
-                  narrative_summary: 'You find yourself in a mysterious forest, ancient trees towering above you. The air is thick with magic, and you can hear distant sounds of creatures moving through the underbrush.',
+                  user_prompt: "Start the game",
+                  narrative_summary:
+                    "You find yourself in a mysterious forest, ancient trees towering above you. The air is thick with magic, and you can hear distant sounds of creatures moving through the underbrush.",
                   is_initialization: true,
-                  created_at: '2024-01-01T00:00:00Z',
-                  turn_number: 1
-                }
+                  created_at: "2024-01-01T00:00:00Z",
+                  turn_number: 1,
+                },
               ],
-              initialize_narrative: 'You find yourself in a mysterious forest, ancient trees towering above you. The air is thick with magic, and you can hear distant sounds of creatures moving through the underbrush.'
+              initialize_narrative:
+                "You find yourself in a mysterious forest, ancient trees towering above you. The air is thick with magic, and you can hear distant sounds of creatures moving through the underbrush.",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Mock game data
-      await page.route('**/api/games/*', async (route) => {
+      await page.route("**/api/games/*", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
-              id: 'game-123',
-              adventureId: 'adventure-123',
-              adventureTitle: 'The Mystika Tutorial',
-              adventureSlug: 'mystika-tutorial',
-              characterId: 'character-123',
-              worldSlug: 'mystika',
+              id: "game-123",
+              adventureId: "adventure-123",
+              adventureTitle: "The Mystika Tutorial",
+              adventureSlug: "mystika-tutorial",
+              characterId: "character-123",
+              worldSlug: "mystika",
               turnCount: 1,
-              status: 'active',
-              createdAt: '2024-01-01T00:00:00Z',
-              updatedAt: '2024-01-01T00:00:00Z',
+              status: "active",
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Navigate to game page
-      await page.goto('/game/game-123');
-      await page.waitForLoadState('networkidle');
+      await page.goto("/game/game-123");
+      await page.waitForLoadState("networkidle");
 
       // Verify initialize narrative is displayed
       const narrativeText = page.locator('[data-testid="narrative-text"]');
       await expect(narrativeText).toBeVisible();
-      await expect(narrativeText).toContainText('You find yourself in a mysterious forest');
+      await expect(narrativeText).toContainText(
+        "You find yourself in a mysterious forest",
+      );
 
       // Verify no AI calls were made (should use cached narrative)
       // Note: In a real test, we would verify no AI calls were made
       // For now, we just verify the narrative is displayed
 
       // Test accessibility - basic check
-      await expect(page.locator('body')).toBeVisible();
+      await expect(page.locator("body")).toBeVisible();
     });
 
-    test('should handle missing initialize narrative gracefully', async ({ page }) => {
+    test("should handle missing initialize narrative gracefully", async ({
+      page,
+    }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 812 });
 
       // Mock session turns API with no initialize narrative
-      await page.route('**/api/games/*/session-turns', async (route) => {
+      await page.route("**/api/games/*/session-turns", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
               turns: [],
-              initialize_narrative: null
+              initialize_narrative: null,
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Navigate to game page
-      await page.goto('/game/game-123');
-      await page.waitForLoadState('networkidle');
+      await page.goto("/game/game-123");
+      await page.waitForLoadState("networkidle");
 
       // Verify fallback behavior (should show loading or error state)
       const loadingState = page.locator('[data-testid="loading-state"]');
       const errorState = page.locator('[data-testid="error-state"]');
-      
+
       // One of these should be visible
       await expect(loadingState.or(errorState)).toBeVisible();
 
       // Test accessibility - basic check
-      await expect(page.locator('body')).toBeVisible();
+      await expect(page.locator("body")).toBeVisible();
     });
 
-    test('should load multiple turns in sequence', async ({ page }) => {
+    test("should load multiple turns in sequence", async ({ page }) => {
       // Set mobile viewport
       await page.setViewportSize({ width: 375, height: 812 });
 
       // Mock session turns API with multiple turns
-      await page.route('**/api/games/*/session-turns', async (route) => {
+      await page.route("**/api/games/*/session-turns", async (route) => {
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify({
             ok: true,
             data: {
               turns: [
                 {
-                  id: 'turn-1',
-                  session_id: 'game-123',
+                  id: "turn-1",
+                  session_id: "game-123",
                   sequence: 1,
-                  user_prompt: 'Start the game',
-                  narrative_summary: 'You find yourself in a mysterious forest...',
+                  user_prompt: "Start the game",
+                  narrative_summary:
+                    "You find yourself in a mysterious forest...",
                   is_initialization: true,
-                  created_at: '2024-01-01T00:00:00Z',
-                  turn_number: 1
+                  created_at: "2024-01-01T00:00:00Z",
+                  turn_number: 1,
                 },
                 {
-                  id: 'turn-2',
-                  session_id: 'game-123',
+                  id: "turn-2",
+                  session_id: "game-123",
                   sequence: 2,
-                  user_prompt: 'Look around',
-                  narrative_summary: 'You see ancient trees and hear distant sounds...',
+                  user_prompt: "Look around",
+                  narrative_summary:
+                    "You see ancient trees and hear distant sounds...",
                   is_initialization: false,
-                  created_at: '2024-01-01T00:01:00Z',
-                  turn_number: 2
-                }
+                  created_at: "2024-01-01T00:01:00Z",
+                  turn_number: 2,
+                },
               ],
-              initialize_narrative: 'You find yourself in a mysterious forest...'
+              initialize_narrative:
+                "You find yourself in a mysterious forest...",
             },
-            meta: { traceId: 'trace-123' }
-          })
+            meta: { traceId: "trace-123" },
+          }),
         });
       });
 
       // Navigate to game page
-      await page.goto('/game/game-123');
-      await page.waitForLoadState('networkidle');
+      await page.goto("/game/game-123");
+      await page.waitForLoadState("networkidle");
 
       // Verify all turns are displayed in sequence
       const turnElements = page.locator('[data-testid="turn-narrative"]');
       await expect(turnElements).toHaveCount(2);
 
       // Verify first turn (initialize narrative)
-      await expect(turnElements.nth(0)).toContainText('You find yourself in a mysterious forest');
-      
+      await expect(turnElements.nth(0)).toContainText(
+        "You find yourself in a mysterious forest",
+      );
+
       // Verify second turn
-      await expect(turnElements.nth(1)).toContainText('You see ancient trees and hear distant sounds');
+      await expect(turnElements.nth(1)).toContainText(
+        "You see ancient trees and hear distant sounds",
+      );
 
       // Test accessibility - basic check
-      await expect(page.locator('body')).toBeVisible();
+      await expect(page.locator("body")).toBeVisible();
     });
   });
 });
