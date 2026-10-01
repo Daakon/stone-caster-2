@@ -1,9 +1,10 @@
+// Preserve Tailwind opacity modifiers while reading the canonical colour tokens.
+const tokenColor = (name) =>
+  `color-mix(in srgb, var(${name}) calc(<alpha-value> * 100%), transparent)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   darkMode: "class",
   theme: {
     container: {
@@ -48,38 +49,68 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Stone Caster Brand Colors
+        sc: {
+          page: tokenColor("--sc-bg-page"),
+          panel: tokenColor("--sc-bg-panel"),
+          card: tokenColor("--sc-bg-card"),
+          raised: tokenColor("--sc-bg-raised"),
+          border: tokenColor("--sc-border"),
+          "border-strong": tokenColor("--sc-border-strong"),
+          text: tokenColor("--sc-text"),
+          "text-soft": tokenColor("--sc-text-soft"),
+          "text-muted": tokenColor("--sc-text-muted"),
+          "text-faint": tokenColor("--sc-text-faint"),
+          primary: tokenColor("--sc-primary"),
+          "primary-soft": tokenColor("--sc-primary-soft"),
+          "on-primary": tokenColor("--sc-on-primary"),
+          accent: tokenColor("--sc-accent"),
+          "accent-soft": tokenColor("--sc-accent-soft"),
+          danger: tokenColor("--sc-danger"),
+          "danger-soft": tokenColor("--sc-danger-soft"),
+          stamina: tokenColor("--sc-stamina"),
+          warn: tokenColor("--sc-warn"),
+          "warn-soft": tokenColor("--sc-warn-soft"),
+          lore: tokenColor("--sc-lore"),
+          "lore-soft": tokenColor("--sc-lore-soft"),
+          faction: tokenColor("--sc-faction"),
+          focus: tokenColor("--sc-focus"),
+          "ent-npc": tokenColor("--sc-ent-npc"),
+          "ent-unknown": tokenColor("--sc-ent-unknown"),
+          "ent-place": tokenColor("--sc-ent-place"),
+          "ent-item": tokenColor("--sc-ent-item"),
+          "ent-lore": tokenColor("--sc-ent-lore"),
+          "ent-faction": tokenColor("--sc-ent-faction"),
+          scrim: tokenColor("--sc-scrim"),
+        },
+        // Legacy stone utilities follow the nearest Stonecaster neutral roles.
         stone: {
-          50: "#fafaf9",
-          100: "#f5f5f4",
-          200: "#e7e5e4",
-          300: "#d6d3d1",
-          400: "#a8a29e",
-          500: "#78716c",
-          600: "#57534e",
-          700: "#44403c",
-          800: "#292524",
-          900: "#1c1917",
-          950: "#0c0a09",
+          50: tokenColor("--sc-text"),
+          100: tokenColor("--sc-text"),
+          200: tokenColor("--sc-text"),
+          300: tokenColor("--sc-text-soft"),
+          400: tokenColor("--sc-text-muted"),
+          500: tokenColor("--sc-text-muted"),
+          600: tokenColor("--sc-text-faint"),
+          700: tokenColor("--sc-border-strong"),
+          800: tokenColor("--sc-bg-raised"),
+          900: tokenColor("--sc-bg-card"),
+          950: tokenColor("--sc-bg-page"),
         },
-        magic: {
-          50: "#f0f9ff",
-          100: "#e0f2fe",
-          200: "#bae6fd",
-          300: "#7dd3fc",
-          400: "#38bdf8",
-          500: "#0ea5e9",
-          600: "#0284c7",
-          700: "#0369a1",
-          800: "#075985",
-          900: "#0c4a6e",
-          950: "#082f49",
-        },
+      },
+      fontFamily: {
+        display: ["var(--sc-font-display)"],
+        prose: ["var(--sc-font-prose)"],
+        ui: ["var(--sc-font-ui)"],
+        mono: ["var(--sc-font-mono)"],
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        "sc-control": "var(--sc-radius-control)",
+        "sc-card": "var(--sc-radius-card)",
+        "sc-chip": "var(--sc-radius-chip)",
+        "sc-sheet": "var(--sc-radius-sheet)",
       },
       keyframes: {
         "accordion-down": {
@@ -127,17 +158,30 @@ export default {
       },
       screens: {
         // Mobile-first responsive breakpoints
-        "xs": "375px",   // iPhone X baseline
-        "sm": "640px",   // Small tablets
-        "md": "768px",   // Tablets
-        "lg": "1024px",  // Laptops
-        "xl": "1280px",  // Desktops
+        xs: "375px", // iPhone X baseline
+        sm: "640px", // Small tablets
+        md: "768px", // Tablets
+        lg: "1024px", // Laptops
+        xl: "1280px", // Desktops
         "2xl": "1536px", // Large desktops
       },
       spacing: {
-        "18": "4.5rem",
-        "88": "22rem",
-        "128": "32rem",
+        18: "4.5rem",
+        88: "22rem",
+        128: "32rem",
+        "sc-1": "var(--sc-space-1)",
+        "sc-2": "var(--sc-space-2)",
+        "sc-3": "var(--sc-space-3)",
+        "sc-4": "var(--sc-space-4)",
+        "sc-5": "var(--sc-space-5)",
+        "sc-6": "var(--sc-space-6)",
+        "sc-7": "var(--sc-space-7)",
+        "sc-tap": "var(--sc-tap)",
+        "sc-header": "var(--sc-header-h)",
+        "sc-rail-left": "var(--sc-rail-left)",
+        "sc-rail-right": "var(--sc-rail-right)",
+        "sc-rail-slim": "var(--sc-rail-slim)",
+        "sc-measure": "var(--sc-measure)",
       },
       typography: {
         DEFAULT: {
@@ -175,8 +219,4 @@ export default {
     },
   },
   plugins: [require("@tailwindcss/forms"), require("@tailwindcss/typography")],
-}
-
-
-
-
+};

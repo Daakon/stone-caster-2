@@ -3,10 +3,14 @@ import type { Page } from "@playwright/test";
 export const gameId = "a0000000-0000-4000-8000-000000000001";
 const playerId = "b0000000-0000-4000-8000-000000000002";
 
-export async function mockPlayApi(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem("stonecaster-ui-theme", "dark");
-  });
+export async function mockPlayApi(
+  page: Page,
+  storedTheme: "dark" | "light" | "system" | null = "dark",
+) {
+  await page.addInitScript((theme) => {
+    if (theme === null) localStorage.removeItem("stonecaster-ui-theme");
+    else localStorage.setItem("stonecaster-ui-theme", theme);
+  }, storedTheme);
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const data =
