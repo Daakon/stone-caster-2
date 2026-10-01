@@ -1,0 +1,15 @@
+/supabase/migrations/ @Daakon
+/supabase/ops/ @Daakon
+/backend/src/services/billing/ @Daakon
+/backend/src/middleware/auth* @Daakon
+/backend/src/middleware/*Auth* @Daakon
+/backend/src/middleware/earlyAccessGuard.ts @Daakon
+/.github/ @Daakon
+/scripts/ci/ @Daakon
+**/baselines/ @Daakon
+**/eslint-suppressions.json @Daakon
+/scripts/design-tokens-baseline.json @Daakon
+/.dependency-cruiser-known-violations.json @Daakon
+**/tsconfig*.json @Daakon
+**/eslint.config.* @Daakon
+**/.eslintrc* @Daakon
