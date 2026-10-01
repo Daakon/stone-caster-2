@@ -1,15 +1,22 @@
+function requireStackPrerequisite(
+  unavailable = true,
+  reason = "Stack fixtures are required for this scenario",
+): void {
+  expect(unavailable, reason).toBe(false);
+}
+
 /**
  * Phase 8: E2E test for playable loop
- * 
+ *
  * Tests the full flow: create game → send turns → paginate → resume
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-const API_BASE = process.env.API_BASE || 'http://localhost:3000';
-const TEST_TX_ENABLED = process.env.TEST_TX_ENABLED === 'true';
+const API_BASE = process.env.API_BASE || "http://localhost:3000";
+const TEST_TX_ENABLED = process.env.TEST_TX_ENABLED === "true";
 
-test.describe('Playable Loop E2E', () => {
+test.describe("@stack Playable Loop E2E", () => {
   let gameId: string;
   let idempotencyKey: string;
 
@@ -18,21 +25,27 @@ test.describe('Playable Loop E2E', () => {
     idempotencyKey = crypto.randomUUID();
   });
 
-  test('Scenario: Full playable loop (create → send turns → paginate → resume)', async ({ page, request }) => {
+  test("Scenario: Full playable loop (create → send turns → paginate → resume)", async ({
+    page,
+    request,
+  }) => {
     // Skip if test transaction not enabled
-    test.skip(!TEST_TX_ENABLED, 'TEST_TX_ENABLED must be true for this test');
+    requireStackPrerequisite(
+      !TEST_TX_ENABLED,
+      "TEST_TX_ENABLED must be true for this test",
+    );
 
     // Step 1: Create game (idempotent)
     const createResponse = await request.post(`${API_BASE}/api/games`, {
       data: {
-        entry_point_id: 'test-entry-point-playable', // Should exist in seeds
-        world_id: '00000000-0000-0000-0000-000000000001', // Test world
-        entry_start_slug: 'test-entry-start-playable',
-        ruleset_slug: 'default',
+        entry_point_id: "test-entry-point-playable", // Should exist in seeds
+        world_id: "00000000-0000-0000-0000-000000000001", // Test world
+        entry_start_slug: "test-entry-start-playable",
+        ruleset_slug: "default",
       },
       headers: {
-        'Idempotency-Key': idempotencyKey,
-        'X-Test-Rollback': '1', // Use test transaction
+        "Idempotency-Key": idempotencyKey,
+        "X-Test-Rollback": "1", // Use test transaction
       },
     });
 
@@ -45,7 +58,7 @@ test.describe('Playable Loop E2E', () => {
     // Verify first turn exists (narrator turn)
     expect(createData.data.first_turn).toBeDefined();
     expect(createData.data.first_turn.turn_number).toBe(1);
-    expect(createData.data.first_turn.role).toBe('narrator');
+    expect(createData.data.first_turn.role).toBe("narrator");
 
     // Step 2: Navigate to game page
     await page.goto(`/game/${gameId}`);
@@ -55,11 +68,11 @@ test.describe('Playable Loop E2E', () => {
 
     // Step 3: Send 3-5 turns
     const messages = [
-      'I look around to assess my surroundings.',
-      'I approach the nearest landmark carefully.',
-      'I check my inventory for useful items.',
-      'I try to communicate with any nearby creatures.',
-      'I decide on my next move based on what I observed.',
+      "I look around to assess my surroundings.",
+      "I approach the nearest landmark carefully.",
+      "I check my inventory for useful items.",
+      "I try to communicate with any nearby creatures.",
+      "I decide on my next move based on what I observed.",
     ];
 
     for (let i = 0; i < 3; i++) {
@@ -72,13 +85,15 @@ test.describe('Playable Loop E2E', () => {
       await textarea.fill(message);
 
       // Submit (Enter key or button)
-      await textarea.press('Enter');
+      await textarea.press("Enter");
 
       // Wait for response (narrator turn should appear)
       await page.waitForTimeout(2000); // Wait for API call
 
       // Verify turns are in ascending order
-      const turnNumbers = await page.locator('[role="listitem"]').allTextContents();
+      const turnNumbers = await page
+        .locator('[role="listitem"]')
+        .allTextContents();
       const turnNumbersSorted = [...turnNumbers].sort();
       expect(turnNumbers).toEqual(turnNumbersSorted);
     }
@@ -88,11 +103,13 @@ test.describe('Playable Loop E2E', () => {
     expect(allTurns).toBeGreaterThan(3); // At least player + narrator turns
 
     // Extract turn numbers from badges
-    const turnBadges = await page.locator('text=/Turn \\d+/').allTextContents();
-    const turnNumbers = turnBadges.map(text => {
-      const match = text.match(/Turn (\d+)/);
-      return match ? parseInt(match[1], 10) : 0;
-    }).filter(n => n > 0);
+    const turnBadges = await page.locator("text=/Turn \\d+/").allTextContents();
+    const turnNumbers = turnBadges
+      .map((text) => {
+        const match = text.match(/Turn (\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter((n) => n > 0);
 
     // Verify ascending order
     for (let i = 1; i < turnNumbers.length; i++) {
@@ -100,25 +117,25 @@ test.describe('Playable Loop E2E', () => {
     }
 
     // Step 5: Verify narrator turns exist
-    const narratorTurns = await page.locator('text=narrator').count();
+    const narratorTurns = await page.locator("text=narrator").count();
     expect(narratorTurns).toBeGreaterThan(0);
 
     // Step 6: Verify policies never drop protected scopes (core, ruleset, world)
     // Check first narrator turn for meta
     const firstNarratorCard = page.locator('[role="listitem"]').first();
     const policyText = await firstNarratorCard.textContent();
-    
+
     // Should not contain "core dropped" or "ruleset dropped" or "world dropped"
-    expect(policyText).not.toContain('core dropped');
-    expect(policyText).not.toContain('ruleset dropped');
-    expect(policyText).not.toContain('world dropped');
+    expect(policyText).not.toContain("core dropped");
+    expect(policyText).not.toContain("ruleset dropped");
+    expect(policyText).not.toContain("world dropped");
 
     // Step 7: Test pagination (if there are many turns)
     const loadMoreButton = page.locator('button:has-text("Load More")');
     if (await loadMoreButton.isVisible()) {
       await loadMoreButton.click();
       await page.waitForTimeout(1000);
-      
+
       // Verify more turns loaded
       const turnsAfterLoad = await page.locator('[role="listitem"]').count();
       expect(turnsAfterLoad).toBeGreaterThan(allTurns);
@@ -135,10 +152,10 @@ test.describe('Playable Loop E2E', () => {
     // Verify composer is enabled
     const textarea = page.locator('textarea[id="action"]');
     await expect(textarea).toBeEnabled();
-    
+
     // Send one more turn after resume
-    await textarea.fill('I continue my adventure.');
-    await textarea.press('Enter');
+    await textarea.fill("I continue my adventure.");
+    await textarea.press("Enter");
     await page.waitForTimeout(2000);
 
     // Verify new turn appears
@@ -146,25 +163,27 @@ test.describe('Playable Loop E2E', () => {
     expect(finalTurnCount).toBeGreaterThan(resumedTurns);
   });
 
-  test('Scenario: Rate limiting works', async ({ page, request }) => {
-    test.skip(!TEST_TX_ENABLED, 'TEST_TX_ENABLED must be true for this test');
-    test.skip(!gameId, 'Game must be created first');
+  test("Scenario: Rate limiting works", async ({ page, request }) => {
+    requireStackPrerequisite(
+      !TEST_TX_ENABLED,
+      "TEST_TX_ENABLED must be true for this test",
+    );
+    requireStackPrerequisite(!gameId, "Game must be created first");
 
     // Send multiple requests rapidly (should hit rate limit)
     const rapidRequests = Array.from({ length: 10 }).map(() =>
       request.post(`${API_BASE}/api/games/${gameId}/send-turn`, {
-        data: { message: 'Rapid test message' },
+        data: { message: "Rapid test message" },
         headers: {
-          'X-Test-Rollback': '1',
+          "X-Test-Rollback": "1",
         },
-      })
+      }),
     );
 
     const responses = await Promise.all(rapidRequests);
-    const rateLimitedCount = responses.filter(r => r.status() === 429).length;
+    const rateLimitedCount = responses.filter((r) => r.status() === 429).length;
 
     // At least some requests should be rate limited
     expect(rateLimitedCount).toBeGreaterThan(0);
   });
 });
-

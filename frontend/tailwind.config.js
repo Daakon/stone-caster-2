@@ -1,9 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   darkMode: "class",
   theme: {
     container: {
@@ -157,17 +154,17 @@ export default {
       },
       screens: {
         // Mobile-first responsive breakpoints
-        "xs": "375px",   // iPhone X baseline
-        "sm": "640px",   // Small tablets
-        "md": "768px",   // Tablets
-        "lg": "1024px",  // Laptops
-        "xl": "1280px",  // Desktops
+        xs: "375px", // iPhone X baseline
+        sm: "640px", // Small tablets
+        md: "768px", // Tablets
+        lg: "1024px", // Laptops
+        xl: "1280px", // Desktops
         "2xl": "1536px", // Large desktops
       },
       spacing: {
-        "18": "4.5rem",
-        "88": "22rem",
-        "128": "32rem",
+        18: "4.5rem",
+        88: "22rem",
+        128: "32rem",
         "sc-1": "var(--sc-space-1)",
         "sc-2": "var(--sc-space-2)",
         "sc-3": "var(--sc-space-3)",
@@ -218,7 +215,4 @@ export default {
     },
   },
   plugins: [require("@tailwindcss/forms"), require("@tailwindcss/typography")],
-}
-
-
-
+};

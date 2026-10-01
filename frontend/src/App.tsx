@@ -1,63 +1,68 @@
-import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from './lib/queryClient';
-import { useAuthStore } from './store/auth';
-import { ThemeProvider } from './contexts/theme-context-provider';
-import { ToastProvider } from './components/ui/toast-provider';
-import { SkipNavigation } from './components/ui/skip-navigation';
-import { AppLayout } from './components/layout/AppLayout';
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { EarlyAccessRoute } from './components/auth/EarlyAccessRoute';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { AuthRouter } from './components/AuthRouter';
-import { GuestCookieService } from './services/guestCookie';
-import { AccessStatusProvider } from './providers/AccessStatusProvider';
-import { WalletProvider } from './providers/WalletProvider';
-import { AuthProvider } from './providers/AuthProvider';
-import { useAuth } from './hooks/useAuth';
-import LandingPage from './pages/LandingPage';
-import StoriesPage from './pages/stories/StoriesPage';
-import StoryDetailPage from './pages/stories/StoryDetailPage';
-import StartStoryPage from './features/play/start/StartStoryPage';
-import CharacterCreationPage from './pages/play/CharacterCreationPage';
-import CharacterCreatorPageV2 from './pages/play/create/CharacterCreatorPage';
-import PlayerGatewayPage from './pages/play/PlayerGatewayPage';
-import WorldsPage from './pages/worlds/WorldsPage';
-import NPCsPage from './pages/npcs/NPCsPage';
-import RulesetsPage from './pages/rulesets/RulesetsPage';
-import WorldDetailPage from './pages/worlds/WorldDetailPage';
-import NPCDetailPage from './pages/npcs/NPCDetailPage';
-import RulesetDetailPage from './pages/rulesets/RulesetDetailPage';
-import ProfilePage from './pages/ProfilePage';
-import MyStoriesPage from './pages/MyStoriesPage';
+import { useEffect } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useParams,
+} from "react-router-dom";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./lib/queryClient";
+import { useAuthStore } from "./store/auth";
+import { ThemeProvider } from "./contexts/theme-context-provider";
+import { ToastProvider } from "./components/ui/toast-provider";
+import { SkipNavigation } from "./components/ui/skip-navigation";
+import { AppLayout } from "./components/layout/AppLayout";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { EarlyAccessRoute } from "./components/auth/EarlyAccessRoute";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { AuthRouter } from "./components/AuthRouter";
+import { GuestCookieService } from "./services/guestCookie";
+import { AccessStatusProvider } from "./providers/AccessStatusProvider";
+import { WalletProvider } from "./providers/WalletProvider";
+import { AuthProvider } from "./providers/AuthProvider";
+import { useAuth } from "./hooks/useAuth";
+import LandingPage from "./pages/LandingPage";
+import StoriesPage from "./pages/stories/StoriesPage";
+import StoryDetailPage from "./pages/stories/StoryDetailPage";
+import StartStoryPage from "./features/play/start/StartStoryPage";
+import CharacterCreationPage from "./pages/play/CharacterCreationPage";
+import CharacterCreatorPageV2 from "./pages/play/create/CharacterCreatorPage";
+import PlayerGatewayPage from "./pages/play/PlayerGatewayPage";
+import WorldsPage from "./pages/worlds/WorldsPage";
+import NPCsPage from "./pages/npcs/NPCsPage";
+import RulesetsPage from "./pages/rulesets/RulesetsPage";
+import WorldDetailPage from "./pages/worlds/WorldDetailPage";
+import NPCDetailPage from "./pages/npcs/NPCDetailPage";
+import RulesetDetailPage from "./pages/rulesets/RulesetDetailPage";
+import ProfilePage from "./pages/ProfilePage";
+import MyStoriesPage from "./pages/MyStoriesPage";
 // import MyCreationsDashboard from './pages/dashboard/creations/index';
-import { MyCreationsPage } from './features/dashboard/MyCreationsPage';
+import { MyCreationsPage } from "./features/dashboard/MyCreationsPage";
 
-import { CreateStoryPage } from './features/create-story';
-import { CastingCircleWizard } from './features/casting-circle/CastingCircleWizard';
-import NewGameWizard from './features/game-v3/NewGameWizard';
-import WorldEditor from './pages/dashboard/worlds/Editor';
-import WorldManage from './pages/dashboard/worlds/Manage';
-import EntityEditor from './pages/dashboard/entities/Editor';
-import EntityManage from './pages/dashboard/entities/Manage';
-import StoryManage from './pages/dashboard/stories/Manage';
-import StoryStudio from './pages/dashboard/stories/Studio';
-import PackEditor from './pages/dashboard/packs/Editor';
-import PackManage from './pages/dashboard/packs/Manage';
-import LoreEditor from './pages/dashboard/lore/Editor';
-import LoreManage from './pages/dashboard/lore/Manage';
-import CreatorProfileSettings from './pages/settings/CreatorProfile';
-import GamePage from './pages/play/GamePage';
-import SupportPage from './pages/SupportPage';
-import AuthPage from './pages/AuthPage';
-import AuthSuccessPage from './pages/AuthSuccessPage';
-import RequestAccessPage from './pages/RequestAccessPage';
-import { AdminRouteGuard } from './admin/AdminRouteGuard';
-import NotFoundPage from './pages/NotFoundPage';
-import { AdventureToStoryRedirect } from './components/redirects/AdventureToStoryRedirect';
-import TestGalleryPage from './pages/_test_gallery';
-
+import { CreateStoryPage } from "./features/create-story";
+import { CastingCircleWizard } from "./features/casting-circle/CastingCircleWizard";
+import NewGameWizard from "./features/game-v3/NewGameWizard";
+import WorldEditor from "./pages/dashboard/worlds/Editor";
+import WorldManage from "./pages/dashboard/worlds/Manage";
+import EntityEditor from "./pages/dashboard/entities/Editor";
+import EntityManage from "./pages/dashboard/entities/Manage";
+import StoryManage from "./pages/dashboard/stories/Manage";
+import StoryStudio from "./pages/dashboard/stories/Studio";
+import PackEditor from "./pages/dashboard/packs/Editor";
+import PackManage from "./pages/dashboard/packs/Manage";
+import LoreEditor from "./pages/dashboard/lore/Editor";
+import LoreManage from "./pages/dashboard/lore/Manage";
+import CreatorProfileSettings from "./pages/settings/CreatorProfile";
+import GamePage from "./pages/play/GamePage";
+import SupportPage from "./pages/SupportPage";
+import AuthPage from "./pages/AuthPage";
+import AuthSuccessPage from "./pages/AuthSuccessPage";
+import RequestAccessPage from "./pages/RequestAccessPage";
+import { AdminRouteGuard } from "./admin/AdminRouteGuard";
+import NotFoundPage from "./pages/NotFoundPage";
+import { AdventureToStoryRedirect } from "./components/redirects/AdventureToStoryRedirect";
+import TestGalleryPage from "./pages/_test_gallery";
 
 /**
  * Inner App Content - Only renders after auth loading is complete
@@ -88,9 +93,9 @@ function AppContent() {
       <AuthRouter />
       <SkipNavigation
         links={[
-          { href: '#main-content', label: 'Skip to main content' },
-          { href: '#navigation', label: 'Skip to navigation' },
-          { href: '#footer', label: 'Skip to footer' },
+          { href: "#main-content", label: "Skip to main content" },
+          { href: "#navigation", label: "Skip to navigation" },
+          { href: "#footer", label: "Skip to footer" },
         ]}
       />
       <AppLayout>
@@ -108,67 +113,103 @@ function AppContent() {
           <Route path="/_test_gallery" element={<TestGalleryPage />} />
 
           {/* Story routes - authoring is authenticated; play remains early-access gated */}
-          <Route path="/stories" element={
-            <ProtectedRoute>
-              <StoriesPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/stories/compose" element={
-            <ProtectedRoute>
-              <CastingCircleWizard />
-            </ProtectedRoute>
-          } />
+          <Route
+            path="/stories"
+            element={
+              <ProtectedRoute>
+                <StoriesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/stories/compose"
+            element={
+              <ProtectedRoute>
+                <CastingCircleWizard />
+              </ProtectedRoute>
+            }
+          />
 
-          <Route path="/stories/:id/compose" element={
-            <ProtectedRoute>
-              <CastingCircleWizard />
-            </ProtectedRoute>
-          } />
-          <Route path="/stories/:id/compose/:step" element={
-            <ProtectedRoute>
-              <CastingCircleWizard />
-            </ProtectedRoute>
-          } />
-          <Route path="/stories/:id" element={
-            <EarlyAccessRoute>
-              <StoryDetailPage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/play/start/:storyId" element={
-            <EarlyAccessRoute>
-              <StartStoryPage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/play/story/:storyId" element={
-            <EarlyAccessRoute>
-              <StoryPlayRedirect />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/play/:gameStateId" element={
-            <EarlyAccessRoute>
-              <GamePage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/play/create/:storyId" element={
-            <EarlyAccessRoute>
-              <CharacterCreatorPageV2 />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/story/:id/new" element={
-            <ProtectedRoute>
-              <NewGameWizard />
-            </ProtectedRoute>
-          } />
-          <Route path="/create-character/:storyId" element={
-            <EarlyAccessRoute>
-              <CharacterCreationPage />
-            </EarlyAccessRoute>
-          } />
-          <Route path="/player-gateway/:storyId" element={
-            <EarlyAccessRoute>
-              <PlayerGatewayPage />
-            </EarlyAccessRoute>
-          } />
+          <Route
+            path="/stories/:id/compose"
+            element={
+              <ProtectedRoute>
+                <CastingCircleWizard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/stories/:id/compose/:step"
+            element={
+              <ProtectedRoute>
+                <CastingCircleWizard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/stories/:id"
+            element={
+              <EarlyAccessRoute>
+                <StoryDetailPage />
+              </EarlyAccessRoute>
+            }
+          />
+          <Route
+            path="/play/start/:storyId"
+            element={
+              <EarlyAccessRoute>
+                <StartStoryPage />
+              </EarlyAccessRoute>
+            }
+          />
+          <Route
+            path="/play/story/:storyId"
+            element={
+              <EarlyAccessRoute>
+                <StoryPlayRedirect />
+              </EarlyAccessRoute>
+            }
+          />
+          <Route
+            path="/play/:gameStateId"
+            element={
+              <EarlyAccessRoute>
+                <GamePage />
+              </EarlyAccessRoute>
+            }
+          />
+          <Route
+            path="/play/create/:storyId"
+            element={
+              <EarlyAccessRoute>
+                <CharacterCreatorPageV2 />
+              </EarlyAccessRoute>
+            }
+          />
+          <Route
+            path="/story/:id/new"
+            element={
+              <ProtectedRoute>
+                <NewGameWizard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/create-character/:storyId"
+            element={
+              <EarlyAccessRoute>
+                <CharacterCreationPage />
+              </EarlyAccessRoute>
+            }
+          />
+          <Route
+            path="/player-gateway/:storyId"
+            element={
+              <EarlyAccessRoute>
+                <PlayerGatewayPage />
+              </EarlyAccessRoute>
+            }
+          />
           {/* Public catalog routes - browseable without early-access approval */}
           <Route path="/worlds" element={<WorldsPage />} />
           <Route path="/worlds/:slug" element={<WorldDetailPage />} />
@@ -178,160 +219,232 @@ function AppContent() {
           <Route path="/rulesets/:id" element={<RulesetDetailPage />} />
 
           {/* Protected routes - require authentication */}
-          <Route path="/profile" element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          } />
-          <Route path="/my-adventures" element={<Navigate to="/my-stories" replace />} />
-          <Route path="/my-stories" element={
-            <ProtectedRoute>
-              <MyStoriesPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/creations" element={
-            <ProtectedRoute>
-              <Navigate to="/my-creations" replace />
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/creations/:tab" element={
-            <ProtectedRoute>
-              <LegacyCreationsRedirect />
-            </ProtectedRoute>
-          } />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-adventures"
+            element={<Navigate to="/my-stories" replace />}
+          />
+          <Route
+            path="/my-stories"
+            element={
+              <ProtectedRoute>
+                <MyStoriesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/creations"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/my-creations" replace />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/creations/:tab"
+            element={
+              <ProtectedRoute>
+                <LegacyCreationsRedirect />
+              </ProtectedRoute>
+            }
+          />
           {/* Story Creation Wizard Routes */}
-          <Route path="/my-creations" element={
-            <ProtectedRoute>
-              <MyCreationsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/create-story" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <CreateStoryPage />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/worlds/new" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <WorldEditor />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/worlds/edit/:id" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <WorldEditor />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/worlds/:id/manage" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <WorldManage />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/entities/new" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <EntityEditor />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/entities/edit/:id" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <EntityEditor />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/entities/:id/manage" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <EntityManage />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/stories/:id/studio" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <StoryStudio />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
+          <Route
+            path="/my-creations"
+            element={
+              <ProtectedRoute>
+                <MyCreationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/create-story"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <CreateStoryPage />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/worlds/new"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <WorldEditor />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/worlds/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <WorldEditor />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/worlds/:id/manage"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <WorldManage />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/entities/new"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <EntityEditor />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/entities/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <EntityEditor />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/entities/:id/manage"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <EntityManage />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/stories/:id/studio"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <StoryStudio />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
           {/* Old wizard routes removed - show 404 */}
-          <Route path="/dashboard/stories/new" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <NotFoundPage />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/stories/edit/:id" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <NotFoundPage />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/stories/:id/manage" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <StoryManage />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/packs/new" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <PackEditor />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/packs/edit/:id" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <PackEditor />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/packs/:id/manage" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <PackManage />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/lore/new" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <LoreEditor />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/lore/edit/:id" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <LoreEditor />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard/lore/:id/manage" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <LoreManage />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
-          <Route path="/settings/profile" element={
-            <ProtectedRoute>
-              <EarlyAccessRoute>
-                <CreatorProfileSettings />
-              </EarlyAccessRoute>
-            </ProtectedRoute>
-          } />
+          <Route
+            path="/dashboard/stories/new"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <NotFoundPage />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/stories/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <NotFoundPage />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/stories/:id/manage"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <StoryManage />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/packs/new"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <PackEditor />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/packs/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <PackEditor />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/packs/:id/manage"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <PackManage />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/lore/new"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <LoreEditor />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/lore/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <LoreEditor />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/lore/:id/manage"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <LoreManage />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/profile"
+            element={
+              <ProtectedRoute>
+                <EarlyAccessRoute>
+                  <CreatorProfileSettings />
+                </EarlyAccessRoute>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Admin routes - protected by AdminRouteGuard */}
           <Route path="/admin/*" element={<AdminRouteGuard />} />
@@ -346,13 +459,17 @@ function AppContent() {
 
 function ServiceUnavailableNotice() {
   return (
-    <div className="border-b border-amber-200 bg-amber-50 text-amber-950" role="status">
+    <div
+      className="border-b border-amber-200 bg-amber-50 text-amber-950"
+      role="status"
+    >
       <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
         <p className="text-sm font-medium">
           The service is currently unavailable. Sorry for the inconvenience.
         </p>
         <p className="mt-1 text-sm text-amber-900/80">
-          You can keep browsing the site, but sign-in and live game features may be unavailable until the API is back online.
+          You can keep browsing the site, but sign-in and live game features may
+          be unavailable until the API is back online.
         </p>
       </div>
     </div>
@@ -376,16 +493,16 @@ function App() {
       const customEvent = event as CustomEvent<{ path?: string }>;
       // Use window.location for navigation since we're outside React Router context here
       const currentPath = customEvent.detail?.path || window.location.pathname;
-      if (currentPath !== '/') {
-        window.location.href = '/';
+      if (currentPath !== "/") {
+        window.location.href = "/";
       }
       // The actual toast/message will be shown by EarlyAccessBanner component
     };
 
-    window.addEventListener('earlyAccessRequired', handleEarlyAccess);
+    window.addEventListener("earlyAccessRequired", handleEarlyAccess);
 
     return () => {
-      window.removeEventListener('earlyAccessRequired', handleEarlyAccess);
+      window.removeEventListener("earlyAccessRequired", handleEarlyAccess);
     };
   }, [initialize]);
 
@@ -393,14 +510,22 @@ function App() {
   useEffect(() => {
     // Set a default title if it's still "frontend" or empty
     // Note: Individual pages will set their own titles via useEffect
-    if (!document.title || document.title === 'frontend' || document.title.trim() === '') {
-      document.title = 'Stone Caster';
+    if (
+      !document.title ||
+      document.title === "frontend" ||
+      document.title.trim() === ""
+    ) {
+      document.title = "Stone Caster";
     }
   }, []);
 
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark" forcedTheme="dark" storageKey="stonecaster-ui-theme">
+      <ThemeProvider
+        defaultTheme="dark"
+        forcedTheme="dark"
+        storageKey="stonecaster-ui-theme"
+      >
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <AccessStatusProvider>
@@ -408,7 +533,7 @@ function App() {
                 <BrowserRouter
                   future={{
                     v7_startTransition: true,
-                    v7_relativeSplatPath: true
+                    v7_relativeSplatPath: true,
                   }}
                 >
                   <AppContent />
@@ -424,7 +549,7 @@ function App() {
 
 function LegacyCreationsRedirect() {
   const { tab } = useParams<{ tab: string }>();
-  return <Navigate to={`/my-creations${tab ? `?tab=${tab}` : ''}`} replace />;
+  return <Navigate to={`/my-creations${tab ? `?tab=${tab}` : ""}`} replace />;
 }
 
 function StoryPlayRedirect() {

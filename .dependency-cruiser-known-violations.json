@@ -1,0 +1,541 @@
+[
+  {
+    "type": "cycle",
+    "from": "backend/src/dal/dependencyMonitor.ts",
+    "to": "backend/src/utils/publishing.ts",
+    "unresolvedTo": "../utils/publishing.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular-imports"
+    },
+    "cycle": [
+      {
+        "name": "backend/src/utils/publishing.ts",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "backend/src/dal/publishing.ts",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "backend/src/dal/dependencyMonitor.ts",
+        "dependencyTypes": ["local", "dynamic-import"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "backend/src/db/repos/compiled-stories.repo.ts",
+    "to": "backend/src/services/compile/compiler.service.ts",
+    "unresolvedTo": "../../services/compile/compiler.service.js",
+    "dependencyTypes": ["local", "type-only", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular-imports"
+    },
+    "cycle": [
+      {
+        "name": "backend/src/services/compile/compiler.service.ts",
+        "dependencyTypes": ["local", "type-only", "import"]
+      },
+      {
+        "name": "backend/src/db/repos/compiled-stories.repo.ts",
+        "dependencyTypes": ["local", "import"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "backend/src/prompts/entry-point-assembler-v3.ts",
+    "to": "backend/src/services/promptSnapshotService.ts",
+    "unresolvedTo": "../services/promptSnapshotService.js",
+    "dependencyTypes": ["local", "dynamic-import"],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular-imports"
+    },
+    "cycle": [
+      {
+        "name": "backend/src/services/promptSnapshotService.ts",
+        "dependencyTypes": ["local", "dynamic-import"]
+      },
+      {
+        "name": "backend/src/prompts/entry-point-assembler-v3.ts",
+        "dependencyTypes": ["local", "import"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "backend/src/services/game/resolution.service.ts",
+    "to": "backend/src/services/game/ruleset.library.ts",
+    "unresolvedTo": "./ruleset.library.js",
+    "dependencyTypes": ["local", "dynamic-import"],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular-imports"
+    },
+    "cycle": [
+      {
+        "name": "backend/src/services/game/ruleset.library.ts",
+        "dependencyTypes": ["local", "dynamic-import"]
+      },
+      {
+        "name": "backend/src/services/game/resolution.service.ts",
+        "dependencyTypes": ["local", "type-only", "import"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "backend/src/services/templates-cache.ts",
+    "to": "backend/src/services/templates.service.ts",
+    "unresolvedTo": "./templates.service.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular-imports"
+    },
+    "cycle": [
+      {
+        "name": "backend/src/services/templates.service.ts",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "backend/src/services/templates-cache.ts",
+        "dependencyTypes": ["local", "dynamic-import"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "frontend/src/components/common/fields/ArrayField.tsx",
+    "to": "frontend/src/components/common/fields/ObjectField.tsx",
+    "unresolvedTo": "./ObjectField",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular-imports"
+    },
+    "cycle": [
+      {
+        "name": "frontend/src/components/common/fields/ObjectField.tsx",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "frontend/src/components/common/fields/ArrayField.tsx",
+        "dependencyTypes": ["local", "import"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "frontend/src/lib/api.ts",
+    "to": "frontend/src/lib/http.ts",
+    "unresolvedTo": "./http",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular-imports"
+    },
+    "cycle": [
+      {
+        "name": "frontend/src/lib/http.ts",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "frontend/src/lib/api.ts",
+        "dependencyTypes": ["local", "import"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "frontend/src/lib/apiClient.ts",
+    "to": "frontend/src/lib/api.ts",
+    "unresolvedTo": "./api",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular-imports"
+    },
+    "cycle": [
+      {
+        "name": "frontend/src/lib/api.ts",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "frontend/src/lib/http.ts",
+        "dependencyTypes": ["local", "import"]
+      },
+      {
+        "name": "frontend/src/lib/apiClient.ts",
+        "dependencyTypes": ["local", "dynamic-import"]
+      }
+    ]
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/db/repos/compiled-stories.repo.ts",
+    "to": "backend/src/services/compile/compiler.service.ts",
+    "unresolvedTo": "../../services/compile/compiler.service.js",
+    "dependencyTypes": ["local", "type-only", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "repositories-do-not-import-services-or-routes"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-compile.ts",
+    "to": "backend/src/db/repos/compiled-stories.repo.ts",
+    "unresolvedTo": "../db/repos/compiled-stories.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-compile.ts",
+    "to": "backend/src/db/repos/content-catalog.repo.ts",
+    "unresolvedTo": "../db/repos/content-catalog.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-compile.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-entities-repo.ts",
+    "to": "backend/src/db/repos/entities.repo.ts",
+    "unresolvedTo": "../db/repos/entities.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-entities-repo.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-entities.api.ts",
+    "to": "backend/src/db/repos/entities.repo.ts",
+    "unresolvedTo": "../db/repos/entities.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-entities.api.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-game-init.ts",
+    "to": "backend/src/db/repos/stories.repo.ts",
+    "unresolvedTo": "../db/repos/stories.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-game-init.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-lore-repo.ts",
+    "to": "backend/src/db/repos/lore.repo.ts",
+    "unresolvedTo": "../db/repos/lore.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-lore-repo.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-lore.api.ts",
+    "to": "backend/src/db/repos/lore.repo.ts",
+    "unresolvedTo": "../db/repos/lore.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-lore.api.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-lore.ts",
+    "to": "backend/src/db/repos/lore.repo.ts",
+    "unresolvedTo": "../db/repos/lore.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-play.ts",
+    "to": "backend/src/db/repos/stories.repo.ts",
+    "unresolvedTo": "../db/repos/stories.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-play.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-rulesets-repo.ts",
+    "to": "backend/src/db/repos/rulesets.repo.ts",
+    "unresolvedTo": "../db/repos/rulesets.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-rulesets-repo.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-rulesets.api.ts",
+    "to": "backend/src/db/repos/rulesets.repo.ts",
+    "unresolvedTo": "../db/repos/rulesets.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-rulesets.api.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-worlds-repo.ts",
+    "to": "backend/src/db/repos/worlds.repo.ts",
+    "unresolvedTo": "../db/repos/worlds.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-worlds-repo.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-worlds.api.ts",
+    "to": "backend/src/db/repos/worlds.repo.ts",
+    "unresolvedTo": "../db/repos/worlds.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-worlds.api.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/chimera-worlds.ts",
+    "to": "backend/src/db/repos/rulesets.repo.ts",
+    "unresolvedTo": "../db/repos/rulesets.repo.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/routes/game-v3.routes.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "routes-use-services"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/services/game/ai-audit.service.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "services-use-repositories-for-db-access"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/services/game/game-turn.service.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "services-use-repositories-for-db-access"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/services/game/instance.service.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "services-use-repositories-for-db-access"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/services/game/narrative.service.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "services-use-repositories-for-db-access"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/services/game/setup.service.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "services-use-repositories-for-db-access"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "backend/src/services/game/turn.service.ts",
+    "to": "backend/src/db/supabase-client.ts",
+    "unresolvedTo": "../../db/supabase-client.js",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "services-use-repositories-for-db-access"
+    }
+  }
+]
