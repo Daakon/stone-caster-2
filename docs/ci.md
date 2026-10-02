@@ -97,6 +97,23 @@ under-ten-minute target rather than treating the timeout as a measurement.
 
 ## Regression proof and browser evidence
 
+The optional **API Documentation Validation** workflow installs the root npm
+workspace with Node 24, builds the backend, tests its documentation CLI, and
+exports the existing `/swagger.json` document as the `api-specification` artifact.
+Run `npm run docs:validate --workspace=backend` locally, or
+`npm run docs:spec --workspace=backend -- <output.json>` to export it. These
+commands need no backend, database, or provider credentials. Malformed Swagger
+annotations and an empty or invalid document header fail validation. This is a
+generation check of the declared documentation, not a completeness audit of all
+Express routes or a full OpenAPI schema validator. The separate composed
+`/api/openapi.json` document continues to have its existing endpoint tests.
+
+The retired auto-generation job referenced scripts that no longer exist and
+attempted to push generated route comments directly to protected `main`.
+Documentation changes now follow the normal reviewed PR workflow. This job
+has read-only repository permissions and publishes an artifact without making
+commits or posting optimistic route-coverage claims.
+
 Run `npm run ci:prove-gates` to temporarily introduce a type error, an explicit
 `any`, and a failing assertion in the play strict zone. Each probe runs the
 actual `ci:all` command, verifies rejection by the intended gate and is removed
