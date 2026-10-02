@@ -1,4 +1,6 @@
 import type { Page } from "@playwright/test";
+import type { PlayView } from "../../src/features/play/model/play-view";
+import type { LogEntry } from "../../src/features/play/components/Narrative/types";
 
 export const gameId = "a0000000-0000-4000-8000-000000000001";
 const playerId = "b0000000-0000-4000-8000-000000000002";
@@ -6,6 +8,9 @@ const playerId = "b0000000-0000-4000-8000-000000000002";
 export async function mockPlayApi(
   page: Page,
   storedTheme: "dark" | "light" | "system" | null = "dark",
+  playView?: PlayView,
+  logs?: LogEntry[],
+  suggestions: string[] = [],
 ) {
   await page.addInitScript((theme) => {
     if (theme === null) localStorage.removeItem("stonecaster-ui-theme");
@@ -37,6 +42,7 @@ export async function mockPlayApi(
           : path === `/api/chimera/play/${gameId}`
             ? {
                 id: gameId,
+                ...(playView ? { play_view: playView } : {}),
                 story_id: "d0000000-0000-4000-8000-000000000004",
                 player_id: playerId,
                 mechanical_state: {
@@ -54,7 +60,10 @@ export async function mockPlayApi(
                   },
                 },
                 narrative_focus: {
-                  dialogue_history: [
+                  dialogue_history: logs?.map((log) => ({
+                    ...log,
+                    content: log.text,
+                  })) ?? [
                     {
                       id: "intro",
                       role: "narrator",
@@ -73,7 +82,7 @@ export async function mockPlayApi(
                   entity_locations: {},
                   node_states: {},
                 },
-                action_queue: [],
+                action_queue: suggestions,
                 compiled_system_prompt: "",
                 updated_at: "2026-01-01T00:00:00.000Z",
               }

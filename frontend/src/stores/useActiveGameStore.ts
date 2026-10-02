@@ -10,6 +10,12 @@ import { devtools } from "zustand/middleware";
 import { toast } from "sonner";
 import { activeGameApi } from "@/features/active-game/services/activeGameApi";
 import type { GameState } from "@shared/types/chimera-runtime";
+import {
+  nextPanelState,
+  type PlayLayout,
+  type ModulePolicy,
+  type PanelState,
+} from "@/features/play/model/layout";
 
 type InputMode = "idle" | "drafting" | "thinking" | "locked";
 
@@ -24,6 +30,15 @@ interface Vitals {
 }
 
 interface ActiveGameState {
+  layout: PlayLayout;
+  layoutInitialized: boolean;
+  priorPanels: { left: PanelState; right: PanelState } | null;
+  initializeLayout: (width: number) => void;
+  togglePanel: (side: "left" | "right") => void;
+  setPanel: (side: "left" | "right", mode: PanelState) => void;
+  toggleFocus: () => void;
+  setModulePolicy: (id: string, policy: ModulePolicy) => void;
+  hideModule: (id: string) => void;
   // Session State
   activeGameId: string | null;
   gameState: GameState | null; // The Session Truth
@@ -109,6 +124,71 @@ const applyAdditiveDelta = (
 export const useActiveGameStore = create<ActiveGameState>()(
   devtools(
     (set, get) => ({
+      layout: { left: "open", right: "open", focus: false, modules: {} },
+      layoutInitialized: false,
+      priorPanels: null,
+      initializeLayout: (width) => {
+        if (get().layoutInitialized) return;
+        const mode = width >= 768 && width < 1280 ? "slim" : "open";
+        set({
+          layoutInitialized: true,
+          layout: { ...get().layout, left: mode, right: mode },
+        });
+      },
+      togglePanel: (side) => {
+        const { layout, priorPanels } = get();
+        // Changing a panel deliberately leaves focus and restores its partner.
+        const restored = layout.focus && priorPanels ? priorPanels : layout;
+        set({
+          layout: {
+            ...layout,
+            ...restored,
+            [side]: nextPanelState(restored[side]),
+            focus: false,
+          },
+          priorPanels: null,
+        });
+      },
+      toggleFocus: () => {
+        const { layout, priorPanels } = get();
+        if (layout.focus)
+          set({
+            layout: {
+              ...layout,
+              ...(priorPanels ?? { left: "open", right: "open" }),
+              focus: false,
+            },
+            priorPanels: null,
+          });
+        else
+          set({
+            priorPanels: { left: layout.left, right: layout.right },
+            layout: { ...layout, left: "hidden", right: "hidden", focus: true },
+          });
+      },
+      setPanel: (side, mode) => {
+        const { layout, priorPanels } = get();
+        set({
+          layout: {
+            ...layout,
+            ...(layout.focus && priorPanels ? priorPanels : {}),
+            [side]: mode,
+            focus: false,
+          },
+          priorPanels: null,
+        });
+      },
+      setModulePolicy: (id, policy) => {
+        set({
+          layout: {
+            ...get().layout,
+            modules: { ...get().layout.modules, [id]: policy },
+          },
+        });
+      },
+      hideModule: (id) => {
+        get().setModulePolicy(id, "never");
+      },
       // Initial State
       activeGameId: null,
       gameState: null,
@@ -131,7 +211,16 @@ export const useActiveGameStore = create<ActiveGameState>()(
 
       // Actions
       setActiveGameId: (id) => {
-        set({ activeGameId: id });
+        if (get().activeGameId !== id)
+          set({
+            activeGameId: id,
+            gameState: null,
+            entities: {},
+            draftText: "",
+            pendingInput: null,
+            inputMode: "idle",
+            lastError: null,
+          });
       },
 
       setDraft: (text) => {

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { PanelState } from "../model/layout";
 
 // import { Button } from '@/components/ui/button'; // Not used in strict rigid layout yet
 
@@ -10,6 +11,8 @@ interface ThreeColumnLayoutProps {
   footer?: ReactNode;
   /** Compact strip below the header, mobile-only (sidebars are hidden below md) */
   mobileBar?: ReactNode;
+  leftState?: PanelState;
+  rightState?: PanelState;
 }
 
 export function ThreeColumnLayout({
@@ -19,41 +22,55 @@ export function ThreeColumnLayout({
   children,
   footer,
   mobileBar,
+  leftState = "open",
+  rightState = "open",
 }: ThreeColumnLayoutProps) {
   return (
-    <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
+    <div className="sc-play-shell" data-testid="play-shell">
       {/* Global Header - Fixed Height z-20 */}
-      <div className="flex-none h-14 z-20 relative">{header}</div>
+      {header}
 
       {/* Mobile Vitals Strip */}
-      {mobileBar && <div className="flex-none md:hidden z-10">{mobileBar}</div>}
+      {mobileBar && <div className="sc-mobile-bar">{mobileBar}</div>}
 
       {/* Body - Flex Row */}
-      <div className="flex-1 flex flex-row overflow-hidden relative">
+      <div className="sc-play-body">
         {/* LEFT SIDEBAR - Responsive Width (Icon-only md -> Full lg) */}
-        <aside className="hidden md:flex flex-col border-r bg-card/30 overflow-y-auto flex-shrink-0 transition-all duration-300 w-20 lg:w-72">
-          {leftSidebar}
-        </aside>
+        {leftState !== "hidden" && (
+          <aside
+            id="character-panel"
+            aria-label="Character panel"
+            data-panel-state={leftState}
+            className={`sc-panel sc-panel-left sc-panel-${leftState}`}
+          >
+            {leftSidebar}
+          </aside>
+        )}
 
         {/* CENTER STAGE - Primary Focus */}
-        <main className="flex-1 flex flex-col min-w-[320px] relative bg-background/50">
+        <main id="main-content" className="sc-story-column">
           {/* Scrollable Log Area */}
-          <div className="flex-1 overflow-y-auto scroll-smooth">
-            <div className="max-w-3xl mx-auto w-full min-h-full pb-0">
-              {children}
-            </div>
+          <div className="sc-feed" data-testid="play-feed">
+            <div className="sc-measure">{children}</div>
           </div>
 
           {/* Fixed Footer (Game Input) */}
-          <div className="flex-none border-t bg-background/95 backdrop-blur z-10 w-full mb-0">
-            <div className="max-w-3xl mx-auto w-full">{footer}</div>
+          <div className="sc-footer">
+            <div className="sc-measure">{footer}</div>
           </div>
         </main>
 
         {/* RIGHT SIDEBAR - Responsive Width (Icon-only lg -> Full xl) */}
-        <aside className="hidden lg:flex flex-col border-l bg-card/30 overflow-y-auto flex-shrink-0 transition-all duration-300 w-20 xl:w-80">
-          {rightSidebar}
-        </aside>
+        {rightState !== "hidden" && (
+          <aside
+            id="here-panel"
+            aria-label="Here panel"
+            data-panel-state={rightState}
+            className={`sc-panel sc-panel-right sc-panel-${rightState}`}
+          >
+            {rightSidebar}
+          </aside>
+        )}
       </div>
     </div>
   );

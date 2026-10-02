@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: "play-shell.mocked.spec.ts",
+  testMatch: ["play-shell.mocked.spec.ts", "play-redesign-phase0.spec.ts"],
   grepInvert: /@stack/,
   retries: 0,
   reporter: "list",

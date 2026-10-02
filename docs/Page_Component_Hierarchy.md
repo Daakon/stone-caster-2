@@ -6,6 +6,16 @@ This reference expands every routed surface in the frontend, explains the core f
 
 ## Global Shell & Routing
 
+- Active `/play/:gameStateId`: `pages/play/GamePage` →
+  `components/game/ActiveGameInterface` → `features/play/components/PlayShell`.
+  The feature composes `ThreeColumnLayout`, `GameHeader`, safe Character/Here
+  HUD modules, `PlayTranscript`, `PlayComposer`, and mobile Radix sheets.
+  `features/play/model/play-view.ts` owns the interim frontend boundary;
+  `useActiveGameStore` owns turns and layout. See the
+  [Phase 0B handoff](design/play-redesign/PHASE0B_IMPLEMENTATION.md).
+- `/_test_gallery?play=core|social|combat` previews that same shell without the
+  marketing wrapper. The ordinary gallery retains its existing catalog cards.
+
 - `src/App.tsx`
   - Purpose: bootstraps theming, auth, wallets and query caching before mounting the router.
   - Features: suspense-free auth gating, early-access enforcement, toast plumbing, redirect glue for legacy `/adventure` links.
