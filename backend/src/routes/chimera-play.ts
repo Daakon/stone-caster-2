@@ -4,14 +4,16 @@
  * Handles game loop execution and session initialization
  */
 
-import { Router, type Request, type Response } from 'express';
-import { z } from 'zod';
-import { getChimeraSupabaseClient } from '../db/supabase-client.js';
-import { StoriesRepository } from '../db/repos/stories.repo.js';
-import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from '@shared/types/api';
-import { requireAuth } from '../middleware/auth.unified.js';
-import { resolveLlmRoleConfig } from '../config/llm-config.js';
+import { Router, type Request, type Response } from "express";
+import { z } from "zod";
+import { PlayViewService } from "../services/play/play-view.service.js";
+import {
+  sendSuccess,
+  sendErrorWithStatus,
+  getTraceId,
+} from "../utils/response.js";
+import { ApiErrorCode } from "@shared/types/api";
+import { requireAuth } from "../middleware/auth.unified.js";
 
 const router = Router();
 
@@ -20,7 +22,7 @@ const router = Router();
  * Get the current game state
  */
 router.get(
-  '/:gameStateId',
+  "/:gameStateId",
   requireAuth,
   async (req: Request, res: Response) => {
     try {
@@ -30,45 +32,52 @@ router.get(
         return sendErrorWithStatus(
           res,
           ApiErrorCode.VALIDATION_FAILED,
-          'Invalid game state ID',
-          req
+          "Invalid game state ID",
+          req,
         );
       }
 
-      const supabase = getChimeraSupabaseClient(req);
-      const storiesRepo = new StoriesRepository(supabase);
-
-      const gameState = await storiesRepo.loadGameState(gameStateId);
+      const userId = req.user?.id;
+      if (!userId)
+        return sendErrorWithStatus(
+          res,
+          ApiErrorCode.UNAUTHORIZED,
+          "User ID required",
+          req,
+        );
+      const gameState = await PlayViewService.forRequest(req).load(
+        gameStateId,
+        userId,
+      );
 
       if (!gameState) {
         return sendErrorWithStatus(
           res,
           ApiErrorCode.NOT_FOUND,
-          'Game state not found',
-          req
+          "Game state not found",
+          req,
         );
-      }
-
-      // Mock mode: seed the scripted scenario chips so they're available on
-      // first load, before any Director call has populated action_queue
-      if (resolveLlmRoleConfig('director').provider === 'mock') {
-        gameState.action_queue = [
-            "test_combat", "test_social", "test_mixed", "test_travel",
-            "test_drunk_combat", "test_protective_combat"
-        ];
       }
 
       return sendSuccess(res, gameState, req);
     } catch (error) {
-      console.error('[Chimera Play] Error loading game state:', error);
+      console.error(
+        JSON.stringify({
+          level: "error",
+          message: "Play projection failed",
+          traceId: getTraceId(req),
+          detail:
+            error instanceof Error ? error.message : "Unknown projection error",
+        }),
+      );
       return sendErrorWithStatus(
         res,
         ApiErrorCode.INTERNAL_ERROR,
-        error instanceof Error ? error.message : 'Failed to load game state',
-        req
+        "Failed to load game state",
+        req,
       );
     }
-  }
+  },
 );
 
 // NOTE: turn submission lives at POST /api/games/:gameId/turn
@@ -79,12 +88,11 @@ router.get(
  * POST /api/chimera/play/start
  * Retired because this route cannot identify and pin a player-owned character.
  */
-router.post(
-  '/start',
-  requireAuth,
-  (req: Request, res: Response) => res.status(410).json({
-    error: 'Use POST /api/chimera/game/init with a frozen compiled story and player-owned character.',
-  })
+router.post("/start", requireAuth, (req: Request, res: Response) =>
+  res.status(410).json({
+    error:
+      "Use POST /api/chimera/game/init with a frozen compiled story and player-owned character.",
+  }),
 );
 
 export default router;

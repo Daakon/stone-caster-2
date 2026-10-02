@@ -1,113 +1,13 @@
-import { z } from "zod";
 import { record, text, strings } from "../utils/value";
 import type { LogEntry } from "../components/Narrative/types";
 
-const field = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
-  path: z.string().min(1),
-});
-const vital = field.extend({
-  value: z.number().finite(),
-  max: z.number().finite().positive().optional(),
-  delta: z.number().finite().optional(),
-  tone: z.enum(["stamina", "accent", "danger"]).default("accent"),
-});
-const base = z.object({
-  id: z.string().min(1),
-  label: z.string().min(1),
-  source: z.string().min(1),
-});
-const moduleSchema = z.discriminatedUnion("kind", [
-  base.extend({ kind: z.literal("vitals"), fields: z.array(vital).min(1) }),
-  base.extend({
-    kind: z.literal("conditions"),
-    fields: z.array(field.extend({ value: z.string().min(1) })).min(1),
-  }),
-  base.extend({ kind: z.literal("pillars"), fields: z.array(vital).min(1) }),
-  base.extend({
-    kind: z.literal("values"),
-    fields: z
-      .array(
-        field.extend({
-          value: z.union([z.string().min(1), z.number().finite()]),
-        }),
-      )
-      .min(1),
-  }),
-]);
-const cast = z.object({
-  id: z.string().min(1),
-  // Only the observed alias and learned facts belong at this boundary.
-  name: z.string().min(1),
-  identified: z.boolean(),
-  role: z.string().optional(),
-  disposition: z.string().optional(),
-  known_count: z.number().int().nonnegative().optional(),
-});
-
-/** Frontend contract for 0B. Phase 0C should move this schema to shared and
- * provide play_view in the GET response; the shell consumes this shape only.
- * No compiled prompt, raw NPC properties, or inferred resource defaults. */
-export const PlayViewSchema = z
-  .object({
-    version: z.literal(1),
-    title: z.string().transform(visibleLabel).optional(),
-    committed_turn: z.number().int().nonnegative().optional(),
-    rulesets: z.array(z.string()),
-    player: z
-      .object({ name: z.string().min(1), description: z.string().optional() })
-      .optional(),
-    scene: z
-      .object({
-        name: z.string().transform(visibleLabel).optional(),
-        time: z.string().transform(visibleLabel).optional(),
-        atmosphere: z.string().optional(),
-        tags: z.array(z.string()).optional(),
-      })
-      .transform((scene) =>
-        Object.values(scene).some((value) =>
-          Array.isArray(value) ? value.length > 0 : Boolean(value),
-        )
-          ? scene
-          : undefined,
-      )
-      .optional(),
-    presence: z
-      .object({
-        availability: z.enum(["available", "empty"]),
-        cast: z.array(cast),
-      })
-      .optional(),
-    modules: z.array(moduleSchema),
-  })
-  .superRefine((view, context) => {
-    const ids = new Set<string>();
-    view.modules.forEach((module, index) => {
-      if (!view.rulesets.includes(module.source))
-        context.addIssue({
-          code: "custom",
-          path: ["modules", index, "source"],
-          message: "Module source must be a declared ruleset",
-        });
-      if (ids.has(module.id))
-        context.addIssue({
-          code: "custom",
-          path: ["modules", index, "id"],
-          message: "Module IDs must be unique",
-        });
-      ids.add(module.id);
-    });
-    if (view.presence?.availability === "empty" && view.presence.cast.length)
-      context.addIssue({
-        code: "custom",
-        path: ["presence"],
-        message: "Empty presence cannot contain cast",
-      });
-  });
-export type PlayView = z.infer<typeof PlayViewSchema>;
-export type HudModule = PlayView["modules"][number];
-export type VitalField = z.infer<typeof vital>;
+import { PlayViewSchema, type PlayView } from "@shared/types/chimera-play-view";
+export { PlayViewSchema } from "@shared/types/chimera-play-view";
+export type {
+  PlayView,
+  HudModule,
+  VitalField,
+} from "@shared/types/chimera-play-view";
 
 function visibleLabel(value: unknown): string | undefined {
   const label = text(value).trim();
@@ -118,8 +18,8 @@ function visibleLabel(value: unknown): string | undefined {
     : undefined;
 }
 
-/** The current endpoint has no pinned declaration/disclosure projection.
- * Fail closed for HUD/cast; never install a sample fixture in a live session. */
+/** Validate the shared server projection. Legacy snapshots fail closed for
+ * HUD/cast; never install a sample fixture in a live session. */
 export function readPlayView(state: unknown): PlayView {
   const root = record(state);
   if (root.play_view !== undefined) return PlayViewSchema.parse(root.play_view);

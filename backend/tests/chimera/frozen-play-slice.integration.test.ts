@@ -76,6 +76,15 @@ localOnly("frozen play across source sync and recompile", () => {
           owner_namespace: "first_party",
           key: "vitality-stamina-system",
         },
+        ...[
+          "needs-survival-basic",
+          "world-cycle-time-bands",
+          "d100-5-pillars",
+        ].map((key) => ({
+          kind: "ruleset",
+          owner_namespace: "first_party",
+          key,
+        })),
       ],
       entities: [],
       lore: [],
@@ -92,7 +101,7 @@ localOnly("frozen play across source sync and recompile", () => {
     };
     const readState = async (id: string) => {
       const { rows } = await admin.query(
-        "select compiled_story_id, mechanical_state from public.chimera_game_states where id=$1",
+        "select compiled_story_id, mechanical_state, narrative_focus from public.chimera_game_states where id=$1",
         [id],
       );
       expect(rows).toHaveLength(1);
@@ -216,6 +225,11 @@ localOnly("frozen play across source sync and recompile", () => {
         })
       ).id;
       games.push(oldGame);
+      const genesis = await readState(oldGame);
+      expect(
+        genesis.mechanical_state.entities[characterId].properties.satiety,
+      ).toBe(80);
+      expect(genesis.narrative_focus.committed_turn).toBe(0);
       await request(`/api/games/${oldGame}/turn`, { input: "test_social" });
       const before = await readState(oldGame);
       expect(before.compiled_story_id).toBe(oldId);
@@ -262,7 +276,7 @@ localOnly("frozen play across source sync and recompile", () => {
       await deployer.connect();
       const changed = structuredClone(original);
       changed.body.definition.state_contributions.tier1_entity.definitions.current_stamina.value =
-        oldValue + 23;
+        oldValue - 23;
       changed.body.definition.ai_instructions ??= {};
       changed.body.definition.ai_instructions.mas1_interpreter =
         "PIN_TEST_NEW_INTERPRETER_PROMPT";
@@ -286,7 +300,7 @@ localOnly("frozen play across source sync and recompile", () => {
       expect(
         newCompile.payload.config_engine.active_rulesets[0].definition
           .state_contributions.tier1_entity.definitions.current_stamina.value,
-      ).toBe(oldValue + 23);
+      ).toBe(oldValue - 23);
 
       await request(`/api/games/${oldGame}/turn`, { input: "test_social" });
       const after = await readState(oldGame);
@@ -309,9 +323,41 @@ localOnly("frozen play across source sync and recompile", () => {
       const oldView = await oldViewResponse.json();
       expect(oldViewResponse.status, JSON.stringify(oldView)).toBe(200);
       expect(oldView.data.compiled_story_id).toBe(oldId);
-      expect(oldView.data.compiled_system_prompt).toBe(
+      expect(oldView.data).not.toHaveProperty("compiled_system_prompt");
+      expect(oldView.data.play_view.title).toBe(
+        oldCompile.payload.frozen_title,
+      );
+      expect(oldView.data.play_view.committed_turn).toBe(2);
+      const projectedFields = oldView.data.play_view.modules.flatMap(
+        (module: { fields: Array<{ id: string; value: unknown }> }) =>
+          module.fields,
+      );
+      expect(
+        projectedFields.find(
+          (field: { id: string }) => field.id === "current_stamina",
+        ).value,
+      ).toBe(oldValue);
+      expect(
+        projectedFields.find((field: { id: string }) => field.id === "satiety")
+          .value,
+      ).toBe(after.mechanical_state.entities[characterId].properties.satiety);
+      expect(
+        projectedFields.find(
+          (field: { id: string }) => field.id === "root_force",
+        ).value,
+      ).toBe(50);
+      expect(
+        projectedFields.some((field: { id: string }) => field.id === "hp"),
+      ).toBe(false);
+      expect(JSON.stringify(oldView.data)).not.toContain(
         oldCompile.payload.prompt_narrator_style,
       );
+      expect(oldView.data.mechanical_state.entities).toHaveProperty(
+        characterId,
+      );
+      expect(Object.keys(oldView.data.mechanical_state.entities)).toEqual([
+        characterId,
+      ]);
 
       const newGame = (
         await request("/api/chimera/game/init", {
@@ -326,7 +372,7 @@ localOnly("frozen play across source sync and recompile", () => {
       expect(
         newState.mechanical_state.entities[characterId].properties
           .current_stamina,
-      ).toBe(oldValue + 23);
+      ).toBe(oldValue - 23);
     } finally {
       if (deployer && original && sourceEdited)
         await sync([
