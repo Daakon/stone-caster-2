@@ -67,6 +67,7 @@
     "backup:check": "node supabase/ops/check-backup.mjs",
     "wipe-prelaunch-data": "node supabase/ops/wipe-prelaunch-data.mjs",
     "test:f0a:local": "node supabase/ops/test-f0a-local.mjs",
+    "test:f0b:entitlements:local": "node supabase/ops/test-f0b-entitlements.mjs",
     "local:health": "node scripts/stonecaster-local.mjs health",
     "local:smoke": "node scripts/stonecaster-local.mjs smoke --mock",
     "local:smoke:real": "node scripts/stonecaster-local.mjs smoke --real",

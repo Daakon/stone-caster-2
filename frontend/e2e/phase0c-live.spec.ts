@@ -24,6 +24,9 @@ let gameId: string;
 let characterId: string;
 let compiledId: string;
 let worldId: string;
+const entitlementTier = `phase0c-${randomUUID()}`;
+let priorEntitlement: { tier_key: string; assigned_at: Date } | undefined;
+let entitlementFixtureCreated = false;
 const snapshotSchema = z
   .object({
     play_view: z.unknown(),
@@ -103,6 +106,23 @@ test.beforeAll(async () => {
   const fixtures = new Client({ connectionString: env.DATABASE_URL });
   await fixtures.connect();
   try {
+    priorEntitlement = (
+      await fixtures.query<{ tier_key: string; assigned_at: Date }>(
+        "select tier_key,assigned_at from public.chimera_user_entitlements where user_id=$1",
+        [auth.user.id],
+      )
+    ).rows[0];
+    // Explicit local test limits cover the existing account plus this one session.
+    // Restore the account exactly; never configure a product-wide default tier.
+    await fixtures.query(
+      "insert into public.chimera_tier_limits(tier_key,max_owned_stories,max_saved_games) select $1,(select count(*)+1 from public.chimera_stories where owner_user_id=$2 and owner_kind='player'),(select count(*)+1 from public.chimera_game_states where player_id=$2)",
+      [entitlementTier, auth.user.id],
+    );
+    entitlementFixtureCreated = true;
+    await fixtures.query(
+      "insert into public.chimera_user_entitlements(user_id,tier_key) values($1,$2) on conflict(user_id) do update set tier_key=excluded.tier_key",
+      [auth.user.id, entitlementTier],
+    );
     await fixtures.query(
       "insert into public.chimera_worlds(id,key,definition,name,slug,owner_user_id) values($1,$2,$3,$4,$5,$6)",
       [
@@ -192,6 +212,34 @@ test.afterAll(async () => {
       );
       expect(response.ok, `Local fixture cleanup: ${String(table)}`).toBe(true);
     }
+  if (entitlementFixtureCreated) {
+    const fixtures = new Client({ connectionString: env.DATABASE_URL });
+    await fixtures.connect();
+    try {
+      const owner = "00000000-0000-4000-8000-00000000a001";
+      if (priorEntitlement)
+        await fixtures.query(
+          "update public.chimera_user_entitlements set tier_key=$1,assigned_at=$2 where user_id=$3 and tier_key=$4",
+          [
+            priorEntitlement.tier_key,
+            priorEntitlement.assigned_at,
+            owner,
+            entitlementTier,
+          ],
+        );
+      else
+        await fixtures.query(
+          "delete from public.chimera_user_entitlements where user_id=$1 and tier_key=$2",
+          [owner, entitlementTier],
+        );
+      await fixtures.query(
+        "delete from public.chimera_tier_limits where tier_key=$1",
+        [entitlementTier],
+      );
+    } finally {
+      await fixtures.end();
+    }
+  }
 });
 
 for (const viewport of [

@@ -13,6 +13,7 @@ import { GameStateSchema } from "@shared/types/chimera-runtime";
 import type { CharacterTemplate } from "../../domain/character.types.js";
 import { ServiceError } from "../../utils/serviceError.js";
 import { ApiErrorCode } from "@shared";
+import { EntitlementsRepository } from "./entitlements.repo.js";
 
 export class StoriesRepository {
   constructor(private supabase: SupabaseClient<Database>) {}
@@ -68,36 +69,12 @@ export class StoriesRepository {
     compiledStoryId: string,
     playerCharacterId: string,
   ): Promise<string> {
-    const { mechanical, narrative, registry, queue, compiled_system_prompt } =
-      bundle;
-
-    const { data, error } = await (
-      this.supabase.from("chimera_game_states") as any
-    )
-      .insert({
-        story_id: storyId,
-        compiled_story_id: compiledStoryId,
-        player_character_id: playerCharacterId,
-        state_initialization_version: 1,
-        player_id: playerId,
-        mechanical_state: mechanical || {},
-        narrative_focus: narrative || {},
-        scene_registry: registry || {},
-        action_queue: queue || [],
-        compiled_system_prompt: null,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to create game state: ${error.message}`);
-    }
-
-    if (!data) {
-      throw new Error("Failed to create game state: No data returned");
-    }
-
-    return data.id;
+    return new EntitlementsRepository(this.supabase).createGame(
+      playerId,
+      compiledStoryId,
+      playerCharacterId,
+      bundle,
+    );
   }
 
   /**

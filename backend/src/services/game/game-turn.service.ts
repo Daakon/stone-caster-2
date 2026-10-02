@@ -25,6 +25,8 @@ import {
 import type { DirectorUnifiedIntent } from "@shared/types/chimera-runtime";
 import { ServiceError } from "../../utils/serviceError.js";
 import { ApiErrorCode } from "@shared";
+import { EntitlementsService } from "../content/entitlements.service.js";
+import { EntitlementsRepository } from "../../db/repos/entitlements.repo.js";
 import { applyLocationChange } from "../runtime/scene-context.js";
 import {
   startLlmUsageCapture,
@@ -118,6 +120,10 @@ export class GameTurnService {
           `Pinned compiled story not found: ${state.compiled_story_id}`,
         );
       }
+
+      await new EntitlementsService(
+        new EntitlementsRepository(this.supabase),
+      ).assertGameWritable(gameStateId);
 
       // Extract actionsMap and condition rules from the compiled story —
       // the rules engine defines how vitals map to conditions; the
