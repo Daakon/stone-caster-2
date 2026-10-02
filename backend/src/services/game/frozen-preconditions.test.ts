@@ -6,6 +6,7 @@ import { NarrativeService } from "./narrative.service.js";
 import { DirectorService } from "../runtime/director.service.js";
 import { Mas2Service } from "../runtime/mas2.service.js";
 import { LlmService } from "../llm/llm.service.js";
+import { EntitlementsRepository } from "../../db/repos/entitlements.repo.js";
 
 const playerId = "00000000-0000-4000-8000-00000000a001";
 const characterId = "00000000-0000-4000-8000-00000000b001";
@@ -133,5 +134,68 @@ describe("frozen session preconditions before any AI provider call", () => {
     ).rejects.toThrow(/missing required frozen-session pins/);
     expect(calls).toHaveBeenCalledTimes(0);
     expect(textCalls).toHaveBeenCalledTimes(0);
+  });
+  it("rejects game creation at the cap before the opening provider call", async () => {
+    const { service, storiesRepo } = init();
+    storiesRepo.createGameState.mockRejectedValue(
+      new Error("GAME_LIMIT_REACHED"),
+    );
+    await expect(
+      service.initializeGame(compiledId, {}, playerId, characterId),
+    ).rejects.toMatchObject({
+      error: {
+        code: "FORBIDDEN",
+        details: { entitlement_code: "GAME_LIMIT_REACHED" },
+      },
+    });
+    expect(storiesRepo.createGameState).toHaveBeenCalledTimes(1);
+    expect(calls).not.toHaveBeenCalled();
+    expect(textCalls).not.toHaveBeenCalled();
+  });
+  it("rejects a read-only game before Director or Narrator can call the provider", async () => {
+    vi.spyOn(StoriesRepository.prototype, "loadGameState").mockResolvedValue({
+      id: "00000000-0000-4000-8000-00000000d001",
+      player_id: playerId,
+      compiled_story_id: compiledId,
+      player_character_id: characterId,
+      state_initialization_version: 1,
+      mechanical_state: {},
+      narrative_focus: {},
+      scene_registry: {},
+      action_queue: [],
+    } as Awaited<ReturnType<StoriesRepository["loadGameState"]>>);
+    vi.spyOn(
+      StoriesRepository.prototype,
+      "getCompiledStoryById",
+    ).mockResolvedValue(
+      compiled as unknown as Awaited<
+        ReturnType<StoriesRepository["getCompiledStoryById"]>
+      >,
+    );
+    const gate = vi
+      .spyOn(EntitlementsRepository.prototype, "assertGameWritable")
+      .mockRejectedValue(new Error("GAME_READ_ONLY_TIER_LIMIT"));
+    const service = new GameTurnService(
+      {} as ConstructorParameters<typeof GameTurnService>[0],
+      narrative,
+      new DirectorService(llm),
+      undefined,
+      new Mas2Service(llm),
+    );
+    await expect(
+      service.processTurn(
+        "00000000-0000-4000-8000-00000000d001",
+        "look around",
+        playerId,
+      ),
+    ).rejects.toMatchObject({
+      error: {
+        code: "FORBIDDEN",
+        details: { entitlement_code: "GAME_READ_ONLY_TIER_LIMIT" },
+      },
+    });
+    expect(gate).toHaveBeenCalledTimes(1);
+    expect(calls).not.toHaveBeenCalled();
+    expect(textCalls).not.toHaveBeenCalled();
   });
 });

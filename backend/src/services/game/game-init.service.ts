@@ -13,6 +13,7 @@ export interface PlayerInputDto {
 }
 
 import { NarrativeService } from "./narrative.service.js";
+import { entitlementFailure } from "../content/entitlements.service.js";
 
 export class GameInitService {
   private factory: GameStateFactory;
@@ -256,13 +257,17 @@ ${rulesData.mas2}
     const declaredTime = bundle.mechanical.globals.time_band;
     if (typeof declaredTime === "string")
       bundle.narrative.scene_context.time = declaredTime;
-    const gameStateId = await this.storiesRepo.createGameState(
-      originStoryId,
-      bundle,
-      playerId,
-      compiled.id!,
-      protagonistId,
-    );
+    const gameStateId = await this.storiesRepo
+      .createGameState(
+        originStoryId,
+        bundle,
+        playerId,
+        compiled.id!,
+        protagonistId,
+      )
+      .catch((error: unknown) => {
+        throw entitlementFailure(error);
+      });
 
     // Inject ID into bundle for downstream services (Narrative/Audit)
     bundle.id = gameStateId;
