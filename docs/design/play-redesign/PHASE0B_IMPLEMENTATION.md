@@ -6,7 +6,9 @@ the existing turn store, and projects it through `model/play-view.ts`.
 
 ## Frontend boundary
 
-`PlayViewSchema` is the temporary frontend-owned, version-1 contract:
+`PlayViewSchema` was established as the frontend-owned, version-1 contract.
+Phase 0C now shares it through `shared/src/types/chimera-play-view.ts`; see
+[the Phase 0C implementation](PHASE0C_IMPLEMENTATION.md):
 
 - Optional pinned story title and committed turn; optional known scene/time.
 - Optional player identity and disclosure-safe presence (observed alias, learned
@@ -24,13 +26,14 @@ defaulted. The schema strips unrelated fields, including raw NPC properties.
 It does not replace the server's obligation to verify pinned declarations and
 disclosure before building the projection.
 
-The current backend has no safe declaration/disclosure projection. The interim
+At the completion of Phase 0B, the backend had no safe declaration/disclosure
+projection. The interim
 live adapter therefore exposes verified scene metadata and the existing
 transcript, with no inferred HUD or cast. It never installs sample content in
 a live session. Legacy store vitals and old presentation components remain for
 existing callers/tests; the active shell does not render them.
 
-Phase 0C should move the contract into `shared/src/types/chimera-play-view.ts`,
+The Phase 0C handoff was to move the contract into `shared/src/types/chimera-play-view.ts`,
 project the frozen session's declared state into `play_view` on the existing
 GET response, and import that shared contract here. The shell's props and HUD
 components remain unchanged. Successful turns currently refresh that GET after

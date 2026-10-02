@@ -1,19 +1,20 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from "@playwright/test";
 
 /** Live (unmocked) browser smoke against the isolated local stack. Servers are NOT started here: use `npm run local:dev`. */
 export default defineConfig({
-  testDir: './e2e-local',
+  testDir: ".",
+  testMatch: ["e2e-local/*.spec.ts", "e2e/phase0c-live.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: 'list',
+  reporter: "list",
   use: {
-    baseURL: 'http://localhost:5183',
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    baseURL: "http://localhost:5183",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
     headless: true,
     actionTimeout: 10000,
     navigationTimeout: 30000,
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });
