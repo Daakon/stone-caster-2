@@ -1,75 +1,145 @@
-import { record, text } from "../utils/value";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, Sun, Moon } from "lucide-react";
+import {
+  ArrowLeft,
+  PanelLeft,
+  PanelRight,
+  Scan,
+  SlidersHorizontal,
+  BookOpen,
+  Moon,
+} from "lucide-react";
+import { readPlayView, type PlayView } from "../model/play-view";
+import type { PlayLayout } from "../model/layout";
 
 interface GameHeaderProps {
-  scene: unknown;
+  view?: PlayView;
+  scene?: unknown;
+  layout?: PlayLayout;
   onExit?: () => void;
   onConfig?: () => void;
+  onJournal?: () => void;
+  onTogglePanel?: (side: "left" | "right") => void;
+  onFocus?: () => void;
 }
-
-export function GameHeader({ scene, onExit, onConfig }: GameHeaderProps) {
-  const context = record(scene);
-  // Binding per "Verified JSON Paths"
-  const storyTitle = text(context.name) || "Untitled Story";
-  const locationName =
-    text(context.location) || text(context.location_name) || "Unknown Location";
-  const time = text(context.time) || "Unknown Time";
-  const atmosphere = text(context.atmosphere) || "";
-
-  // Time Icon Logic
-  const isNight =
-    time.toLowerCase().includes("night") ||
-    time.toLowerCase().includes("evening");
-  const TimeIcon = isNight ? Moon : Sun;
-
+export function GameHeader({
+  view,
+  scene,
+  layout,
+  onExit,
+  onConfig,
+  onJournal,
+  onTogglePanel,
+  onFocus,
+}: GameHeaderProps) {
+  const context =
+    view ?? readPlayView({ narrative_focus: { scene_context: scene } });
   return (
-    <header className="h-14 border-b flex items-center justify-between px-4 bg-background/95 backdrop-blur z-40 flex-shrink-0 w-full relative">
-      {/* Left: Exit & Story Title */}
-      <div className="flex items-center gap-3 flex-1 min-w-0 z-10">
+    <header className="sc-game-header">
+      <div className="sc-header-start">
         <Button
           variant="ghost"
           size="icon"
+          className="sc-icon"
+          aria-label="Exit Game"
           onClick={onExit}
-          className="text-muted-foreground hover:text-destructive flex-shrink-0 h-9 w-9"
         >
-          <LogOut className="w-4 h-4" />
-          <span className="sr-only">Exit Game</span>
+          <ArrowLeft aria-hidden="true" />
         </Button>
-        <div className="h-4 w-px bg-border hidden sm:block" />
-        <span className="text-sm text-muted-foreground font-medium truncate hidden sm:block max-w-[200px]">
-          {storyTitle}
-        </span>
-      </div>
-
-      {/* Center: Location Name - Absolutely centered for visual balance */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center max-w-[33%] hidden md:block">
-        <h2 className="text-lg font-bold tracking-tight text-foreground truncate">
-          {locationName}
-        </h2>
-      </div>
-
-      {/* Right: Time & Atmosphere */}
-      <div className="flex items-center gap-4 flex-1 justify-end min-w-0 z-10">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground text-right">
-          <span className="hidden lg:inline-block italic opacity-70 border-r border-border pr-2 mr-1">
-            {atmosphere}
-          </span>
-          <span className="font-semibold uppercase text-xs tracking-wider">
-            {time}
-          </span>
-          <TimeIcon className="w-4 h-4 text-orange-400" />
+        {layout && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sc-icon sc-desktop"
+            aria-label={`Cycle Character panel, currently ${layout.left}`}
+            aria-controls="character-panel"
+            onClick={() => onTogglePanel?.("left")}
+          >
+            <PanelLeft aria-hidden="true" />
+          </Button>
+        )}
+        <div className="sc-story-title sc-desktop">
+          {context.title && <h1>{context.title}</h1>}
+          {context.committed_turn !== undefined && (
+            <p>Turn {context.committed_turn}</p>
+          )}
         </div>
-
+      </div>
+      <div className="sc-header-scene">
+        {context.scene?.name && <h2>{context.scene.name}</h2>}
+        <div>
+          {context.scene?.time && (
+            <span>
+              <Moon aria-hidden="true" />
+              {context.scene.time}
+            </span>
+          )}
+          {context.scene?.atmosphere && (
+            <span className="sc-mobile-only">
+              {" "}
+              · {context.scene.atmosphere}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="sc-header-end">
+        {layout?.focus && (
+          <div className="sc-focus-pins" aria-label="Pinned modules">
+            {context.modules
+              .filter((module) => layout.modules[module.id] === "always")
+              .map((module) => (
+                <span key={module.id}>
+                  {module.label}:{" "}
+                  {module.fields.map((field) => field.value).join(" · ")}
+                </span>
+              ))}
+          </div>
+        )}
+        {layout && (
+          <Button
+            variant="ghost"
+            className="sc-icon sc-focus-toggle"
+            aria-label={layout.focus ? "Exit focus" : "Enter focus"}
+            aria-pressed={layout.focus}
+            onClick={onFocus}
+          >
+            <Scan aria-hidden="true" />
+            <span className="sc-desktop">
+              {layout.focus ? "Show panels" : "Focus"}
+            </span>
+          </Button>
+        )}
         <Button
           variant="ghost"
-          size="icon"
+          className="sc-icon sc-desktop"
+          aria-label={layout ? "Layout and HUD" : "Settings"}
           onClick={onConfig}
-          className="text-muted-foreground h-9 w-9"
         >
-          <Settings className="w-4 h-4" />
-          <span className="sr-only">Settings</span>
+          <SlidersHorizontal aria-hidden="true" />
+          <span>Layout</span>
         </Button>
+        {onJournal && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sc-icon"
+            aria-label="Open Journal"
+            onClick={onJournal}
+          >
+            <BookOpen aria-hidden="true" />
+          </Button>
+        )}
+        {layout && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sc-icon sc-desktop"
+            aria-label={`Cycle Here panel, currently ${layout.right}`}
+            aria-controls="here-panel"
+            onClick={() => onTogglePanel?.("right")}
+          >
+            <PanelRight aria-hidden="true" />
+          </Button>
+        )}
       </div>
     </header>
   );
