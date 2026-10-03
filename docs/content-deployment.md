@@ -4,8 +4,10 @@ The manual **Deploy content (pre-launch)** workflow deploys reviewed first-party
 upserts from current `main` without building or deploying either app. This is a
 bounded step toward the F0b gate in [PLAN](design/play-redesign/PLAN.md).
 It does **not** complete F0b or authorize real-player admission. The launch
-guard remains closed. Shared/private invalidation, release controls, real
-source deletes, and hosted deployment/rollback rehearsal remain outstanding.
+guard remains closed. The [invalidation foundation](content-invalidation.md)
+adds durable shared/private streams and a first-party compiler cache; broader
+reader migration, retention/scale qualification, release controls, real source
+deletes, and hosted deployment/rollback rehearsal remain outstanding.
 
 ## Configure before the first hosted dispatch
 
@@ -78,11 +80,12 @@ For a payload rollback, submit a reviewed **revert of the content change** to
 This reruns content sync only; neither app is redeployed. It writes a new
 generation/receipt and preserves existing frozen compiled stories and games.
 
-The current RPC **upserts** the supplied set. Removing a key from repo files
+The current RPC **upserts** the supplied set and emits metadata changes for
+changed source keys in that transaction. Removing a key from repo files
 does not delete an existing source row, and a revert that omits a newly added
 key does not remove that key. Existing release state is preserved; new keys
-are internal. A full delete/release rollback and cache/outbox propagation
-require their remaining F0b slices. Do not treat a successful upsert receipt
+are internal. Full delete/release rollback, broader cache reader migration,
+and operational cache qualification require their remaining F0b slices. Do not treat a successful upsert receipt
 as proof of production lifecycle or cache readiness.
 
 Credential rotation/revocation is an operator action: change the dedicated

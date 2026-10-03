@@ -26,7 +26,10 @@ const instructionText = (value: unknown): string => {
 
 export class FrozenContentCompileService {
   constructor(
-    private readonly catalog: ContentCatalogRepository,
+    private readonly catalog: Pick<
+      ContentCatalogRepository,
+      "getGeneration" | "find"
+    >,
     private readonly compiledStories: CompiledStoriesRepository,
   ) {}
 
