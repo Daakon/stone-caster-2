@@ -2,6 +2,21 @@ import { z } from "zod";
 
 // Compiled into this build. Increasing this range requires implemented parsers.
 export const SUPPORTED_CONTENT_FORMAT = Object.freeze({ min: 1, max: 1 });
+export const ContentRuntimeIdentitySchema = z
+  .object({
+    app_name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
+    machine_id: z.string().regex(/^[a-z0-9]{1,64}$/),
+    machine_version: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+    image_ref: z
+      .string()
+      .min(1)
+      .max(512)
+      .regex(/^[^\p{Cc}]+$/u),
+  })
+  .strict();
+export type ContentRuntimeIdentity = z.infer<
+  typeof ContentRuntimeIdentitySchema
+>;
 const format = z.number().int().positive().nullable();
 export const ContentFormatInventorySchema = z
   .object({

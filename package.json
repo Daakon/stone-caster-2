@@ -91,7 +91,8 @@
     "content:gc": "tsx backend/src/scripts/content-gc.ts",
     "test:f0b:gc:local": "node supabase/ops/test-f0b-gc.mjs",
     "test:f0b:deploy:local": "node supabase/ops/test-f0b-deploy.mjs",
-    "test:f0b:readiness:local": "node --import tsx supabase/ops/test-f0b-readiness.mjs"
+    "test:f0b:readiness:local": "node --import tsx supabase/ops/test-f0b-readiness.mjs",
+    "test:f0b:runtime-fence:local": "node --import tsx supabase/ops/test-f0b-runtime-fence.mjs"
   },
   "keywords": [
     "rpg",
