@@ -5,6 +5,10 @@ F0b or open the real-player launch guard. Source deletion, release propagation,
 cache/outbox invalidation, format compatibility and deployment gates remain
 separate work.
 
+The separate [deployment provenance slice](F0B_DEPLOY_PROVENANCE.md) records
+committed source identity and hash changes; it does not implement runtime format
+compatibility or a hosted deployment gate.
+
 ## Operator workflow
 
 Apply `20261003000000_f0b_snapshot_gc.sql` through the normal migration workflow.

@@ -19,6 +19,7 @@ import { devTestRouter } from "./routes/dev.test.js";
 import healthRouter from "./routes/health.js";
 import entitlementsRouter from "./routes/chimera-entitlements.js";
 import tierLimitsRouter from "./routes/admin-tier-limits.js";
+import contentDeployRouter from "./routes/admin-content-deploy.js";
 import adminPreviewRouter from "./routes/admin.preview.js";
 import internalFlagsRouter from "./routes/internalFlags.js";
 import { openapiRouter } from "./routes/openapi.js";
@@ -131,6 +132,7 @@ app.use("/api/system", systemRouter);
 app.use("/api/health", healthRouter);
 app.use("/api/me/entitlements", entitlementsRouter);
 app.use("/api/admin", tierLimitsRouter);
+app.use("/api/admin", contentDeployRouter);
 app.use("/api/internal", internalFlagsRouter);
 
 // Access Requests (Phase B5)
