@@ -1005,11 +1005,19 @@ const options: swaggerJsdoc.Options = {
       // Health endpoints
       "/api/health/ready": {
         get: {
-          summary: "Readiness check",
+          summary: "Content format readiness check",
+          description:
+            "Uncached per-build compatibility check for current source and retained frozen-blob formats. Uses the standard API envelope; unsupported content or unavailable metadata returns 503. No content bodies or identities are exposed.",
           tags: ["Health"],
           responses: {
-            "200": { description: "OK" },
-            "503": { description: "Not Ready" },
+            "200": {
+              description:
+                "Ready: data contains status, db/contentFormats checks and timestamp",
+            },
+            "503": {
+              description:
+                "Not ready: sanitized error with safe readiness checks when available",
+            },
           },
         },
       },
