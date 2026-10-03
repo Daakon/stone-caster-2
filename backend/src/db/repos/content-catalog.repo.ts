@@ -18,6 +18,15 @@ export interface ContentCatalogRow extends ContentKeyRef {
 export class ContentCatalogRepository {
   constructor(private readonly supabase: SupabaseClient) {}
 
+  async cacheAudience(): Promise<unknown> {
+    const { data, error } = await this.supabase
+      .rpc("is_admin")
+      .abortSignal(AbortSignal.timeout(1000))
+      .overrideTypes<unknown, { merge: false }>();
+    if (error) throw new Error("Unable to verify content cache audience");
+    return data;
+  }
+
   async getGeneration(): Promise<number> {
     const { data, error } = await (
       this.supabase.from("chimera_content_catalog_state") as any
