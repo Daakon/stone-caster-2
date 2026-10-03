@@ -7,6 +7,16 @@ import {
 } from "../../../../shared/src/types/chimera-content-deploy.js";
 
 export type ContentSyncReceipt = ContentDeployReceipt;
+export class ContentFleetGateError extends Error {
+  constructor(public readonly reason: "unreported" | "unsupported") {
+    super(
+      reason === "unreported"
+        ? "Content deployment is blocked until the verified runtime fleet is fully reported."
+        : "Content deployment is blocked because a registered runtime build cannot read this format.",
+    );
+    this.name = "ContentFleetGateError";
+  }
+}
 
 export class ContentSyncRepository {
   async apply(
@@ -27,8 +37,9 @@ export class ContentSyncRepository {
       const { rows: generationRows } = await client.query<{
         catalog_generation: string;
         deployment_provenance_version: number;
+        runtime_format_contract_version: number;
       }>(
-        "select catalog_generation::text,deployment_provenance_version from content_deploy.validation_formats limit 1",
+        "select catalog_generation::text,deployment_provenance_version,runtime_format_contract_version from content_deploy.validation_formats limit 1",
       );
       if (!generationRows.length)
         throw new Error(
@@ -38,6 +49,8 @@ export class ContentSyncRepository {
         throw new Error(
           "Apply the content deployment provenance migration before syncing content",
         );
+      if (generationRows[0]?.runtime_format_contract_version !== 1)
+        throw new ContentFleetGateError("unreported");
       const expectedGeneration = Number(generationRows[0].catalog_generation);
       if (!Number.isSafeInteger(expectedGeneration))
         throw new Error("The content catalog generation is invalid");
@@ -52,6 +65,16 @@ export class ContentSyncRepository {
         ],
       );
       return ContentDeployReceiptSchema.parse(rows[0]?.content_sync_apply);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        (error.code === "P0F01" || error.code === "P0F02")
+      )
+        throw new ContentFleetGateError(
+          error.code === "P0F01" ? "unreported" : "unsupported",
+        );
+      throw error;
     } finally {
       await client.end().catch(() => undefined);
     }

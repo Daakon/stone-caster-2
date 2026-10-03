@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ContentSyncRepository } from "./content-sync.repo.js";
+import {
+  ContentSyncRepository,
+  ContentFleetGateError,
+} from "./content-sync.repo.js";
 const db = vi.hoisted(() => ({
   connect: vi.fn(),
   query: vi.fn(),
@@ -36,7 +39,13 @@ describe("dedicated deploy repository", () => {
   it("requires provenance support before applying and decodes the receipt", async () => {
     db.query
       .mockResolvedValueOnce({
-        rows: [{ catalog_generation: "1", deployment_provenance_version: 1 }],
+        rows: [
+          {
+            catalog_generation: "1",
+            deployment_provenance_version: 1,
+            runtime_format_contract_version: 1,
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [{ content_sync_apply: receipt }] });
     expect(
@@ -57,11 +66,13 @@ describe("dedicated deploy repository", () => {
   it.each([
     { rows: [] },
     { rows: [{ catalog_generation: "1" }] },
+    { rows: [{ catalog_generation: "1", deployment_provenance_version: 1 }] },
     {
       rows: [
         {
           catalog_generation: "9007199254740993",
           deployment_provenance_version: 1,
+          runtime_format_contract_version: 1,
         },
       ],
     },
@@ -93,7 +104,13 @@ describe("dedicated deploy repository", () => {
     ).rejects.toThrow("offline");
     db.query
       .mockResolvedValueOnce({
-        rows: [{ catalog_generation: "1", deployment_provenance_version: 1 }],
+        rows: [
+          {
+            catalog_generation: "1",
+            deployment_provenance_version: 1,
+            runtime_format_contract_version: 1,
+          },
+        ],
       })
       .mockRejectedValueOnce(new Error("RPC failed"));
     await expect(
@@ -109,7 +126,13 @@ describe("dedicated deploy repository", () => {
   it("rejects an empty or corrupt RPC receipt", async () => {
     db.query
       .mockResolvedValueOnce({
-        rows: [{ catalog_generation: "1", deployment_provenance_version: 1 }],
+        rows: [
+          {
+            catalog_generation: "1",
+            deployment_provenance_version: 1,
+            runtime_format_contract_version: 1,
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [] });
     await expect(
@@ -121,4 +144,34 @@ describe("dedicated deploy repository", () => {
       ),
     ).rejects.toThrow();
   });
+  it.each([
+    ["P0F01", "unreported"],
+    ["P0F02", "unsupported"],
+  ] as const)(
+    "maps the transactional fleet denial %s without exposing database details",
+    async (code, reason) => {
+      db.query
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              catalog_generation: "1",
+              deployment_provenance_version: 1,
+              runtime_format_contract_version: 1,
+            },
+          ],
+        })
+        .mockRejectedValueOnce(
+          Object.assign(new Error("private database detail"), { code }),
+        );
+      await expect(
+        new ContentSyncRepository().apply(
+          "operator",
+          id,
+          { items: [] },
+          metadata,
+        ),
+      ).rejects.toEqual(new ContentFleetGateError(reason));
+      expect(db.end).toHaveBeenCalledOnce();
+    },
+  );
 });

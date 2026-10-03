@@ -74,6 +74,14 @@ The Supabase CLI parses the repo-root `.env`; its leading UTF-8 BOM (invisible, 
 
 ### Authored content seeding
 
+The runtime format fence migration follows readiness. Fresh local seeding
+registers its actual validation process and checked-out parser declaration before
+sync; it never populates Fly support claims. Standalone sync requires that local
+bootstrap. Run `npm run test:f0b:runtime-fence:local` for rollback-only bootstrap,
+role, compatibility and concurrency checks using the existing maintenance login
+without password rotation or reset. See
+[the registry contract](../design/play-redesign/F0B_RUNTIME_FORMAT_FENCE.md).
+
 Content readiness uses `GET /api/health/ready` and the restricted metadata RPC
 from `20261005000000_f0b_content_readiness.sql`. Apply that migration before
 starting the updated backend. Run `npm run test:f0b:readiness:local` for the

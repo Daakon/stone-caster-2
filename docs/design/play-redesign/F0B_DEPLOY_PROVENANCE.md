@@ -7,7 +7,9 @@ still precede real-player admission. The launch guard remains closed.
 
 Per-build compatibility probing is documented in
 [F0B_CONTENT_READINESS.md](F0B_CONTENT_READINESS.md); the all-machine deployment
-registry and sync fence remain separate work.
+registry and sync fence are implemented in the later
+[runtime format fence slice](F0B_RUNTIME_FORMAT_FENCE.md), with hosted inventory
+and deployment gates still required.
 
 ## Operator contract
 

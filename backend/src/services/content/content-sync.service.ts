@@ -8,6 +8,7 @@ import {
 } from "./content-source.service.js";
 import {
   ContentSyncRepository,
+  ContentFleetGateError,
   type ContentSyncReceipt,
 } from "../../db/repos/content-sync.repo.js";
 
@@ -102,7 +103,7 @@ export class ContentSyncService {
           1,
         );
       return receipt;
-    } catch {
+    } catch (error) {
       console.error(
         JSON.stringify({
           level: "error",
@@ -110,11 +111,16 @@ export class ContentSyncService {
           traceId: "content-sync-cli",
           target: "local",
           commit_sha: metadata.commit_sha,
+          ...(error instanceof ContentFleetGateError
+            ? { reason: error.reason }
+            : {}),
         }),
       );
       throw new ContentSyncError(
-        "First-party content sync failed; no deployment success receipt was accepted.",
-        1,
+        error instanceof ContentFleetGateError
+          ? error.message
+          : "First-party content sync failed; no deployment success receipt was accepted.",
+        error instanceof ContentFleetGateError ? 2 : 1,
       );
     }
   }

@@ -1,4 +1,7 @@
-import { ContentSyncService } from "../services/content/content-sync.service.js";
+import {
+  ContentSyncService,
+  ContentSyncError,
+} from "../services/content/content-sync.service.js";
 
 function targetFromArgs(): string | undefined {
   return process.argv
@@ -68,5 +71,5 @@ try {
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Content sync failed");
-  process.exitCode = 1;
+  process.exitCode = error instanceof ContentSyncError ? error.exitCode : 1;
 }

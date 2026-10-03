@@ -4,7 +4,10 @@ This bounded slice makes each running or waking build reject readiness when it
 cannot read stored content. It does not complete the all-machine deployment
 registry or open the real-player launch guard. Release/source deletion, the
 deployer's live-build compatibility fence, cache/outbox propagation, and hosted
-deployment/rollback operations remain separate F0b work.
+deployment/rollback operations remain separate F0b work. The later
+[runtime registry/fence slice](F0B_RUNTIME_FORMAT_FENCE.md) adds durable reports
+and a transactional sync gate, with operator inventory/deployment gates still
+required.
 
 ## Database and application contract
 

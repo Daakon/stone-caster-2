@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { ContentFormatService } from "./content-format.service.js";
 const inventory = {
   catalog_generation: "15",
@@ -9,6 +9,9 @@ const inventory = {
 };
 
 describe("content format readiness", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
   it("accepts actual v1 metadata without legacy cache warming", async () => {
     const repo = { inventory: vi.fn().mockResolvedValue(inventory) };
     expect(await new ContentFormatService(repo).readiness()).toMatchObject({
@@ -98,5 +101,44 @@ describe("content format readiness", () => {
     } finally {
       log.mockRestore();
     }
+  });
+  it("uses complete Fly identity and refuses incomplete identity before probing", async () => {
+    const repo = { inventory: vi.fn().mockResolvedValue(inventory) };
+    const service = new ContentFormatService(repo);
+    const runtime = {
+      app_name: "stonecaster",
+      machine_id: "abcdef01",
+      machine_version: "VERSION1",
+      image_ref: "registry.fly.io/stonecaster:deployment-one",
+    };
+    vi.stubEnv("FLY_APP_NAME", runtime.app_name);
+    vi.stubEnv("FLY_MACHINE_ID", runtime.machine_id);
+    vi.stubEnv("FLY_MACHINE_VERSION", runtime.machine_version);
+    vi.stubEnv("FLY_IMAGE_REF", runtime.image_ref);
+    expect((await service.readiness()).status).toBe("ready");
+    expect(repo.inventory).toHaveBeenCalledWith(runtime);
+    delete process.env.FLY_MACHINE_VERSION;
+    await expect(service.readiness()).rejects.toMatchObject({
+      statusCode: 503,
+    });
+    expect(repo.inventory).toHaveBeenCalledOnce();
+  });
+  it("fails closed when runtime registration is unavailable and never falls back to the read-only RPC", async () => {
+    vi.stubEnv("FLY_APP_NAME", "stonecaster");
+    vi.stubEnv("FLY_MACHINE_ID", "abcdef01");
+    vi.stubEnv("FLY_MACHINE_VERSION", "VERSION1");
+    vi.stubEnv("FLY_IMAGE_REF", "registry.fly.io/stonecaster:one");
+    const repo = {
+      inventory: vi
+        .fn()
+        .mockRejectedValue(new Error("private registry failure")),
+    };
+    await expect(
+      new ContentFormatService(repo).readiness(),
+    ).rejects.toMatchObject({
+      statusCode: 503,
+      message: "Content readiness is unavailable.",
+    });
+    expect(repo.inventory).toHaveBeenCalledOnce();
   });
 });

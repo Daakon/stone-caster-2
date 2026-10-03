@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { ContentSyncService } from "./content-sync.service.js";
 import type { ValidatedContentBundle } from "./content-source.service.js";
+import { ContentFleetGateError } from "../../db/repos/content-sync.repo.js";
 const validated: ValidatedContentBundle = {
   manifest: {
     format_version: 1,
@@ -99,4 +100,32 @@ describe("provenance-aware standalone content sync", () => {
       "no deployment success receipt",
     );
   });
+  it.each(["unreported", "unsupported"] as const)(
+    "reports the safe %s fleet refusal as an actionable CLI validation failure",
+    async (reason) => {
+      const { service, repo } = setup();
+      const error = new ContentFleetGateError(reason);
+      repo.apply.mockRejectedValue(error);
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await expect(service.sync("operator:secret")).rejects.toMatchObject({
+          exitCode: 2,
+          statusCode: 400,
+          message: error.message,
+        });
+        expect(log).toHaveBeenCalledWith(
+          JSON.stringify({
+            level: "error",
+            event: "content_sync_failed",
+            traceId: "content-sync-cli",
+            target: "local",
+            commit_sha: receipt.commit_sha,
+            reason,
+          }),
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
 });

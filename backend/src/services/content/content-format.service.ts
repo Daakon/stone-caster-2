@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import {
   ContentFormatInventorySchema,
+  ContentRuntimeIdentitySchema,
   ContentReadinessSchema,
   SUPPORTED_CONTENT_FORMAT,
   type ContentReadiness,
@@ -27,8 +28,21 @@ export class ContentFormatService {
   async readiness(): Promise<ContentReadiness> {
     let inventory;
     try {
+      const identity = [
+        process.env.FLY_APP_NAME,
+        process.env.FLY_MACHINE_ID,
+        process.env.FLY_MACHINE_VERSION,
+        process.env.FLY_IMAGE_REF,
+      ].some((value) => value !== undefined)
+        ? ContentRuntimeIdentitySchema.parse({
+            app_name: process.env.FLY_APP_NAME,
+            machine_id: process.env.FLY_MACHINE_ID,
+            machine_version: process.env.FLY_MACHINE_VERSION,
+            image_ref: process.env.FLY_IMAGE_REF,
+          })
+        : undefined;
       inventory = ContentFormatInventorySchema.parse(
-        await this.repo.inventory(),
+        await this.repo.inventory(identity),
       );
     } catch {
       console.error(
