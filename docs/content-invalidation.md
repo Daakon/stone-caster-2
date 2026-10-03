@@ -8,6 +8,48 @@ Every request verifies its admin audience before using shared internal data;
 other requests keep their RLS source lookup. A cache probe failure returns
 typed HTTP 503 and clears mutable entries, rather than serving stale content.
 
+## World reader integration
+
+The mounted V2 world library (`selectable`), owned list (`my-creations`),
+detail, and ruleset-access check now use `WorldContentReadService`. The public
+catalog world list/detail use the same reader with an anonymous published
+audience, even if the HTTP request carries an admin token. Other catalog and
+authoring readers remain separate audit/migration work before launch.
+
+First-party world bodies and release state come from the canonical
+`chimera_content_source_items`, not the legacy world projection. Authenticated
+requests verify `is_admin` before using internal values. Player bodies use the
+request's RLS client with explicit owner/public filters. Shared first-party,
+public player, and owner-private lists have distinct cache addresses. The
+reader also checks release/ownership before returning a loaded value.
+
+The service role resolves only legacy identity columns (UUID, key/slug,
+namespace/owner, visibility), never world bodies. A legacy first-party UUID is
+retained when present; otherwise the canonical key is the response ID. Detail
+reads resolve either identifier to a stable source key before caching. Duplicate
+owner-scoped key/slug aliases are refused rather than choosing an arbitrary
+owner. Consumers requiring legacy UUID foreign keys still need their stable-key
+adapter; this reader does not synthesize UUIDs or legacy source rows.
+
+List responses remain arrays and accept `limit` (1–50, default 50), `offset`
+(0–1000), optional `tag`, and optional `search`. Search matches name substrings
+or exact tags; wildcard/filter punctuation is treated as literal input. Database
+windows and alias lookups use batches of at most 200 rows. Library/catalog pages
+group first-party, public player, then owned player rows, ordered by name and
+stable namespace/key within each group, deduplicated before applying the page.
+Owned lists retain newest-created order. This replaces the public catalog's
+previous unbounded newest-created ordering and the library's single mixed name
+ordering with explicit bounded groups. The existing empty ruleset-link response
+is preserved after world authorization; no ruleset is invented.
+
+Run `npm run test:f0b:world-readers:local`. It performs read-only actual SDK
+filter/ordering checks, then exercises the reader/cache against real anon,
+owner and admin RLS in a rollback transaction. Its transaction adapter is test
+infrastructure, not an alternate production repository. Evidence covers current
+source/release gating, same-key owner isolation, private replay on two instances,
+public visibility/deletion invalidation, and body reuse on hits. No production
+publishing/deletion action or schema change is added by this integration.
+
 ## Durable streams and privacy
 
 Migration `20261008000000_f0b_content_changes.sql` adds
@@ -92,8 +134,8 @@ concurrent fill fencing, safe authorization/probe failure, and bounded
 memory/catch-up. The compile HTTP boundary preserves the normal error envelope
 and maps unavailable caches to 503.
 
-This slice does **not** complete F0b. Player lists still query the database;
-legacy TTL readers are not moved into this cache. Broader shared/private reader
+These slices do **not** complete F0b. World lists now use this cache; other
+player readers and legacy TTL readers are not moved into it. Broader shared/private reader
 migration, owner-aware compile support if added, retention/partitioning and
 consumer lag instrumentation, million-owner/100-instance/10x-peak measurement,
 admin release/deletion controls, and hosted multi-machine deployment/rollback
