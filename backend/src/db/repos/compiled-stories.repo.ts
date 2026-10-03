@@ -4,30 +4,48 @@
  * Handles CRUD operations for compiled story records
  */
 
-import { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '../supabase-client.js';
-import type { CompiledStory } from '../../services/compile/compiler.service.js';
-import type { CompiledContentManifestV1 } from '@shared/types/chimera-content.js';
+import { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "../supabase-client.js";
+import type { CompiledStory } from "../../services/compile/compiler.service.js";
+import type { CompiledContentManifestV1 } from "@shared/types/chimera-content.js";
+
+export class FrozenCompileRetryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FrozenCompileRetryError";
+  }
+}
 
 export class CompiledStoriesRepository {
-  constructor(private supabase: SupabaseClient<Database>) { }
+  constructor(private supabase: SupabaseClient<Database>) {}
 
   async publishFrozen(
     expectedGeneration: number,
     storyId: string | null,
     title: string,
-    refs: Array<CompiledContentManifestV1 & {role:string}>,
+    refs: Array<CompiledContentManifestV1 & { role: string }>,
     payload: Record<string, unknown>,
   ): Promise<string> {
-    const {data, error} = await (this.supabase as any).rpc('publish_frozen_chimera_compile', {
-      p_expected_generation:expectedGeneration,
-      p_story_id:storyId,
-      p_title:title,
-      p_refs:refs.map((ref) => ({...ref, key:ref.key})),
-      p_payload:payload,
-    });
-    if (error) throw new Error(`Failed to publish frozen compile: ${error.message}`);
-    if (typeof data !== 'string') throw new Error('Frozen compile function returned no compiled story ID');
+    const { data, error } = await (this.supabase as any).rpc(
+      "publish_frozen_chimera_compile",
+      {
+        p_expected_generation: expectedGeneration,
+        p_story_id: storyId,
+        p_title: title,
+        p_refs: refs.map((ref) => ({ ...ref, key: ref.key })),
+        p_payload: payload,
+      },
+    );
+    if (error) {
+      if (error.code === "40001" || error.code === "40P01") {
+        throw new FrozenCompileRetryError(
+          "Frozen compile conflicted with concurrent content work",
+        );
+      }
+      throw new Error(`Failed to publish frozen compile: ${error.message}`);
+    }
+    if (typeof data !== "string")
+      throw new Error("Frozen compile function returned no compiled story ID");
     return data;
   }
 
@@ -45,13 +63,14 @@ export class CompiledStoriesRepository {
       tier0_allowlist: Array.from(compiled.tier0_allowlist),
     };
 
-    const { data, error } = await (this.supabase
-      .from('compiled_stories') as any)
+    const { data, error } = await (
+      this.supabase.from("compiled_stories") as any
+    )
       .insert({
         story_key: storyKey,
         compiled: compiledForStorage as unknown as Record<string, unknown>,
       })
-      .select('id')
+      .select("id")
       .single();
 
     if (error) {
@@ -59,7 +78,7 @@ export class CompiledStoriesRepository {
     }
 
     if (!data) {
-      throw new Error('Failed to create compiled story: No data returned');
+      throw new Error("Failed to create compiled story: No data returned");
     }
 
     return data.id;
@@ -71,16 +90,17 @@ export class CompiledStoriesRepository {
    * @returns CompiledStory or null if not found
    */
   async findByKey(storyKey: string): Promise<CompiledStory | null> {
-    const { data, error } = await (this.supabase
-      .from('chimera_compiled_stories') as any)
-      .select('id, story_id, version, payload_blob_hash, created_at')
-      .eq('story_id', storyKey)
-      .order('version', { ascending: false })
+    const { data, error } = await (
+      this.supabase.from("chimera_compiled_stories") as any
+    )
+      .select("id, story_id, version, payload_blob_hash, created_at")
+      .eq("story_id", storyKey)
+      .order("version", { ascending: false })
       .limit(1)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
+      if (error.code === "PGRST116") {
         return null; // Not found
       }
       throw new Error(`Failed to find compiled story: ${error.message}`);
@@ -99,14 +119,15 @@ export class CompiledStoriesRepository {
    * @returns CompiledStory or null if not found
    */
   async findById(id: string): Promise<CompiledStory | null> {
-    const { data, error } = await (this.supabase
-      .from('chimera_compiled_stories') as any)
-      .select('id, story_id, version, payload_blob_hash, created_at')
-      .eq('id', id)
+    const { data, error } = await (
+      this.supabase.from("chimera_compiled_stories") as any
+    )
+      .select("id, story_id, version, payload_blob_hash, created_at")
+      .eq("id", id)
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
+      if (error.code === "PGRST116") {
         return null; // Not found
       }
       throw new Error(`Failed to find compiled story: ${error.message}`);
@@ -123,38 +144,56 @@ export class CompiledStoriesRepository {
    * Get just the creation manifest and world snapshot for a story
    * Optimized for Character Forge loading
    */
-  async getManifestByKey(storyKey: string): Promise<{ creation_manifest: any, snapshot_world: any } | null> {
+  async getManifestByKey(
+    storyKey: string,
+  ): Promise<{ creation_manifest: any; snapshot_world: any } | null> {
     const data = await this.findByKey(storyKey);
     if (!data) return null;
     return {
       creation_manifest: data.creation_manifest,
-      snapshot_world: data.snapshot_world
+      snapshot_world: data.snapshot_world,
     };
   }
 
   private async mapCompiledStory(data: any): Promise<CompiledStory> {
-    if (!data.payload_blob_hash) throw new Error('Compiled story has no frozen payload hash');
-    const {data:blob, error} = await (this.supabase.from('chimera_content_blobs') as any)
-      .select('body').eq('sha256', data.payload_blob_hash).single();
-    if (error || !blob) throw new Error(`Frozen compiled payload is unavailable: ${error?.message ?? data.payload_blob_hash}`);
+    if (!data.payload_blob_hash)
+      throw new Error("Compiled story has no frozen payload hash");
+    const { data: blob, error } = await (
+      this.supabase.from("chimera_content_blobs") as any
+    )
+      .select("body")
+      .eq("sha256", data.payload_blob_hash)
+      .single();
+    if (error || !blob)
+      throw new Error(
+        `Frozen compiled payload is unavailable: ${error?.message ?? data.payload_blob_hash}`,
+      );
     const payload = blob.body?.body;
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Frozen compiled payload has an invalid body');
-    for (const field of ['config_engine', 'prompt_interpreter_logic', 'prompt_narrator_style', 'snapshot_world', 'snapshot_entities']) {
-      if (!Object.hasOwn(payload, field)) throw new Error(`Frozen compiled payload is missing ${field}`);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload))
+      throw new Error("Frozen compiled payload has an invalid body");
+    for (const field of [
+      "config_engine",
+      "prompt_interpreter_logic",
+      "prompt_narrator_style",
+      "snapshot_world",
+      "snapshot_entities",
+    ]) {
+      if (!Object.hasOwn(payload, field))
+        throw new Error(`Frozen compiled payload is missing ${field}`);
     }
     return {
-      id:data.id,
-      story_key:data.story_id ?? undefined,
-      config_engine:payload.config_engine,
-      creation_manifest:payload.creation_manifest ?? {},
-      prompt_interpreter_logic:payload.prompt_interpreter_logic,
-      prompt_narrator_style:payload.prompt_narrator_style,
-      snapshot_world:payload.snapshot_world,
-      snapshot_entities:payload.snapshot_entities,
-      tier1_allowlist:new Set([]),
-      tier0_allowlist:new Set([]),
-      version:data.version,
-      updated_at:data.created_at,
+      id: data.id,
+      story_key: data.story_id ?? undefined,
+      config_engine: payload.config_engine,
+      creation_manifest: payload.creation_manifest ?? {},
+      prompt_interpreter_logic: payload.prompt_interpreter_logic,
+      prompt_narrator_style: payload.prompt_narrator_style,
+      snapshot_world: payload.snapshot_world,
+      snapshot_entities: payload.snapshot_entities,
+      tier1_allowlist: new Set([]),
+      tier0_allowlist: new Set([]),
+      version: data.version,
+      updated_at: data.created_at,
       ...payload,
     } as any;
   }
