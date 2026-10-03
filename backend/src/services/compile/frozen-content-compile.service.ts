@@ -7,7 +7,10 @@ import {
   ContentCatalogRepository,
   type ContentCatalogRow,
 } from "../../db/repos/content-catalog.repo.js";
-import { CompiledStoriesRepository } from "../../db/repos/compiled-stories.repo.js";
+import {
+  CompiledStoriesRepository,
+  FrozenCompileRetryError,
+} from "../../db/repos/compiled-stories.repo.js";
 import {
   readPinnedStateSources,
   stateDefaults,
@@ -37,7 +40,8 @@ export class FrozenContentCompileService {
       } catch (error) {
         if (
           attempt === 2 ||
-          (await this.catalog.getGeneration()) === generation
+          (!(error instanceof FrozenCompileRetryError) &&
+            (await this.catalog.getGeneration()) === generation)
         )
           throw error;
       }

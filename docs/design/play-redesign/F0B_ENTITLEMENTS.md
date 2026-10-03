@@ -90,7 +90,8 @@ and synced first-party content. It tests signup/default repair, role grants,
 ownership, full-set choices, downgrade/read-only enforcement, deletion recovery,
 and independent-connection creation races. Transactional fixtures roll back;
 committed race fixtures are removed by their exact generated IDs. Immutable test
-blobs remain subject to the forthcoming GC workflow.
+blobs are eligible for the separate [bounded GC workflow](F0B_GC.md) once no
+compiled snapshot references them.
 
 Run `npm run ci:all`, the mocked browser suite, and the Phase 0C live browser suite.
 The latter temporarily assigns explicit local fixture caps, then restores the

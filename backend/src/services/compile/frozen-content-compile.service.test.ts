@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
+import type { ContentCatalogRow } from "../../db/repos/content-catalog.repo.js";
+import { FrozenCompileRetryError } from "../../db/repos/compiled-stories.repo.js";
 import { FrozenContentCompileService } from "./frozen-content-compile.service.js";
 
 describe("frozen compile generation race", () => {
@@ -100,5 +102,76 @@ describe("frozen compile generation race", () => {
       published[1].payload.config_engine.active_rulesets[0].definition
         .state_contributions.tier1_entity.definitions.current_stamina.value,
     ).toBe(200);
+  });
+});
+
+describe("frozen compile GC conflicts", () => {
+  const selection = {
+    world: {
+      kind: "world" as const,
+      owner_namespace: "first_party",
+      key: "mystika",
+    },
+    rulesets: [
+      {
+        kind: "ruleset" as const,
+        owner_namespace: "first_party",
+        key: "fixture",
+      },
+    ],
+    entities: [],
+    lore: [],
+  };
+  function fixture() {
+    const catalog = {
+      getGeneration: vi.fn().mockResolvedValue(1),
+      find: vi.fn(async (ref: ContentCatalogRow) => ({
+        ...ref,
+        content_kind: ref.kind,
+        content_key: ref.key,
+        content_format_version: 1,
+        content_hash: "a".repeat(64),
+        content_refs: [],
+        release_state: "internal" as const,
+        catalog_generation: 1,
+        body: { key: ref.key },
+      })),
+    };
+    const compiled = { publishFrozen: vi.fn() };
+    return {
+      catalog,
+      compiled,
+      service: new FrozenContentCompileService(
+        catalog as ConstructorParameters<typeof FrozenContentCompileService>[0],
+        compiled as ConstructorParameters<
+          typeof FrozenContentCompileService
+        >[1],
+      ),
+    };
+  }
+  it("re-resolves a GC serialization conflict even when catalog generation did not change", async () => {
+    const { catalog, compiled, service } = fixture();
+    compiled.publishFrozen
+      .mockRejectedValueOnce(new FrozenCompileRetryError("GC race"))
+      .mockResolvedValueOnce("published");
+    expect(await service.compile(selection)).toBe("published");
+    expect(catalog.find).toHaveBeenCalledTimes(4);
+    expect(compiled.publishFrozen).toHaveBeenCalledTimes(2);
+  });
+  it("bounds repeated GC conflicts to three full attempts", async () => {
+    const { compiled, service } = fixture();
+    compiled.publishFrozen.mockRejectedValue(
+      new FrozenCompileRetryError("GC race"),
+    );
+    await expect(service.compile(selection)).rejects.toThrow("GC race");
+    expect(compiled.publishFrozen).toHaveBeenCalledTimes(3);
+  });
+  it("does not retry ordinary publication failures at a stable generation", async () => {
+    const { compiled, service } = fixture();
+    compiled.publishFrozen.mockRejectedValue(new Error("permission denied"));
+    await expect(service.compile(selection)).rejects.toThrow(
+      "permission denied",
+    );
+    expect(compiled.publishFrozen).toHaveBeenCalledOnce();
   });
 });
