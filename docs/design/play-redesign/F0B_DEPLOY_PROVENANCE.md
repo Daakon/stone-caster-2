@@ -5,6 +5,10 @@ history boundary. F0b remains incomplete: release operations, source deletion,
 runtime format compatibility, hosted deployment gates, and cache/outbox propagation
 still precede real-player admission. The launch guard remains closed.
 
+Per-build compatibility probing is documented in
+[F0B_CONTENT_READINESS.md](F0B_CONTENT_READINESS.md); the all-machine deployment
+registry and sync fence remain separate work.
+
 ## Operator contract
 
 Apply `20261004000000_f0b_deploy_provenance.sql` through the normal migration

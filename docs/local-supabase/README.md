@@ -74,6 +74,13 @@ The Supabase CLI parses the repo-root `.env`; its leading UTF-8 BOM (invisible, 
 
 ### Authored content seeding
 
+Content readiness uses `GET /api/health/ready` and the restricted metadata RPC
+from `20261005000000_f0b_content_readiness.sql`. Apply that migration before
+starting the updated backend. Run `npm run test:f0b:readiness:local` for the
+rollback-only database/service checks; no credentials change. `/health` remains
+the process/mode check used by local tooling. See
+[the readiness contract](../design/play-redesign/F0B_CONTENT_READINESS.md).
+
 Authored content now comes from `content/first-party/` through the restricted local `content:sync` command. The current checked-in set has 16 rulesets, 2 worlds, 7 entities, 7 titled lore rows, 42 tags, and the remaining linked mechanics, localization, pack, dialogue-config and premade payloads. The `test` world and its confirmed admin-owned content are `internal`. Four SQL-NULL-owner lore rows and unresolved legacy AWF graph rows are held out; see [the reconciliation record](../content-reconciliation-f0a.md).
 
 After applying `20261004000000_f0b_deploy_provenance.sql`, sync reads authored files

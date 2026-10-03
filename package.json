@@ -90,7 +90,8 @@
     "ci:prove-gates": "node scripts/ci/prove-gates.mjs",
     "content:gc": "tsx backend/src/scripts/content-gc.ts",
     "test:f0b:gc:local": "node supabase/ops/test-f0b-gc.mjs",
-    "test:f0b:deploy:local": "node supabase/ops/test-f0b-deploy.mjs"
+    "test:f0b:deploy:local": "node supabase/ops/test-f0b-deploy.mjs",
+    "test:f0b:readiness:local": "node --import tsx supabase/ops/test-f0b-readiness.mjs"
   },
   "keywords": [
     "rpg",

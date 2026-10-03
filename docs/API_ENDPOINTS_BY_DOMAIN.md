@@ -106,8 +106,8 @@ Mounted via catalogNpcsRouter and documented in backend/src/openapi/paths.catalo
 
 ## Public Health Endpoints
 
-- GET /health - Root endpoint (outside /api). Returns {status:'ok', timestamp, testTxEnabled:boolean} for load balancers.
-- GET /api/health/ready - Returns {ok:boolean, status:'ready'|'not_ready'|'error', checks:{db:boolean, v3Only:boolean, cacheWarm:boolean}, timestamp} with HTTP 503 when unhealthy.
+- GET /health - Root process-liveness endpoint (outside /api). Returns {status:'ok', timestamp, testTxEnabled:boolean, mockAi:boolean, llm}; local tooling retains this contract. Fly readiness uses `/api/health/ready`.
+- GET /api/health/ready - Public, uncached content-format readiness probe. HTTP 200 uses the standard success envelope with `{status:'ready', checks:{db:true,contentFormats:true}, timestamp}`. HTTP 503 uses the standard error envelope with safe readiness checks in `error.details` when available. Both current sources and retained frozen blobs must fit this build's compiled format support (currently 1). Missing/invalid metadata or an unavailable/timed-out probe fails closed. No content identities, bodies, generations, or credentials are exposed. Replaces the legacy `v3Only`/`cacheWarm` readiness assumptions; see [the readiness contract](design/play-redesign/F0B_CONTENT_READINESS.md).
 - GET /api/health/live - Returns {ok:true, status:'alive', timestamp}.
 
 ## Debug & Preview Tooling (feature-flagged)
