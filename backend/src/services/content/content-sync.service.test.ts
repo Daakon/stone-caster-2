@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { ContentSyncService } from "./content-sync.service.js";
 import type { ValidatedContentBundle } from "./content-source.service.js";
-import { ContentFleetGateError } from "../../db/repos/content-sync.repo.js";
+import {
+  ContentFleetGateError,
+  ContentDeployTargetError,
+} from "../../db/repos/content-sync.repo.js";
 const validated: ValidatedContentBundle = {
   manifest: {
     format_version: 1,
@@ -40,6 +43,46 @@ function setup() {
   };
 }
 describe("provenance-aware standalone content sync", () => {
+  it("forwards the hosted connection policy and reports a safe target denial", async () => {
+    const { service, repo } = setup();
+    const policy = {
+      target: "production" as const,
+      expectedDatabase: "postgres",
+      expectedApp: "stonecaster-production",
+      tls: {
+        ca: "private-ca",
+        servername: "db.example.com",
+        rejectUnauthorized: true as const,
+        minVersion: "TLSv1.2" as const,
+      },
+    };
+    expect(await service.sync("operator:secret", policy)).toEqual(receipt);
+    expect(repo.apply).toHaveBeenCalledWith(
+      "operator:secret",
+      expect.any(String),
+      validated.bundle,
+      { commit_sha: receipt.commit_sha },
+      policy,
+    );
+    repo.apply.mockRejectedValue(new ContentDeployTargetError());
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(
+        service.sync("operator:secret", policy),
+      ).rejects.toMatchObject({ exitCode: 2 });
+      expect(log).toHaveBeenCalledWith(
+        JSON.stringify({
+          level: "error",
+          event: "content_sync_failed",
+          traceId: "content-sync-cli",
+          target: "production",
+          commit_sha: receipt.commit_sha,
+        }),
+      );
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("validates the committed file reader and sends matching provenance", async () => {
     const { source, repo, provenance, service } = setup();
     source.loadAndValidate.mockImplementation(

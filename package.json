@@ -63,6 +63,7 @@
     "local:reset": "node scripts/stonecaster-local.mjs reset",
     "content:validate": "tsx backend/src/scripts/content-validate.ts",
     "content:sync": "tsx backend/src/scripts/content-sync.ts",
+    "content:deploy:check": "tsx backend/src/scripts/content-deploy-check.ts",
     "content:audit:hosted": "tsx backend/src/scripts/audit-hosted-content.ts",
     "backup:check": "node supabase/ops/check-backup.mjs",
     "wipe-prelaunch-data": "node supabase/ops/wipe-prelaunch-data.mjs",
