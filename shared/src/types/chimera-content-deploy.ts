@@ -78,3 +78,17 @@ export const ContentDeployHistorySchema = z
   })
   .strict();
 export type ContentDeployHistory = z.infer<typeof ContentDeployHistorySchema>;
+/** Operator-selected connection policy; never include this object in logs. */
+export type ContentDeploymentConnection =
+  | { target: "local" }
+  | {
+      target: "staging" | "production";
+      expectedDatabase: string;
+      expectedApp: string;
+      tls: {
+        ca: string;
+        servername: string;
+        rejectUnauthorized: true;
+        minVersion: "TLSv1.2";
+      };
+    };

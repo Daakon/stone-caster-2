@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { ContentDeploymentConnection } from "../../../../shared/src/types/chimera-content-deploy.js";
 import { ContentProvenanceService } from "./content-provenance.service.js";
 import { ServiceError } from "../../utils/serviceError.js";
 import { ApiErrorCode } from "../../../../shared/src/types/api.js";
@@ -9,6 +10,7 @@ import {
 import {
   ContentSyncRepository,
   ContentFleetGateError,
+  ContentDeployTargetError,
   type ContentSyncReceipt,
 } from "../../db/repos/content-sync.repo.js";
 
@@ -66,7 +68,10 @@ export class ContentSyncService {
     }
   }
 
-  async sync(connectionString: string): Promise<ContentSyncReceipt> {
+  async sync(
+    connectionString: string,
+    policy?: ContentDeploymentConnection,
+  ): Promise<ContentSyncReceipt> {
     let metadata;
     try {
       metadata = this.provenance.resolve();
@@ -92,6 +97,7 @@ export class ContentSyncService {
         randomUUID(),
         validated.bundle,
         metadata,
+        ...(policy ? [policy] : []),
       );
       if (
         receipt.manifest_hash !== validated.manifestHash ||
@@ -109,7 +115,7 @@ export class ContentSyncService {
           level: "error",
           event: "content_sync_failed",
           traceId: "content-sync-cli",
-          target: "local",
+          target: policy?.target ?? "local",
           commit_sha: metadata.commit_sha,
           ...(error instanceof ContentFleetGateError
             ? { reason: error.reason }
@@ -117,10 +123,14 @@ export class ContentSyncService {
         }),
       );
       throw new ContentSyncError(
-        error instanceof ContentFleetGateError
+        error instanceof ContentFleetGateError ||
+          error instanceof ContentDeployTargetError
           ? error.message
           : "First-party content sync failed; no deployment success receipt was accepted.",
-        error instanceof ContentFleetGateError ? 2 : 1,
+        error instanceof ContentFleetGateError ||
+          error instanceof ContentDeployTargetError
+          ? 2
+          : 1,
       );
     }
   }

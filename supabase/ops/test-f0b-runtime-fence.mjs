@@ -192,6 +192,43 @@ try {
     [app],
   );
   await temporary(async () => {
+    await db.query(
+      "set local session authorization stonecaster_content_deployer",
+    );
+    const identity = (
+      await db.query(
+        "select deployment_target_contract_version,runtime_app_name,real_players_started,session_user as deploy_role,current_database() as database_name from content_deploy.validation_formats limit 1",
+      )
+    ).rows[0];
+    assert.deepEqual(identity, {
+      deployment_target_contract_version: 1,
+      runtime_app_name: app,
+      real_players_started: false,
+      deploy_role: "stonecaster_content_deployer",
+      database_name: "postgres",
+    });
+    await assert.rejects(
+      db.query("select * from public.chimera_launch_guard"),
+      { code: "42501" },
+    );
+  });
+  await temporary(async () => {
+    await db.query(
+      "update public.chimera_launch_guard set real_players_started_at=clock_timestamp() where id",
+    );
+    await db.query(
+      "set local session authorization stonecaster_content_deployer",
+    );
+    assert.equal(
+      (
+        await db.query(
+          "select real_players_started from content_deploy.validation_formats limit 1",
+        )
+      ).rows[0].real_players_started,
+      true,
+    );
+  });
+  await temporary(async () => {
     await assert.rejects(
       bootstrapLocalContentFleet(db, "c".repeat(40)),
       /non-local runtime fleet/,

@@ -1,0 +1,70 @@
+name: Deploy content (pre-launch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Protected content deployment environment
+        required: true
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+  actions: read
+  deployments: read
+
+concurrency:
+  group: content-deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      # No environment here: reject missing protection before GitHub can create it.
+      - run: npm run content:deploy:check -- --target=$DEPLOY_TARGET
+        env:
+          DEPLOY_TARGET: ${{ inputs.target }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+  deploy:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: content-${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      # Recheck after review; a moved main needs a fresh dispatch and review.
+      - run: npm run content:deploy:check -- --target=$DEPLOY_TARGET
+        env:
+          DEPLOY_TARGET: ${{ inputs.target }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: npm run content:validate
+      # Only this step receives the dedicated DB credential and CA.
+      - run: npm run content:sync -- --target=$DEPLOY_TARGET
+        env:
+          DEPLOY_TARGET: ${{ inputs.target }}
+          CONTENT_DEPLOY_DATABASE_URL: ${{ secrets.CONTENT_DEPLOY_DATABASE_URL }}
+          CONTENT_DEPLOY_TLS_CA: ${{ secrets.CONTENT_DEPLOY_TLS_CA }}
+          CONTENT_DEPLOY_EXPECTED_HOST: ${{ vars.CONTENT_DEPLOY_EXPECTED_HOST }}
+          CONTENT_DEPLOY_EXPECTED_DATABASE: ${{ vars.CONTENT_DEPLOY_EXPECTED_DATABASE }}
+          CONTENT_DEPLOY_EXPECTED_APP: ${{ vars.CONTENT_DEPLOY_EXPECTED_APP }}
