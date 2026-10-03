@@ -7,7 +7,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../supabase-client.js";
 import type { CompiledStory } from "../../services/compile/compiler.service.js";
-import type { CompiledContentManifestV1 } from "@shared/types/chimera-content.js";
+import type { CompiledContentManifestV1 } from "../../../../shared/src/types/chimera-content.js";
 
 export class FrozenCompileRetryError extends Error {
   constructor(message: string) {

@@ -45,6 +45,10 @@ equireAuth applies to all routes except /guest* and /link-guest.
 - POST /api/admin/access-requests/:id/approve - Optional body approveRequestSchema {note?}. Returns {requestId, userId?, roleUpdated:boolean, roleVersion?} (roles updated in profiles.role/role_version).
 - POST /api/admin/access-requests/:id/deny - Body denyRequestSchema {reason}. Returns {requestId}.
 
+## Content Deployment History (/api/admin/content)
+
+- GET /api/admin/content/deploy-log - Authenticated administrator only, using the caller's JWT in the database. Service-role credentials cannot substitute. Query `{limit?, before_generation?}`: limit defaults to 25 and must be 1–100; cursor is a positive decimal bigint string. Returns `{items, next_before_generation}` inside the standard success envelope, ordered by descending generation, with `Cache-Control: no-store`. Items include deployment ID, generation (string), manifest hash, count, actor, deployment time, and provenance. Recorded provenance adds Git commit SHA, format version, changed keys, old/new hashes and outcome. Legacy receipts retain null provenance fields. No content bodies are returned. Invalid queries return 422; unavailable history returns 503. See [the operator contract](design/play-redesign/F0B_DEPLOY_PROVENANCE.md).
+
 ## Catalog & Discovery (/api/catalog)
 
 ### Worlds & Stories

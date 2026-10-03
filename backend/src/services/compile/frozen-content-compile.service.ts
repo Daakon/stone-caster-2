@@ -2,7 +2,7 @@ import type {
   ContentKeyRef,
   ContentKind,
   FirstPartyCompileSelectionV1,
-} from "@shared/types/chimera-content.js";
+} from "../../../../shared/src/types/chimera-content.js";
 import {
   ContentCatalogRepository,
   type ContentCatalogRow,

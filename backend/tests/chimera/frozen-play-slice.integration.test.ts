@@ -112,6 +112,7 @@ localOnly("frozen play across source sync and recompile", () => {
         "select catalog_generation from content_deploy.validation_formats limit 1",
       );
       const bundle = {
+        deployment: { commit_sha: "a".repeat(40) }, // Isolated test provenance, not a production Git claim.
         items: items.map((item) => ({
           ...item,
           owner_namespace: "first_party",

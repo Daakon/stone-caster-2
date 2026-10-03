@@ -2,9 +2,12 @@
 
 This slice establishes the database and HTTP entitlement boundary described in
 [PLAN.md](PLAN.md#f0b--required-before-admitting-real-players). F0b is **not complete**:
-release operations, real deletion, GC, deployment format checks, and cache/outbox work
+release operations, real deletion, deployment format checks, and cache/outbox work
 still precede real-player admission. The launch
 guard remains closed. Phase 1 still owns durable turn claims and settlement.
+
+Bounded GC is documented in [F0B_GC.md](F0B_GC.md); deployment provenance is
+documented in [F0B_DEPLOY_PROVENANCE.md](F0B_DEPLOY_PROVENANCE.md).
 
 ## Configuration and deployment
 
