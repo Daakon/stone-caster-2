@@ -3,7 +3,11 @@ import { defineConfig, devices } from "@playwright/test";
 /** Live (unmocked) browser smoke against the isolated local stack. Servers are NOT started here: use `npm run local:dev`. */
 export default defineConfig({
   testDir: ".",
-  testMatch: ["e2e-local/*.spec.ts", "e2e/phase0c-live.spec.ts"],
+  testMatch: [
+    "e2e-local/*.spec.ts",
+    "e2e/phase0c-live.spec.ts",
+    "e2e/entitlements-live.spec.ts",
+  ],
   fullyParallel: false,
   workers: 1,
   retries: 0,
