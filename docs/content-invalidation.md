@@ -100,6 +100,65 @@ without a body reload, hidden-tag denial, and unchanged source/log fingerprints.
 This does not claim a transaction fixture was served through PostgREST; focused
 repository and HTTP tests separately cover those production boundaries.
 
+## Lore reader integration
+
+The authenticated V2 lore `my-creations`, context list and detail GETs use
+`LoreContentReadService`. Canonical first-party bodies come from current source
+items, with a fresh request-role admin check for internal previews. Player bodies
+and tag relations use request RLS with explicit owner/public filters. Service-role
+queries resolve only fixed identity metadata; they never read fragments or vectors.
+The legacy approved-tag selector and lore writes remain separate audits.
+
+The old routes inferred lore access, visibility and even ownership from its
+world, despite the foundation schema giving lore its own visibility/owner. That
+could expose private lore on a public world or include another owner's private
+entry in a world owner's list. The reader follows actual row ownership/RLS:
+owned lore remains readable even with a missing/private parent, foreign private
+lore returns a non-disclosing 404, and explicitly public lore detail follows its
+own visibility. World publication never publishes attached lore implicitly.
+The old invented `version: 1` and `is_system_asset: false` are omitted. DTOs extract
+authored name/text/type from `fragment`; `content_chunk` aliases the actual text,
+and missing values are null. Vectors are withheld (`embedding: null`).
+
+Context lists authorize the parent through existing world/entity/story readers
+on every request, including before a cached page is returned. Entity context
+takes priority over story, then world. World context excludes entity/story-specific
+entries; entity/story context applies only its selected parent filter. A private
+entity in a public world gets no world-based access fallback. Canonical world/entity
+keys and available UUID aliases are supported; stories retain UUID identifiers.
+First-party lore detail reuses existing UUID aliases or returns its stable key,
+and ambiguous owner-scoped keys are refused. No UUID projection rows are invented.
+
+Owned/context responses stay arrays with bounded `limit` (1–50, default 50) and
+`offset` (0–1000). Context pages group canonical, public player, then owned player
+rows; each lane orders by creation time descending and namespace/key, deduplicates
+before paging, and fetches bounded prefix windows in batches of at most 200.
+The previously ignored `display_name` query is not promoted to a new search API.
+Clients needing more than one page must request subsequent pages explicitly.
+
+Source bodies and list lanes have distinct admin/published/owner cache addresses.
+Context filters conservatively invalidate on relevant lore changes, covering
+world moves and entity/story scopes absent from the facet allowlist. Parent access
+is rechecked separately, so parent privatization does not require caching parent
+facts inside lore entries. Detail has no inherited-parent permission. Player tag
+relations are fetched fresh on every response, since tag/asset-tag changes emit
+their own kinds. Publishing lore does not publish owner-private tag links; hidden
+relations are omitted and failures return 503. Canonical inline fragment tags are
+authored source data; canonical asset-tag relation adapters remain later work.
+
+Run `npm run test:f0b:lore-readers:local`. Read-only SDK checks exercise actual
+projections, JSON null context filters, identity and poller transport. Serialized
+rollback fixtures then use actual authenticated RLS for lore bodies and parent
+identity checks with two independent caches. Evidence covers direct ownership,
+world/public privacy isolation, strict context priority, private-entity denial,
+canonical release/admin revocation, fresh tags without body reload, private edits
+without shared events, public visibility/world-move/delete refresh and parent
+context privatization. Parent adapters return only fields consumed by this boundary;
+existing parent-reader harnesses separately cover their body-cache behavior.
+Catalog/source/relations/entitlements/outbox fingerprints are restored by rollback.
+HTTP/unit tests cover authentication, validated identities, DTOs, cache targeting
+and safe error envelopes. No migration, hosted deployment or launch opening occurs.
+
 ## Public NPC catalog integration
 
 `GET /api/catalog/npcs` and `/npcs/:id` use an anonymous published audience,
@@ -288,7 +347,7 @@ concurrent fill fencing, safe authorization/probe failure, and bounded
 memory/catch-up. The compile HTTP boundary preserves the normal error envelope
 and maps unavailable caches to 503.
 
-These slices do **not** complete F0b. World, player entity, public NPC catalog and story reads now use this cache; other
+These slices do **not** complete F0b. World, player entity, lore, public NPC catalog and story reads now use this cache; other
 player readers and legacy TTL readers are not moved into it. Broader shared/private reader
 migration, owner-aware compile support if added, retention/partitioning and
 consumer lag instrumentation, million-owner/100-instance/10x-peak measurement,
