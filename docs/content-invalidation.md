@@ -50,6 +50,56 @@ source/release gating, same-key owner isolation, private replay on two instances
 public visibility/deletion invalidation, and body reuse on hits. No production
 publishing/deletion action or schema change is added by this integration.
 
+## Entity reader integration
+
+The mounted V2 entity library (`selectable`), owned card list (`my-creations`),
+owned raw list (`/`), and detail now use `EntityContentReadService` through a
+request-RLS repository. First-party bodies come from the canonical source
+table, with fresh admin verification and separate published/admin audiences.
+Player source/detail and list entries use the same durable shared/owner stream
+contract as worlds. Moderation (`pending`) and write endpoints remain separate
+legacy migration work.
+
+GET detail accepts stable keys and legacy UUIDs. First-party IDs retain a
+legacy alias when one exists, otherwise use the canonical key. Foreign private
+IDs return 404 before any body or tag lookup. Explicit projections replace
+`select *`; no stats or entity type are fabricated. The old owned-root query
+selected a nonexistent `kind` column in the inspected local schema. Its
+compatibility field now derives from the declared entity type. Detail exposes
+`base_state_json` only when authored in `raw_data`; legacy raw state remains
+available without synthesizing a state schema.
+
+Lists retain array responses with `limit` (1–50, default 50), `offset` (0–1000),
+and optional `world_id` (UUID or stable canonical world key). First-party world
+UUID aliases resolve to canonical world keys; player filtering uses real UUID
+foreign keys. Cards omit raw bodies. Library pages group first-party, public
+player, then owned player rows, newest-updated within each group, with stable
+namespace/key tie-breaking and deduplication before paging. Owned cards retain
+newest-updated order; the owned raw endpoint retains newest-created order.
+Consumers requiring more than the first page must explicitly request further
+pages; UUID-only authoring relation consumers still need their stable-key
+adapter. No legacy UUID rows are synthesized here.
+
+Entity tag links and tag edits emit separate `asset_tag`/`tag` events, not
+parent entity invalidations. Player detail therefore fetches tag relations
+fresh through request RLS on every hit; these relations are never included in
+the entity cache. Canonical first-party tags remain authored source-body data.
+The inspected legacy tag/link tables have no visibility column: publishing
+an entity does not grant access to its owner's tags. Player tag/link rows
+remain owner-only; admin preview applies to internal first-party rows. Their
+RLS policy remains authoritative, and hidden tags are omitted. A failed tag lookup returns 503,
+instead of presenting a failed lookup as an empty tag set.
+
+Run `npm run test:f0b:entity-readers:local`. Read-only checks exercise actual
+SDK projections, world predicates, tag joins and the poller RPC. Rollback-only
+fixtures then exercise the services and two independent caches through a
+serialized real-role SQL adapter. Evidence covers release gates, duplicate-key
+owner isolation, private refresh without shared changes, old/new world-filter
+invalidation, public visibility/deletion refresh, fresh tag rename/removal
+without a body reload, hidden-tag denial, and unchanged source/log fingerprints.
+This does not claim a transaction fixture was served through PostgREST; focused
+repository and HTTP tests separately cover those production boundaries.
+
 ## Durable streams and privacy
 
 Migration `20261008000000_f0b_content_changes.sql` adds
@@ -134,7 +184,7 @@ concurrent fill fencing, safe authorization/probe failure, and bounded
 memory/catch-up. The compile HTTP boundary preserves the normal error envelope
 and maps unavailable caches to 503.
 
-These slices do **not** complete F0b. World lists now use this cache; other
+These slices do **not** complete F0b. World and player entity reads now use this cache; other
 player readers and legacy TTL readers are not moved into it. Broader shared/private reader
 migration, owner-aware compile support if added, retention/partitioning and
 consumer lag instrumentation, million-owner/100-instance/10x-peak measurement,
