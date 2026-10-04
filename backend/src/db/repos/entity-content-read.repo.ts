@@ -39,7 +39,7 @@ const sourceColumns =
 
 /** Request RLS reads bodies and tag relations. Service role reads fixed identity columns only. */
 export class EntityContentReadRepository {
-  static forRequest(req: Request): EntityContentReadRepository {
+  static forRequest(req?: Request): EntityContentReadRepository {
     return new EntityContentReadRepository(getChimeraSupabaseClient(req));
   }
   constructor(

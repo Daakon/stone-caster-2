@@ -21,6 +21,10 @@ import {
   StoryReadIdSchema,
 } from "../../../shared/src/types/chimera-story-read.js";
 
+import { NpcCatalogReadService } from "../services/content/npc-catalog-read.service.js";
+import { NpcCatalogQuerySchema } from "../../../shared/src/types/chimera-npc-catalog-read.js";
+import { EntityReadIdSchema } from "../../../shared/src/types/chimera-entity-read.js";
+
 const router = Router();
 async function publicStoryRead(
   req: Request,
@@ -236,256 +240,62 @@ router.get("/stories/:idOrSlug", (req: Request, res: Response) =>
   ),
 );
 
-// Schema for NPCs query parameters
-// Phase 4.10: Support both 'q' and 'search' for consistency
-const NPCsQuerySchema = z.object({
-  q: z.string().optional(),
-  search: z.string().optional(), // Alias for 'q' for consistency
-  world: z.string().uuid().optional(),
-  activeOnly: z
-    .enum(["0", "1", "true", "false"])
-    .optional()
-    .transform((val) => val === "1" || val === "true"),
-  limit: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 20)),
-  offset: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 0)),
-});
-
-// GET /api/catalog/npcs
-router.get("/npcs", async (req: Request, res: Response) => {
+// Public authoring catalog always uses the anonymous published audience.
+async function publicNpcRead(
+  req: Request,
+  res: Response,
+  action: (service: NpcCatalogReadService) => Promise<unknown>,
+): Promise<void> {
   try {
-    const queryValidation = NPCsQuerySchema.safeParse(req.query);
-    if (!queryValidation.success) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        "Invalid query parameters",
-        req,
-        queryValidation.error.errors,
-      );
-    }
-
-    const filters = queryValidation.data;
-
-    const limit = Math.min(filters.limit || 20, 100);
-    const offset = filters.offset || 0;
-
-    // Phase 4.3: Use chimera_entities instead of deleted npcs table
-    let query = supabaseAdmin
-      .from("chimera_entities")
-      .select(
-        "id, slug, entity_type, owner_user_id, visibility, world_id, display_name, primary_image_url, raw_data, created_at, updated_at",
-        { count: "exact" },
-      )
-      .eq("entity_type", "NPC") // Only NPCs
-      .eq("visibility", "public"); // Only public entities
-
-    // Filter by world_id if provided (world_id is in raw_data JSONB)
-    if (filters.world) {
-      // Note: JSONB filtering - world_id is stored in raw_data
-      // We'll filter client-side for now, or use a more complex query
-      // For now, fetch all and filter client-side
-    }
-
-    // Apply search query (will filter client-side from raw_data)
-    // Note: For production, consider adding a GIN index on raw_data and using JSONB operators
-
-    query = query.order("created_at", { ascending: false });
-    query = query.range(offset, offset + limit - 1);
-
-    const { data, error, count } = await query;
-
-    if (error) {
-      console.error("[catalog/npcs] Supabase query error:", error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        "Failed to fetch NPCs",
-        req,
-      );
-    }
-
-    // Phase 4.3: Extract data from raw_data JSONB and transform to catalog DTO
-    let npcs = (data || []).map((entity: any) => {
-      const rawData = entity.raw_data || {};
-      const displayName =
-        entity.display_name ||
-        rawData.display_name ||
-        rawData.name ||
-        entity.slug;
-      const description =
-        rawData.description_short || rawData.description || "";
-      const worldId = entity.world_id || rawData.world_id || null;
-
-      // Extract images from raw_data if available
-      const images = rawData.images || [];
-      const coverImage = images.length > 0 ? images[0] : null;
-
-      return {
-        id: entity.id,
-        name: displayName,
-        slug: entity.slug,
-        description: description,
-        worldId: worldId,
-        status: "active", // Chimera entities are always active
-        visibility: entity.visibility,
-        archetype: rawData.archetype || null,
-        roleTags: rawData.role_tags || rawData.tags || [],
-        portraitUrl: rawData.portrait_url || entity.primary_image_url || null,
-        cover_media: coverImage
-          ? {
-              id: coverImage.id || null,
-              provider_key: coverImage.url || coverImage.provider_key || null,
-            }
-          : null,
-        doc: rawData || {},
-        createdAt: entity.created_at,
-        updatedAt: entity.updated_at,
-      };
-    });
-
-    // Apply world filter if provided (client-side filter)
-    if (filters.world) {
-      npcs = npcs.filter((npc: any) => npc.worldId === filters.world);
-    }
-
-    // Phase 4.10: Apply search query if provided (client-side filter)
-    // Support both 'q' and 'search' parameters
-    const searchTerm = filters.q || filters.search;
-    if (searchTerm) {
-      const queryLower = searchTerm.toLowerCase();
-      npcs = npcs.filter(
-        (npc: any) =>
-          npc.name.toLowerCase().includes(queryLower) ||
-          npc.description.toLowerCase().includes(queryLower) ||
-          (npc.roleTags || []).some((tag: string) =>
-            tag.toLowerCase().includes(queryLower),
-          ),
-      );
-    }
-
     sendSuccess(
       res,
-      {
-        items: npcs,
-        total: count || 0,
-        limit,
-        offset,
-      },
+      await action(NpcCatalogReadService.forPublic(getTraceId(req))),
       req,
     );
   } catch (error) {
-    console.error("[catalog/npcs] Error:", error);
-    sendErrorWithStatus(
+    if (error instanceof ServiceError)
+      return sendError(
+        res,
+        error.error.code,
+        error.error.message,
+        req,
+        error.statusCode,
+      );
+    if (error instanceof z.ZodError)
+      return sendError(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        "Invalid NPC read request",
+        req,
+        422,
+      );
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "npc_read_route_failed",
+        traceId: getTraceId(req),
+      }),
+    );
+    sendError(
       res,
       ApiErrorCode.INTERNAL_ERROR,
-      "Failed to fetch NPCs",
+      "NPC content is temporarily unavailable.",
       req,
+      503,
     );
   }
-});
+}
 
-// GET /api/catalog/npcs/:id
-router.get("/npcs/:id", async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    // Phase 4.3: Use chimera_entities instead of deleted npcs table
-    let entityQuery = supabaseAdmin
-      .from("chimera_entities")
-      .select(
-        "id, slug, entity_type, owner_user_id, visibility, world_id, display_name, primary_image_url, raw_data, created_at, updated_at",
-      )
-      .eq("entity_type", "NPC")
-      .eq("visibility", "public");
-
-    const uuidPattern =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    entityQuery = uuidPattern.test(id)
-      ? entityQuery.eq("id", id)
-      : entityQuery.eq("slug", id);
-
-    const { data: entity, error } = await entityQuery.single();
-
-    if (error) {
-      if (error.code === "PGRST116") {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.NOT_FOUND,
-          "NPC not found",
-          req,
-        );
-      }
-      console.error("[catalog/npcs/:id] Supabase query error:", error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        "Failed to fetch NPC",
-        req,
-      );
-    }
-
-    if (!entity) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.NOT_FOUND,
-        "NPC not found",
-        req,
-      );
-    }
-
-    // Phase 4.3: Extract data from raw_data JSONB
-    const rawData = entity.raw_data || {};
-    const displayName =
-      entity.display_name ||
-      rawData.display_name ||
-      rawData.name ||
-      entity.slug;
-    const description = rawData.description_short || rawData.description || "";
-    const worldId = entity.world_id || rawData.world_id || null;
-
-    // Extract images from raw_data if available
-    const images = rawData.images || [];
-    const coverImage = images.length > 0 ? images[0] : null;
-
-    const npcDto = {
-      id: entity.id,
-      name: displayName,
-      slug: entity.slug,
-      description: description,
-      worldId: worldId,
-      status: "active", // Chimera entities are always active
-      visibility: entity.visibility,
-      archetype: rawData.archetype || null,
-      roleTags: rawData.role_tags || rawData.tags || [],
-      portraitUrl: rawData.portrait_url || entity.primary_image_url || null,
-      cover_media: coverImage
-        ? {
-            id: coverImage.id || null,
-            provider_key: coverImage.url || coverImage.provider_key || null,
-          }
-        : null,
-      doc: rawData || {},
-      createdAt: entity.created_at,
-      updatedAt: entity.updated_at,
-    };
-
-    sendSuccess(res, npcDto, req);
-  } catch (error) {
-    console.error("[catalog/npcs/:id] Error:", error);
-    sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      "Failed to fetch NPC",
-      req,
-    );
-  }
-});
+router.get("/npcs", (req: Request, res: Response) =>
+  publicNpcRead(req, res, (service) =>
+    service.list(NpcCatalogQuerySchema.parse(req.query)),
+  ),
+);
+router.get("/npcs/:id", (req: Request, res: Response) =>
+  publicNpcRead(req, res, (service) =>
+    service.find(EntityReadIdSchema.parse(req.params.id)),
+  ),
+);
 
 // GET /api/catalog/rulesets — placeholder
 router.get("/rulesets", async (req: Request, res: Response) => {
