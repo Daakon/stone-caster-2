@@ -100,6 +100,55 @@ without a body reload, hidden-tag denial, and unchanged source/log fingerprints.
 This does not claim a transaction fixture was served through PostgREST; focused
 repository and HTTP tests separately cover those production boundaries.
 
+## Public NPC catalog integration
+
+`GET /api/catalog/npcs` and `/npcs/:id` use an anonymous published audience,
+including when the caller supplies an admin bearer token. Lists combine canonical
+published first-party NPCs with public player NPCs; stale first-party legacy
+bodies are excluded. Detail reuses the entity reader's identity, RLS, release,
+source-cache and non-disclosing 404 boundaries. This remains the public authoring
+catalog, not a session dossier or learned-NPC knowledge view.
+
+The old list filtered world/search after pagination and reported an unfiltered
+total. The new read-only `chimera_public_npc_page` invoker function applies NPC,
+world, literal case-insensitive name/description/role-tag search and authored
+activity filters before one globally ordered page and exact count in the same
+database snapshot. It uses caller RLS with explicit published/public gates even
+for direct authenticated admin calls. No definer privilege or new table grant
+is introduced. The new migration is idempotent and must precede the API release.
+
+The existing `{ items, total, limit, offset }` shape, default limit 20, maximum
+limit 100 and `q`/`search` aliases are retained (`q` takes precedence). Invalid
+pagination is now rejected; offset is bounded to 1000 and search to 100 characters.
+World filters accept canonical keys as well as UUIDs. Ordering is creation time
+descending with namespace/key tie breakers. Existing first-party UUID aliases
+are reused when present; keys otherwise identify canonical entries, and ambiguous
+player slugs are refused. Missing name/description/status is null. The old
+invented `status: "active"` is removed; `activeOnly=1/true`, previously ignored,
+requires an authored `raw_data.status === "active"`. No stats are synthesized.
+Catalog cards that still prefer owner-scoped slugs need stable-ID links before
+launch; this backend slice retains the existing DTO field names and does not
+rewrite the legacy NPC detail page's separate frontend field assumptions.
+
+Lists cache the complete page and its filtered total under a distinct public
+entity audience. Entity-type facets target NPC changes; search, activity and
+the mixed UUID/key world filters conservatively invalidate on relevant shared
+NPC changes. Old/new facets handle NPC type transitions. Private-only edits
+never enter this shared stream. Both instances catch up before hits and after
+fills; visibility/release changes, world moves and deletion refresh pages and
+totals together. Failures return safe 503 envelopes.
+
+Run `npm run test:f0b:npc-catalog:local`. It checks actual anonymous SDK/RPC
+transport, then uses the actual invoker function under anon/authenticated roles
+inside a serialized rollback transaction. Fixtures cover literal punctuation and
+role-tag fallback, matches beyond the old first page, exact counts on empty pages,
+world/activity filters, internal/private/type/ambiguous-slug denial, admin
+isolation, two cache instances, release/visibility/deletion changes and private
+event non-interference. Migration reapplication and catalog/source/outbox
+fingerprints are checked. HTTP/unit tests separately cover request validation,
+anonymous client construction, DTOs and safe error envelopes. No hosted deploy,
+launch opening or persistent fixture publishing is performed.
+
 ## Story reader integration
 
 V2 story `my-creations` and detail, plus public catalog story list/detail,
@@ -239,7 +288,7 @@ concurrent fill fencing, safe authorization/probe failure, and bounded
 memory/catch-up. The compile HTTP boundary preserves the normal error envelope
 and maps unavailable caches to 503.
 
-These slices do **not** complete F0b. World, player entity and story reads now use this cache; other
+These slices do **not** complete F0b. World, player entity, public NPC catalog and story reads now use this cache; other
 player readers and legacy TTL readers are not moved into it. Broader shared/private reader
 migration, owner-aware compile support if added, retention/partitioning and
 consumer lag instrumentation, million-owner/100-instance/10x-peak measurement,

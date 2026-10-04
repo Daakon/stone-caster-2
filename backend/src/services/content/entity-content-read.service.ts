@@ -24,7 +24,10 @@ const object = (value: unknown): Record<string, unknown> =>
   z.record(z.unknown()).parse(value ?? {});
 const text = (value: unknown): string | null =>
   typeof value === "string" ? value : null;
-function dto(row: EntityContentRow, alias?: EntityIdentity): EntityRead {
+export function mapEntityContentRow(
+  row: EntityContentRow,
+  alias?: EntityIdentity,
+): EntityRead {
   const first = row.owner_namespace === "first_party",
     body = first ? object(row.body) : row;
   const raw = object(body.raw_data);
@@ -83,10 +86,13 @@ function card(entity: EntityRead): EntityReadCard {
 
 /** Audience checks precede every request; mutable values catch up before hits and after fills. */
 export class EntityContentReadService {
-  static forRequest(req: Request, traceId: string): EntityContentReadService {
+  static forRequest(
+    req: Request | undefined,
+    traceId: string,
+  ): EntityContentReadService {
     return new EntityContentReadService(
       EntityContentReadRepository.forRequest(req),
-      req.user?.id ?? null,
+      req?.user?.id ?? null,
       traceId,
     );
   }
@@ -186,7 +192,7 @@ export class EntityContentReadService {
             : [];
         return rows
           .map((r) =>
-            dto(
+            mapEntityContentRow(
               r,
               aliases.find((a) => a.content_key === r.content_key),
             ),
@@ -270,7 +276,7 @@ export class EntityContentReadService {
         async () => {
           const row = await this.repo.find(namespace, key, admin, this.owner);
           if (row === null) return null;
-          const entity = dto(row, identity ?? undefined);
+          const entity = mapEntityContentRow(row, identity ?? undefined);
           return this.allowed(entity, admin) ? entity : null;
         },
         this.traceId,
