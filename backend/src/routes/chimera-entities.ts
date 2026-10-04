@@ -5,17 +5,70 @@
  *     description: User-facing CRUD endpoints for Chimera entity templates
  */
 
-import { Router, type Request, type Response } from 'express';
-import { z } from 'zod';
-import { requireAuth, requireAdmin } from '../middleware/auth.unified.js';
-import { validateRequest } from '../middleware/validation.js';
-import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from '@shared';
-import { supabaseAdmin } from '../services/supabase.js';
+import { Router, type Request, type Response } from "express";
+import { z } from "zod";
+import { requireAuth, requireAdmin } from "../middleware/auth.unified.js";
+import { validateRequest } from "../middleware/validation.js";
+import { sendSuccess, sendErrorWithStatus } from "../utils/response.js";
+import { ApiErrorCode } from "@shared";
+import { supabaseAdmin } from "../services/supabase.js";
 
-import { ChimeraEntitiesService } from '../services/chimera/chimera-entities.service.js';
+import { ChimeraEntitiesService } from "../services/chimera/chimera-entities.service.js";
+
+import { EntityContentReadService } from "../services/content/entity-content-read.service.js";
+import {
+  EntityReadQuerySchema,
+  EntityReadIdSchema,
+} from "../../../shared/src/types/chimera-entity-read.js";
+import { ServiceError } from "../utils/serviceError.js";
+import { sendError, getTraceId } from "../utils/response.js";
 
 const router = Router();
+
+async function entityRead(
+  req: Request,
+  res: Response,
+  action: (service: EntityContentReadService) => Promise<unknown>,
+): Promise<void> {
+  try {
+    sendSuccess(
+      res,
+      await action(EntityContentReadService.forRequest(req, getTraceId(req))),
+      req,
+    );
+  } catch (error) {
+    if (error instanceof ServiceError)
+      return sendError(
+        res,
+        error.error.code,
+        error.error.message,
+        req,
+        error.statusCode,
+      );
+    if (error instanceof z.ZodError)
+      return sendError(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        "Invalid entity read request",
+        req,
+        422,
+      );
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "entity_read_route_failed",
+        traceId: getTraceId(req),
+      }),
+    );
+    sendError(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      "Entity content is temporarily unavailable.",
+      req,
+      503,
+    );
+  }
+}
 
 // Schema for UUID entity ID
 const EntityIdParamSchema = z.object({
@@ -26,8 +79,14 @@ const EntityIdParamSchema = z.object({
 router.use(requireAuth);
 
 // Zod schemas for validation
-const EntityTypeSchema = z.enum(['NPC', 'ITEM', 'FACTION', 'LOCATION', 'PLAYER']);
-const VisibilitySchema = z.enum(['private', 'pending_approval', 'public']);
+const EntityTypeSchema = z.enum([
+  "NPC",
+  "ITEM",
+  "FACTION",
+  "LOCATION",
+  "PLAYER",
+]);
+const VisibilitySchema = z.enum(["private", "pending_approval", "public"]);
 
 const CreateEntitySchema = z.object({
   display_name: z.string().min(1).max(200),
@@ -39,50 +98,61 @@ const CreateEntitySchema = z.object({
   raw_data: z.record(z.unknown()).optional(),
   tags: z.array(z.string()).default([]),
   world_id: z.string().uuid().optional().nullable(),
-  images: z.array(z.object({
-    id: z.string().optional(),
-    url: z.string(),
-    role: z.string().optional(),
-    label: z.string().optional(),
-  })).optional().default([]),
+  images: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        url: z.string(),
+        role: z.string().optional(),
+        label: z.string().optional(),
+      }),
+    )
+    .optional()
+    .default([]),
 });
 
-const UpdateEntitySchema = z.object({
-  display_name: z.string().min(1).max(200).optional(),
-  description_short: z.string().max(500).optional().nullable(),
-  description_long: z.string().optional().nullable(),
-  entity_type: EntityTypeSchema.optional(),
-  archetype_handle: z.string().optional().nullable(),
-  base_state_json: z.record(z.unknown()).optional(),
-  raw_data: z.record(z.unknown()).optional(),
-  tags: z.array(z.string()).optional(),
-  world_id: z.string().uuid().optional().nullable(),
-  visibility: VisibilitySchema.optional(),
-  images: z.array(z.object({
-    id: z.string().optional(),
-    url: z.string(),
-    role: z.string().optional(),
-    label: z.string().optional(),
-  })).optional(),
-}).transform((data) => {
-  // Remove empty string values - convert to undefined so they're omitted
-  const cleaned: any = { ...data };
-  if (cleaned.entity_type === '' || cleaned.entity_type === null) {
-    delete cleaned.entity_type;
-  }
-  if (cleaned.display_name === '' || cleaned.display_name === null) {
-    delete cleaned.display_name;
-  }
-  return cleaned;
-});
+const UpdateEntitySchema = z
+  .object({
+    display_name: z.string().min(1).max(200).optional(),
+    description_short: z.string().max(500).optional().nullable(),
+    description_long: z.string().optional().nullable(),
+    entity_type: EntityTypeSchema.optional(),
+    archetype_handle: z.string().optional().nullable(),
+    base_state_json: z.record(z.unknown()).optional(),
+    raw_data: z.record(z.unknown()).optional(),
+    tags: z.array(z.string()).optional(),
+    world_id: z.string().uuid().optional().nullable(),
+    visibility: VisibilitySchema.optional(),
+    images: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          url: z.string(),
+          role: z.string().optional(),
+          label: z.string().optional(),
+        }),
+      )
+      .optional(),
+  })
+  .transform((data) => {
+    // Remove empty string values - convert to undefined so they're omitted
+    const cleaned: any = { ...data };
+    if (cleaned.entity_type === "" || cleaned.entity_type === null) {
+      delete cleaned.entity_type;
+    }
+    if (cleaned.display_name === "" || cleaned.display_name === null) {
+      delete cleaned.display_name;
+    }
+    return cleaned;
+  });
 
 // Helper function to normalize tag names
 function normalizeTagName(tagName: string): string {
   return tagName
     .trim()
     .toUpperCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^A-Z0-9_]/g, '');
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_]/g, "");
 }
 
 // Note: Entity IDs are now UUIDs generated by the database (gen_random_uuid())
@@ -91,168 +161,91 @@ function normalizeTagName(tagName: string): string {
 /**
  * GET /api/v2/chimera/entities/selectable
  * listLibrary: Get all entities available to the user (for Casting Circle)
- * 
+ *
  * Pattern: Shows user's items + system items + other users' public items
  * Unified query: owner_user_id = userId OR visibility = 'public'
  */
-router.get('/selectable', async (req: Request, res: Response) => {
-  try {
-    const userId = req.ctx?.userId;
-    if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
-        req
-      );
-    }
-
-    // List View Optimizationn: Fetch minimal fields for cards
-    // Start building the query
-    let query = supabaseAdmin
-      .from('chimera_entities')
-      .select('id, slug, display_name, entity_type, primary_image_url, updated_at, visibility, is_official, owner_user_id, world_id');
-
-    // Apply Filters
-    const worldId = req.query.world_id as string;
-    if (worldId) {
-      // If filtering by world, we want entities in that world that are (Public OR Owned)
-      query = query.eq('world_id', worldId);
-    }
-
-    // Always apply security scope: (Owner OR Public)
-    query = query.or(`owner_user_id.eq.${userId},visibility.eq.public`);
-
-    // Execute
-    const { data: entities, error } = await query.order('updated_at', { ascending: false });
-
-    if (error) {
-      console.error('[Chimera Entities] Error fetching selectable entities:', error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        'Failed to fetch entities',
-        req
-      );
-    }
-
-    return sendSuccess(res, entities || [], req);
-  } catch (error) {
-    console.error('[Chimera Entities] Unexpected error:', error);
-    return sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      'Internal server error',
-      req
-    );
-  }
-});
+router.get("/selectable", (req: Request, res: Response) =>
+  entityRead(req, res, (service) =>
+    service.list(EntityReadQuerySchema.parse(req.query)),
+  ),
+);
 
 /**
  * GET /api/v2/chimera/entities
  * Get all entities owned by the current user
  */
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const userId = req.ctx?.userId;
-    if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
-        req
-      );
-    }
-
-    // Get entities owned by user (Hybrid Schema: use owner_user_id SQL column)
-    const { data: entities, error } = await supabaseAdmin
-      .from('chimera_entities')
-      .select('id, key, kind, owner_user_id, raw_data, created_at, updated_at')
-      .eq('owner_user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('[Chimera Entities] Error fetching user entities:', error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        'Failed to fetch entities',
-        req
-      );
-    }
-
-    return sendSuccess(res, entities || [], req);
-  } catch (error) {
-    console.error('[Chimera Entities] Unexpected error:', error);
-    return sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      'Internal server error',
-      req
-    );
-  }
-});
+router.get("/", (req: Request, res: Response) =>
+  entityRead(req, res, (service) =>
+    service.list(EntityReadQuerySchema.parse(req.query), "rawOwned"),
+  ),
+);
 
 /**
  * GET /api/v2/chimera/entities/pending
  * Get all entities pending approval (Admin only)
  * listPending: Shows content waiting for admin review
  */
-router.get('/pending', requireAuth, async (req: Request, res: Response) => {
+router.get("/pending", requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.ctx?.userId;
     if (!userId) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
-        req
+        "Authentication required",
+        req,
       );
     }
 
     // Check if user is admin (use middleware pattern for consistency)
     const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
       .single();
 
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'system';
+    const isAdmin = profile?.role === "admin" || profile?.role === "system";
 
     if (!isAdmin) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.FORBIDDEN,
-        'Admin access required',
-        req
+        "Admin access required",
+        req,
       );
     }
 
     // Query pending submissions
     const { data: entities, error } = await supabaseAdmin
-      .from('chimera_entities')
-      .select('id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at')
-      .eq('visibility', 'pending')
-      .order('created_at', { ascending: false });
+      .from("chimera_entities")
+      .select(
+        "id, key, kind, owner_user_id, visibility, raw_data, created_at, updated_at",
+      )
+      .eq("visibility", "pending")
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error('[Chimera Entities] Error fetching pending entities:', error);
+      console.error(
+        "[Chimera Entities] Error fetching pending entities:",
+        error,
+      );
       return sendErrorWithStatus(
         res,
         ApiErrorCode.INTERNAL_ERROR,
-        'Failed to fetch pending entities',
-        req
+        "Failed to fetch pending entities",
+        req,
       );
     }
 
     return sendSuccess(res, entities || [], req);
   } catch (error) {
-    console.error('[Chimera Entities] Unexpected error:', error);
+    console.error("[Chimera Entities] Unexpected error:", error);
     return sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,
-      'Internal server error',
-      req
+      "Internal server error",
+      req,
     );
   }
 });
@@ -261,53 +254,18 @@ router.get('/pending', requireAuth, async (req: Request, res: Response) => {
  * GET /api/v2/chimera/entities/my-creations
  * Get all entities owned by the current user (alias for /)
  */
-router.get('/my-creations', async (req: Request, res: Response) => {
-  try {
-    const userId = req.ctx?.userId;
-    if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        'Authentication required',
-        req
-      );
-    }
-
-    // Optimized List View
-    const { data: entities, error } = await supabaseAdmin
-      .from('chimera_entities')
-      .select('id, slug, display_name, entity_type, primary_image_url, updated_at, visibility, is_official, owner_user_id')
-      .eq('owner_user_id', userId)
-      .order('updated_at', { ascending: false });
-
-    if (error) {
-      console.error('[Chimera Entities] Error fetching user entities:', error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        'Failed to fetch entities',
-        req
-      );
-    }
-
-    return sendSuccess(res, entities || [], req);
-  } catch (error) {
-    console.error('[Chimera Entities] Unexpected error:', error);
-    return sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      'Internal server error',
-      req
-    );
-  }
-});
+router.get("/my-creations", (req: Request, res: Response) =>
+  entityRead(req, res, (service) =>
+    service.list(EntityReadQuerySchema.parse(req.query), "owned"),
+  ),
+);
 
 /**
  * POST /api/v2/chimera/entities
  * Create a new entity template
  */
 router.post(
-  '/',
+  "/",
   validateRequest(CreateEntitySchema),
   async (req: Request, res: Response) => {
     try {
@@ -316,8 +274,8 @@ router.post(
         return sendErrorWithStatus(
           res,
           ApiErrorCode.UNAUTHORIZED,
-          'Authentication required',
-          req
+          "Authentication required",
+          req,
         );
       }
 
@@ -325,147 +283,30 @@ router.post(
       // Service handles: sanitization, world_id strictness, retries, tags
       const entity = await ChimeraEntitiesService.createEntity({
         ...req.body,
-        userId
+        userId,
       });
 
       return sendSuccess(res, entity, req);
     } catch (error) {
-      console.error('[Chimera Entities] Unexpected error:', error);
+      console.error("[Chimera Entities] Unexpected error:", error);
       return sendErrorWithStatus(
         res,
         ApiErrorCode.INTERNAL_ERROR,
-        'Internal server error',
-        req
+        "Internal server error",
+        req,
       );
     }
-  }
+  },
 );
 
 /**
  * GET /api/v2/chimera/entities/:id
  * Get a single entity template
  */
-router.get(
-  '/:id',
-  validateRequest(EntityIdParamSchema, 'params'),
-  async (req: Request, res: Response) => {
-    try {
-      const userId = req.ctx?.userId;
-      if (!userId) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.UNAUTHORIZED,
-          'Authentication required',
-          req
-        );
-      }
-
-      const { id } = req.params;
-
-      const { data: entity, error } = await supabaseAdmin
-        .from('chimera_entities')
-        .select('*') // Detail view needs everything
-        .eq('id', id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.NOT_FOUND,
-            'Entity not found',
-            req
-          );
-        }
-        console.error('[Chimera Entities] Error fetching entity:', error);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          'Failed to fetch entity',
-          req
-        );
-      }
-
-      // Check ownership or public visibility
-      if (entity.owner_user_id !== userId && entity.visibility !== 'public') {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.FORBIDDEN,
-          'You do not have permission to view this entity',
-          req
-        );
-      }
-
-      // Fetch tags
-      const { data: assetTags } = await supabaseAdmin
-        .from('chimera_asset_tags')
-        .select(`
-          tag:chimera_tags!tag_id(id, tag_name)
-        `)
-        .eq('asset_id', id)
-        .eq('asset_type', 'entity_template');
-
-      if (assetTags && entity) {
-        (entity as any).tags = assetTags
-          .map((link: any) => link.tag)
-          .filter((tag: any) => tag !== null);
-      }
-
-      // Extract base_state_json from raw_data (handle both new and legacy formats)
-      const rawData = entity.raw_data || {};
-      let baseStateJson: Record<string, unknown> = {};
-
-      if (rawData.base_state_json) {
-        // New format: base_state_json is nested
-        baseStateJson = rawData.base_state_json;
-      } else {
-        // Legacy format: extract state by excluding known metadata fields
-        const metadataFields = [
-          'display_name',
-          'name', // Legacy name field
-          'description_short',
-          'description', // Legacy description field
-          'description_long',
-          'entity_type',
-          'type', // Legacy type field
-          'images',
-          'visibility',
-          'version',
-          'owner_user_id',
-          'identity', // Legacy identity object
-        ];
-
-        baseStateJson = { ...rawData };
-        // Remove metadata fields to get just the state
-        for (const field of metadataFields) {
-          delete baseStateJson[field];
-        }
-
-        // If identity exists, merge its contents into base_state_json
-        if (rawData.identity && typeof rawData.identity === 'object') {
-          baseStateJson = { ...baseStateJson, ...(rawData.identity as Record<string, unknown>) };
-        }
-      }
-
-      // Ensure display_name and entity_type are present (fallback to raw_data if legacy)
-      const transformedEntity = {
-        ...entity,
-        display_name: entity.display_name || entity.raw_data?.display_name || entity.raw_data?.name,
-        entity_type: entity.entity_type || entity.raw_data?.entity_type || entity.raw_data?.type || 'NPC',
-        world_id: entity.world_id // Explicitly ensure world_id is passed
-      };
-
-      return sendSuccess(res, transformedEntity, req);
-    } catch (error) {
-      console.error('[Chimera Entities] Unexpected error:', error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        'Internal server error',
-        req
-      );
-    }
-  }
+router.get("/:id", (req: Request, res: Response) =>
+  entityRead(req, res, (service) =>
+    service.find(EntityReadIdSchema.parse(req.params.id)),
+  ),
 );
 
 /**
@@ -473,8 +314,8 @@ router.get(
  * Update an entity template (owner-only)
  */
 router.put(
-  '/:id',
-  validateRequest(EntityIdParamSchema, 'params'),
+  "/:id",
+  validateRequest(EntityIdParamSchema, "params"),
   validateRequest(UpdateEntitySchema),
   async (req: Request, res: Response) => {
     try {
@@ -483,8 +324,8 @@ router.put(
         return sendErrorWithStatus(
           res,
           ApiErrorCode.UNAUTHORIZED,
-          'Authentication required',
-          req
+          "Authentication required",
+          req,
         );
       }
 
@@ -493,26 +334,29 @@ router.put(
 
       // Check ownership and lifecycle state
       const { data: existing, error: checkError } = await supabaseAdmin
-        .from('chimera_entities')
-        .select('owner_user_id, raw_data, visibility')
-        .eq('id', id)
+        .from("chimera_entities")
+        .select("owner_user_id, raw_data, visibility")
+        .eq("id", id)
         .single();
 
       if (checkError) {
-        if (checkError.code === 'PGRST116') {
+        if (checkError.code === "PGRST116") {
           return sendErrorWithStatus(
             res,
             ApiErrorCode.NOT_FOUND,
-            'Entity not found',
-            req
+            "Entity not found",
+            req,
           );
         }
-        console.error('[Chimera Entities] Error checking ownership:', checkError);
+        console.error(
+          "[Chimera Entities] Error checking ownership:",
+          checkError,
+        );
         return sendErrorWithStatus(
           res,
           ApiErrorCode.INTERNAL_ERROR,
-          'Failed to verify ownership',
-          req
+          "Failed to verify ownership",
+          req,
         );
       }
 
@@ -520,19 +364,22 @@ router.put(
         return sendErrorWithStatus(
           res,
           ApiErrorCode.FORBIDDEN,
-          'You do not have permission to update this entity',
-          req
+          "You do not have permission to update this entity",
+          req,
         );
       }
 
       // Lifecycle enforcement: Cannot edit published content
-      const currentVisibility = existing.visibility || (existing.raw_data as any)?.visibility || 'private';
-      if (currentVisibility === 'public' && !updateData.visibility) {
+      const currentVisibility =
+        existing.visibility ||
+        (existing.raw_data as any)?.visibility ||
+        "private";
+      if (currentVisibility === "public" && !updateData.visibility) {
         return sendErrorWithStatus(
           res,
           ApiErrorCode.FORBIDDEN,
-          'Cannot edit published content. Please clone to create a new version.',
-          req
+          "Cannot edit published content. Please clone to create a new version.",
+          req,
         );
       }
 
@@ -541,15 +388,15 @@ router.put(
 
       return sendSuccess(res, { success: true }, req);
     } catch (error) {
-      console.error('[Chimera Entities] Unexpected error:', error);
+      console.error("[Chimera Entities] Unexpected error:", error);
       return sendErrorWithStatus(
         res,
         ApiErrorCode.INTERNAL_ERROR,
-        'Internal server error',
-        req
+        "Internal server error",
+        req,
       );
     }
-  }
+  },
 );
 
 /**
@@ -557,8 +404,8 @@ router.put(
  * Delete an entity template (owner-only)
  */
 router.delete(
-  '/:id',
-  validateRequest(EntityIdParamSchema, 'params'),
+  "/:id",
+  validateRequest(EntityIdParamSchema, "params"),
   async (req: Request, res: Response) => {
     try {
       const userId = req.ctx?.userId;
@@ -566,8 +413,8 @@ router.delete(
         return sendErrorWithStatus(
           res,
           ApiErrorCode.UNAUTHORIZED,
-          'Authentication required',
-          req
+          "Authentication required",
+          req,
         );
       }
 
@@ -575,26 +422,29 @@ router.delete(
 
       // Check ownership
       const { data: existing, error: checkError } = await supabaseAdmin
-        .from('chimera_entities')
-        .select('owner_user_id')
-        .eq('id', id)
+        .from("chimera_entities")
+        .select("owner_user_id")
+        .eq("id", id)
         .single();
 
       if (checkError) {
-        if (checkError.code === 'PGRST116') {
+        if (checkError.code === "PGRST116") {
           return sendErrorWithStatus(
             res,
             ApiErrorCode.NOT_FOUND,
-            'Entity not found',
-            req
+            "Entity not found",
+            req,
           );
         }
-        console.error('[Chimera Entities] Error checking ownership:', checkError);
+        console.error(
+          "[Chimera Entities] Error checking ownership:",
+          checkError,
+        );
         return sendErrorWithStatus(
           res,
           ApiErrorCode.INTERNAL_ERROR,
-          'Failed to verify ownership',
-          req
+          "Failed to verify ownership",
+          req,
         );
       }
 
@@ -602,39 +452,38 @@ router.delete(
         return sendErrorWithStatus(
           res,
           ApiErrorCode.FORBIDDEN,
-          'You do not have permission to delete this entity',
-          req
+          "You do not have permission to delete this entity",
+          req,
         );
       }
 
       // Delete the entity
       const { error: deleteError } = await supabaseAdmin
-        .from('chimera_entities')
+        .from("chimera_entities")
         .delete()
-        .eq('id', id);
+        .eq("id", id);
 
       if (deleteError) {
-        console.error('[Chimera Entities] Error deleting entity:', deleteError);
+        console.error("[Chimera Entities] Error deleting entity:", deleteError);
         return sendErrorWithStatus(
           res,
           ApiErrorCode.INTERNAL_ERROR,
-          'Failed to delete entity',
-          req
+          "Failed to delete entity",
+          req,
         );
       }
 
       return sendSuccess(res, { success: true }, req);
     } catch (error) {
-      console.error('[Chimera Entities] Unexpected error:', error);
+      console.error("[Chimera Entities] Unexpected error:", error);
       return sendErrorWithStatus(
         res,
         ApiErrorCode.INTERNAL_ERROR,
-        'Internal server error',
-        req
+        "Internal server error",
+        req,
       );
     }
-  }
+  },
 );
 
 export default router;
-
