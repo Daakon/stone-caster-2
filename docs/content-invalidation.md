@@ -100,6 +100,61 @@ without a body reload, hidden-tag denial, and unchanged source/log fingerprints.
 This does not claim a transaction fixture was served through PostgREST; focused
 repository and HTTP tests separately cover those production boundaries.
 
+## Story reader integration
+
+V2 story `my-creations` and detail, plus public catalog story list/detail,
+now use `StoryContentReadService` through a request-RLS repository. The
+inspected schema stores player stories in `chimera_stories`; the canonical
+source-kind contract does not include stories. Reads therefore retain UUID
+identifiers and use the actual owner namespace/content key for cache addresses.
+No canonical story format, UUID projection, or first-party story is invented.
+First-party legacy story identities are refused by this player reader.
+
+Owned lists and sources are owner-scoped; public playable lists and public
+sources use shared addresses. The service role resolves fixed identity columns
+only. Body projections exclude joins and `select *`. Foreign private IDs
+return 404 before body or world access. Reads do not depend on writable-tier
+selection, and entitlement state is not cached in these bodies: downgraded
+owned stories stay readable while existing mutation gates remain authoritative.
+
+The old public catalog bypassed visibility, including for detail. Its reader
+now always uses an anonymous RLS client, even with an admin bearer token, and
+requires public visibility, compiled/bound status and an actual committed
+compile pointer. A status label alone is insufficient. This is compilation
+readiness, not a grant to start a game; the existing launch/runtime gates still
+apply. `has_prompt` reflects nonempty authored opening text instead of the old
+unconditional `true`. Description/media/ruleset values come from existing fields.
+
+World summaries are not stored inside story cache entries. V2 detail/list and
+public detail resolve them through the existing world reader on each request,
+which separately authorizes access and catches up its world cache. Shared
+world IDs within one owned-list response load once. Missing or inaccessible
+worlds produce `world: null` (public summaries use null name/slug); unavailable
+world reads fail with 503. This closes the old service-role join's private-world
+disclosure and refreshes world edits/visibility independently of story bodies.
+World deletion also refreshes the actual story FK changed by `ON DELETE SET NULL`.
+No fallback world name or cached relation is synthesized.
+
+List responses stay arrays, ordered newest-created with UUID tie-breaking.
+They accept `limit` 1–50 (default 50), `offset` 0–1000, and optional literal
+`search` over existing title/display-name/description fields. They use the
+standard success/error trace envelopes instead of the catalog's previous fixed
+paging/sort metadata, which did not match its unbounded query. The current
+story-list consumer reads the data array. Consumers beyond the first page still
+need the separate paging adapter. Public list world summaries remain null as
+before; public detail resolves only authorized world data.
+
+Run `npm run test:f0b:story-readers:local`. Read-only actual SDK checks cover
+projections, literal filter punctuation and the poller RPC. Rollback fixtures
+then run both story/world services against serialized real-role SQL adapters
+and two caches. They prove same-key owner isolation, private replay without
+shared events, compile-pointer/visibility/deletion refresh, independently
+authorized world edits/hiding/deletion, and read-only draft access with writes
+denied after a fixture downgrade. Immutable compile and tier rows are fixture
+setup only. Fingerprints prove rollback restores sources, compiles, blobs,
+tier/choice records and outboxes. This does not claim fixture HTTP/PostgREST
+traffic; focused repository/service/HTTP tests cover those production boundaries.
+
 ## Durable streams and privacy
 
 Migration `20261008000000_f0b_content_changes.sql` adds
@@ -184,7 +239,7 @@ concurrent fill fencing, safe authorization/probe failure, and bounded
 memory/catch-up. The compile HTTP boundary preserves the normal error envelope
 and maps unavailable caches to 503.
 
-These slices do **not** complete F0b. World and player entity reads now use this cache; other
+These slices do **not** complete F0b. World, player entity and story reads now use this cache; other
 player readers and legacy TTL readers are not moved into it. Broader shared/private reader
 migration, owner-aware compile support if added, retention/partitioning and
 consumer lag instrumentation, million-owner/100-instance/10x-peak measurement,
