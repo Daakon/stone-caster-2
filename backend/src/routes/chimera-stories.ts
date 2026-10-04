@@ -19,7 +19,57 @@ import { EntitlementsService } from "../services/content/entitlements.service.js
 import { ServiceError } from "../utils/serviceError.js";
 import { sendError } from "../utils/response.js";
 
+import { StoryContentReadService } from "../services/content/story-content-read.service.js";
+import {
+  StoryReadQuerySchema,
+  StoryReadIdSchema,
+} from "../../../shared/src/types/chimera-story-read.js";
+import { getTraceId } from "../utils/response.js";
 const router = Router();
+async function storyRead(
+  req: Request,
+  res: Response,
+  action: (service: StoryContentReadService) => Promise<unknown>,
+): Promise<void> {
+  try {
+    sendSuccess(
+      res,
+      await action(StoryContentReadService.forRequest(req, getTraceId(req))),
+      req,
+    );
+  } catch (error) {
+    if (error instanceof ServiceError)
+      return sendError(
+        res,
+        error.error.code,
+        error.error.message,
+        req,
+        error.statusCode,
+      );
+    if (error instanceof z.ZodError)
+      return sendError(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        "Invalid story read request",
+        req,
+        422,
+      );
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "story_read_route_failed",
+        traceId: getTraceId(req),
+      }),
+    );
+    sendError(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      "Story content is temporarily unavailable.",
+      req,
+      503,
+    );
+  }
+}
 
 // All routes require authentication
 router.use(requireAuth);
@@ -71,63 +121,11 @@ function generateId(): string {
  * GET /api/v2/chimera/stories/my-creations
  * Get all stories owned by the current user
  */
-router.get("/my-creations", async (req: Request, res: Response) => {
-  try {
-    const userId = req.ctx?.userId;
-    if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        "Authentication required",
-        req,
-      );
-    }
-
-    const { data: stories, error } = await supabaseAdmin
-      .from("chimera_stories")
-      .select(
-        `
-        *,
-        world:chimera_worlds(id, definition)
-      `,
-      )
-      .eq("owner_user_id", userId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("[Chimera Stories] Error fetching user stories:", error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        "Failed to fetch stories",
-        req,
-      );
-    }
-
-    // Map world name from definition JSONB
-    const formattedStories = (stories || []).map((story: any) => ({
-      ...story,
-      world: story.world
-        ? {
-            id: story.world.id,
-            name: story.world.definition?.name || "Untitled World",
-            description_short:
-              story.world.definition?.description_short || null,
-          }
-        : null,
-    }));
-
-    return sendSuccess(res, formattedStories, req);
-  } catch (error) {
-    console.error("[Chimera Stories] Unexpected error:", error);
-    return sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      "Internal server error",
-      req,
-    );
-  }
-});
+router.get("/my-creations", (req: Request, res: Response) =>
+  storyRead(req, res, (service) =>
+    service.list(StoryReadQuerySchema.parse(req.query)),
+  ),
+);
 
 /**
  * POST /api/v2/chimera/stories
@@ -365,99 +363,10 @@ router.post(
  * GET /api/v2/chimera/stories/:id
  * Get a single story with all relations (owner-only or public)
  */
-router.get(
-  "/:id",
-  validateRequest(TextIdParamSchema, "params"),
-  async (req: Request, res: Response) => {
-    try {
-      const userId = req.ctx?.userId;
-      if (!userId) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.UNAUTHORIZED,
-          "Authentication required",
-          req,
-        );
-      }
-
-      const { id } = req.params;
-
-      const { data: story, error: storyError } = await supabaseAdmin
-        .from("chimera_stories")
-        .select(
-          `
-          *,
-          world:chimera_worlds(id, definition)
-        `,
-        )
-        .eq("id", id)
-        .single();
-
-      if (storyError) {
-        if (storyError.code === "PGRST116") {
-          return sendErrorWithStatus(
-            res,
-            ApiErrorCode.NOT_FOUND,
-            "Story not found",
-            req,
-          );
-        }
-        console.error("[Chimera Stories] Error fetching story:", storyError);
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.INTERNAL_ERROR,
-          "Failed to fetch story",
-          req,
-        );
-      }
-
-      if (!story) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.NOT_FOUND,
-          "Story not found",
-          req,
-        );
-      }
-
-      // Check access: user must be owner OR visibility must be public
-      // Return 404 (not 403) if visibility check fails to prevent information leakage
-      const isOwner = story.owner_user_id === userId;
-      const isPublic = story.visibility === "public";
-
-      if (!isOwner && !isPublic) {
-        return sendErrorWithStatus(
-          res,
-          ApiErrorCode.NOT_FOUND,
-          "Story not found",
-          req,
-        );
-      }
-
-      // Map world name from definition JSONB
-      const formattedStory = {
-        ...story,
-        world: story.world
-          ? {
-              id: story.world.id,
-              name: story.world.definition?.name || "Untitled World",
-              description_short:
-                story.world.definition?.description_short || null,
-            }
-          : null,
-      };
-
-      return sendSuccess(res, formattedStory, req);
-    } catch (error) {
-      console.error("[Chimera Stories] Unexpected error:", error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        "Internal server error",
-        req,
-      );
-    }
-  },
+router.get("/:id", (req: Request, res: Response) =>
+  storyRead(req, res, (service) =>
+    service.find(StoryReadIdSchema.parse(req.params.id)),
+  ),
 );
 
 /**

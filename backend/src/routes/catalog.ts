@@ -15,7 +15,59 @@ import {
 import { ServiceError } from "../utils/serviceError.js";
 import { sendError, getTraceId } from "../utils/response.js";
 
+import { StoryContentReadService } from "../services/content/story-content-read.service.js";
+import {
+  StoryReadQuerySchema,
+  StoryReadIdSchema,
+} from "../../../shared/src/types/chimera-story-read.js";
+
 const router = Router();
+async function publicStoryRead(
+  req: Request,
+  res: Response,
+  action: (service: StoryContentReadService) => Promise<unknown>,
+): Promise<void> {
+  try {
+    sendSuccess(
+      res,
+      await action(
+        StoryContentReadService.forRequest(undefined, getTraceId(req)),
+      ),
+      req,
+    );
+  } catch (error) {
+    if (error instanceof ServiceError)
+      return sendError(
+        res,
+        error.error.code,
+        error.error.message,
+        req,
+        error.statusCode,
+      );
+    if (error instanceof z.ZodError)
+      return sendError(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        "Invalid story read request",
+        req,
+        422,
+      );
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "story_read_route_failed",
+        traceId: getTraceId(req),
+      }),
+    );
+    sendError(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      "Story content is temporarily unavailable.",
+      req,
+      503,
+    );
+  }
+}
 
 async function publicWorldRead(
   req: Request,
@@ -173,181 +225,16 @@ router.get("/worlds/:idOrSlug", (req: Request, res: Response) =>
 
 // GET /api/catalog/stories (unified - mirrors entry-points)
 // Phase 4.10: Standardized - search support via query parameter
-router.get("/stories", async (req: Request, res: Response) => {
-  try {
-    const searchQuery =
-      typeof req.query.search === "string"
-        ? req.query.search.trim()
-        : undefined;
-    console.log(
-      "[CATALOG] GET /stories - Starting query",
-      searchQuery ? `(search: ${searchQuery})` : "",
-    );
-
-    // Phase 5: Query chimera_stories directly (V3 Schema)
-    let query = supabaseAdmin
-      .from("chimera_stories")
-      .select(
-        "id, title, display_name, description, description_short, image_url, world_id, content_rating, created_at, updated_at, status",
-        { count: "exact" },
-      )
-      .in("status", ["compiled", "bound"]) // Only show playable stories
-      .order("created_at", { ascending: false });
-
-    // Phase 4.10: Add search filter if provided
-    if (searchQuery) {
-      query = query.or(
-        `title.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`,
-      );
-    }
-
-    const { data: storiesData, error, count } = await query;
-
-    if (error) {
-      console.error("[CATALOG] GET /stories - Supabase query error:", error);
-      throw error;
-    }
-
-    // Transform to catalog DTO format
-    const items = (storiesData || []).map((story: any) => {
-      return {
-        id: story.id,
-        slug: story.id, // Use ID as slug
-        type: "story",
-        title: story.title || story.display_name || "Untitled Story",
-        subtitle: null,
-        description:
-          story.description ||
-          story.description_short ||
-          "No description available",
-        synopsis: story.description_short || null,
-        tags: [], // Tags not yet in chimera_stories top-level?
-        world_id: story.world_id,
-        world_name: null, // Would need lookup
-        world_slug: null,
-        content_rating: story.content_rating,
-        is_playable: true,
-        has_prompt: true, // Assumed if compiled
-        cover_media: story.image_url
-          ? {
-              id: null,
-              provider_key: story.image_url,
-              url: story.image_url,
-            }
-          : null,
-        created_at: story.created_at,
-        updated_at: story.updated_at,
-      };
-    });
-
-    // Return unified response format
-    res.json({
-      ok: true,
-      data: items,
-      meta: {
-        total: count || items.length,
-        limit: 20,
-        offset: 0,
-        filters: searchQuery ? { search: searchQuery } : {},
-        sort: "-updated",
-      },
-    });
-  } catch (error) {
-    console.error("catalog.stories error:", error);
-    res.status(500).json({
-      ok: false,
-      error: "Failed to fetch stories",
-      details: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-// GET /api/catalog/stories/:idOrSlug (unified - mirrors entry-points)
-router.get("/stories/:idOrSlug", async (req: Request, res: Response) => {
-  try {
-    const { idOrSlug } = req.params;
-
-    // Check if UUID
-    const isUUID =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        idOrSlug,
-      );
-
-    let query = supabaseAdmin.from("chimera_stories").select(`
-        id, title, display_name, description, description_short, image_url, world_id, content_rating, created_at, updated_at, status, configuration,
-        world:chimera_worlds (id, name, slug)
-      `);
-
-    if (isUUID) {
-      query = query.eq("id", idOrSlug);
-    } else {
-      // Stories don't have slugs yet, so only ID supported for now. Fallback to ID check.
-      query = query.eq("id", idOrSlug);
-    }
-
-    const { data: story, error } = await query.single();
-
-    if (error) {
-      if (error.code === "PGRST116") {
-        return res.status(404).json({
-          ok: false,
-          error: "Story not found",
-        });
-      }
-      console.error("Supabase query error:", error);
-      throw error;
-    }
-
-    if (!story) {
-      return res.status(404).json({
-        ok: false,
-        error: "Story not found",
-      });
-    }
-
-    const dto = {
-      id: story.id,
-      slug: story.id,
-      type: "story",
-      title: story.title || story.display_name || "Untitled Story",
-      subtitle: null,
-      description:
-        story.description ||
-        story.description_short ||
-        "No description available",
-      synopsis: story.description_short || null,
-      tags: [],
-      world_id: story.world_id,
-      world_name: story.world?.name || null,
-      world_slug: story.world?.slug || null,
-      content_rating: story.content_rating,
-      is_playable: true,
-      has_prompt: true,
-      cover_media: story.image_url
-        ? {
-            id: null,
-            provider_key: story.image_url,
-            url: story.image_url,
-          }
-        : null,
-      rulesets: (story.configuration as any)?.rulesetIds || [],
-      created_at: story.created_at,
-      updated_at: story.updated_at,
-    };
-
-    res.json({
-      ok: true,
-      data: dto,
-    });
-  } catch (error) {
-    console.error("catalog.story detail error:", error);
-    res.status(500).json({
-      ok: false,
-      error: "Failed to fetch story",
-      details: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+router.get("/stories", (req: Request, res: Response) =>
+  publicStoryRead(req, res, (service) =>
+    service.catalogList(StoryReadQuerySchema.parse(req.query)),
+  ),
+);
+router.get("/stories/:idOrSlug", (req: Request, res: Response) =>
+  publicStoryRead(req, res, (service) =>
+    service.catalogFind(StoryReadIdSchema.parse(req.params.idOrSlug)),
+  ),
+);
 
 // Schema for NPCs query parameters
 // Phase 4.10: Support both 'q' and 'search' for consistency

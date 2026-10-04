@@ -96,7 +96,8 @@
     "test:f0b:runtime-fence:local": "node --import tsx supabase/ops/test-f0b-runtime-fence.mjs",
     "test:f0b:cache:local": "node --import tsx supabase/ops/test-f0b-content-cache.mjs",
     "test:f0b:world-readers:local": "node --import tsx supabase/ops/test-f0b-world-readers.mjs",
-    "test:f0b:entity-readers:local": "node --import tsx supabase/ops/test-f0b-entity-readers.mjs"
+    "test:f0b:entity-readers:local": "node --import tsx supabase/ops/test-f0b-entity-readers.mjs",
+    "test:f0b:story-readers:local": "node --import tsx supabase/ops/test-f0b-story-readers.mjs"
   },
   "keywords": [
     "rpg",
