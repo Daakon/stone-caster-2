@@ -107,7 +107,7 @@ The authenticated V2 lore `my-creations`, context list and detail GETs use
 items, with a fresh request-role admin check for internal previews. Player bodies
 and tag relations use request RLS with explicit owner/public filters. Service-role
 queries resolve only fixed identity metadata; they never read fragments or vectors.
-The legacy approved-tag selector and lore writes remain separate audits.
+The approved-tag selector is audited below; lore writes remain a separate audit.
 
 The old routes inferred lore access, visibility and even ownership from its
 world, despite the foundation schema giving lore its own visibility/owner. That
@@ -156,6 +156,54 @@ without shared events, public visibility/world-move/delete refresh and parent
 context privatization. Parent adapters return only fields consumed by this boundary;
 existing parent-reader harnesses separately cover their body-cache behavior.
 Catalog/source/relations/entitlements/outbox fingerprints are restored by rollback.
+
+## Approved-tag selector
+
+The authenticated `GET /api/v2/chimera/lore/tags` now uses
+`TagContentReadService` and the request-RLS, read-only
+`chimera_approved_tag_page` RPC. The old service-role query treated approval as
+global access and could expose another player's private tag names. The inspected
+tag table has no visibility column: player tags remain owner-only, including for
+admins. First-party choices come from current canonical `tag` sources, never the
+legacy projection. Ordinary callers see published sources; internal preview
+requires the database's fresh `is_admin()` result. An authored boolean
+`is_approved: true` and a nonempty authored string name are required. Approval
+does not publish a tag, and missing approval/name does not receive a default.
+
+The response remains an array of `{id, tag_name, is_approved}`. Canonical IDs are
+stable source keys; player IDs are existing UUIDs. Consumers must treat selector
+IDs as opaque; the current lore editors submit tag names. Equal canonical and
+owned names retain their distinct IDs. `limit` is 1–50 (default 50), `offset` is
+0–1000 (default 0). The RPC merges accessible lanes before sorting by name and
+stable identity and paginating, rather than applying an SDK first-page cap before
+merging. Invalid HTTP bounds return 422; failures return a safe 503, never an
+empty-success fallback. Caller-supplied owner/admin parameters cannot change access.
+
+Pages are deliberately uncached: each request reads a bounded page under fresh
+RLS and release/admin checks. A mixed canonical/private result must not enter a
+shared cache. This also observes tag rename, unapproval, deletion, release changes
+and admin revocation immediately without relying on parent-asset invalidations.
+The additive invoker RPC grants only authenticated execution; it grants no new
+table access and changes no RLS policy. Apply migration
+`20261010000000_approved_tag_selector.sql` before deploying the reader.
+
+Run `npm run test:f0b:tag-selector:local`. Actual SDK calls prove anonymous and
+service-role execution denial. Rollback fixtures exercise the production
+repository/service over the actual authenticated SQL RPC, including owner/admin
+isolation, approved/internal/published gates, same-name identities, malformed
+authored-field omission, merged pagination beyond 1000 rows, two fresh readers,
+private-write shared-stream non-interference, migration reapplication, unchanged
+table grants/RLS, and restored source/catalog/relations/outbox/runtime fingerprints.
+Fixture reads are not claimed as HTTP/PostgREST fixture tests.
+
+Follow-up: lore writes still use service-role world-owner checks, partial body/tag
+updates and an obsolete public-world clone-only restriction. That conflicts with
+lore's actual owner and the editable-current-source plan; the recommended next
+slice is an atomic request-RLS writer authorized by the lore row, with explicit
+parent checks for creation. It must also reconcile the remaining global
+`tag_name` uniqueness constraint with owner-scoped authoring. The existing frontend
+selector requests the default page; full paginated/search UI remains a later
+consumer adapter. No release was persisted and the launch gate remains closed.
 HTTP/unit tests cover authentication, validated identities, DTOs, cache targeting
 and safe error envelopes. No migration, hosted deployment or launch opening occurs.
 

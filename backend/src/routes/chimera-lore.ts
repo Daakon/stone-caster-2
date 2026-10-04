@@ -16,6 +16,8 @@ import type { ChimeraLoreEntry } from "@shared/types/chimera-lore.js";
 import { LoreRepository } from "../db/repos/lore.repo.js";
 
 import { LoreContentReadService } from "../services/content/lore-content-read.service.js";
+import { TagContentReadService } from "../services/content/tag-content-read.service.js";
+import { TagReadQuerySchema } from "../../../shared/src/types/chimera-tag-read.js";
 import {
   LoreReadQuerySchema,
   LoreContextQuerySchema,
@@ -27,14 +29,10 @@ import { sendError, getTraceId } from "../utils/response.js";
 async function loreRead(
   req: Request,
   res: Response,
-  action: (service: LoreContentReadService) => Promise<unknown>,
+  action: () => Promise<unknown>,
 ): Promise<void> {
   try {
-    sendSuccess(
-      res,
-      await action(LoreContentReadService.forRequest(req, getTraceId(req))),
-      req,
-    );
+    sendSuccess(res, await action(), req);
   } catch (error) {
     if (error instanceof ServiceError)
       return sendError(
@@ -307,64 +305,37 @@ router.post(
  * Get all lore entries owned by the current user
  */
 router.get("/my-creations", (req: Request, res: Response) =>
-  loreRead(req, res, (service) =>
-    service.list(LoreReadQuerySchema.parse(req.query)),
+  loreRead(req, res, () =>
+    LoreContentReadService.forRequest(req, getTraceId(req)).list(
+      LoreReadQuerySchema.parse(req.query),
+    ),
   ),
 );
 
 /**
  * GET /api/v2/chimera/lore/tags
- * Get all approved tags (for use in tag selectors)
+ * Get a bounded page of approved tags accessible to the current user.
  */
-router.get("/tags", async (req: Request, res: Response) => {
-  try {
-    const userId = req.ctx?.userId;
-    if (!userId) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.UNAUTHORIZED,
-        "Authentication required",
-        req,
-      );
-    }
-
-    // Fetch all approved tags
-    const { data: tags, error: tagsError } = await supabaseAdmin
-      .from("chimera_tags")
-      .select("id, tag_name, is_approved")
-      .eq("is_approved", true)
-      .order("tag_name", { ascending: true });
-
-    if (tagsError) {
-      console.error("[Chimera Lore] Error fetching tags:", tagsError);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        "Failed to fetch tags",
-        req,
-      );
-    }
-
-    return sendSuccess(res, tags || [], req);
-  } catch (error) {
-    console.error("[Chimera Lore] Unexpected error:", error);
-    return sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      "Internal server error",
-      req,
-    );
-  }
-});
+router.get("/tags", (req: Request, res: Response) =>
+  loreRead(req, res, () =>
+    TagContentReadService.forRequest(req, getTraceId(req)).list(
+      TagReadQuerySchema.parse(req.query),
+    ),
+  ),
+);
 
 router.get("/:id", (req: Request, res: Response) =>
-  loreRead(req, res, (service) =>
-    service.find(EntityReadIdSchema.parse(req.params.id)),
+  loreRead(req, res, () =>
+    LoreContentReadService.forRequest(req, getTraceId(req)).find(
+      EntityReadIdSchema.parse(req.params.id),
+    ),
   ),
 );
 router.get("/", (req: Request, res: Response) =>
-  loreRead(req, res, (service) =>
-    service.listContext(LoreContextQuerySchema.parse(req.query)),
+  loreRead(req, res, () =>
+    LoreContentReadService.forRequest(req, getTraceId(req)).listContext(
+      LoreContextQuerySchema.parse(req.query),
+    ),
   ),
 );
 
