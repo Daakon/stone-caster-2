@@ -100,7 +100,8 @@
     "test:f0b:story-readers:local": "node --import tsx supabase/ops/test-f0b-story-readers.mjs",
     "test:f0b:npc-catalog:local": "node --import tsx supabase/ops/test-f0b-npc-catalog.mjs",
     "test:f0b:lore-readers:local": "node --import tsx supabase/ops/test-f0b-lore-readers.mjs",
-    "test:f0b:tag-selector:local": "node --import tsx supabase/ops/test-f0b-tag-selector.mjs"
+    "test:f0b:tag-selector:local": "node --import tsx supabase/ops/test-f0b-tag-selector.mjs",
+    "test:f0b:lore-authoring:local": "node --import tsx supabase/ops/test-f0b-lore-authoring.mjs"
   },
   "keywords": [
     "rpg",

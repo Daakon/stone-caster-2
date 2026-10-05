@@ -107,7 +107,7 @@ The authenticated V2 lore `my-creations`, context list and detail GETs use
 items, with a fresh request-role admin check for internal previews. Player bodies
 and tag relations use request RLS with explicit owner/public filters. Service-role
 queries resolve only fixed identity metadata; they never read fragments or vectors.
-The approved-tag selector is audited below; lore writes remain a separate audit.
+The approved-tag selector and atomic lore writer are audited below.
 
 The old routes inferred lore access, visibility and even ownership from its
 world, despite the foundation schema giving lore its own visibility/owner. That
@@ -196,16 +196,84 @@ private-write shared-stream non-interference, migration reapplication, unchanged
 table grants/RLS, and restored source/catalog/relations/outbox/runtime fingerprints.
 Fixture reads are not claimed as HTTP/PostgREST fixture tests.
 
-Follow-up: lore writes still use service-role world-owner checks, partial body/tag
-updates and an obsolete public-world clone-only restriction. That conflicts with
-lore's actual owner and the editable-current-source plan; the recommended next
-slice is an atomic request-RLS writer authorized by the lore row, with explicit
-parent checks for creation. It must also reconcile the remaining global
-`tag_name` uniqueness constraint with owner-scoped authoring. The existing frontend
-selector requests the default page; full paginated/search UI remains a later
-consumer adapter. No release was persisted and the launch gate remains closed.
-HTTP/unit tests cover authentication, validated identities, DTOs, cache targeting
-and safe error envelopes. No migration, hosted deployment or launch opening occurs.
+The lore writer below now resolves its ownership/transaction conflict. The existing
+frontend selector requests the default page; full paginated/search UI remains a
+later consumer adapter. No release was persisted and the launch gate remains closed.
+
+## Atomic lore authoring
+
+The authenticated V2 lore POST, PUT and DELETE use `LoreContentWriteService` and
+the transactional, caller-RLS `chimera_write_owned_lore` invoker RPC. The route
+contains no repository/client calls or business logic. The inspected legacy PUT
+and DELETE checked world ownership instead of lore ownership; this could modify
+another creator's lore on an owned world and reject legitimate null-world lore.
+The clone-only restriction on a public world also conflicted with editable current
+sources. Edits/deletes now require the actual player lore owner, regardless of
+world privacy/ownership; admins gain no foreign or first-party authoring access.
+Existing owned public lore can be edited in place. Visibility transitions and
+reparenting are not supported by these write DTOs.
+
+Creation verifies and locks the selected owned player context in existing
+Entity → Story → World priority. Entity/story creation infers the nullable world
+from that parent and persists only the selected specific parent. Lower-priority
+unchecked fields never become references. Context IDs are UUIDs, as current editor
+requests require; canonical stable-key selection needs a later consumer adapter.
+The existing story-child entitlement trigger remains authoritative: read-only
+story lore cannot be created, edited or explicitly deleted. Parent-story locks
+precede lore locks, and a parent race returns 409 rather than taking a mixed view.
+
+Direct authenticated table writes previously could attach owned lore to a foreign
+story and make the privileged entitlement trigger touch that story. A narrow
+before-trigger now denies foreign/first-party story parents before that side effect.
+Its dedicated `NOLOGIN NOINHERIT NOBYPASSRLS` owner can read only story ID/ownership
+columns, with no body read, table DML, schema CREATE or role membership. Only the
+trigger invokes it. Global identity visibility is necessary to distinguish a
+deleted parent in a legitimate FK cascade from an RLS-hidden foreign story.
+Owned-story deletion cascades still work after a tier downgrade. Malformed legacy
+foreign-story lore is rejected without touching the foreign parent; repairing
+those old references remains a maintenance audit.
+
+Body patches merge under a lore row lock, preserving unknown authored fragment
+fields. Body/keywords, owner-private tag creation and tag-link replacement commit
+together or roll back together, including entitlement activity and change events.
+Omitted tags preserve links; `[]` clears owned links. Explicit lore deletion removes
+its owned tag links in the same transaction, never foreign links. New tags retain
+the existing unapproved workflow and use stable UUID keys independent of editable
+names. Tag names are normalized/deduplicated, then processed in stable order.
+The old global name constraint is replaced by `(owner_namespace, tag_name)`
+uniqueness, so equal private names never reuse another owner's tag or reserve a
+global name. Remaining legacy entity/world/pack writers with global tag lookups
+need their own audits; this slice does not broaden their scope.
+
+The shared schemas reject privileged/unknown fields and bound work: name 200
+characters, entry text 100,000, optional type 200, at most 100 keywords (200
+characters each) and tags (160 each). The RPC independently validates the same
+fields, types and bounds. It returns the explicit source/tag DTO from the mutation
+transaction, with vectors redacted and no invented lore type, version or stats.
+A changed entry clears its old embedding. Read failures cannot silently become
+successes, and expected ownership/tier/validation/conflict errors use safe
+404/403/422/409 envelopes; unexpected failures use safe trace-only 503 logging.
+There is no automatic write retry. Apply `20261011000000_atomic_lore_authoring.sql`
+before deploying the writer.
+
+Run `npm run test:f0b:lore-authoring:local`. Actual SDK calls prove anonymous and
+service-role invocation denial. Rollback-only fixtures exercise the production
+repository/service over the real-role SQL RPC: ownership independent of world,
+first-party/admin refusal, null contexts and priority, direct-table foreign-story
+denial/cascade compatibility, guard-owner privilege limits, same-name private tags,
+strict fields/bounds, disjoint fragment patches, injected create/update tag failure
+rollback, tier rejection, explicit delete cleanup, and private/public/delete refresh
+through two actual reader caches and the durable outbox RPC. This is not a
+multi-connection concurrent-write or HTTP/PostgREST fixture test. A first-party
+legacy UUID fixture uses temporary setup-only sync-role INSERT rights, removed
+before application assertions. Final fingerprints restore source/catalog/relations,
+entitlements, compiles/blobs/games and outboxes; application grants/RLS are retained.
+
+Follow-up: direct parent-delete cascades still need a polymorphic tag-link cleanup
+audit (the inspected asset relation has no asset FK). Draft pack/story source links
+may remain unresolved after source deletion; missing-reference UI and the other
+content-writer/dependency audits remain prelaunch gates. Pinned snapshots are not
+rewritten. No hosted deployment or launch opening occurs, and F0b remains incomplete.
 
 ## Public NPC catalog integration
 
