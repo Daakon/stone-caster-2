@@ -15,6 +15,8 @@ import { supabaseAdmin } from "../services/supabase.js";
 import { ChimeraAssetRefSchema } from "@shared/types/chimera-assets";
 import { WorldPresetService } from "../services/chimera/world-preset.service.js";
 
+import { AssetTagWriteService } from "../services/content/asset-tag-write.service.js";
+import { AssetTagNamesSchema } from "../../../shared/src/types/chimera-asset-tags.js";
 import { WorldContentReadService } from "../services/content/world-content-read.service.js";
 import {
   WorldReadQuerySchema,
@@ -85,7 +87,7 @@ const CreateWorldSchema = z.object({
   description_long: z.string().optional().nullable(),
   character_schema_contributions: z.record(z.unknown()).optional().default({}),
   ruleset_template_ids: z.array(z.string()).default([]),
-  tag_names: z.array(z.string()).default([]),
+  tag_names: AssetTagNamesSchema.default([]),
   tags: z.array(z.string()).optional().default([]), // Direct tags array on world
   images: z.array(ChimeraAssetRefSchema).optional().default([]), // CRITICAL: Include images in schema
   genre: z.string().optional().nullable(),
@@ -95,15 +97,6 @@ const CreateWorldSchema = z.object({
 // UpdateWorldSchema explicitly excludes visibility - it can only be changed via publish endpoint
 // Note: CreateWorldSchema doesn't include visibility, so omit is not needed but kept for clarity
 const UpdateWorldSchema = CreateWorldSchema.partial();
-
-// Helper function to normalize tag names
-function normalizeTagName(tagName: string): string {
-  return tagName
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^A-Z0-9_]/g, "");
-}
 
 // Helper function to generate a slug from display name
 // Converts to lowercase and replaces spaces with dashes (simple approach)
@@ -450,66 +443,12 @@ router.post(
       // Note: Ruleset links are stored in world definition JSONB, not in junction table
       // The ruleset_template_ids are already included in the definition JSONB above
 
-      // Handle tags: normalize, create/get tags, and create links
-      if (worldData.tag_names && worldData.tag_names.length > 0) {
-        const tagIds: string[] = [];
-
-        for (const tagName of worldData.tag_names) {
-          const normalized = normalizeTagName(tagName);
-          if (!normalized) continue;
-
-          // Check if tag exists
-          let { data: existingTag } = await supabaseAdmin
-            .from("chimera_tags")
-            .select("id")
-            .eq("tag_name", normalized)
-            .single();
-
-          let tagId: string;
-
-          if (existingTag) {
-            tagId = existingTag.id;
-          } else {
-            // Create new tag (unapproved)
-            const { data: newTag, error: tagError } = await supabaseAdmin
-              .from("chimera_tags")
-              .insert({
-                tag_name: normalized,
-                is_approved: false,
-              })
-              .select("id")
-              .single();
-
-            if (tagError) {
-              console.error("[Chimera Worlds] Error creating tag:", tagError);
-              continue;
-            }
-            tagId = newTag.id;
-          }
-
-          tagIds.push(tagId);
-        }
-
-        // Create asset tag links
-        if (tagIds.length > 0) {
-          const assetTagLinks = tagIds.map((tagId) => ({
-            tag_id: tagId,
-            asset_id: worldId,
-            asset_type: "world",
-          }));
-
-          const { error: linksError } = await supabaseAdmin
-            .from("chimera_asset_tags")
-            .insert(assetTagLinks);
-
-          if (linksError) {
-            console.error(
-              "[Chimera Worlds] Error creating tag links:",
-              linksError,
-            );
-            // Continue anyway - world is created, tags can be fixed later
-          }
-        }
+      if (worldData.tag_names.length > 0) {
+        await AssetTagWriteService.forRequest(req, getTraceId(req)).replace(
+          "world",
+          worldId,
+          worldData.tag_names,
+        );
       }
 
       // Fetch world (no junction table joins - rulesets are in definition JSONB)
@@ -525,6 +464,14 @@ router.post(
       );
       return sendSuccess(res, transformedWorld, req);
     } catch (error) {
+      if (error instanceof ServiceError)
+        return sendError(
+          res,
+          error.error.code,
+          error.error.message,
+          req,
+          error.statusCode,
+        );
       console.error("[Chimera Worlds] Unexpected error:", error);
       return sendErrorWithStatus(
         res,
@@ -947,76 +894,12 @@ router.put(
         );
       }
 
-      // Handle tags if provided
       if (tag_names !== undefined) {
-        // Delete existing tag links
-        await supabaseAdmin
-          .from("chimera_asset_tags")
-          .delete()
-          .eq("asset_id", id)
-          .eq("asset_type", "world");
-
-        // Create new tag links
-        if (tag_names.length > 0) {
-          const tagIds: string[] = [];
-
-          for (const tagName of tag_names) {
-            const normalized = normalizeTagName(tagName);
-            if (!normalized) continue;
-
-            // Check if tag exists
-            let { data: existingTag } = await supabaseAdmin
-              .from("chimera_tags")
-              .select("id")
-              .eq("tag_name", normalized)
-              .single();
-
-            let tagId: string;
-
-            if (existingTag) {
-              tagId = existingTag.id;
-            } else {
-              // Create new tag (unapproved)
-              const { data: newTag, error: tagError } = await supabaseAdmin
-                .from("chimera_tags")
-                .insert({
-                  tag_name: normalized,
-                  is_approved: false,
-                })
-                .select("id")
-                .single();
-
-              if (tagError) {
-                console.error("[Chimera Worlds] Error creating tag:", tagError);
-                continue;
-              }
-              tagId = newTag.id;
-            }
-
-            tagIds.push(tagId);
-          }
-
-          // Create asset tag links
-          if (tagIds.length > 0) {
-            const assetTagLinks = tagIds.map((tagId) => ({
-              tag_id: tagId,
-              asset_id: id,
-              asset_type: "world",
-            }));
-
-            const { error: linksError } = await supabaseAdmin
-              .from("chimera_asset_tags")
-              .insert(assetTagLinks);
-
-            if (linksError) {
-              console.error(
-                "[Chimera Worlds] Error creating tag links:",
-                linksError,
-              );
-              // Continue anyway - world is updated, tags can be fixed later
-            }
-          }
-        }
+        await AssetTagWriteService.forRequest(req, getTraceId(req)).replace(
+          "world",
+          id,
+          tag_names,
+        );
       }
 
       // Fetch updated world (no junction table joins)
@@ -1080,6 +963,14 @@ router.put(
 
       return sendSuccess(res, transformedWorld, req);
     } catch (error) {
+      if (error instanceof ServiceError)
+        return sendError(
+          res,
+          error.error.code,
+          error.error.message,
+          req,
+          error.statusCode,
+        );
       console.error("[Chimera Worlds] Unexpected error:", error);
       return sendErrorWithStatus(
         res,
@@ -1163,6 +1054,14 @@ router.delete(
 
       return sendSuccess(res, { id, deleted: true }, req);
     } catch (error) {
+      if (error instanceof ServiceError)
+        return sendError(
+          res,
+          error.error.code,
+          error.error.message,
+          req,
+          error.statusCode,
+        );
       console.error("[Chimera Worlds] Unexpected error:", error);
       return sendErrorWithStatus(
         res,

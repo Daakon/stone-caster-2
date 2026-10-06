@@ -275,6 +275,62 @@ may remain unresolved after source deletion; missing-reference UI and the other
 content-writer/dependency audits remain prelaunch gates. Pinned snapshots are not
 rewritten. No hosted deployment or launch opening occurs, and F0b remains incomplete.
 
+## Owner-scoped world/entity tags
+
+The mounted player V2 world POST/PUT (`tag_names`) and entity POST/PUT (`tags`)
+now replace tag relations through `AssetTagWriteService`, its request-RLS
+repository, and `chimera_replace_owned_asset_tags`. They no longer perform
+service-role global-name lookups or silently continue after tag failures. HTTP
+validation normalizes/deduplicates names before saving the parent and rejects
+empty normalized names, names over 160 characters, and arrays over 100 entries.
+Omitting update tags preserves links; an explicit empty array clears owned links.
+The world's separate inline `tags` field retains its existing behavior.
+
+The inspected schema makes tag names unique within `owner_namespace`, keeps
+tags/links owner-private regardless of approval or parent publication, and has
+no polymorphic asset FK. The old inserts omitted the required owner; the old
+global lookups could adopt another owner's same-name tag or fail ambiguously.
+The invoker RPC derives its actor from `auth.uid()`, locks and verifies the
+owned player world/entity before any tag mutation, and returns 404 for foreign,
+missing or first-party assets, including admin calls. Replacement deletes only
+that actor's links for the exact asset UUID/type. Tags resolve only in that
+actor's namespace. New tags are unapproved and receive UUID stable keys, avoiding
+collisions with renamed legacy tags; existing identity/approval remains intact.
+An insertion failure rolls back tag creation, deletion, replacement and durable
+events together. Responses/logs mask database diagnostics, and writes never retry
+automatically. Private tag edits do not advance the shared content stream.
+
+Apply `20261012000000_owned_asset_tags.sql` before deploying these callers. This
+additive, rerunnable function grants execution only to authenticated callers;
+it changes no table grants, RLS policies, ownership guards or source data. A
+backend rollback can retain the function. Removing it requires first rolling
+back its callers; no data backfill or tag deletion is part of the migration.
+
+Run `npm run test:f0b:asset-tags:local`. Actual SDK requests verify anonymous and
+service-role denial. Rollback-only real-role fixtures exercise the production
+repository/service, same-name owner isolation, admin/first-party refusal,
+approval/key preservation, renamed legacy-key collision avoidance, same UUIDs
+across asset types, strict SQL bounds, private outbox events, empty replacement,
+foreign-link preservation and injected failure rollback. Reapplying the migration
+twice preserves grants/RLS, and final fingerprints restore accounts, catalog,
+sources, relations, entitlements, snapshots and outboxes. Fixture mutation calls
+use a sequential SQL adapter, not fixture HTTP or a multi-connection concurrency
+test. Focused HTTP tests separately verify actual player route/service wiring,
+validation before parent mutation, omission/clear semantics and safe failures.
+
+This is a tag transaction, **not a transaction for the whole parent save**: legacy
+world/entity source mutations occur separately before tag replacement. A tag
+failure now returns an error with the previous tags retained, but earlier parent
+changes can already be committed. Full atomic world/entity authoring, their
+legacy published-edit restrictions, direct-table polymorphic parent validation,
+parent-delete cleanup and the mounted admin world/entity/tag paths remain
+separate prelaunch audits. The admin routes still query legacy projections,
+perform global tag lookups and use old official/system flags without canonical
+ownership. Those flags cannot authorize first-party writes under the foundation
+guards; first-party authoring stays in the repository/sync workflow. No first-party
+UI writer, source release or hosted deployment is added.
+F0b remains incomplete and launch remains closed.
+
 ## Public NPC catalog integration
 
 `GET /api/catalog/npcs` and `/npcs/:id` use an anonymous published audience,
