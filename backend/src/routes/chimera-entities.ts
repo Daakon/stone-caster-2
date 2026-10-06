@@ -13,6 +13,8 @@ import { sendSuccess, sendErrorWithStatus } from "../utils/response.js";
 import { ApiErrorCode } from "@shared";
 import { supabaseAdmin } from "../services/supabase.js";
 
+import { AssetTagWriteService } from "../services/content/asset-tag-write.service.js";
+import { AssetTagNamesSchema } from "../../../shared/src/types/chimera-asset-tags.js";
 import { ChimeraEntitiesService } from "../services/chimera/chimera-entities.service.js";
 
 import { EntityContentReadService } from "../services/content/entity-content-read.service.js";
@@ -96,7 +98,7 @@ const CreateEntitySchema = z.object({
   archetype_handle: z.string().optional().nullable(),
   base_state_json: z.record(z.unknown()).default({}),
   raw_data: z.record(z.unknown()).optional(),
-  tags: z.array(z.string()).default([]),
+  tags: AssetTagNamesSchema.default([]),
   world_id: z.string().uuid().optional().nullable(),
   images: z
     .array(
@@ -120,7 +122,7 @@ const UpdateEntitySchema = z
     archetype_handle: z.string().optional().nullable(),
     base_state_json: z.record(z.unknown()).optional(),
     raw_data: z.record(z.unknown()).optional(),
-    tags: z.array(z.string()).optional(),
+    tags: AssetTagNamesSchema.optional(),
     world_id: z.string().uuid().optional().nullable(),
     visibility: VisibilitySchema.optional(),
     images: z
@@ -281,13 +283,24 @@ router.post(
 
       // Delegate to Service
       // Service handles: sanitization, world_id strictness, retries, tags
-      const entity = await ChimeraEntitiesService.createEntity({
-        ...req.body,
-        userId,
-      });
+      const entity = await ChimeraEntitiesService.createEntity(
+        {
+          ...req.body,
+          userId,
+        },
+        AssetTagWriteService.forRequest(req, getTraceId(req)),
+      );
 
       return sendSuccess(res, entity, req);
     } catch (error) {
+      if (error instanceof ServiceError)
+        return sendError(
+          res,
+          error.error.code,
+          error.error.message,
+          req,
+          error.statusCode,
+        );
       console.error("[Chimera Entities] Unexpected error:", error);
       return sendErrorWithStatus(
         res,
@@ -384,10 +397,22 @@ router.put(
       }
 
       // Delegate to Service
-      await ChimeraEntitiesService.updateEntity(id, updateData);
+      await ChimeraEntitiesService.updateEntity(
+        id,
+        updateData,
+        AssetTagWriteService.forRequest(req, getTraceId(req)),
+      );
 
       return sendSuccess(res, { success: true }, req);
     } catch (error) {
+      if (error instanceof ServiceError)
+        return sendError(
+          res,
+          error.error.code,
+          error.error.message,
+          req,
+          error.statusCode,
+        );
       console.error("[Chimera Entities] Unexpected error:", error);
       return sendErrorWithStatus(
         res,
@@ -475,6 +500,14 @@ router.delete(
 
       return sendSuccess(res, { success: true }, req);
     } catch (error) {
+      if (error instanceof ServiceError)
+        return sendError(
+          res,
+          error.error.code,
+          error.error.message,
+          req,
+          error.statusCode,
+        );
       console.error("[Chimera Entities] Unexpected error:", error);
       return sendErrorWithStatus(
         res,
