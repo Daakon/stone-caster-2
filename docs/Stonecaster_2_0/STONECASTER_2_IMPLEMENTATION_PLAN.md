@@ -1,218 +1,180 @@
-# StoneCaster 2.0 — Clean-Slate & Ecosystem Implementation Plan (v2)
+# StoneCaster 2.0 — Master Implementation Plan (v3 — Locked via `/grill-me`)
 
-**Branch:** `stonecaster-2.0` (standalone trunk — `main` untouched at `0ba046db`)  
-**Date:** 2026-10-31  
-**Coordinated Repos Inspected:**
-- `c:\Dev\Stone Caster\stone-caster-2` (current StoneCaster monorepo + [`stonecaster2-design`](file:///C:/Dev/Stone%20Caster/stone-caster-2/docs/Stonecaster_2_0/stonecaster2-design/00_START_HERE.md))
-- `c:\Dev\RPG Systems\mystika-rpg-systems` ([`README.md`](file:///C:/Dev/RPG%20Systems/mystika-rpg-systems/README.md), [`architecture.md`](file:///C:/Dev/RPG%20Systems/mystika-rpg-systems/docs/architecture.md), [`modular-gameplay-systems-standard.md`](file:///C:/Dev/RPG%20Systems/mystika-rpg-systems/docs/modular-gameplay-systems-standard.md), [`modular-standard-proof`](file:///C:/Dev/RPG%20Systems/mystika-rpg-systems/reference/modular-standard-proof/packages/contracts/package.json))
-- `c:\Dev\SparkBinder` ([`PROJECT_STATE.md`](file:///C:/Dev/SparkBinder/docs/PROJECT_STATE.md), [`SYSTEM_MATURITY_PATH_OWNER_DIRECTION.md`](file:///C:/Dev/SparkBinder/docs/reviews/SYSTEM_MATURITY_PATH_OWNER_DIRECTION.md), [`ADR-0024`](file:///C:/Dev/SparkBinder/docs/architecture/ADR/ADR-0024-modular-gameplay-system-model.md)–[`ADR-0027`](file:///C:/Dev/SparkBinder/docs/architecture/ADR/ADR-0027-typescript-package-build-target.md), [`NARRATIVE_CONTINUITY_NORTH_STAR_CANDIDATE.md`](file:///C:/Dev/SparkBinder/docs/ed-input/NARRATIVE_CONTINUITY_NORTH_STAR_CANDIDATE.md))
+**Status:** All 12 core architectural & ecosystem decisions resolved — ready for approval & Phase P0 task breakdown  
+**Target Repository:** New clean-slate sibling repo `C:\Dev\StoneCaster-2` *(to be initialized on P0 kickoff)*  
+**Donor / Archive State:** `C:\Dev\Stone Caster\stone-caster-2` kept frozen (`main` untouched at `0ba046db`; design pack + this plan tracked on standalone branch `stonecaster-2.0`)
 
 ---
 
-## 1. Strategic Verdict: Should We Start From Scratch and Harvest?
+## 1. Locked Architecture & Ecosystem Decisions Summary
 
-**Yes — unequivocally.** Knowing that StoneCaster has **no live production user base or legacy saves to preserve** changes the optimal engineering path completely.
-
-In our initial evaluation, the only reason to build inside the existing `stone-caster-2` tree was to avoid breaking assumed live saves. Without that constraint, keeping `stone-caster-2`'s existing tree means paying a massive tax on every task:
-- **5 overlapping code generations** (orphaned `src/`, dead AWF folders querying deleted tables, broken `game-v3`, Chimera 2-LLM + D100 `EngineService`, and F0a/F0b git-blob sync).
-- **19 historical SQL migrations** built around `save === compiled_story` (`chimera_game_states`) and nullable character worlds.
-- **Heavy legacy suppression debt:** 1,834 frozen baseline files, 849 baselined TypeScript errors, 1,067 Knip issues, 562 ESLint-suppressed files, Vitest 1.0, and Node 20/24 drift.
-- **29 `always_on` agent rules + 14 Cursor rules** containing Chimera mandates, `pnpm`/`npm` contradictions, and PowerShell-corrupted markdown.
-
-> [!IMPORTANT]
-> **Recommended Strategy — "Clean-Slate Modern Monorepo + Selective Harvest":**
-> Start StoneCaster 2.0 from a **zero-debt modern TypeScript workspace** (matching [`SparkBinder`](file:///C:/Dev/SparkBinder/package.json)'s clean toolchain: Node 24, `pnpm` + `turbo`, TypeScript 5.9 `strict` with **zero** suppression baselines, ESLint 9, Vitest 3, Playwright + `axe`, and a fresh `001` Postgres schema), while **harvesting the ~20% of `stone-caster-2` that is genuinely high value** alongside contracts and patterns from `SparkBinder` and `RPG Systems`.
-
-### Two Ways to Host the Clean Slate
-
-| Container Option | How It Works | Pros / Trade-offs |
+| # | Decision Area | Locked Direction |
 |---|---|---|
-| **Option 2A: Clean-Slate Reset on `stonecaster-2.0` Branch** *(in this repo)* | Clear legacy v1 directories on `stonecaster-2.0` (leaving `main` 100% intact as a frozen donor archive) and lay down the clean monorepo + `docs/Stonecaster_2_0/`. | Keeps single GitHub repo (`Daakon/stone-caster-2`); instant `git show main:<path>` harvesting; when happy, `stonecaster-2.0` simply replaces `main`. Requires branch/deploy fences until cutover. |
-| **Option 2B: Fresh Sibling Repository** *(e.g. `c:\Dev\StoneCaster-2`)* | Initialize a brand-new git repo at top level `c:\Dev\StoneCaster-2` (fixing the nested `Stone Caster\stone-caster-2` folder quirk) and copy `docs/Stonecaster_2_0/` + harvested donor modules across on disk. | **Zero** risk of ever merging into or deploying over v1 `main`; clean `git log` from commit #1; matches `c:\Dev\SparkBinder` layout directly. Requires pointing a new GitHub repo when ready to push. |
-
-*(Both options execute the exact same architecture and roadmap below; Option 2B is slightly cleaner ergonomically, while Option 2A fulfills keeping everything on a standalone branch inside the current repo.)*
+| **D1** | **Repository & Clean-Slate Container** | Initialize a **brand-new sibling repository (`C:\Dev\StoneCaster-2`)**. Keep `C:\Dev\Stone Caster\stone-caster-2` frozen as a read-only donor archive (zero legacy suppression debt, zero risk of merging/deploying to v1 `main`). |
+| **D2** | **`SparkBinder` as Canonical System Owner** | Place all shared system contracts, manifests, conformance kits, and `SystemHost` orchestration inside a **zero-StoneCaster-dependency package subtree (`packages/sparkbinder-systems/`)** using generic SparkBinder vocabulary so it lifts directly into [`SparkBinder`](file:///C:/Dev/SparkBinder/docs/PROJECT_STATE.md) once SparkBinder's system packets open. |
+| **D3** | **Unified 5-Layer System Model (Gameplay + Presentation)** | Model **both** gameplay domains (`Agency`, `Social`, `Character/Skills`, `Effects`, `Encounters`, `World Rules`, `Information`) **and** **Presentation / Narrative Direction** (`prose/tone/pacing/voice/dramatic-irony`, owning zero gameplay state per Modular Standard §17) as governed SparkBinder-shaped Systems (`Spec → Connections → Rules → Tests → Code` + AI prompt profile) so SparkBinder users can capitalize on AI Narrative/Prose systems too. |
+| **D4** | **Dual-Mode `SystemHost` Lifecycle from Day 1** | Implement `Intent → Validate → Gather Contributions → Reaction Window → Resolve → Reserve/Commit → Event` from Day 1 so **Mode 1 (Prompt-Adjudicated Rules)** and **Mode 2 (Deterministic TypeScript `CapabilityProvider`s)** execute side-by-side in the same turn. Ship MVP primarily with prompt-backed systems plus **1–2 TypeScript providers from [`RPG Systems`](file:///C:/Dev/RPG%20Systems/mystika-rpg-systems/README.md)** as proof. |
+| **D5** | **Tech Stack, Server, Auth & Persistence** | Match SparkBinder's workspace & API stack (**`Node 24`, `pnpm`, `Turborepo`, `TypeScript 5.9 strict`, `Fastify 5`, transactional `pg`/`Kysely` SQL with per-transaction RLS context**) paired with StoneCaster's low-ops cloud stack (**Supabase Auth + Supabase Postgres 17/`pgvector` + Fly.io + Cloudflare Workers**). |
+| **D6** | **`ModelGateway` & `Jev` Posture** | Clean `ModelGateway` port backed internally by **Vercel AI SDK** (`OpenAI`, `Anthropic`, `Google`, `OpenRouter` + deterministic `Mock`). Default to **1 scene-model call per routine turn** with prefix-cached prompts; keep `Jev` strictly optional/eval-only. |
+| **D7** | **MVP Vertical Slice World** | Build `P1`–`P3` on a **compact 2-scenario `Mystika` adventure slice** (testing `RPG Systems` + Mystika canon directly) paired with a tiny **synthetic Vitest world fixture** to enforce 100% world-agnosticism in code. |
+| **D8** | **Transport-Neutral Application Layer & MCP** | Build all gameplay and Creator Studio (10 assistant tools) logic in `packages/application` as **transport-neutral operations** (SparkBinder style) consumed by Web UI + in-app Creator Assistant in MVP, leaving a thin `apps/mcp` adapter ready for post-MVP. |
+| **D9** | **Perspective & "Two Knowers" Epistemics** | Default to strict **Perspective-Bound** storytelling (player sees only what their character perceives, matching Mystika), while tracking **`PC-known` vs. `Player-revealed`** separately in Postgres (preserving SparkBinder's 7 Narrative Continuity seams) so a Scenario or Presentation System can opt into cutscenes/dramatic irony without PC metagaming. |
+| **D10** | **Local-First → Cloud Staging Cadence** | Run **`P0`–`P3`** against a one-command local Docker Postgres/Supabase stack + GitHub Actions CI; provision fresh cloud staging/prod (`stonecaster-v2` Supabase + Fly.io + Cloudflare Worker) in **`P4`/`P5`**. |
+| **D11** | **Streamlined AI Agent Governance** | Concise `AGENTS.md` + `docs/PROJECT_STATE.md` + focused `<500`-line `skills/<name>/SKILL.md` (mirrored to `.agents/skills/`) + strict automated `pnpm check` gates, **without** SHA-locked packet-manifest friction. |
+| **D12** | **Visual Design System Harvest** | Harvest `stone-caster-2`'s `390px`-first dark literary [`tokens.css`](file:///C:/Dev/Stone%20Caster/stone-caster-2/docs/design/play-redesign/tokens.css) (`Fraunces`, `Newsreader`, `DM Sans`) and 3-column [`PlayShell.tsx`](file:///C:/Dev/Stone%20Caster/stone-caster-2/frontend/src/features/play/components/PlayShell.tsx), extending that visual language to Discovery and Creator Studio. |
 
 ---
 
-## 2. Coordinating `RPG Systems` ↔ `SparkBinder` ↔ `StoneCaster 2.0`
-
-Inspecting [`mystika-rpg-systems`](file:///C:/Dev/RPG%20Systems/mystika-rpg-systems/README.md) and [`SparkBinder`](file:///C:/Dev/SparkBinder/docs/PROJECT_STATE.md) revealed a **natural three-part architecture** that solves your exact goal: **ship the simpler prompt-driven StoneCaster 2.0 vision fast today, while allowing deep deterministic or hybrid RPG systems (like Mystika or current StoneCaster mechanics) to plug in cleanly over time without another rewrite.**
-
-### 2.1 Clear Role of Each Project (Zero Blocking Dependencies)
+## 2. Target Three-Project Ecosystem & Monorepo Architecture
 
 ```mermaid
-flowchart LR
-    subgraph RPG["1. RPG Systems (mystika-rpg-systems)"]
-        Specs["System Specs & Boundaries (Agency, Social, Info, Skills, Effects, Encounters, World)"]
-        Samples["Qualitative & Numeric Sample Fixtures (samples/*.json)"]
-        RefProof["Modular Gameplay Systems Standard Proof"]
+flowchart TB
+    subgraph Ecosystem["Three-Repo Synergy (C:\Dev\)"]
+        RPG["RPG Systems (mystika-rpg-systems)\nSpecs, Capability Boundaries, Mystika Data & Samples"]
+        SB["SparkBinder (Canonical System & Asset Platform)\nModular Gameplay Systems Standard + Narrative Continuity"]
+        Donor["stone-caster-2 (Read-Only Donor Archive)\ntokens.css, PlayShell, Auth/Media/Telemetry, Mystika Lore"]
     end
 
-    subgraph SB["2. SparkBinder (UGS Platform)"]
-        Standard["Modular Gameplay Systems Standard (ADR-0024..0027)"]
-        Maturity["5-Layer System Maturity: Spec -> Connections -> Rules -> Tests -> TS Code"]
-        NarrSeams["Narrative Continuity Seams (Canon vs Storyline vs Epistemics)"]
-        Pkg["Future: Governed PackageReleases + MCP + TS Package Target"]
+    subgraph Repo["C:\Dev\StoneCaster-2 (Clean-Slate Monorepo)"]
+        subgraph Portable["SparkBinder-Bound Portable Subtree (Zero StoneCaster Imports)"]
+            SBSys["packages/sparkbinder-systems\n• gameplay-package.json & 10 Port Kinds (ADR-0024)\n• Gameplay + Presentation System Contracts (§17)\n• SystemHost (Intent->Validate->Resolve->Reserve/Commit->Event)\n• Conformance Runner & RPG Systems Importer"]
+        end
+
+        subgraph Core["StoneCaster 2.0 Core Packages"]
+            Contracts["packages/contracts (Zod DTOs, Events, Epistemics)"]
+            ModelGW["packages/model-gateway (Vercel AI SDK + OpenRouter + Mock + Cost Ledger)"]
+            Persist["packages/persistence (pg/Kysely ACID Tx + RLS + Hybrid FTS/pgvector)"]
+            App["packages/application (Timeline, Party, Scenario, Context/RAG, PromptCompiler, SceneOrchestrator, Creator Studio Ops)"]
+            UI["packages/ui (Harvested tokens.css + shadcn/ui + PlayShell primitives)"]
+        end
+
+        subgraph Apps["Thin Delivery Surfaces"]
+            Web["apps/web (React 19 + Vite 7 + Cloudflare Worker)"]
+            API["apps/api (Fastify 5 + SSE/JSON Turn Transport on Fly.io)"]
+        end
     end
 
-    subgraph SC2["3. StoneCaster 2.0 (AI Story Runtime & Guided Studio)"]
-        SysStd["@stonecaster/system-standard (Shared Manifest & Port Contracts)"]
-        Mode1["Mode 1 (MVP): Prompt-Adjudicated System Providers (Rule Packs)"]
-        Mode2["Mode 2 (Growth): Hybrid / Deterministic TS Capability Providers"]
-        Runtime["Timeline + Portable Party + Scoped Hybrid RAG + PlayShell + Guided Creator"]
-    end
-
-    RPG -->|"Seeds specs, capability IDs & conformance cases"| SB
-    RPG -->|"Direct CLI import for MVP Rule Packs & eval fixtures"| SysStd
-    SB -->|"Shares Standard (gameplay-package.json) & 7 Narrative Seams"| SysStd
-    Pkg -.->|"Future: Import published TS System Packages & Worlds via PackageRelease / MCP"| SysStd
-    SysStd --> Mode1
-    SysStd --> Mode2
-    Mode1 --> Runtime
-    Mode2 --> Runtime
+    RPG -->|"Imports specs, samples & 1-2 TS providers"| SBSys
+    SBSys <-->|"1:1 Standard & lift-and-move ownership"| SB
+    Donor -->|"One-time harvest of UI shell & tokens"| UI
+    SBSys --> App
+    Contracts --> App
+    ModelGW --> App
+    Persist --> App
+    App --> API
+    UI --> Web
+    Web --> API
 ```
 
-> [!TIP]
-> **Why This Avoids Slowing Down StoneCaster 2.0:**
-> `SparkBinder` has a disciplined 57-packet roadmap (`UX-1` active; `B1-006` SystemContracts and `ADR-0027` TypeScript codegen still ahead). StoneCaster 2.0 **must not block** waiting for SparkBinder packets to ship. Instead, StoneCaster 2.0 adopts SparkBinder's **accepted data/contract standard now** (`modular-gameplay/package@1` from [`ADR-0024`](file:///C:/Dev/SparkBinder/docs/architecture/ADR/ADR-0024-modular-gameplay-system-model.md) + [`ADR-0027`](file:///C:/Dev/SparkBinder/docs/architecture/ADR/ADR-0027-typescript-package-build-target.md) and the 7 seams in [`NARRATIVE_CONTINUITY_NORTH_STAR_CANDIDATE.md`](file:///C:/Dev/SparkBinder/docs/ed-input/NARRATIVE_CONTINUITY_NORTH_STAR_CANDIDATE.md#L83-L94)). What we prove in StoneCaster 2.0's runtime can feed straight back into SparkBinder when those packets activate!
-
-### 2.2 The Unifying Seam: "Capability-Backed Rule Packs" (Bridging Simple AI Prompts Today → Deep Systems Tomorrow)
-
-In [`SYSTEM_MATURITY_PATH_OWNER_DIRECTION.md`](file:///C:/Dev/SparkBinder/docs/reviews/SYSTEM_MATURITY_PATH_OWNER_DIRECTION.md#L13-L19), you established that every gameplay system grows through five layers (**`Spec → Connections → Rules → Tests → Code`**) and that **unfinished/qualitative is a valid first-class state** (`Tiers 1..N`, `Types A/B`, and **Neutral Defaults** when unwired).
-
-By modeling StoneCaster 2.0's **Rule Packs** as **Modular Gameplay System Packages** (`@stonecaster/system-standard`), one unified runtime supports the entire spectrum of complexity:
-
-| System Maturity / Mode | What the Creator / Package Supplies | How StoneCaster 2.0 Executes It | When Used |
-|---|---|---|---|
-| **Mode 0: Unwired (Neutral Default)** | Nothing (system not enabled by World or Scenario) | Capability port returns its declared **Neutral Default** (e.g., no `Inventory` pack → gear is purely narrative flavor). | Minimalist story worlds |
-| **Mode 1: Prompt Provider (`Tier 1–2` Rule Pack)** | **Spec + Optional State Slice Schema + Allowed Events + Prompt Instructions + Worked Examples** (authored in plain English via Creator Studio or imported from `RPG Systems` markdown) | `PromptCompiler` injects the pack when `activationHints` match; Scene LLM adjudicates consequences in fiction and proposes typed `Events`; `OutcomeValidator` checks schema, actor permissions, and capability-owned state bounds. **Zero coded RPG math.** | **StoneCaster 2.0 MVP default** (`NPC Agency`, `Social/Relationships`, `Abilities`, `Tactical Conflict`) |
-| **Mode 2: Hybrid / Declarative / Code Provider (`Tier 2–3` System Package)** | Adds **TypeScript `CapabilityProvider`** (`validate`, `gatherModifiers`, `resolve`, `reserve/commit` from [`modular-standard-proof`](file:///C:/Dev/RPG%20Systems/mystika-rpg-systems/reference/modular-standard-proof/packages/ability-coordinator/gameplay-package.json) / SparkBinder `ADR-0027`) + Conformance Kit | During the turn (`Intent → Validate → Contributions → Reaction → Resolve → Commit → Event`), Node executes the TypeScript provider (either as LLM tool calls or deterministic pre/post-resolution hooks) and feeds verified mechanical facts + modifiers to the Scene LLM for narration! | **Long-term expansion** (`mystika-core-skills-resolution`, strict Inventory/Crafting reservations, Injury/Status, World Calendar/Simulation) |
-
-### 2.3 Preserving SparkBinder's 7 Narrative Continuity Seams in StoneCaster 2.0's Core Schema
-
-Aligning StoneCaster 2.0's Postgres schema with [`NARRATIVE_CONTINUITY_NORTH_STAR_CANDIDATE.md`](file:///C:/Dev/SparkBinder/docs/ed-input/NARRATIVE_CONTINUITY_NORTH_STAR_CANDIDATE.md#L34-L47) ensures Worlds, Lore, NPCs, and Arcs/Scenarios can later round-trip cleanly between SparkBinder and StoneCaster:
-
-1. **Single-Owner Capability State Slices:** Instead of one untyped `state` JSONB blob on `Timeline`, `PlayerCharacter`, and `NpcInstance`, partition mutable state by capability ID (`capability_state: Record<CapabilityId, unknown>`). Only events authorized by that capability's contract can mutate its slice.
-2. **Definition ≠ Occurrence:** Published `World`, `NpcDefinition`, `ScenarioDefinition`, `LoreItem`, and `SystemPackage` revisions are immutable definitions; `TimelineEvent` records occurrences on one specific player `Timeline`.
-3. **Typed Lore & Entity Relations:** Reference `(resource_id, revision)` via typed edges (`subject`, `target`, `relation_kind`), never loose free-text names.
-4. **"Players Are Two Knowers" + Epistemic Provenance:** Separate `world_fact` (canon), `timeline_fact` (occurred), `character_claim` (`known` vs `belief` with `truth_status` + `source_event_id` for NPCs *and* the Player Character), and `player_reveal` (what the human player's UI dossier/journal is allowed to show).
-5. **World-Relative Temporal Anchor:** Store optional structured temporal placement (`{ calendarId?, era?, ordinal?, displayLabel }`) on events/lore rather than forcing real-world timestamps for in-world history.
-
----
-
-## 3. Designing for Rapid AI Evolution (2026–2028)
-
-StoneCaster v1/Chimera aged poorly because it encoded 2024-era LLM workarounds (`Jev` closed-set classifier → `MAS-1` JSON interpreter → hardcoded D100 math → `MAS-2` constrained narrator) directly into domain state and UI. StoneCaster 2.0 isolates volatile AI capabilities behind **five replaceable seams**:
-
-1. **`TurnExecutionStrategy` Interface (1-Call Default, Pluggable Deliberation):**
-   - **MVP Default (`SingleSceneStrategy`):** One structured-output call to a strong model handles cast agency, dialogue, narration, and proposed events simultaneously.
-   - **Future Drop-Ins:** `ToolCallingSceneStrategy` (LLM calls deterministic `Mode 2` TypeScript system packages mid-turn), `PlanAndVoiceStrategy` (strict epistemic redaction between director plan and NPC dialogue), or `StreamingAudioSceneStrategy`—all emitting the identical `ProposedTurn` contract into `OutcomeValidator`.
-2. **Prefix-Cached `PromptCompiler`:**
-   - Orders prompt blocks strictly from most-static to most-dynamic (`Platform Contract` → `Pinned World + System/RulePack Revisions` → `Scenario + Cast` → `Scoped RAG & Capability State` → `Recent Turns + Action`) to hit 75–90% provider prompt-cache discounts automatically across Anthropic, OpenAI, Google, and OpenRouter.
-3. **Capability-Driven `ModelGateway` (Zero Hardcoded Model Names or Prices):**
-   - Routes by abstract profile (`standard`, `premium`, `fast_aux`, `creator`, `embedding`) backed by DB/config capability metadata (`structuredOutput`, `promptCaching`, `toolUse`, `reasoningEffort`, `contextWindow`, token rates). Adding a 2027 frontier model = adding config + running the eval gate.
-4. **Derived-Only Embeddings & Compaction (`Event Log = Source of Truth`):**
-   - `timeline_events`, `relationships`, and `character_claims` are canonical SQL records; `knowledge_chunks` (`tsvector` + `pgvector`) and rolling summaries are **100% rebuildable caches**. Switching embedding dimensions/models or expanding context budgets never corrupts saves.
-5. **Automated Conformance & Eval Harness (`Vitest` + `Promptfoo`):**
-   - Every model upgrade or new System/Rule Pack runs against reproducible fixtures (including `RPG Systems` `samples/*.json` and the 50-case continuity/epistemic/agency corpus) so you can empirically measure when a single model call outperforms multi-step pipelines (or vice versa).
-
----
-
-## 4. Concrete Harvest Map Across Your Local Repos
-
-| Source Repo | What We Harvest | What We Leave Behind |
-|---|---|---|
-| **`stone-caster-2`** | • [`tokens.css`](file:///C:/Dev/Stone%20Caster/stone-caster-2/docs/design/play-redesign/tokens.css), Tailwind literary theme (`Fraunces`, `Newsreader`, `DM Sans`), `check-design-tokens.mjs`, `shadcn/ui` primitives<br>• Phase 0 [`PlayShell.tsx`](file:///C:/Dev/Stone%20Caster/stone-caster-2/frontend/src/features/play/components/PlayShell.tsx), `ThreeColumnLayout`, `SlimRail`, `CastStack`, `PlayComposer` (decoupled from Chimera)<br>• Supabase Auth/JWT verification, Cloudflare Images uploader, `AsyncLocalStorage` LLM telemetry<br>• Mystika world/NPC/lore prose from `content/first-party/` as optional seed content | All Gen 0–4 backend engines (`AWF`, `game-v3`, `DirectorService`, `EngineService`, `Mas2Service`, `JevShadowService`), `CastingCircleWizard`, F0a/F0b git-blob sync, 19 Chimera SQL migrations, and 1,834-file suppression baselines |
-| **`SparkBinder`** | • Clean workspace architecture & scripts (`Node 24`, `pnpm`, `turbo`, `TS 5.9 strict`, `ESLint 9`, `Vitest 3`, `Playwright` + `axe`, inward dependency guardrails)<br>• `Modular Gameplay Systems Standard` (`ADR-0024`–`0027`) port/maturity concepts & Narrative Continuity epistemic model<br>• Crisp `<500`-line `skills/<name>/SKILL.md` agent skill structure | Heavyweight 57-packet gate ceremony, AWS CDK/Fastify/Alembic stack, spreadsheet/ChangeSet review inbox, full marketplace commerce |
-| **`RPG Systems`** | • [`modular-standard-proof`](file:///C:/Dev/RPG%20Systems/mystika-rpg-systems/reference/modular-standard-proof/packages/contracts/src/index.ts) TypeScript contracts, `gameplay-package.schema.json`, and conformance runner pattern<br>• Core domain boundaries & initial Rule Pack content from `systems/{agency-behavior,social,information,character,skills,effects,encounters,world-rules}` + `samples/*.json` | Unfinished town-governance layer (`settlement-governance`) and unresolved `TBD` math formulas until ready |
-
-### Proposed Clean-Slate Monorepo Layout
+### Target Directory Layout (`C:\Dev\StoneCaster-2`)
 
 ```text
-stonecaster-2/
+C:\Dev\StoneCaster-2\
 ├── apps/
-│   ├── web/                     # React 19 + Vite + Tailwind + tokens.css + PlayShell + Creator Studio (Cloudflare Worker)
-│   └── api/                     # Node 24 + Express/Fastify thin HTTP routes + SSE/JSON turn endpoints (Fly.io)
+│   ├── web/                        # React 19 + Vite + TanStack Query + Zustand (Cloudflare Worker)
+│   └── api/                        # Fastify 5 thin HTTP/SSE routes + Supabase JWT verification (Fly.io)
 ├── packages/
-│   ├── system-standard/         # Shared Modular Gameplay Systems Standard (manifests, capability IDs, Mode 1/2 provider contracts, conformance runner — SparkBinder & RPG Systems compatible!)
-│   ├── contracts/               # Shared Zod schemas & API DTOs (Worlds, Characters, Timelines, Parties, Scenarios, Events, Epistemics)
-│   ├── runtime/                 # TimelineService, ScenarioService, PartyService, ContextOrchestrator, RulePackResolver, PromptCompiler, SceneOrchestrator, OutcomeValidator, MemoryWorker
-│   ├── model-gateway/           # Provider-neutral AI adapters (OpenAI, Anthropic, Google, OpenRouter, Mock) + cost/cache telemetry
-│   ├── persistence/             # Supabase Postgres client, typed repositories, atomic sc2_commit_turn RPC, hybrid FTS+pgvector queries
-│   └── default-systems/         # Starter System/Rule Packs (NPC Agency, Social/Relationships, Abilities, Tactical Conflict) + RPG Systems importer
+│   ├── sparkbinder-systems/        # ZERO StoneCaster deps! Portable to SparkBinder:
+│   │                               #   System/Presentation manifests, 10 port kinds, SystemHost
+│   │                               #   (Mode 1 Prompt + Mode 2 TS providers), Conformance Kit, RPG Systems CLI importer
+│   ├── contracts/                  # Shared Zod schemas (Worlds, Characters, Timelines, Parties, Scenarios, Epistemics)
+│   ├── application/                # Transport-neutral operations:
+│   │                               #   TimelineService, ScenarioService, PartyService, ContextOrchestrator,
+│   │                               #   PromptCompiler, SceneOrchestrator, OutcomeValidator, MemoryWorker,
+│   │                               #   and the 10 Creator Studio Assistant operations
+│   ├── model-gateway/              # Provider-neutral AI gateway (Vercel AI SDK: OpenAI, Anthropic, Google, OpenRouter, Mock + optional Jev)
+│   ├── persistence/                # Transactional pg/Kysely repositories, RLS context setter, hybrid tsvector + pgvector RRF
+│   └── ui/                         # Harvested tokens.css, Tailwind preset, shadcn/ui, decoupled PlayShell & Studio cards
+├── content/
+│   └── seeds/                      # Compact 2-scenario Mystika slice + starter Gameplay & Presentation Systems
 ├── supabase/
-│   ├── config.toml              # Isolated local Docker stack (project_id = "stonecaster-v2")
-│   ├── migrations/              # Clean 001+ SQL schema, RLS policies, hybrid search & atomic turn commit RPCs
-│   └── seed/                    # Emberlight Academy vertical-slice seed + imported Mystika sample seed
-├── evals/                       # Vitest deterministic conformance + Promptfoo 50-case model/rule-pack evaluation suite
-├── skills/                      # Canonical cross-agent SKILL.md files (mirrored/linked into .agents/skills/)
-└── docs/Stonecaster_2_0/        # Authoritative design pack + ADRs
+│   ├── config.toml                 # Isolated local Docker stack (project_id = "stonecaster-2")
+│   └── migrations/                 # Clean 001_initial_schema.sql + RLS + pgvector HNSW + tsvector GIN
+├── evals/                          # Vitest conformance suites + Promptfoo 50-case model/system evaluation harness
+├── scripts/                        # check-architecture.ts, check-design-tokens.mjs, local-stack.mjs, deploy-preflight.mjs
+├── skills/                         # Canonical <500-line SKILL.md library (linked into .agents/skills/)
+├── docs/
+│   ├── design/                     # Copied from docs/Stonecaster_2_0/stonecaster2-design/ + ADRs
+│   └── PROJECT_STATE.md            # Lightweight current milestone & handoff tracker
+├── AGENTS.md                       # Concise universal agent entrypoint (with thin CLAUDE.md / GEMINI.md pointers)
+├── pnpm-workspace.yaml
+└── turbo.json
 ```
 
 ---
 
-## 5. Infrastructure, AI Skills/Instructions & Deployment Pipelines (Clean-Slate Edition)
+## 3. Infrastructure, AI Skills & Deployment Pipeline Blueprint
 
-Starting clean eliminates 90% of the CI/deployment workarounds required by the legacy codebase while keeping strict safety fences:
+### 3.1 AI Skills & Instructions (`AGENTS.md` + `skills/` / `.agents/skills/`)
+- **Root Entrypoints:** Concise `AGENTS.md` defining authority order (`docs/design/00_START_HERE.md` → ADRs → `AGENTS.md`), inward dependency rules (specifically enforcing **zero `@stonecaster/*` imports inside `packages/sparkbinder-systems`**), `390×844` mobile-first design tokens, and `pnpm check` completion gates. Thin pointers in `CLAUDE.md`, `GEMINI.md`, and `.cursor/rules/`.
+- **Seven Progressive-Disclosure `SKILL.md` Files:**
+  1. `sc2-architecture-and-boundaries` — inward monorepo dependencies, `sparkbinder-systems` portability wall, Definition vs. Instance, Narrative vs. Persistence authority.
+  2. `sc2-sparkbinder-systems` — authoring Gameplay & Presentation Systems (`Spec → Connections → Rules → Tests → Code`), `SystemHost` Mode 1 (Prompt) vs. Mode 2 (TS Code), and importing from `RPG Systems`.
+  3. `sc2-persistence-and-epistemics` — transactional `pg`/`Kysely` patterns, RLS session claims, capability-partitioned state slices, and `world_fact` / `character_claim` / `pc_known` / `player_reveal` queries.
+  4. `sc2-context-rag-and-evals` — hybrid `tsvector` + `pgvector` RRF retrieval, untrusted-lore quoting, prefix-cached prompt assembly, and `Promptfoo` evaluation runs.
+  5. `sc2-mobile-play-and-studio-ux` — `390×844` → `1100` → `1440` layout, harvested `tokens.css` & `PlayShell`, perspective-bound vs. dramatic-irony rendering, Creator Studio cards, Playwright + `axe`.
+  6. `sc2-local-stack-and-testing` — one-command local Docker Postgres/Supabase lifecycle, deterministic Mock AI + synthetic world fixtures, and conformance testing.
+  7. `sc2-cloud-deploy-and-ops` — guarded `P4`/`P5` deployment to dedicated `stonecaster-v2` Supabase, Fly.io (`Node 24` OCI container), and Cloudflare Worker, plus model cost/quota verification.
 
-1. **Zero-Baseline Strict CI Pipeline (`.github/workflows/ci.yml`):**
-   - Runs on `stonecaster-2.0` (or `main` if in a fresh sibling repo) with **Node 24** and **zero legacy suppression files**: `format:check → lint (ESLint 9 + jsx-a11y + design-tokens) → typecheck (TS 5.9 strict) → architecture:check (inward package boundaries) → test (Vitest unit + local Postgres RLS/atomic-turn integration) → test:e2e (Playwright 390/1100/1440 + axe)`.
-   - Separate `evals.yml` workflow (manual / model-or-rulepack path trigger) running `Promptfoo` conformance suites.
-2. **Complete Environment & Deployment Isolation:**
-   - **Local Dev:** Single command (`pnpm dev` / `pnpm db:up`) always boots against isolated local Docker Supabase (`stonecaster-v2`), never touching v1 `.env` or hosted `obfadjnywufemhhhcxiy`. Startup config includes a hard deny-list fence rejecting the v1 Supabase project ref.
-   - **Hosted Staging & Prod (`v2` Dedicated Resources):**
-     - **Supabase:** Fresh `stonecaster-v2` project (clean Auth, Storage, `pgvector` HNSW, `tsvector` GIN, RLS).
-     - **Fly.io:** `fly.toml` targeting `stonecaster-v2-api` on `node:24-alpine` (with branch/target preflight check in deploy scripts; no manual PowerShell scripts with hardcoded v1 secrets).
-     - **Cloudflare Workers:** `wrangler.toml` targeting `stonecaster-v2-web` (`workers.dev` preview first; custom domain cutover only when ready).
-   - **MCP & Secret Hygiene:** Strict `.gitignore` (`.env*` except `.env.example`/`.env.local-demo`, `.claude/*.local.json`, `/tmp/`), plus read-only/docs-only `.mcp.json` by default so agents never run live DDL against hosted databases.
-3. **Clean AI Agent Governance (`AGENTS.md` + `skills/<name>/SKILL.md`):**
-   - One concise root `AGENTS.md` (with thin `CLAUDE.md`, `GEMINI.md`, and `.cursor/rules/` pointers—just like `SparkBinder`), replacing all 43 legacy/corrupted `.agent` and `.cursor` rule files.
-   - **7 Focused Progressive-Disclosure Skills** in `skills/` (and `.agents/skills/` for automatic Antigravity discovery):
-     1. `sc2-architecture-boundaries` — package dependency direction, Definition vs. Instance, and Narrative vs. Persistence authority.
-     2. `sc2-system-standard-and-packs` — authoring Mode 1 (Prompt) and Mode 2 (Hybrid/TS) System Packages compatible with `RPG Systems` & `SparkBinder`.
-     3. `sc2-persistence-and-epistemics` — SQL migrations, RLS, atomic `commit_turn` RPC, capability state slices, and `world_fact`/`character_claim`/`player_reveal` boundaries.
-     4. `sc2-context-rag-and-evals` — hybrid `tsvector` + `pgvector` RRF retrieval, untrusted-lore quoting, cache-aligned prompt compilation, and `Promptfoo` evals.
-     5. `sc2-mobile-play-and-studio-ux` — `390×844` mobile-first layout, `tokens.css`, harvested `PlayShell`, Creator Studio flows, Playwright + `axe`.
-     6. `sc2-local-dev-and-testing` — one-command local Supabase/Postgres lifecycle, deterministic Mock AI fixtures, and conformance testing.
-     7. `sc2-release-and-deploy` — guarded deployment to `stonecaster-v2` staging/prod, model profile verification, and cost-budget checks.
+### 3.2 CI/CD, Environment Safety & Deployment Pipelines
+- **Zero-Suppression `pnpm check` Gate (`.github/workflows/ci.yml`):**
+  Runs on Node `24.20.x` + `pnpm`: `format:check → lint (ESLint 9 + jsx-a11y + design-tokens) → typecheck (TS 5.9 strict) → architecture:check (enforces package graph & sparkbinder-systems isolation) → test (Vitest 3 unit + disposable Postgres RLS/transaction integration) → test:e2e (Playwright 390/1100/1440 + axe)`.
+- **AI Evaluation Pipeline (`.github/workflows/evals.yml`):**
+  Runs `Promptfoo` + `SystemHost` conformance fixtures on demand or when `packages/sparkbinder-systems`, `packages/model-gateway`, or `content/seeds` change.
+- **Hard Environment & Secret Fences:**
+  - `.gitignore` blocks all `.env*` (except `.env.example` and `.env.local-demo`), `.claude/*.local.json`, and `/tmp/`.
+  - Startup config includes a hard deny-list rejecting the legacy v1 Supabase project ref (`obfadjnywufemhhhcxiy`).
+  - `.mcp.json` defaults to docs/read-only so no coding agent can mutate hosted databases.
+- **Cloud Deployment Targets (Activated in `P4`/`P5`):**
+  - **Database & Auth:** Fresh standalone `stonecaster-v2` Supabase project (`Postgres 17`, `pgvector`, OAuth/Email Auth, RLS).
+  - **API (`apps/api`):** `Dockerfile` (`node:24-alpine`) + `fly.toml` (`stonecaster-v2-api`) with preflight target verification.
+  - **Web (`apps/web`):** `wrangler.toml` (`stonecaster-v2-web` Cloudflare Worker) deploying to `*.workers.dev` preview first, cutting over custom domain only at launch.
 
 ---
 
-## 6. Streamlined Phased Roadmap (`P0` → `P5`)
-
-Starting from a clean slate removes the legacy strangler/cleanup phase completely and gets to playable software much faster:
+## 4. Phased Implementation Roadmap (`P0` → `P5`)
 
 ```mermaid
 flowchart LR
-    P0["P0: Clean Monorepo, Harvested UI/Auth Shell, @stonecaster/system-standard & Skills"] --> P1["P1: Clean 001 Schema, Capability State Slices & Headless A->B Party Proof"]
-    P1 --> P2["P2: ModelGateway, 1-Call Scene Runtime & PlayShell Vertical Slice"]
-    P2 --> P3["P3: Epistemic Hybrid RAG, MemoryWorker & RPG-Systems Rule Packs"]
-    P3 --> P4["P4: AI-Guided Creator Studio, Playtest Sandbox & Package Export/Import"]
-    P4 --> P5["P5: 50-Case Eval Matrix, Mode-2 Hybrid TS System Proof, Quotas & Launch"]
+    P0["P0: C:\Dev\StoneCaster-2 Repo, sparkbinder-systems Host, Harvested UI & Skills"] --> P1["P1: 001 Schema, Two-Knower Epistemics & Headless Mystika A->B Proof"]
+    P1 --> P2["P2: ModelGateway, 1-Call Runtime & PlayShell Mystika Vertical Slice"]
+    P2 --> P3["P3: Hybrid FTS+pgvector RAG, MemoryWorker & Gameplay/Prose Systems"]
+    P3 --> P4["P4: Transport-Neutral Creator Studio, Sandbox Playtest & Cloud Staging"]
+    P4 --> P5["P5: 50-Case Eval Suite, RPG Systems TS Provider Proof, Quotas & Launch"]
 ```
 
-- **Phase P0 — Clean-Slate Workspace, Harvested Shell, `@stonecaster/system-standard` & AI Tooling:**
-  Stand up the clean Node 24 + `pnpm` + `turbo` monorepo (`apps/{web,api}`, `packages/*`), harvest `tokens.css` + `shadcn/ui` + decoupled `PlayShell` + Supabase Auth/Telemetry, implement `@stonecaster/system-standard` (`modular-gameplay/package@1` contracts + Mode 1/Mode 2 provider interface), wire zero-suppression CI gates, and install the new `AGENTS.md` + 7 `SKILL.md` skills.
-- **Phase P1 — Core Domain, Capability-Partitioned Persistence & Headless Scenario A → B Proof:**
-  Write clean `001_sc2_core.sql` (immutable revisions for Worlds/NPCs/Scenarios/SystemPackages; `PlayerCharacters`, `Timelines`, `NpcInstances`, `PartyMemberships`, `ScenarioRuns`, capability-keyed state slices, SparkBinder-aligned epistemic claims, and atomic `sc2_commit_turn` RPC). Seed `Emberlight Academy` (`Rowan`, `Lyra`, `Tessa`, `Provost Merin`, Scenarios A & B) and pass headless A→B portable-party & timeline isolation gates (`ID-01`, `TL-01`, `NPC-01`, `NPC-03`, `SC-01..03`, `RT-01`).
-- **Phase P2 — `ModelGateway`, Single-Call Story Runtime & Interactive Player UX:**
-  Implement `ModelGateway` (OpenAI, Anthropic, Google, OpenRouter, Mock + cache/cost ledger), `SingleSceneStrategy` + `OutcomeValidator`, and the full `390px` Player UX (`Discover → World → Character/Timeline → Party & Scenario Preflight → PlayShell with actor dialogue/threads/journal → Outcome Summary`). Pass interactive A→B playtesting (`NPC-02`, `RT-02`, `MOD-01`, `UX-01`).
-- **Phase P3 — Scoped Hybrid RAG, Epistemic Memory & `RPG Systems`-Backed Rule Packs:**
-  Add `knowledge_chunks` (`tsvector` GIN + `pgvector` HNSW + RRF) with pre-retrieval epistemic filtering (`world_fact` vs `character_claim` vs `creator_secret`), async `MemoryWorker`, prefix-cached `PromptCompiler`, and starter System/Rule Packs seeded from `RPG Systems` (`agency-behavior`, `social`, `skills`, `encounters`) + *"Why did this NPC say that?"* inspector (`KNOW-01..02`, `RAG-01`, `RULE-01..02`).
-- **Phase P4 — Guided Creator Studio, Sandbox Playtest & Ecosystem Package Portability:**
-  Build the 4-entry Creator Studio (`World`, `NPC`, `Scenario`, `System / Rule Pack`) with `Quick / Guided / Advanced` Chat + Structured Cards, 10 ACL-checked assistant tools, disposable Sandbox Playtest, Publish Wizard, and import/export of `gameplay-package.json` manifests so content & systems move cleanly between `RPG Systems`, `SparkBinder`, and `StoneCaster 2.0` (`CR-01..02`).
-- **Phase P5 — Eval Corpus, Mode 2 Hybrid TypeScript Provider Proof, Cost Quotas & Launch:**
-  Run the 50-case `Promptfoo` + `Vitest` evaluation suite across model profiles; **prove long-term extensibility by plugging in one real Mode 2 TypeScript `CapabilityProvider`** (e.g., `RPG Systems` `inventory-reservation` or `mystika-core-skills-resolution` running alongside prompt packs without touching `Timeline` or `PlayShell`!); enable model/token usage budgets and deploy to dedicated `stonecaster-v2` staging/prod.
+### Phase P0 — Repository Bootstrap, `sparkbinder-systems` Core, UI Harvest & AI Tooling
+- Initialize `C:\Dev\StoneCaster-2` (`Node 24`, `pnpm`, `Turborepo`, `TS 5.9 strict`, `ESLint 9`, `Vitest 3`, `Playwright` + `axe`, `Fastify 5`), copy `docs/Stonecaster_2_0/` into `docs/design/`, author `AGENTS.md`, `PROJECT_STATE.md`, and the 7 `SKILL.md` files.
+- Implement `packages/sparkbinder-systems` (`gameplay-package.json` schemas, 10 port kinds, Gameplay + Presentation System contracts, and the `SystemHost` `Intent → Validate → Contributions → Reaction → Resolve → Reserve/Commit → Event` pipeline + Conformance Kit).
+- Harvest `tokens.css`, `shadcn/ui` primitives, `check-design-tokens.mjs`, and decoupled `PlayShell` (`ThreeColumnLayout`, `SlimRail`, `CastStack`, `PlayComposer`) into `packages/ui` and `apps/web`.
+- **Exit Gate:** `pnpm check` passes end-to-end in <30s with zero suppressions; `PlayShell` renders cleanly at `390px`/`1100px`/`1440px` against fixture data; `sparkbinder-systems` passes unit conformance tests including a reference TypeScript provider from `RPG Systems`.
 
----
+### Phase P1 — Core Persistence, Two-Knower Epistemics & Headless Scenario A → B Proof
+- Build `packages/contracts` and `packages/persistence` (`001_initial_schema.sql`, RLS policies, transactional `pg`/`Kysely` commit boundary): immutable revisions (`worlds`, `npc_definitions`, `scenario_definitions`, `system_packages`), `player_characters`, `timelines`, `npc_instances`, `party_memberships`, `scenario_runs`, capability-keyed state slices, and Two-Knower epistemic records (`world_fact`, `timeline_fact`, `character_claim`, `pc_known`, `player_reveal`).
+- Implement `TimelineService`, `ScenarioService`, `PartyService` in `packages/application` + Fastify endpoints in `apps/api`.
+- Seed the **compact 2-scenario `Mystika` slice** alongside a **tiny synthetic Vitest world fixture**.
+- **Exit Gate:** Automated Postgres integration tests pass **`ID-01`, `TL-01`, `NPC-01`, `NPC-03`, `SC-01`, `SC-02`, `SC-03`, `RT-01`** (recruit companion in Scenario A, complete/leave A, carry identical `NpcInstance` + capability state + history into Scenario B, strict isolation from Timeline 2).
 
-## 7. Decisions to Lock Before Breaking Down Phase P0
+### Phase P2 — `ModelGateway`, Single-Call Story Runtime & Interactive `Mystika` UX
+- Build `packages/model-gateway` (Vercel AI SDK adapters for OpenAI, Anthropic, Google, OpenRouter + deterministic `Mock` + cost/cache telemetry ledger + optional `Jev` hook).
+- Implement `SingleSceneStrategy`, prefix-cached `PromptCompiler`, and `OutcomeValidator` (schema, identity/consent, capability ownership, 1 bounded repair max, zero synthetic fallback prose on error) over SSE/JSON turn transport.
+- Build the `390px`-first Player screens in `apps/web`: `Discover → World (Mystika) → Character/Timeline → Party & Scenario Preflight → Active PlayShell (perspective-bound prose, attributed NPC dialogue, active Story Threads, Relationship Journal, Presentation preferences) → Scenario Outcome/Leave Summary`.
+- **Exit Gate:** Interactive end-to-end `Mystika` Scenario A → Scenario B playthrough passes **`NPC-02`, `RT-02`, `MOD-01`, `UX-01`** across two real model profiles and Playwright + `axe` E2E suites.
 
-1. **Clean-Slate Container — `Option 2A` (Clean-Slate Reset on `stonecaster-2.0` Branch) vs. `Option 2B` (Fresh Sibling Repo `c:\Dev\StoneCaster-2`):**
-   - Do you want to wipe the legacy files on the standalone `stonecaster-2.0` branch inside this repo (keeping `main` untouched as a donor archive), **or** initialize a brand-new sibling repository at `c:\Dev\StoneCaster-2` (matching `c:\Dev\SparkBinder` with zero legacy git baggage)?
-2. **Toolchain Alignment with `SparkBinder` (`pnpm` + `Turborepo` + `Node 24`):**
-   - Since `SparkBinder` already runs `Node 24` + `pnpm` + `Turborepo` + `TS 5.9` + `ESLint 9` + `Vitest 3`, aligning StoneCaster 2.0 to that exact workspace toolchain makes sharing `@stonecaster/system-standard` (or future `@sparkbinder/*` packages) frictionless. Confirm you're happy adopting **`pnpm` + `Turborepo` + `Node 24`** for the clean slate?
-3. **API Server Framework (`Express` vs. `Fastify`):**
-   - `stone-caster-2` used Express 4; `SparkBinder` uses Fastify (faster, native schema/TypeScript ergonomics, cleaner plugin isolation). Since routes are thin adapters over `packages/runtime`, either is easy—do you prefer **Fastify** (matching `SparkBinder`) or **Express 5 / Hono**?
-4. **`RPG Systems` → `StoneCaster 2.0` Bridge Scope in MVP:**
-   - Confirm you like the **Dual-Mode `@stonecaster/system-standard` design** (where MVP ships fast using **Mode 1 Prompt Rule Packs** seeded from `RPG Systems` specs, and **Phase P5 proves one Mode 2 TypeScript `CapabilityProvider`** so you know for certain deeper Mystika/SparkBinder systems can plug in cleanly later)?
+### Phase P3 — Scoped Hybrid RAG, `MemoryWorker` & `RPG Systems` Gameplay + Presentation Packs
+- Add `knowledge_chunks` (`tsvector` GIN + `pgvector` HNSW + Reciprocal Rank Fusion) with pre-retrieval epistemic filtering (enforcing `pc_known` vs. `player_reveal` vs. `character_claim` vs. `creator_secret`) and untrusted-content prompt-injection framing.
+- Implement async idempotent `MemoryWorker` + rolling transcript compaction.
+- Build the `RPG Systems` importer and ship initial **Gameplay Systems** (`Agency`, `Social/Relationships`, `Skills/Capabilities`, `Encounters/Tactical Conflict`, `Information/Perspective`) plus **Presentation Systems** (`Literary Concise`, `Cinematic Detailed`, `Dramatic Irony Opt-In`), along with the *"Why did this NPC say that?"* debug inspector.
+- **Exit Gate:** Passes **`KNOW-01`, `KNOW-02`, `RAG-01`, `RULE-01`, `RULE-02`** (companion recalls Scenario A promise in Scenario B via hybrid recall; inaccessible secrets never leak; false NPC beliefs remain distinct from world truth).
+
+### Phase P4 — Guided Creator Studio, Sandbox Playtest & Cloud Staging Launch
+- Implement the 10 transport-neutral Creator Assistant operations in `packages/application` (`draft_world`, `draft_npc`, `draft_scenario`, `draft_system_pack`, `search_world_content`, `validate_draft`, `preview_context`, `run_playtest`, `suggest_revision`, `publish_revision`).
+- Build the mobile-first Creator Studio UI in `apps/web` (`Quick Create`, `Guided`, and `Advanced` Chat + Structured Cards + World Connections browser + Markdown/TXT/PDF seed upload + **Playtest Sandbox** with `Reset` and context inspector + **Publish Wizard** with plain-language rubric & `owner-only`/`approval-required`/`open-community` permissions).
+- Provision and deploy isolated cloud staging (`stonecaster-v2` Supabase + `stonecaster-v2-api` Fly.io + `stonecaster-v2-web` Cloudflare Worker) with GitHub Actions CI/CD.
+- **Exit Gate:** Non-expert creator flow passes **`CR-01` and `CR-02`** live on mobile/desktop staging without raw JSON or prompt engineering.
+
+### Phase P5 — Evaluation Matrix, Mode 2 TypeScript System Proof, Cost Quotas & Launch Readiness
+- Complete the 50+ case reproducible `Promptfoo` + `Vitest` evaluation corpus across Standard, Premium, and Experimental model profiles.
+- **End-to-End Hybrid System Proof:** Wire 1–2 real **Mode 2 TypeScript `CapabilityProvider` packages** from `RPG Systems` (e.g., `Resource/Inventory Reservation` and a `Skills` resolution slice) running side-by-side with Mode 1 Prompt Systems inside `Mystika`—proving deep deterministic systems plug in with zero changes to `Timeline` or `PlayShell`, and verifying `packages/sparkbinder-systems` is ready to lift cleanly into `SparkBinder`.
+- Finalize per-user/tier model & token usage budgets, observability redaction, and production launch checklist.
+- **Exit Gate:** 100% pass on deterministic isolation/epistemic/conformance suites, >=90% target on seeded narrative/agency evals, verified per-turn cost guardrails, and beta launch readiness.
