@@ -1,53 +1,55 @@
+import { record, number } from "../../utils/value";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
 interface SensoryObserverProps {
-    gameState: any; // Weakly typed for Phase 5.5 flexibility
+  gameState: unknown; // Weakly typed for Phase 5.5 flexibility
 }
 
 export function SensoryObserver({ gameState }: SensoryObserverProps) {
-    const prevStamina = useRef<number | null>(null);
-    const prevHp = useRef<number | null>(null);
+  const prevStamina = useRef<number | null>(null);
+  const prevHp = useRef<number | null>(null);
 
-    // Refs for DOM manipulation
-    const vignetteRef = useRef<HTMLDivElement>(null);
+  // Refs for DOM manipulation
+  const vignetteRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!gameState?.tier1_mechanical) return;
+  useEffect(() => {
+    const state = record(gameState);
+    if (!state.tier1_mechanical) return;
+    const mechanical = record(state.tier1_mechanical);
 
-        const currentStamina = gameState.tier1_mechanical.current_stamina ?? 100;
-        const currentHp = gameState.tier1_mechanical.current_hp ?? 100;
+    const currentStamina = number(mechanical.current_stamina, 100);
+    const currentHp = number(mechanical.current_hp, 100);
 
-        // 1. Impulse: Screen Shake (Stamina Drop > 20)
-        // We track the delta.
-        if (prevStamina.current !== null) {
-            const staminaLoss = prevStamina.current - currentStamina;
-            if (staminaLoss > 20) {
-                triggerShake();
-            }
-        }
+    // 1. Impulse: Screen Shake (Stamina Drop > 20)
+    // We track the delta.
+    if (prevStamina.current !== null) {
+      const staminaLoss = prevStamina.current - currentStamina;
+      if (staminaLoss > 20) {
+        triggerShake();
+      }
+    }
 
-        // 2. Continuous: Low Health Vignette (HP < 30)
-        if (vignetteRef.current) {
-            if (currentHp < 30) {
-                vignetteRef.current.style.opacity = '1';
-                vignetteRef.current.style.animation = 'pulse-red 2s infinite';
-            } else {
-                vignetteRef.current.style.opacity = '0';
-                vignetteRef.current.style.animation = 'none';
-            }
-        }
+    // 2. Continuous: Low Health Vignette (HP < 30)
+    if (vignetteRef.current) {
+      if (currentHp < 30) {
+        vignetteRef.current.style.opacity = "1";
+        vignetteRef.current.style.animation = "pulse-red 2s infinite";
+      } else {
+        vignetteRef.current.style.opacity = "0";
+        vignetteRef.current.style.animation = "none";
+      }
+    }
 
-        // Update Refs
-        prevStamina.current = currentStamina;
-        prevHp.current = currentHp;
+    // Update Refs
+    prevStamina.current = currentStamina;
+    prevHp.current = currentHp;
+  }, [gameState]);
 
-    }, [gameState]);
-
-    return (
-        <>
-            {/* VisualFX Styles Injected Locally for self-containment */}
-            <style>{`
+  return (
+    <>
+      {/* VisualFX Styles Injected Locally for self-containment */}
+      <style>{`
         @keyframes shake {
           0% { transform: translate(1px, 1px) rotate(0deg); }
           10% { transform: translate(-1px, -2px) rotate(-1deg); }
@@ -87,21 +89,22 @@ export function SensoryObserver({ gameState }: SensoryObserverProps) {
             100% { opacity: 0.5; }
         }
       `}</style>
-            <div ref={vignetteRef} className="fx-vignette" />
-        </>
-    );
+      <div ref={vignetteRef} className="fx-vignette" />
+    </>
+  );
 }
 
 function triggerShake() {
-    // We shake the narrative container only (stabilize HUD)
-    const root = document.getElementById('game-narrative-container') || document.body;
-    root.classList.remove('animate-shake');
-    // Force reflow
-    void root.offsetWidth;
-    root.classList.add('animate-shake');
+  // We shake the narrative container only (stabilize HUD)
+  const root =
+    document.getElementById("game-narrative-container") || document.body;
+  root.classList.remove("animate-shake");
+  // Force reflow
+  void root.offsetWidth;
+  root.classList.add("animate-shake");
 
-    // Cleanup
-    setTimeout(() => {
-        root.classList.remove('animate-shake');
-    }, 550);
+  // Cleanup
+  setTimeout(() => {
+    root.classList.remove("animate-shake");
+  }, 550);
 }

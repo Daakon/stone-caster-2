@@ -1,13 +1,122 @@
-import { Router, type Request, type Response } from 'express';
-import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from '@shared';
-import { ContentService } from '../services/content.service.js';
-import { supabase, supabaseAdmin } from '../services/supabase.js';
-import { z } from 'zod';
-import type { PostgrestError } from '@supabase/supabase-js';
-import { config } from '../config/index.js';
+import { Router, type Request, type Response } from "express";
+import { sendSuccess, sendErrorWithStatus } from "../utils/response.js";
+import { ApiErrorCode } from "@shared";
+import { ContentService } from "../services/content.service.js";
+import { supabase, supabaseAdmin } from "../services/supabase.js";
+import { z } from "zod";
+import type { PostgrestError } from "@supabase/supabase-js";
+import { config } from "../config/index.js";
+
+import { WorldContentReadService } from "../services/content/world-content-read.service.js";
+import {
+  WorldReadQuerySchema,
+  WorldReadIdSchema,
+} from "../../../shared/src/types/chimera-world-read.js";
+import { ServiceError } from "../utils/serviceError.js";
+import { sendError, getTraceId } from "../utils/response.js";
+
+import { StoryContentReadService } from "../services/content/story-content-read.service.js";
+import {
+  StoryReadQuerySchema,
+  StoryReadIdSchema,
+} from "../../../shared/src/types/chimera-story-read.js";
+
+import { NpcCatalogReadService } from "../services/content/npc-catalog-read.service.js";
+import { NpcCatalogQuerySchema } from "../../../shared/src/types/chimera-npc-catalog-read.js";
+import { EntityReadIdSchema } from "../../../shared/src/types/chimera-entity-read.js";
 
 const router = Router();
+async function publicStoryRead(
+  req: Request,
+  res: Response,
+  action: (service: StoryContentReadService) => Promise<unknown>,
+): Promise<void> {
+  try {
+    sendSuccess(
+      res,
+      await action(
+        StoryContentReadService.forRequest(undefined, getTraceId(req)),
+      ),
+      req,
+    );
+  } catch (error) {
+    if (error instanceof ServiceError)
+      return sendError(
+        res,
+        error.error.code,
+        error.error.message,
+        req,
+        error.statusCode,
+      );
+    if (error instanceof z.ZodError)
+      return sendError(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        "Invalid story read request",
+        req,
+        422,
+      );
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "story_read_route_failed",
+        traceId: getTraceId(req),
+      }),
+    );
+    sendError(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      "Story content is temporarily unavailable.",
+      req,
+      503,
+    );
+  }
+}
+
+async function publicWorldRead(
+  req: Request,
+  res: Response,
+  action: (service: WorldContentReadService) => Promise<unknown>,
+): Promise<void> {
+  try {
+    const service = WorldContentReadService.forRequest(
+      undefined,
+      getTraceId(req),
+    );
+    sendSuccess(res, await action(service), req);
+  } catch (error) {
+    if (error instanceof ServiceError)
+      return sendError(
+        res,
+        error.error.code,
+        error.error.message,
+        req,
+        error.statusCode,
+      );
+    if (error instanceof z.ZodError)
+      return sendError(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        "Invalid world read request",
+        req,
+        422,
+      );
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "public_world_read_route_failed",
+        traceId: getTraceId(req),
+      }),
+    );
+    sendError(
+      res,
+      ApiErrorCode.INTERNAL_ERROR,
+      "World content is temporarily unavailable.",
+      req,
+      503,
+    );
+  }
+}
 
 /**
  * Check if Chimera V2 is enabled via feature flag
@@ -24,7 +133,7 @@ type WorldVisibilityAwareResult<T> = {
 };
 
 type WorldVisibilityAwareExecutor<T> = (
-  includeVisibilityColumn: boolean
+  includeVisibilityColumn: boolean,
 ) => Promise<WorldVisibilityAwareResult<T>>;
 
 const WORLD_VISIBILITY_ERROR_REGEX = /worlds(?:_\d+)?\.visibility/i;
@@ -36,11 +145,11 @@ const isWorldVisibilityColumnError = (error?: PostgrestError | null) => {
     return false;
   }
 
-  if (error.code !== '42703') {
+  if (error.code !== "42703") {
     return false;
   }
 
-  const message = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase();
+  const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
   return WORLD_VISIBILITY_ERROR_REGEX.test(message);
 };
 
@@ -51,21 +160,29 @@ const logWorldVisibilityFallbackWarning = () => {
 
   worldVisibilityFallbackLogged = true;
   console.warn(
-    '[catalog] Missing worlds.visibility column; applying review_state-only fallback. Run Phase 0 publishing migration to restore full gating.'
+    "[catalog] Missing worlds.visibility column; applying review_state-only fallback. Run Phase 0 publishing migration to restore full gating.",
   );
 };
 
 const executeWithWorldVisibilityFallback = async <T>(
-  executor: WorldVisibilityAwareExecutor<T>
+  executor: WorldVisibilityAwareExecutor<T>,
 ): Promise<WorldVisibilityAwareResult<T>> => {
   const includeVisibilityColumn = worldVisibilityColumnAvailable !== false;
   let response = await executor(includeVisibilityColumn);
 
-  if (response.error && includeVisibilityColumn && isWorldVisibilityColumnError(response.error)) {
+  if (
+    response.error &&
+    includeVisibilityColumn &&
+    isWorldVisibilityColumnError(response.error)
+  ) {
     worldVisibilityColumnAvailable = false;
     logWorldVisibilityFallbackWarning();
     response = await executor(false);
-  } else if (!response.error && worldVisibilityColumnAvailable === null && includeVisibilityColumn) {
+  } else if (
+    !response.error &&
+    worldVisibilityColumnAvailable === null &&
+    includeVisibilityColumn
+  ) {
     worldVisibilityColumnAvailable = true;
   }
 
@@ -74,16 +191,17 @@ const executeWithWorldVisibilityFallback = async <T>(
 
 const buildWorldRelationshipSelect = (
   includeVisibilityColumn: boolean,
-  extraFields: string[] = ['name']
+  extraFields: string[] = ["name"],
 ) => {
-  const fields = new Set<string>([...extraFields, 'review_state']);
+  const fields = new Set<string>([...extraFields, "review_state"]);
   if (includeVisibilityColumn) {
-    fields.add('visibility');
+    fields.add("visibility");
   }
-  return `worlds:world_id (${Array.from(fields).join(', ')})`;
+  return `worlds:world_id (${Array.from(fields).join(", ")})`;
 };
 
-const extractWorldRecord = (worldField: any) => (Array.isArray(worldField) ? worldField[0] : worldField);
+const extractWorldRecord = (worldField: any) =>
+  Array.isArray(worldField) ? worldField[0] : worldField;
 
 const isWorldPublicAndApproved = (world: any) => {
   if (!world) {
@@ -91,524 +209,107 @@ const isWorldPublicAndApproved = (world: any) => {
   }
 
   if (worldVisibilityColumnAvailable === false) {
-    return world.review_state === 'approved';
+    return world.review_state === "approved";
   }
 
-  return world.visibility === 'public' && world.review_state === 'approved';
+  return world.visibility === "public" && world.review_state === "approved";
 };
 
-// GET /api/catalog/worlds
-// Phase 4.10: Standardized - search support via query parameter
-router.get('/worlds', async (req: Request, res: Response) => {
-  try {
-    const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
-    console.log('[CATALOG] GET /worlds - Starting query', searchQuery ? `(search: ${searchQuery})` : '');
-
-    // Phase 4.9: Select ONLY existing columns to prevent "column not found" errors
-    // chimera_worlds has: id, key, name, slug, tags, visibility, is_official, definition (JSONB), created_at, updated_at
-    let query = supabaseAdmin
-      .from('chimera_worlds')
-      .select('id, key, name, slug, tags, visibility, is_official, definition, created_at, updated_at')
-      .or('visibility.eq.public,is_official.eq.true');
-
-    // Phase 4.10: Add search filter if provided (searches name and tags)
-    if (searchQuery) {
-      // Search in name (text) and tags (array) - use ilike for name, contains for tags
-      query = query.or(`name.ilike.%${searchQuery}%,tags.cs.{${searchQuery}}`);
-    }
-
-    const { data: worldsData, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('[CATALOG] GET /worlds - Supabase query error:', error);
-      console.error('[CATALOG] Error code:', error.code);
-      console.error('[CATALOG] Error message:', error.message);
-      console.error('[CATALOG] Error details:', error.details);
-      throw error;
-    }
-
-    console.log('[CATALOG] GET /worlds - Query successful, found', worldsData?.length || 0, 'worlds');
-
-    // Phase 4.9: Extract data from definition JSONB (Chimera V3 schema)
-    // Transform to public catalog DTO
-    const data = (worldsData || []).map((w: any) => {
-      const definition = w.definition || {};
-      const images = definition.images || [];
-      const coverImage = images.length > 0 ? images[0] : null;
-
-      return {
-        id: w.id,
-        name: w.name || definition.name || 'Unnamed World',
-        slug: w.slug || w.key || w.id,
-        tagline: definition.tagline || '',
-        short_desc: definition.summary || definition.short_desc || definition.description || '',
-        hero_quote: definition.hero_quote || '',
-        status: 'active', // Chimera worlds are always active
-        // Phase 4.9: Extract cover_media from definition.images
-        cover_media: coverImage ? {
-          id: coverImage.id || null,
-          provider_key: coverImage.url || coverImage.provider_key || null,
-        } : null,
-        created_at: w.created_at,
-        updated_at: w.updated_at,
-      };
-    });
-
-    console.log('[CATALOG] GET /worlds - Returning', data.length, 'worlds');
-    sendSuccess(res, data, req);
-  } catch (error: any) {
-    console.error('[CATALOG] GET /worlds - CATALOG WORLD ERROR:', error);
-    console.error('[CATALOG] Error stack:', error.stack);
-    sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch worlds', req, {
-      error: error.message,
-      code: error.code,
-    });
-  }
-});
-
-// GET /api/catalog/worlds/:idOrSlug
-router.get('/worlds/:idOrSlug', async (req: Request, res: Response) => {
-  try {
-    const { idOrSlug } = req.params;
-    console.log('[CATALOG] GET /worlds/:idOrSlug - Looking up:', idOrSlug);
-
-    // PHASE 3: Fix UUID/slug handling - check if parameter is UUID format
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-
-    let query = supabaseAdmin.from('chimera_worlds').select('*');
-
-    if (isUUID) {
-      // Strict ID match for UUIDs
-      query = query.eq('id', idOrSlug);
-    } else {
-      // Slug/Key match for text identifiers (Fixes "invalid input syntax for uuid")
-      query = query.or(`slug.eq.${idOrSlug},key.eq.${idOrSlug}`);
-    }
-
-    const { data: world, error } = await query.or('visibility.eq.public,is_official.eq.true').single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        console.log('[CATALOG] GET /worlds/:idOrSlug - World not found:', idOrSlug);
-        return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'World not found', req);
-      }
-      console.error('[CATALOG] GET /worlds/:idOrSlug - Supabase query error:', error);
-      throw error;
-    }
-
-    if (!world) {
-      console.log('[CATALOG] GET /worlds/:idOrSlug - World not found (null result):', idOrSlug);
-      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'World not found', req);
-    }
-
-    // Phase 4.9: Extract data from definition JSONB (Chimera V3 schema)
-    const definition = world.definition || {};
-    const images = definition.images || [];
-    const coverImage = images.length > 0 ? images[0] : null;
-
-    const data = {
-      id: world.id,
-      name: world.name || definition.name || 'Unnamed World',
-      slug: world.slug || world.key || world.id,
-      tagline: definition.tagline || '',
-      short_desc: definition.summary || definition.short_desc || definition.description || '',
-      hero_quote: definition.hero_quote || '',
-      status: 'active', // Chimera worlds are always active
-      // Phase 4.9: Extract cover_media from definition.images
-      cover_media: coverImage ? {
-        id: coverImage.id || null,
-        provider_key: coverImage.url || coverImage.provider_key || null,
-      } : null,
-      created_at: world.created_at,
-      updated_at: world.updated_at,
-    };
-
-    console.log('[CATALOG] GET /worlds/:idOrSlug - Returning world:', data.id);
-    sendSuccess(res, data, req);
-  } catch (error: any) {
-    console.error('[CATALOG] GET /worlds/:idOrSlug - CATALOG WORLD ERROR:', error);
-    console.error('[CATALOG] Error stack:', error.stack);
-    sendErrorWithStatus(res, ApiErrorCode.INTERNAL_ERROR, 'Failed to fetch world', req, {
-      error: error.message,
-      code: error.code,
-    });
-  }
-});
+// Public catalog always uses the published audience, including requests bearing an admin token.
+router.get("/worlds", (req: Request, res: Response) =>
+  publicWorldRead(req, res, (service) =>
+    service.catalogList(WorldReadQuerySchema.parse(req.query)),
+  ),
+);
+router.get("/worlds/:idOrSlug", (req: Request, res: Response) =>
+  publicWorldRead(req, res, (service) =>
+    service.catalogFind(WorldReadIdSchema.parse(req.params.idOrSlug)),
+  ),
+);
 
 // GET /api/catalog/stories (unified - mirrors entry-points)
 // Phase 4.10: Standardized - search support via query parameter
-router.get('/stories', async (req: Request, res: Response) => {
+router.get("/stories", (req: Request, res: Response) =>
+  publicStoryRead(req, res, (service) =>
+    service.catalogList(StoryReadQuerySchema.parse(req.query)),
+  ),
+);
+router.get("/stories/:idOrSlug", (req: Request, res: Response) =>
+  publicStoryRead(req, res, (service) =>
+    service.catalogFind(StoryReadIdSchema.parse(req.params.idOrSlug)),
+  ),
+);
+
+// Public authoring catalog always uses the anonymous published audience.
+async function publicNpcRead(
+  req: Request,
+  res: Response,
+  action: (service: NpcCatalogReadService) => Promise<unknown>,
+): Promise<void> {
   try {
-    const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
-    console.log('[CATALOG] GET /stories - Starting query', searchQuery ? `(search: ${searchQuery})` : '');
-
-    // Phase 5: Query chimera_stories directly (V3 Schema)
-    let query = supabaseAdmin
-      .from('chimera_stories')
-      .select('id, title, display_name, description, description_short, image_url, world_id, content_rating, created_at, updated_at, status', { count: 'exact' })
-      .in('status', ['compiled', 'bound']) // Only show playable stories
-      .order('created_at', { ascending: false });
-
-    // Phase 4.10: Add search filter if provided
-    if (searchQuery) {
-      query = query.or(`title.ilike.%${searchQuery}%,display_name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
-    }
-
-    const { data: storiesData, error, count } = await query;
-
-    if (error) {
-      console.error('[CATALOG] GET /stories - Supabase query error:', error);
-      throw error;
-    }
-
-    // Transform to catalog DTO format
-    const items = (storiesData || []).map((story: any) => {
-      return {
-        id: story.id,
-        slug: story.id, // Use ID as slug
-        type: 'story',
-        title: story.title || story.display_name || 'Untitled Story',
-        subtitle: null,
-        description: story.description || story.description_short || 'No description available',
-        synopsis: story.description_short || null,
-        tags: [], // Tags not yet in chimera_stories top-level?
-        world_id: story.world_id,
-        world_name: null, // Would need lookup
-        world_slug: null,
-        content_rating: story.content_rating,
-        is_playable: true,
-        has_prompt: true, // Assumed if compiled
-        cover_media: story.image_url ? {
-          id: null,
-          provider_key: story.image_url,
-          url: story.image_url
-        } : null,
-        created_at: story.created_at,
-        updated_at: story.updated_at,
-      };
-    });
-
-    // Return unified response format
-    res.json({
-      ok: true,
-      data: items,
-      meta: {
-        total: count || items.length,
-        limit: 20,
-        offset: 0,
-        filters: searchQuery ? { search: searchQuery } : {},
-        sort: '-updated'
-      }
-    });
-  } catch (error) {
-    console.error('catalog.stories error:', error);
-    res.status(500).json({
-      ok: false,
-      error: 'Failed to fetch stories',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// GET /api/catalog/stories/:idOrSlug (unified - mirrors entry-points)
-router.get('/stories/:idOrSlug', async (req: Request, res: Response) => {
-  try {
-    const { idOrSlug } = req.params;
-
-    // Check if UUID
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-
-    let query = supabaseAdmin
-      .from('chimera_stories')
-      .select(`
-        id, title, display_name, description, description_short, image_url, world_id, content_rating, created_at, updated_at, status, configuration,
-        world:chimera_worlds (id, name, slug)
-      `);
-
-    if (isUUID) {
-      query = query.eq('id', idOrSlug);
-    } else {
-      // Stories don't have slugs yet, so only ID supported for now. Fallback to ID check.
-      query = query.eq('id', idOrSlug);
-    }
-
-    const { data: story, error } = await query.single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return res.status(404).json({
-          ok: false,
-          error: 'Story not found'
-        });
-      }
-      console.error('Supabase query error:', error);
-      throw error;
-    }
-
-    if (!story) {
-      return res.status(404).json({
-        ok: false,
-        error: 'Story not found'
-      });
-    }
-
-    const dto = {
-      id: story.id,
-      slug: story.id,
-      type: 'story',
-      title: story.title || story.display_name || 'Untitled Story',
-      subtitle: null,
-      description: story.description || story.description_short || 'No description available',
-      synopsis: story.description_short || null,
-      tags: [],
-      world_id: story.world_id,
-      world_name: story.world?.name || null,
-      world_slug: story.world?.slug || null,
-      content_rating: story.content_rating,
-      is_playable: true,
-      has_prompt: true,
-      cover_media: story.image_url ? {
-        id: null,
-        provider_key: story.image_url,
-        url: story.image_url
-      } : null,
-      rulesets: (story.configuration as any)?.rulesetIds || [],
-      created_at: story.created_at,
-      updated_at: story.updated_at,
-    };
-
-    res.json({
-      ok: true,
-      data: dto
-    });
-  } catch (error) {
-    console.error('catalog.story detail error:', error);
-    res.status(500).json({
-      ok: false,
-      error: 'Failed to fetch story',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Schema for NPCs query parameters
-// Phase 4.10: Support both 'q' and 'search' for consistency
-const NPCsQuerySchema = z.object({
-  q: z.string().optional(),
-  search: z.string().optional(), // Alias for 'q' for consistency
-  world: z.string().uuid().optional(),
-  activeOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val => val === '1' || val === 'true'),
-  limit: z.string().optional().transform(val => val ? parseInt(val, 10) : 20),
-  offset: z.string().optional().transform(val => val ? parseInt(val, 10) : 0),
-});
-
-// GET /api/catalog/npcs
-router.get('/npcs', async (req: Request, res: Response) => {
-  try {
-    const queryValidation = NPCsQuerySchema.safeParse(req.query);
-    if (!queryValidation.success) {
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.VALIDATION_FAILED,
-        'Invalid query parameters',
-        req,
-        queryValidation.error.errors
-      );
-    }
-
-    const filters = queryValidation.data;
-
-    const limit = Math.min(filters.limit || 20, 100);
-    const offset = filters.offset || 0;
-
-    // Phase 4.3: Use chimera_entities instead of deleted npcs table
-    let query = supabaseAdmin
-      .from('chimera_entities')
-      .select('id, slug, entity_type, owner_user_id, visibility, world_id, display_name, primary_image_url, raw_data, created_at, updated_at', { count: 'exact' })
-      .eq('entity_type', 'NPC') // Only NPCs
-      .eq('visibility', 'public'); // Only public entities
-
-    // Filter by world_id if provided (world_id is in raw_data JSONB)
-    if (filters.world) {
-      // Note: JSONB filtering - world_id is stored in raw_data
-      // We'll filter client-side for now, or use a more complex query
-      // For now, fetch all and filter client-side
-    }
-
-    // Apply search query (will filter client-side from raw_data)
-    // Note: For production, consider adding a GIN index on raw_data and using JSONB operators
-
-    query = query.order('created_at', { ascending: false });
-    query = query.range(offset, offset + limit - 1);
-
-    const { data, error, count } = await query;
-
-    if (error) {
-      console.error('[catalog/npcs] Supabase query error:', error);
-      return sendErrorWithStatus(
-        res,
-        ApiErrorCode.INTERNAL_ERROR,
-        'Failed to fetch NPCs',
-        req
-      );
-    }
-
-    // Phase 4.3: Extract data from raw_data JSONB and transform to catalog DTO
-    let npcs = (data || []).map((entity: any) => {
-      const rawData = entity.raw_data || {};
-      const displayName = entity.display_name || rawData.display_name || rawData.name || entity.slug;
-      const description = rawData.description_short || rawData.description || '';
-      const worldId = entity.world_id || rawData.world_id || null;
-
-      // Extract images from raw_data if available
-      const images = rawData.images || [];
-      const coverImage = images.length > 0 ? images[0] : null;
-
-      return {
-        id: entity.id,
-        name: displayName,
-        slug: entity.slug,
-        description: description,
-        worldId: worldId,
-        status: 'active', // Chimera entities are always active
-        visibility: entity.visibility,
-        archetype: rawData.archetype || null,
-        roleTags: rawData.role_tags || rawData.tags || [],
-        portraitUrl: rawData.portrait_url || entity.primary_image_url || null,
-        cover_media: coverImage ? {
-          id: coverImage.id || null,
-          provider_key: coverImage.url || coverImage.provider_key || null,
-        } : null,
-        doc: rawData || {},
-        createdAt: entity.created_at,
-        updatedAt: entity.updated_at,
-      };
-    });
-
-    // Apply world filter if provided (client-side filter)
-    if (filters.world) {
-      npcs = npcs.filter((npc: any) => npc.worldId === filters.world);
-    }
-
-    // Phase 4.10: Apply search query if provided (client-side filter)
-    // Support both 'q' and 'search' parameters
-    const searchTerm = filters.q || filters.search;
-    if (searchTerm) {
-      const queryLower = searchTerm.toLowerCase();
-      npcs = npcs.filter((npc: any) =>
-        npc.name.toLowerCase().includes(queryLower) ||
-        npc.description.toLowerCase().includes(queryLower) ||
-        (npc.roleTags || []).some((tag: string) => tag.toLowerCase().includes(queryLower))
-      );
-    }
-
     sendSuccess(
       res,
-      {
-        items: npcs,
-        total: count || 0,
-        limit,
-        offset,
-      },
-      req
+      await action(NpcCatalogReadService.forPublic(getTraceId(req))),
+      req,
     );
   } catch (error) {
-    console.error('[catalog/npcs] Error:', error);
-    sendErrorWithStatus(
-      res,
-      ApiErrorCode.INTERNAL_ERROR,
-      'Failed to fetch NPCs',
-      req
-    );
-  }
-});
-
-// GET /api/catalog/npcs/:id
-router.get('/npcs/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    // Phase 4.3: Use chimera_entities instead of deleted npcs table
-    let entityQuery = supabaseAdmin
-      .from('chimera_entities')
-      .select('id, slug, entity_type, owner_user_id, visibility, world_id, display_name, primary_image_url, raw_data, created_at, updated_at')
-      .eq('entity_type', 'NPC')
-      .eq('visibility', 'public');
-
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    entityQuery = uuidPattern.test(id)
-      ? entityQuery.eq('id', id)
-      : entityQuery.eq('slug', id);
-
-    const { data: entity, error } = await entityQuery.single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'NPC not found', req);
-      }
-      console.error('[catalog/npcs/:id] Supabase query error:', error);
-      return sendErrorWithStatus(
+    if (error instanceof ServiceError)
+      return sendError(
         res,
-        ApiErrorCode.INTERNAL_ERROR,
-        'Failed to fetch NPC',
-        req
+        error.error.code,
+        error.error.message,
+        req,
+        error.statusCode,
       );
-    }
-
-    if (!entity) {
-      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'NPC not found', req);
-    }
-
-    // Phase 4.3: Extract data from raw_data JSONB
-    const rawData = entity.raw_data || {};
-    const displayName = entity.display_name || rawData.display_name || rawData.name || entity.slug;
-    const description = rawData.description_short || rawData.description || '';
-    const worldId = entity.world_id || rawData.world_id || null;
-
-    // Extract images from raw_data if available
-    const images = rawData.images || [];
-    const coverImage = images.length > 0 ? images[0] : null;
-
-    const npcDto = {
-      id: entity.id,
-      name: displayName,
-      slug: entity.slug,
-      description: description,
-      worldId: worldId,
-      status: 'active', // Chimera entities are always active
-      visibility: entity.visibility,
-      archetype: rawData.archetype || null,
-      roleTags: rawData.role_tags || rawData.tags || [],
-      portraitUrl: rawData.portrait_url || entity.primary_image_url || null,
-      cover_media: coverImage ? {
-        id: coverImage.id || null,
-        provider_key: coverImage.url || coverImage.provider_key || null,
-      } : null,
-      doc: rawData || {},
-      createdAt: entity.created_at,
-      updatedAt: entity.updated_at,
-    };
-
-    sendSuccess(res, npcDto, req);
-  } catch (error) {
-    console.error('[catalog/npcs/:id] Error:', error);
-    sendErrorWithStatus(
+    if (error instanceof z.ZodError)
+      return sendError(
+        res,
+        ApiErrorCode.VALIDATION_FAILED,
+        "Invalid NPC read request",
+        req,
+        422,
+      );
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "npc_read_route_failed",
+        traceId: getTraceId(req),
+      }),
+    );
+    sendError(
       res,
       ApiErrorCode.INTERNAL_ERROR,
-      'Failed to fetch NPC',
-      req
+      "NPC content is temporarily unavailable.",
+      req,
+      503,
     );
   }
-});
+}
+
+router.get("/npcs", (req: Request, res: Response) =>
+  publicNpcRead(req, res, (service) =>
+    service.list(NpcCatalogQuerySchema.parse(req.query)),
+  ),
+);
+router.get("/npcs/:id", (req: Request, res: Response) =>
+  publicNpcRead(req, res, (service) =>
+    service.find(EntityReadIdSchema.parse(req.params.id)),
+  ),
+);
 
 // GET /api/catalog/rulesets — placeholder
-router.get('/rulesets', async (req: Request, res: Response) => {
+router.get("/rulesets", async (req: Request, res: Response) => {
   sendSuccess(res, [], req);
 });
 
 // GET /api/catalog/rulesets/:id — placeholder
-router.get('/rulesets/:id', async (req: Request, res: Response) => {
-  return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Ruleset not found', req);
+router.get("/rulesets/:id", async (req: Request, res: Response) => {
+  return sendErrorWithStatus(
+    res,
+    ApiErrorCode.NOT_FOUND,
+    "Ruleset not found",
+    req,
+  );
 });
 
 // ============================================================================
@@ -619,40 +320,61 @@ const ListQuerySchema = z.object({
   // Filters
   world: z.string().uuid().optional(),
   q: z.string().optional(),
-  tags: z.union([z.string(), z.array(z.string())]).optional().transform(val =>
-    val ? (Array.isArray(val) ? val : [val]) : undefined
-  ),
-  rating: z.union([z.string(), z.array(z.string())]).optional().transform(val =>
-    val ? (Array.isArray(val) ? val : [val]) : undefined
-  ),
-  visibility: z.union([z.string(), z.array(z.string())]).optional().transform(val =>
-    val ? (Array.isArray(val) ? val : [val]) : undefined
-  ),
-  activeOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val =>
-    val === undefined ? true : (val === '1' || val === 'true')
-  ),
-  playableOnly: z.enum(['0', '1', 'true', 'false']).optional().transform(val =>
-    val === undefined ? true : (val === '1' || val === 'true')
-  ),
+  tags: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => (val ? (Array.isArray(val) ? val : [val]) : undefined)),
+  rating: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => (val ? (Array.isArray(val) ? val : [val]) : undefined)),
+  visibility: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((val) => (val ? (Array.isArray(val) ? val : [val]) : undefined)),
+  activeOnly: z
+    .enum(["0", "1", "true", "false"])
+    .optional()
+    .transform((val) =>
+      val === undefined ? true : val === "1" || val === "true",
+    ),
+  playableOnly: z
+    .enum(["0", "1", "true", "false"])
+    .optional()
+    .transform((val) =>
+      val === undefined ? true : val === "1" || val === "true",
+    ),
 
   // Sorting
-  sort: z.enum(['-updated', '-created', '-popularity', 'alpha', 'custom']).optional().default('-updated'),
+  sort: z
+    .enum(["-updated", "-created", "-popularity", "alpha", "custom"])
+    .optional()
+    .default("-updated"),
 
   // Pagination
-  limit: z.string().optional().transform(val => {
-    const num = val ? parseInt(val, 10) : 20;
-    return Math.min(Math.max(num, 1), 100);
-  }),
-  offset: z.string().optional().transform(val => {
-    const num = val ? parseInt(val, 10) : 0;
-    return Math.max(num, 0);
-  }),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => {
+      const num = val ? parseInt(val, 10) : 20;
+      return Math.min(Math.max(num, 1), 100);
+    }),
+  offset: z
+    .string()
+    .optional()
+    .transform((val) => {
+      const num = val ? parseInt(val, 10) : 0;
+      return Math.max(num, 0);
+    }),
 });
 
 function computeIsPlayable(row: any): boolean {
-  if (row.lifecycle !== 'active') return false;
-  if (row.visibility === 'private') return false;
-  if (!row.prompt || (typeof row.prompt === 'object' && Object.keys(row.prompt).length === 0)) {
+  if (row.lifecycle !== "active") return false;
+  if (row.visibility === "private") return false;
+  if (
+    !row.prompt ||
+    (typeof row.prompt === "object" && Object.keys(row.prompt).length === 0)
+  ) {
     return false;
   }
   // entry_id column was removed - entry_points.id is now the primary identifier
@@ -661,7 +383,10 @@ function computeIsPlayable(row: any): boolean {
 }
 
 function computeHasPrompt(row: any): boolean {
-  return row.prompt && (typeof row.prompt !== 'object' || Object.keys(row.prompt).length > 0);
+  return (
+    row.prompt &&
+    (typeof row.prompt !== "object" || Object.keys(row.prompt).length > 0)
+  );
 }
 
 function transformToCatalogDTO(row: any, includeDetail = false): any {
@@ -671,7 +396,7 @@ function transformToCatalogDTO(row: any, includeDetail = false): any {
     type: row.type,
     title: row.name,
     subtitle: null,
-    description: row.description || row.synopsis || 'No description available',
+    description: row.description || row.synopsis || "No description available",
     synopsis: row.synopsis || null,
     tags: row.tags || [],
     world_id: row.world_id || null,
@@ -696,31 +421,31 @@ function transformToCatalogDTO(row: any, includeDetail = false): any {
 
 function buildSortClause(sort: string): { column: string; ascending: boolean } {
   switch (sort) {
-    case '-created':
-      return { column: 'created_at', ascending: false };
-    case '-popularity':
+    case "-created":
+      return { column: "created_at", ascending: false };
+    case "-popularity":
       // Note: popularity_score doesn't exist yet in schema
-      return { column: 'updated_at', ascending: false };
-    case 'alpha':
-      return { column: 'title', ascending: true };
-    case 'custom':
+      return { column: "updated_at", ascending: false };
+    case "alpha":
+      return { column: "title", ascending: true };
+    case "custom":
       // Note: sort_weight doesn't exist yet in schema
-      return { column: 'updated_at', ascending: false };
-    case '-updated':
+      return { column: "updated_at", ascending: false };
+    case "-updated":
     default:
-      return { column: 'updated_at', ascending: false };
+      return { column: "updated_at", ascending: false };
   }
 }
 
 // GET /api/catalog/entry-points
-router.get('/entry-points', async (req: Request, res: Response) => {
+router.get("/entry-points", async (req: Request, res: Response) => {
   try {
     const queryValidation = ListQuerySchema.safeParse(req.query);
     if (!queryValidation.success) {
       return res.status(400).json({
         ok: false,
-        error: 'Invalid query parameters',
-        details: queryValidation.error.errors
+        error: "Invalid query parameters",
+        details: queryValidation.error.errors,
       });
     }
 
@@ -730,14 +455,14 @@ router.get('/entry-points', async (req: Request, res: Response) => {
     const from = filters.offset;
     const to = from + filters.limit - 1;
 
-    const { data, error, count } = await executeWithWorldVisibilityFallback<any[]>(includeVisibility => {
+    const { data, error, count } = await executeWithWorldVisibilityFallback<
+      any[]
+    >((includeVisibility) => {
       const worldRelationship = buildWorldRelationshipSelect(includeVisibility);
 
       // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
-      let query = supabase
-        .from('entry_points')
-        .select(
-          `
+      let query = supabase.from("entry_points").select(
+        `
         id,
         slug,
         type,
@@ -758,48 +483,50 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         created_at,
         updated_at
       `,
-          { count: 'exact' }
-        );
+        { count: "exact" },
+      );
 
       if (filters.activeOnly) {
-        query = query.eq('lifecycle', 'active');
+        query = query.eq("lifecycle", "active");
       }
 
       if (filters.visibility) {
-        query = query.in('visibility', filters.visibility);
+        query = query.in("visibility", filters.visibility);
       } else {
-        query = query.eq('visibility', 'public');
+        query = query.eq("visibility", "public");
       }
 
-      query = query.eq('review_state', 'approved');
-      query = query.eq('dependency_invalid', false);
+      query = query.eq("review_state", "approved");
+      query = query.eq("dependency_invalid", false);
 
       if (filters.world) {
-        query = query.eq('world_id', filters.world);
+        query = query.eq("world_id", filters.world);
       }
 
       if (filters.tags && filters.tags.length > 0) {
-        query = query.contains('tags', filters.tags);
+        query = query.contains("tags", filters.tags);
       }
 
       if (filters.rating && filters.rating.length > 0) {
-        query = query.in('content_rating', filters.rating);
+        query = query.in("content_rating", filters.rating);
       }
 
       if (filters.q) {
         query = query.or(
-          `name.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`
+          `name.ilike.%${filters.q}%,description.ilike.%${filters.q}%,synopsis.ilike.%${filters.q}%`,
         );
       }
 
-      query = query.order(sortConfig.column, { ascending: sortConfig.ascending });
+      query = query.order(sortConfig.column, {
+        ascending: sortConfig.ascending,
+      });
       query = query.range(from, to);
 
       return query;
     });
 
     if (error) {
-      console.error('Supabase query error:', error);
+      console.error("Supabase query error:", error);
       throw error;
     }
 
@@ -812,15 +539,18 @@ router.get('/entry-points', async (req: Request, res: Response) => {
     let coverMediaMap: Record<string, any> = {};
     if (coverMediaIds.length > 0) {
       const { data: coverMediaData, error: coverError } = await supabaseAdmin
-        .from('media_assets')
-        .select('id, provider_key, status, image_review_status, visibility')
-        .in('id', coverMediaIds);
+        .from("media_assets")
+        .select("id, provider_key, status, image_review_status, visibility")
+        .in("id", coverMediaIds);
 
       if (!coverError && coverMediaData) {
-        coverMediaMap = coverMediaData.reduce((acc: Record<string, any>, media: any) => {
-          acc[media.id] = media;
-          return acc;
-        }, {});
+        coverMediaMap = coverMediaData.reduce(
+          (acc: Record<string, any>, media: any) => {
+            acc[media.id] = media;
+            return acc;
+          },
+          {},
+        );
       }
     }
 
@@ -837,24 +567,29 @@ router.get('/entry-points', async (req: Request, res: Response) => {
         const { worlds, cover_media_id, ...restRow } = row;
 
         // Get cover media from the map we fetched separately
-        const coverMedia = cover_media_id ? coverMediaMap[cover_media_id] : null;
+        const coverMedia = cover_media_id
+          ? coverMediaMap[cover_media_id]
+          : null;
 
         // For published entry points (visibility === 'public'), show cover if ready and approved
-        const isPublishedEntryPoint = restRow.visibility === 'public';
-        const coverMediaData = coverMedia &&
-          typeof coverMedia === 'object' &&
-          coverMedia.status === 'ready' &&
-          coverMedia.image_review_status === 'approved' &&
-          (isPublishedEntryPoint || coverMedia.visibility === 'public')
-          ? {
-            id: coverMedia.id,
-            provider_key: coverMedia.provider_key,
-          }
-          : null;
+        const isPublishedEntryPoint = restRow.visibility === "public";
+        const coverMediaData =
+          coverMedia &&
+          typeof coverMedia === "object" &&
+          coverMedia.status === "ready" &&
+          coverMedia.image_review_status === "approved" &&
+          (isPublishedEntryPoint || coverMedia.visibility === "public")
+            ? {
+                id: coverMedia.id,
+                provider_key: coverMedia.provider_key,
+              }
+            : null;
 
         const flatRow = {
           ...restRow,
-          world_name: Array.isArray(worlds) ? (worlds[0]?.name || null) : (worlds?.name || null),
+          world_name: Array.isArray(worlds)
+            ? worlds[0]?.name || null
+            : worlds?.name || null,
           // Phase 4 refinement: UI only relies on cover_media, not cover_media_id
           cover_media: coverMediaData,
         };
@@ -863,7 +598,7 @@ router.get('/entry-points', async (req: Request, res: Response) => {
       });
 
     if (filters.playableOnly) {
-      items = items.filter(item => item.is_playable);
+      items = items.filter((item) => item.is_playable);
     }
 
     res.json({
@@ -880,30 +615,31 @@ router.get('/entry-points', async (req: Request, res: Response) => {
           rating: filters.rating,
           visibility: filters.visibility,
           activeOnly: filters.activeOnly,
-          playableOnly: filters.playableOnly
+          playableOnly: filters.playableOnly,
         },
-        sort: filters.sort
-      }
+        sort: filters.sort,
+      },
     });
   } catch (error) {
-    console.error('catalog.entry-points error:', error);
+    console.error("catalog.entry-points error:", error);
     res.status(500).json({
       ok: false,
-      error: 'Failed to fetch entry points',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: "Failed to fetch entry points",
+      details: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });
 
 // GET /api/catalog/entry-points/:idOrSlug
-router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
+router.get("/entry-points/:idOrSlug", async (req: Request, res: Response) => {
   try {
     const { idOrSlug } = req.params;
 
     // Phase 4: Include cover_media_id (we'll fetch cover media separately to bypass RLS)
     const { data, error } = await supabase
-      .from('entry_points')
-      .select(`
+      .from("entry_points")
+      .select(
+        `
         id,
         slug,
         type,
@@ -920,51 +656,56 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
         cover_media_id,
         created_at,
         updated_at
-      `)
+      `,
+      )
       .or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`)
       .limit(1)
       .single();
 
-    if (error && error.code === 'PGRST116') {
+    if (error && error.code === "PGRST116") {
       return res.status(404).json({
         ok: false,
-        error: 'Entry point not found'
+        error: "Entry point not found",
       });
     }
 
     if (error) {
-      console.error('Supabase query error:', error);
+      console.error("Supabase query error:", error);
       throw error;
     }
 
     const { data: rulesetsData, error: rulesetsError } = await supabase
-      .from('entry_point_rulesets')
-      .select(`
+      .from("entry_point_rulesets")
+      .select(
+        `
         rulesets:ruleset_id (id, name),
         sort_order
-      `)
-      .eq('entry_point_id', data.id)
-      .order('sort_order');
+      `,
+      )
+      .eq("entry_point_id", data.id)
+      .order("sort_order");
 
     if (rulesetsError) {
-      console.error('Rulesets query error:', rulesetsError);
+      console.error("Rulesets query error:", rulesetsError);
     }
 
     // Fetch cover media separately if it exists
     let coverMediaData = null;
     if (data.cover_media_id) {
       const { data: coverMedia, error: coverError } = await supabaseAdmin
-        .from('media_assets')
-        .select('id, provider_key, status, image_review_status, visibility')
-        .eq('id', data.cover_media_id)
+        .from("media_assets")
+        .select("id, provider_key, status, image_review_status, visibility")
+        .eq("id", data.cover_media_id)
         .single();
 
       if (!coverError && coverMedia) {
         // For published entry points, show cover if ready and approved (even if cover visibility isn't public)
-        const isPublishedEntryPoint = data.visibility === 'public';
-        if (coverMedia.status === 'ready' &&
-          coverMedia.image_review_status === 'approved' &&
-          (isPublishedEntryPoint || coverMedia.visibility === 'public')) {
+        const isPublishedEntryPoint = data.visibility === "public";
+        if (
+          coverMedia.status === "ready" &&
+          coverMedia.image_review_status === "approved" &&
+          (isPublishedEntryPoint || coverMedia.visibility === "public")
+        ) {
           coverMediaData = {
             id: coverMedia.id,
             provider_key: coverMedia.provider_key,
@@ -983,29 +724,24 @@ router.get('/entry-points/:idOrSlug', async (req: Request, res: Response) => {
       rulesets: (rulesetsData || []).map((r: any) => ({
         id: r.rulesets?.id,
         name: r.rulesets?.name,
-        sort_order: r.sort_order
-      }))
+        sort_order: r.sort_order,
+      })),
     };
 
     const dto = transformToCatalogDTO(flatRow, true);
 
     res.json({
       ok: true,
-      data: dto
+      data: dto,
     });
   } catch (error) {
-    console.error('catalog.entry-point detail error:', error);
+    console.error("catalog.entry-point detail error:", error);
     res.status(500).json({
       ok: false,
-      error: 'Failed to fetch entry point',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: "Failed to fetch entry point",
+      details: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });
 
 export default router;
-
-
-
-
-

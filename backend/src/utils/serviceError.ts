@@ -1,4 +1,4 @@
-import { ApiErrorCode } from '@shared';
+import type { ApiErrorCode } from "../../../shared/src/types/api.js";
 
 /**
  * Service-level error class for consistent error handling
@@ -10,9 +10,9 @@ export class ServiceError extends Error {
       code: ApiErrorCode;
       message: string;
       details?: unknown;
-    }
+    },
   ) {
     super(error.message);
-    this.name = 'ServiceError';
+    this.name = "ServiceError";
   }
 }

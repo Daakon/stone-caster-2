@@ -1,32 +1,49 @@
-import { useActiveGameStore } from '@/stores/useActiveGameStore';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { EntityCard } from './EntityCard';
+import { useActiveGameStore } from "@/stores/useActiveGameStore";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { EntityCard } from "./EntityCard";
 
 interface InspectorPanelProps {
-    state?: any;
+  state?: unknown;
 }
 
-export function InspectorPanel({ state }: InspectorPanelProps) {
-    const { selectedEntityId, setSelectedEntity } = useActiveGameStore();
+export function InspectorPanel(_props: InspectorPanelProps) {
+  void _props;
+  const { selectedEntityId, setSelectedEntity } = useActiveGameStore();
 
-    const isInspecting = !!selectedEntityId;
-    const handleClose = () => setSelectedEntity(null);
+  const isInspecting = !!selectedEntityId;
+  const handleClose = () => {
+    setSelectedEntity(null);
+  };
 
-    // If not inspecting, render nothing (Sidebar handles Vitals)
-    if (!isInspecting) return null;
+  // If not inspecting, render nothing (Sidebar handles Vitals)
+  if (!selectedEntityId) return null;
 
-    return (
-        <Sheet open={isInspecting} onOpenChange={(open) => !open && handleClose()}>
-            <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto">
-                <SheetHeader>
-                    <SheetTitle>Inspector</SheetTitle>
-                    <SheetDescription>Viewing entity details</SheetDescription>
-                </SheetHeader>
+  return (
+    <Sheet
+      open={isInspecting}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+    >
+      <SheetContent
+        side="right"
+        className="w-[400px] sm:w-[540px] overflow-y-auto"
+      >
+        <SheetHeader>
+          <SheetTitle>Inspector</SheetTitle>
+          <SheetDescription>Viewing entity details</SheetDescription>
+        </SheetHeader>
 
-                <div className="mt-6">
-                    <EntityCard entityId={selectedEntityId!} />
-                </div>
-            </SheetContent>
-        </Sheet>
-    );
+        <div className="mt-6">
+          <EntityCard entityId={selectedEntityId} />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 }

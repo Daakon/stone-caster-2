@@ -1,16 +1,21 @@
-import { v4 as uuidv4 } from 'uuid';
-import { Request, Response } from 'express';
-import { ApiErrorCode, type ApiSuccessResponse, type ApiErrorResponse } from '@shared';
+import { v4 as uuidv4 } from "uuid";
+import { Request, Response } from "express";
+import {
+  ApiErrorCode,
+  type ApiSuccessResponse,
+  type ApiErrorResponse,
+} from "../../../shared/src/types/api.js";
 
 // Generate or extract trace ID from request
 export function getTraceId(req: Request): string {
-  const traceId = req.headers['x-trace-id'] as string;
+  const traceId = req.headers["x-trace-id"] as string;
   return traceId && isValidUuid(traceId) ? traceId : uuidv4();
 }
 
 // Check if string is valid UUID
 function isValidUuid(str: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
 }
 
@@ -18,7 +23,7 @@ function isValidUuid(str: string): boolean {
 export function createSuccessResponse<T>(
   data: T,
   req: Request,
-  version?: string
+  version?: string,
 ): ApiSuccessResponse<T> {
   return {
     ok: true,
@@ -35,7 +40,7 @@ export function createErrorResponse(
   code: ApiErrorCode,
   message: string,
   req: Request,
-  details?: unknown
+  details?: unknown,
 ): ApiErrorResponse {
   return {
     ok: false,
@@ -56,7 +61,7 @@ export function sendSuccess<T>(
   data: T,
   req: Request,
   statusCode: number = 200,
-  version?: string
+  version?: string,
 ): void {
   const response = createSuccessResponse(data, req, version);
   res.status(statusCode).json(response);
@@ -69,14 +74,14 @@ export function sendError(
   message: string,
   req: Request,
   statusCode: number = 500,
-  details?: unknown
+  details?: unknown,
 ): void {
   const response = createErrorResponse(code, message, req, details);
   res.status(statusCode).json(response);
 }
 
 // HTTP status code mapping for error codes
-export const ERROR_STATUS_MAP: Record<ApiErrorCode, number> = {
+export const ERROR_STATUS_MAP: Partial<Record<ApiErrorCode, number>> = {
   [ApiErrorCode.VALIDATION_FAILED]: 422,
   [ApiErrorCode.UNAUTHORIZED]: 401,
   [ApiErrorCode.FORBIDDEN]: 403,
@@ -106,8 +111,8 @@ export function sendErrorWithStatus(
   code: ApiErrorCode,
   message: string,
   req: Request,
-  details?: unknown
+  details?: unknown,
 ): void {
-  const statusCode = ERROR_STATUS_MAP[code];
+  const statusCode = ERROR_STATUS_MAP[code] ?? 500;
   sendError(res, code, message, req, statusCode, details);
 }

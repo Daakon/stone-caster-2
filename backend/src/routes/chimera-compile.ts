@@ -4,16 +4,23 @@
  * Phase 4: Compiler endpoint for creating CompiledStory records
  */
 
-import { Router, type Request, type Response } from 'express';
-import { z } from 'zod';
-import { getChimeraSupabaseClient } from '../db/supabase-client.js';
-import { supabaseAdmin } from '../services/supabase.js';
-import { ContentCatalogRepository } from '../db/repos/content-catalog.repo.js';
-import { CompiledStoriesRepository } from '../db/repos/compiled-stories.repo.js';
-import { FrozenContentCompileService } from '../services/compile/frozen-content-compile.service.js';
-import { sendSuccess, sendErrorWithStatus } from '../utils/response.js';
-import { ApiErrorCode } from '@shared/types/api.js';
-import { requireAuth } from '../middleware/auth.unified.js';
+import { Router, type Request, type Response } from "express";
+import { z } from "zod";
+import { getChimeraSupabaseClient } from "../db/supabase-client.js";
+import { supabaseAdmin } from "../services/supabase.js";
+import { ContentCatalogRepository } from "../db/repos/content-catalog.repo.js";
+import { CompiledStoriesRepository } from "../db/repos/compiled-stories.repo.js";
+import { FrozenContentCompileService } from "../services/compile/frozen-content-compile.service.js";
+import { CachedContentCatalogService } from "../services/content/cached-content-catalog.service.js";
+import {
+  sendSuccess,
+  sendErrorWithStatus,
+  sendError,
+  getTraceId,
+} from "../utils/response.js";
+import { ServiceError } from "../utils/serviceError.js";
+import { ApiErrorCode } from "@shared/types/api.js";
+import { requireAuth } from "../middleware/auth.unified.js";
 
 const router = Router();
 
@@ -22,23 +29,29 @@ router.use(requireAuth);
 
 // Request body validation schema
 const ContentKeyRefSchema = z.object({
-  kind:z.string().min(1),
-  owner_namespace:z.literal('first_party'),
-  key:z.string().min(1).max(160),
+  kind: z.string().min(1),
+  owner_namespace: z.literal("first_party"),
+  key: z.string().min(1).max(160),
 });
 const CompileSelectionSchema = z.object({
-  world: ContentKeyRefSchema.extend({kind:z.literal('world')}),
-  rulesets:z.array(ContentKeyRefSchema.extend({kind:z.literal('ruleset')})).default([]),
-  entities:z.array(ContentKeyRefSchema.extend({kind:z.literal('entity')})).default([]),
-  lore:z.array(ContentKeyRefSchema.extend({kind:z.literal('lore')})).optional(),
-  title:z.string().trim().max(200).optional(),
+  world: ContentKeyRefSchema.extend({ kind: z.literal("world") }),
+  rulesets: z
+    .array(ContentKeyRefSchema.extend({ kind: z.literal("ruleset") }))
+    .default([]),
+  entities: z
+    .array(ContentKeyRefSchema.extend({ kind: z.literal("entity") }))
+    .default([]),
+  lore: z
+    .array(ContentKeyRefSchema.extend({ kind: z.literal("lore") }))
+    .optional(),
+  title: z.string().trim().max(200).optional(),
 });
 
 /**
  * POST /api/chimera/compile
  * Compile a story from a selection of world, rulesets, and entities
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post("/", async (req: Request, res: Response) => {
   try {
     // Validate request body
     const validated = CompileSelectionSchema.parse(req.body);
@@ -48,20 +61,33 @@ router.post('/', async (req: Request, res: Response) => {
     // Initialize repositories
     const contentRepo = new ContentCatalogRepository(supabase);
     const compiledStoriesRepo = new CompiledStoriesRepository(supabase);
-    const compilerService = new FrozenContentCompileService(contentRepo, compiledStoriesRepo);
+    const compilerService = new FrozenContentCompileService(
+      new CachedContentCatalogService(contentRepo, getTraceId(req)),
+      compiledStoriesRepo,
+    );
 
     // Compile the story
     const compiledStoryId = await compilerService.compile(validated);
 
     return sendSuccess(res, { id: compiledStoryId }, req, 201);
   } catch (error) {
+    if (error instanceof ServiceError) {
+      return sendError(
+        res,
+        error.error.code,
+        error.message,
+        req,
+        error.statusCode,
+        error.error.details,
+      );
+    }
     if (error instanceof z.ZodError) {
       return sendErrorWithStatus(
         res,
         ApiErrorCode.VALIDATION_FAILED,
-        'Invalid compile selection',
+        "Invalid compile selection",
         req,
-        error.errors
+        error.errors,
       );
     }
 
@@ -70,30 +96,30 @@ router.post('/', async (req: Request, res: Response) => {
       const errorMessage = error.message.toLowerCase();
 
       // Map "not found" errors to NOT_FOUND status
-      if (errorMessage.includes('not found')) {
+      if (errorMessage.includes("not found")) {
         // Extract entity type from error message
-        if (errorMessage.includes('world')) {
+        if (errorMessage.includes("world")) {
           return sendErrorWithStatus(
             res,
             ApiErrorCode.WORLD_NOT_FOUND,
             error.message,
-            req
+            req,
           );
         }
-        if (errorMessage.includes('ruleset')) {
+        if (errorMessage.includes("ruleset")) {
           return sendErrorWithStatus(
             res,
             ApiErrorCode.RULESET_NOT_FOUND,
             error.message,
-            req
+            req,
           );
         }
-        if (errorMessage.includes('entity')) {
+        if (errorMessage.includes("entity")) {
           return sendErrorWithStatus(
             res,
             ApiErrorCode.NOT_FOUND,
             error.message,
-            req
+            req,
           );
         }
         // Generic not found
@@ -101,27 +127,30 @@ router.post('/', async (req: Request, res: Response) => {
           res,
           ApiErrorCode.NOT_FOUND,
           error.message,
-          req
+          req,
         );
       }
 
       // Handle dependency/exclusion validation errors
-      if (errorMessage.includes('depends on') || errorMessage.includes('exclusion')) {
+      if (
+        errorMessage.includes("depends on") ||
+        errorMessage.includes("exclusion")
+      ) {
         return sendErrorWithStatus(
           res,
           ApiErrorCode.VALIDATION_FAILED,
           error.message,
-          req
+          req,
         );
       }
     }
 
-    console.error('[Chimera Compile] Error compiling story:', error);
+    console.error("[Chimera Compile] Error compiling story:", error);
     return sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,
-      error instanceof Error ? error.message : 'Failed to compile story',
-      req
+      error instanceof Error ? error.message : "Failed to compile story",
+      req,
     );
   }
 });
@@ -130,50 +159,72 @@ router.post('/', async (req: Request, res: Response) => {
  * GET /api/chimera/compile/:storyId
  * Get the latest compiled story for a given Draft Story ID
  */
-router.get('/:storyId', async (req: Request, res: Response) => {
+router.get("/:storyId", async (req: Request, res: Response) => {
   try {
     const { storyId } = req.params;
     const userId = req.ctx?.userId;
 
     if (!userId) {
-      return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'Authentication required', req);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        "Authentication required",
+        req,
+      );
     }
 
     // Use admin client for repo to ensure we can read compiled story (RLS might block user read)
     // We already verified ownership via the draft check above
-    const compiledStoriesRepo = new CompiledStoriesRepository(supabaseAdmin as any);
+    const compiledStoriesRepo = new CompiledStoriesRepository(
+      supabaseAdmin as any,
+    );
 
     // Use admin client to fetch story to bypass potential RLS issues
     // We will verify ownership manually
     const { data: story, error: storyError } = await supabaseAdmin
-      .from('chimera_stories')
-      .select('owner_user_id, visibility')
-      .eq('id', storyId)
+      .from("chimera_stories")
+      .select("owner_user_id, visibility")
+      .eq("id", storyId)
       .single();
 
     if (storyError || !story) {
-      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Story not found', req);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        "Story not found",
+        req,
+      );
     }
 
-    if (story.owner_user_id !== userId && story.visibility !== 'public') {
-      return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
+    if (story.owner_user_id !== userId && story.visibility !== "public") {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.FORBIDDEN,
+        "Access denied",
+        req,
+      );
     }
 
     // specific method to find by Draft ID (key)
     const compiledStory = await compiledStoriesRepo.findByKey(storyId);
 
     if (!compiledStory) {
-      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Compiled story not found. Please compile the story first.', req);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        "Compiled story not found. Please compile the story first.",
+        req,
+      );
     }
 
     return sendSuccess(res, compiledStory, req);
   } catch (error) {
-    console.error('[Chimera Compile] Error fetching compiled story:', error);
+    console.error("[Chimera Compile] Error fetching compiled story:", error);
     return sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,
-      error instanceof Error ? error.message : 'Failed to fetch compiled story',
-      req
+      error instanceof Error ? error.message : "Failed to fetch compiled story",
+      req,
     );
   }
 });
@@ -182,45 +233,67 @@ router.get('/:storyId', async (req: Request, res: Response) => {
  * GET /api/chimera/compile/:storyId/manifest
  * Optimized endpoint for Character Creator to fetch only necessary UI schema
  */
-router.get('/:storyId/manifest', async (req: Request, res: Response) => {
+router.get("/:storyId/manifest", async (req: Request, res: Response) => {
   try {
     const { storyId } = req.params;
     const userId = req.ctx?.userId;
 
     if (!userId) {
-      return sendErrorWithStatus(res, ApiErrorCode.UNAUTHORIZED, 'Authentication required', req);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.UNAUTHORIZED,
+        "Authentication required",
+        req,
+      );
     }
 
     // Use admin client for access check
     const { data: story, error: storyError } = await supabaseAdmin
-      .from('chimera_stories')
-      .select('owner_user_id, visibility')
-      .eq('id', storyId)
+      .from("chimera_stories")
+      .select("owner_user_id, visibility")
+      .eq("id", storyId)
       .single();
 
     if (storyError || !story) {
-      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Story not found', req);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        "Story not found",
+        req,
+      );
     }
 
-    if (story.owner_user_id !== userId && story.visibility !== 'public') {
-      return sendErrorWithStatus(res, ApiErrorCode.FORBIDDEN, 'Access denied', req);
+    if (story.owner_user_id !== userId && story.visibility !== "public") {
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.FORBIDDEN,
+        "Access denied",
+        req,
+      );
     }
 
-    const compiledStoriesRepo = new CompiledStoriesRepository(supabaseAdmin as any);
+    const compiledStoriesRepo = new CompiledStoriesRepository(
+      supabaseAdmin as any,
+    );
     const manifestData = await compiledStoriesRepo.getManifestByKey(storyId);
 
     if (!manifestData) {
-      return sendErrorWithStatus(res, ApiErrorCode.NOT_FOUND, 'Compiled schema not found', req);
+      return sendErrorWithStatus(
+        res,
+        ApiErrorCode.NOT_FOUND,
+        "Compiled schema not found",
+        req,
+      );
     }
 
     return sendSuccess(res, manifestData, req);
   } catch (error) {
-    console.error('[Chimera Compile] Error fetching manifest:', error);
+    console.error("[Chimera Compile] Error fetching manifest:", error);
     return sendErrorWithStatus(
       res,
       ApiErrorCode.INTERNAL_ERROR,
-      error instanceof Error ? error.message : 'Failed to fetch manifest',
-      req
+      error instanceof Error ? error.message : "Failed to fetch manifest",
+      req,
     );
   }
 });

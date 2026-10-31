@@ -1,90 +1,60 @@
-/**
- * Mutation Applier Utility
- * Phase 4: The Play Engine
- * 
- * Applies mutations to game state using JSON path operations
- */
+import type { MutationDto } from "./action-resolver.js";
 
-import type { MutationDto } from './action-resolver.js';
-
-/**
- * Apply a mutation to a game state object
- * 
- * @param state - The game state object to mutate (GameStateTiers structure)
- * @param mutation - The mutation to apply
- */
+function object(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
 export function applyMutation(
   state: Record<string, unknown>,
-  mutation: MutationDto
+  mutation: MutationDto,
 ): void {
-  const pathParts = mutation.path.split('/').filter((p) => p.length > 0);
-  
-  if (pathParts.length === 0) {
-    throw new Error(`Invalid mutation path: ${mutation.path}`);
+  const parts = mutation.path.split("/").filter(Boolean);
+  const finalKey = parts.pop();
+  if (!finalKey) throw new Error(`Invalid mutation path: ${mutation.path}`);
+  if (
+    [...parts, finalKey].some(
+      (key) =>
+        key === "__proto__" || key === "constructor" || key === "prototype",
+    )
+  )
+    throw new Error("Unsafe mutation path");
+  let current = state;
+  for (const key of parts) {
+    const next = object(current[key]);
+    current[key] = next;
+    current = next;
   }
-
-  // Navigate to the parent object
-  // Paths are like: /tier1_singular_state/world_time or /tier1_singular_state/actor_health/player
-  let current: Record<string, unknown> = state;
-  for (let i = 0; i < pathParts.length - 1; i++) {
-    const key = pathParts[i];
-    if (!(key in current)) {
-      // Create nested object if it doesn't exist
-      current[key] = {};
-    }
-    const next = current[key];
-    if (typeof next !== 'object' || next === null || Array.isArray(next)) {
-      // Overwrite if it's not an object
-      current[key] = {};
-    }
-    current = current[key] as Record<string, unknown>;
-  }
-
-  const finalKey = pathParts[pathParts.length - 1];
-
-  // Apply the operation
+  const value = current[finalKey];
   switch (mutation.op) {
-    case 'set':
+    case "set":
       current[finalKey] = mutation.value;
       break;
-    case 'add':
-      const currentValue = current[finalKey];
-      if (typeof currentValue === 'number' && typeof mutation.value === 'number') {
-        current[finalKey] = currentValue + mutation.value;
-      } else if (Array.isArray(currentValue)) {
-        current[finalKey] = [...currentValue, mutation.value];
-      } else {
-        throw new Error(`Cannot add to non-numeric/non-array value at ${mutation.path}`);
-      }
+    case "add": {
+      if (typeof value === "number" && typeof mutation.value === "number")
+        current[finalKey] = value + mutation.value;
+      else if (Array.isArray(value))
+        current[finalKey] = [...(value as unknown[]), mutation.value];
+      else
+        throw new Error(
+          `Cannot add to non-numeric/non-array value at ${mutation.path}`,
+        );
       break;
-    case 'remove':
-      if (Array.isArray(current[finalKey])) {
-        const arr = current[finalKey] as unknown[];
-        const index = arr.indexOf(mutation.value);
-        if (index !== -1) {
-          arr.splice(index, 1);
-        }
-      } else {
-        delete current[finalKey];
-      }
+    }
+    case "remove": {
+      if (Array.isArray(value)) {
+        const index = (value as unknown[]).indexOf(mutation.value);
+        if (index !== -1) value.splice(index, 1);
+      } else Reflect.deleteProperty(current, finalKey);
       break;
+    }
     default:
-      throw new Error(`Unknown mutation operation: ${(mutation as MutationDto).op}`);
+      throw new Error(`Unknown mutation operation: ${String(mutation.op)}`);
   }
 }
-
-/**
- * Apply multiple mutations to a game state
- * 
- * @param state - The game state object to mutate
- * @param mutations - Array of mutations to apply
- */
 export function applyMutations(
   state: Record<string, unknown>,
-  mutations: MutationDto[]
+  mutations: MutationDto[],
 ): void {
-  for (const mutation of mutations) {
-    applyMutation(state, mutation);
-  }
+  for (const mutation of mutations) applyMutation(state, mutation);
 }
-

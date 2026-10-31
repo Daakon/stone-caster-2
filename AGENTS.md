@@ -5,6 +5,7 @@ This file is the shared entry point for every coding agent (Codex, Cursor, Copil
 ## What this is
 
 Stonecaster is an AI tabletop storyteller: handcrafted worlds, story-level rulesets, and a narrator that adapts to the player. It's a monorepo:
+
 - `frontend/`: React, Vite, shadcn/ui, Tailwind, TanStack Query, zustand. Served on a Cloudflare Worker.
 - `backend/`: Node and Express on Fly.
 - `shared/`: Zod schemas and TypeScript types.
@@ -21,6 +22,7 @@ Stonecaster is an AI tabletop storyteller: handcrafted worlds, story-level rules
 ## Design is the source of truth for UI
 
 All UI work follows `docs/design/`. Start at `docs/design/README.md`.
+
 - **Mobile first.** Build at 390x844, then enhance for 1100 and 1440. Most players are on phones.
 - Colours, fonts, sizes: only from `docs/design/play-redesign/tokens.css` (as CSS variables or Tailwind theme values). No raw hex, rgb or Tailwind palette colours (`text-cyan-400`, `bg-zinc-800`) in new or changed components. `node scripts/check-design-tokens.mjs` checks this.
 - UI text never below 12px. Every tap target at least 44px. Every icon-only button has an accessible name.
@@ -30,16 +32,21 @@ All UI work follows `docs/design/`. Start at `docs/design/README.md`.
 ## Current work
 
 The play-screen redesign is being built in phases: `docs/design/play-redesign/ROADMAP.md`, detailed in `PLAN.md`.
+
 - F0a (frozen content and pinned sessions) is done locally.
 - **Next: Phase 0**, the tokens and mobile-first shell. Task brief: `docs/design/play-redesign/PHASE0_BRIEF.md`, split into slices 0A (tokens), 0B (shell against fixtures) and 0C (backend play view). 0A and 0B are frontend-only and can start in parallel.
 
 ## Checks before you open a PR
 
 ```
-npm run type-check
-npm run lint
-npm run test --workspace=frontend   # or backend, for the workspace you changed
-node scripts/check-design-tokens.mjs
+npm run ci:all
 ```
+
+The gate is **no new failures, strict zone clean**. The TypeScript, test, lint,
+Knip, architecture, format, coverage, design-token and anti-gaming jobs must
+pass. Run `npm run ci:all` locally before pushing and iterate until CI is green.
+Never edit a baseline to add entries. A baseline update may only remove fixed
+entries. Open PRs with auto-merge enabled; CODEOWNERS paths also need
+`@Daakon` review. See `docs/ci.md` for the baseline workflow and strict paths.
 
 For UI changes, attach Playwright screenshots at 390, 1100 and 1440 and name the design screen(s) you matched. If a spec, plan or screen conflicts with the code or another rule, say so in the PR description instead of choosing silently.

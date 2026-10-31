@@ -1,8 +1,8 @@
 ---
 description: Frontend standards for React (Vite, shadcn/ui) with mobile-first and accessibility requirements.
 globs:
-  - client/src/**/*.{ts,tsx}
-  - client/src/**/*.css
+  - frontend/src/**/*.{ts,tsx}
+  - frontend/src/**/*.css
 alwaysApply: false
 ---
 

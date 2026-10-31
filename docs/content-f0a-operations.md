@@ -46,4 +46,4 @@ For local verification, the first sync command is:
 npm.cmd run content:sync -- --target=local
 ```
 
-It requires `CONTENT_DEPLOY_DATABASE_URL` for the local `stonecaster_content_deployer` role and refuses non-loopback hosts. The F0a CLI does not accept a production target. Production sync and rollback are F0b/operator work after a separate approval; no hosted sync was run.
+It requires `CONTENT_DEPLOY_DATABASE_URL` for the local `stonecaster_content_deployer` role and refuses non-loopback hosts for `--target=local`. The F0b [protected content deployment workflow](content-deployment.md) adds staging/production targets for reviewed pre-launch upserts. Hosted configuration and execution require the independent environment gate; no hosted sync was run during these implementation slices.

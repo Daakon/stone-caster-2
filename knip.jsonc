@@ -1,0 +1,9 @@
+{
+  "entry": ["scripts/ci/*.mjs"],
+  "workspaces": {
+    "frontend": { "entry": ["playwright.mocked.config.ts"] },
+    "backend": {
+      "entry": ["vitest.db.config.ts", "vitest.local-integration.config.ts"],
+    },
+  },
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "src/**/*",
+    "tests/**/*",
+    "../shared/src/types/chimera-play-view.ts",
+    "*.ts"
+  ],
+  "exclude": ["src/routes/turn-engine-e2e.test.ts"]
+}

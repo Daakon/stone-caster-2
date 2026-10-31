@@ -3,80 +3,90 @@
  * Phase 2: Role-gated navigation with proper access control
  */
 
-import { NavLink } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { useAppRoles } from '../routeGuard';
-import { isPublishingWizardEntryEnabled, isPublishingAuditViewerEnabled, isAdminMediaEnabled } from '@/lib/feature-flags';
-import { useAppConfig } from '@/hooks/useAppConfig';
+import { NavLink } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { useAppRoles } from "../routeGuard";
+import {
+  isPublishingWizardEntryEnabled,
+  isPublishingAuditViewerEnabled,
+  isAdminMediaEnabled,
+} from "@/lib/feature-flags";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 // Navigation configuration
 const NAV_ITEMS = [
   {
-    label: 'Home',
-    href: '/admin',
-    roles: 'any' as const,
-    icon: '🏠'
+    label: "Home",
+    href: "/admin",
+    roles: "any" as const,
+    icon: "🏠",
   },
   {
-    label: 'Official Worlds',
-    href: '/admin/chimera/worlds/list',
-    roles: ['admin'] as const,
-    icon: '🌍'
+    label: "Official Worlds",
+    href: "/admin/chimera/worlds/list",
+    roles: ["admin"] as const,
+    icon: "🌍",
   },
   {
-    label: 'Official Entities',
-    href: '/admin/chimera/entities/list',
-    roles: ['admin'] as const,
-    icon: '👥'
+    label: "Official Entities",
+    href: "/admin/chimera/entities/list",
+    roles: ["admin"] as const,
+    icon: "👥",
   },
   {
-    label: 'Ruleset Templates',
-    href: '/admin/chimera/rulesets',
-    roles: ['moderator', 'admin'] as const,
-    icon: '📋'
+    label: "Ruleset Templates",
+    href: "/admin/chimera/rulesets",
+    roles: ["moderator", "admin"] as const,
+    icon: "📋",
   },
   {
-    label: 'Tag Management',
-    href: '/admin/chimera/tags',
-    roles: ['moderator', 'admin'] as const,
-    icon: '🏷️'
+    label: "Tag Management",
+    href: "/admin/chimera/tags",
+    roles: ["moderator", "admin"] as const,
+    icon: "🏷️",
   },
   // PHASE 1.7: Legacy nav items removed - Stories, NPCs, Worlds, and Rulesets
+  {
+    label: "Tier limits",
+    href: "/admin/tier-limits",
+    roles: ["admin"] as const,
+    icon: "≡",
+  },
   // These routes used legacy tables and have been deleted.
   // Will be replaced with Chimera V3 routes in Phase 2.
   {
-    label: 'Roles',
-    href: '/admin/roles',
-    roles: ['admin'] as const,
-    icon: '🔐'
+    label: "Roles",
+    href: "/admin/roles",
+    roles: ["admin"] as const,
+    icon: "🔐",
   },
   {
-    label: 'Early Access Requests',
-    href: '/admin/access-requests',
-    roles: ['admin'] as const,
-    icon: '🎟️'
+    label: "Early Access Requests",
+    href: "/admin/access-requests",
+    roles: ["admin"] as const,
+    icon: "🎟️",
   },
   {
-    label: 'Image Approvals',
-    href: '/admin/media/approvals',
-    roles: ['admin'] as const,
-    icon: '🖼️',
-    featureFlag: 'adminMedia' as const,
+    label: "Image Approvals",
+    href: "/admin/media/approvals",
+    roles: ["admin"] as const,
+    icon: "🖼️",
+    featureFlag: "adminMedia" as const,
   },
   {
-    label: 'Publishing (beta)',
-    href: '/admin/publishing',
-    roles: ['moderator', 'admin'] as const,
-    icon: '📤',
-    featureFlag: 'publishingWizardEntry' as const,
+    label: "Publishing (beta)",
+    href: "/admin/publishing",
+    roles: ["moderator", "admin"] as const,
+    icon: "📤",
+    featureFlag: "publishingWizardEntry" as const,
   },
   {
-    label: 'Audit (beta)',
-    href: '/admin/publishing/audit',
-    roles: ['moderator', 'admin'] as const,
-    icon: '📋',
-    featureFlag: 'publishingAuditViewer' as const,
-  }
+    label: "Audit (beta)",
+    href: "/admin/publishing/audit",
+    roles: ["moderator", "admin"] as const,
+    icon: "📋",
+    featureFlag: "publishingAuditViewer" as const,
+  },
 ] as const;
 
 export function AdminNav() {
@@ -84,31 +94,37 @@ export function AdminNav() {
   const { data: appConfig } = useAppConfig();
   const enableChimeraUi = appConfig?.enableChimeraUi ?? false;
 
-  const visibleItems = NAV_ITEMS.filter(item => {
+  const visibleItems = NAV_ITEMS.filter((item) => {
     // Check feature flag if present
-    if ('featureFlag' in item) {
-      if (item.featureFlag === 'publishingWizardEntry' && !isPublishingWizardEntryEnabled()) {
+    if ("featureFlag" in item) {
+      if (
+        item.featureFlag === "publishingWizardEntry" &&
+        !isPublishingWizardEntryEnabled()
+      ) {
         return false;
       }
-      if (item.featureFlag === 'publishingAuditViewer' && !isPublishingAuditViewerEnabled()) {
+      if (
+        item.featureFlag === "publishingAuditViewer" &&
+        !isPublishingAuditViewerEnabled()
+      ) {
         return false;
       }
-      if (item.featureFlag === 'adminMedia' && !isAdminMediaEnabled()) {
+      if (item.featureFlag === "adminMedia" && !isAdminMediaEnabled()) {
         return false;
       }
     }
 
     // Check if user has access to this item
-    if (item.roles === 'any') {
+    if (item.roles === "any") {
       return isCreator;
     }
 
     if (Array.isArray(item.roles)) {
-      return item.roles.some(role => {
+      return item.roles.some((role) => {
         switch (role) {
-          case 'moderator':
+          case "moderator":
             return isModerator;
-          case 'admin':
+          case "admin":
             return isAdmin;
           default:
             return false;
@@ -125,12 +141,13 @@ export function AdminNav() {
         <NavLink
           key={item.href}
           to={item.href}
+          end={item.href === "/admin"}
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              "flex min-h-[var(--sc-tap)] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
               isActive
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )
           }
         >

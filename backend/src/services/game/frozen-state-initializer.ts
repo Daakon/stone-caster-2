@@ -1,72 +1,69 @@
-import type { GameStateBundle, ActiveEntity } from '../../domain/game-state.types.js';
+import type { GameStateBundle } from "../../domain/game-state.types.js";
+import {
+  readPinnedStateSources,
+  stateDefaults,
+  sameJson,
+  startingValue,
+} from "../../../../shared/src/types/chimera-state-contributions.js";
 
-type JsonObject = Record<string, any>;
-
-const object = (value: unknown): JsonObject | null =>
-  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : null;
-
-function appliesTo(value: unknown, kind: 'player' | 'npc', source: string): boolean {
-  if (value === undefined) return true;
-  if (!Array.isArray(value) || value.some((entry) => entry !== 'player' && entry !== 'npc')) {
-    throw new Error(`${source} has invalid target_kind`);
+/** Initialize from verified frozen declarations before the first save/provider call. */
+export function applyFrozenStateDefaults(
+  bundle: GameStateBundle,
+  compiled: Record<string, unknown>,
+): void {
+  const sources = readPinnedStateSources(compiled);
+  const mechanics = compiled.config_mechanics as
+    { runtime?: { state_defaults?: unknown } } | undefined;
+  if (!sameJson(mechanics?.runtime?.state_defaults, stateDefaults(sources))) {
+    throw Error(
+      "Frozen compiled state defaults do not match pinned declarations",
+    );
   }
-  return value.includes(kind);
-}
-
-function fillDefinitions(target: JsonObject, contribution: unknown, kind: 'player' | 'npc' | null, source: string): void {
-  const section = object(contribution);
-  if (!section) throw new Error(`${source} must be an object`);
-  if (kind && !appliesTo(section.target_kind, kind, source)) return;
-  const definitions = object(section.definitions);
-  if (!definitions) throw new Error(`${source}.definitions must be an object`);
-  for (const [field, raw] of Object.entries(definitions)) {
-    const definition = object(raw);
-    if (!definition || !Object.hasOwn(definition, 'value') || definition.value === undefined) {
-      throw new Error(`${source}.definitions.${field} has no starting value`);
-    }
-    if (kind && !appliesTo(definition.target_kind, kind, `${source}.definitions.${field}`)) continue;
-    if (target[field] === undefined) target[field] = structuredClone(definition.value);
-  }
-}
-
-/** Apply only validated values from the hash-pinned compiled payload. */
-export function applyFrozenStateDefaults(bundle: GameStateBundle, compiled: JsonObject): void {
   const playerId = bundle.mechanical.index.player_id;
-  const player = bundle.mechanical.entities[playerId];
-  if (!player) throw new Error('Initial state has no player entity');
-  const rulesets = compiled.config_engine?.active_rulesets;
-  if (!Array.isArray(rulesets) || rulesets.length === 0) throw new Error('Frozen compile has no active ruleset definitions');
-
-  const sources: Array<{key: string; contributions: unknown}> = [
-    {key: `world:${compiled.snapshot_world?.key ?? 'unknown'}`, contributions: compiled.snapshot_world?.character_schema_contributions ?? {}},
-    ...rulesets.map((entry: unknown) => {
-      const row = object(entry);
-      if (!row || typeof row.key !== 'string' || !object(row.definition) || typeof row.content_hash !== 'string') {
-        throw new Error('Frozen compile contains an invalid ruleset definition or hash');
-      }
-      return {key: `ruleset:${row.key}@${row.content_hash}`, contributions: row.definition.state_contributions ?? {}};
-    }),
-  ];
-
+  if (!bundle.mechanical.entities[playerId])
+    throw Error("Initial state has no player entity");
   for (const source of sources) {
-    const contributions = object(source.contributions);
-    if (!contributions) throw new Error(`${source.key} has invalid state contributions`);
-    for (const [scope, section] of Object.entries(contributions)) {
-      if (scope === 'tier1_entity') {
-        fillDefinitions(player.properties, section, 'player', `${source.key}.${scope}`);
-        for (const entity of Object.values(bundle.mechanical.entities) as ActiveEntity[]) {
-          if (entity.id !== playerId && entity.type === 'NPC') {
-            fillDefinitions(entity.properties, section, 'npc', `${source.key}.${scope}`);
-          }
+    for (const [scope, section] of Object.entries(source.contributions)) {
+      const targets: Array<{
+        bag: Record<string, unknown>;
+        kind: "player" | "npc" | "global_rules";
+      }> = [];
+      if (scope === "tier1_entity") {
+        for (const entity of Object.values(bundle.mechanical.entities)) {
+          if (entity.id === playerId || entity.type === "NPC")
+            targets.push({
+              bag: entity.properties,
+              kind: entity.id === playerId ? "player" : "npc",
+            });
         }
-      } else if (scope === 'tier1_world') {
-        fillDefinitions(bundle.mechanical.globals, section, null, `${source.key}.${scope}`);
-      } else if (scope === 'tier2_system') {
-        const globals = bundle.mechanical.globals as JsonObject;
-        globals.tier2_system ??= {};
-        fillDefinitions(globals.tier2_system, section, null, `${source.key}.${scope}`);
-      } else {
-        throw new Error(`${source.key} has unsupported state scope ${scope}`);
+      } else if (scope === "tier1_world")
+        targets.push({ bag: bundle.mechanical.globals, kind: "global_rules" });
+      else {
+        bundle.mechanical.globals.tier2_system ??= {};
+        const system: unknown = bundle.mechanical.globals.tier2_system;
+        if (!system || typeof system !== "object" || Array.isArray(system))
+          throw Error("Invalid starting system state");
+        targets.push({
+          bag: system as Record<string, unknown>,
+          kind: "global_rules",
+        });
+      }
+      for (const { bag, kind } of targets) {
+        if (section.target_kind && !section.target_kind.includes(kind))
+          continue;
+        for (const [key, field] of Object.entries(section.definitions)) {
+          if (field.target_kind && !field.target_kind.includes(kind)) continue;
+          const path = `${source.kind}:${source.key}@${source.hash}.${scope}.${key}`;
+          const value = startingValue(bag[key], field.value, path);
+          const hint = section.form_hints?.[key];
+          if (
+            typeof value === "number" &&
+            ((hint?.min !== undefined && value < hint.min) ||
+              (hint?.max !== undefined && value > hint.max))
+          )
+            throw Error(`${path}: starting value outside declared bounds`);
+          bag[key] = value;
+        }
       }
     }
   }

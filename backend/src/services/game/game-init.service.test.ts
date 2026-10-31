@@ -1,350 +1,211 @@
-/**
- * Game Initialization Service Tests
- * Phase 5: Character Creator & Game Initialization
- */
+/** Genesis regressions migrated from the retired raw initial_state path. */
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { GameInitService } from "./game-init.service.js";
+import type { StoriesRepository } from "../../db/repos/stories.repo.js";
+import type { NarrativeService } from "./narrative.service.js";
+import type { IGameStateRepository } from "./state.repository.interface.js";
+import type { GameStateBundle } from "../../domain/game-state.types.js";
+import type { CharacterTemplate } from "../../domain/character.types.js";
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { GameInitService, PlayerInputDto } from './game-init.service';
-import { StoriesRepository } from '../../db/repos/stories.repo.js';
-
-// Define explicit mock interfaces to avoid @shared dependency
-interface CompiledStory {
-  meta: { source_ids: string[] };
-  master_schema: any;
-  narrative_index: any[];
-  initial_state: any;
-  config_engine?: any;
-  story_key?: string;
-}
-
-// Mock specific dependencies
-const mockSelect = vi.fn();
-const mockFrom = vi.fn(() => ({ select: mockSelect }));
-const mockEq = vi.fn();
-const mockMaybeSingle = vi.fn();
-const mockSingle = vi.fn();
-
-// Setup chain responses
-mockSelect.mockReturnValue({ eq: mockEq });
-mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle, single: mockSingle });
-
-vi.mock('../supabase.js', () => ({
-  supabaseAdmin: {
-    from: mockFrom
-  }
-}));
-
-vi.mock('../ai/prompt-assembly.service.js', () => ({
-  PromptAssemblyService: class {
-    getCompiledRules = vi.fn().mockResolvedValue({
-      mas1: '[MOCK MAS1]',
-      mas2: '[MOCK MAS2]'
-    });
-  }
-}));
-
-describe('GameInitService', () => {
-  let service: GameInitService;
-  let mockStoriesRepo: {
-    getCompiledStoryById: ReturnType<typeof vi.fn>;
-    getCompiledStoryByDraftId: ReturnType<typeof vi.fn>; // Added this
-    createGameState: ReturnType<typeof vi.fn>;
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-
-    // Default Supabase Mocks (Success Path)
-    mockSelect.mockReturnValue({ eq: mockEq, in: mockEq }); // Allow .in() as well
-    mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle, single: mockSingle });
-
-    // Mock Draft Story
-    mockMaybeSingle.mockResolvedValue({
-      data: {
-        title: 'Mock Story',
-        protagonist_id: 'char-1',
-        active_ruleset_ids: [],
-        genesis_config: {}
-      },
-      error: null
-    });
-
-    // Mock Character
-    mockSingle.mockResolvedValue({
-      data: { id: 'char-1', name: 'Hero' },
-      error: null
-    });
-
-    mockStoriesRepo = {
-      getCompiledStoryById: vi.fn(),
-      getCompiledStoryByDraftId: vi.fn(),
-      createGameState: vi.fn(),
-    };
-
-    service = new GameInitService(mockStoriesRepo as unknown as StoriesRepository, {} as any);
-  });
-
-  const createMockCompiledStory = (): CompiledStory => ({
-    meta: {
-      source_ids: ['world-1', 'ruleset-1'],
-    },
-    master_schema: {
-      tier1_allowlist: ['hp', 'mana'],
-      tier0_allowlist: ['memory_stream'],
-      actions_map: {},
-    },
-    narrative_index: [],
-    initial_state: {
-      tier1_mechanical: {
-        hp: 100,
-        mana: 50,
-        entities: {
-          player: {
-            // Empty player entity to be populated
+const storyId = "00000000-0000-4000-8000-000000000001";
+const characterId = "00000000-0000-4000-8000-000000000002";
+const owner = "00000000-0000-4000-8000-000000000003";
+// HP/mana belong only to this explicit custom test ruleset, never core defaults.
+const createCompiled = () => ({
+  id: storyId,
+  snapshot_world: { key: "test" },
+  snapshot_entities: [],
+  source_manifest: [
+    { kind: "world", key: "test", sha256: "b".repeat(64) },
+    { kind: "ruleset", key: "custom-test", sha256: "a".repeat(64) },
+  ],
+  config_engine: {
+    active_rulesets: [
+      {
+        key: "custom-test",
+        content_hash: "a".repeat(64),
+        definition: {
+          state_contributions: {
+            tier1_entity: {
+              target_kind: ["player"],
+              definitions: { hp: { value: 100 }, mana: { value: 50 } },
+            },
           },
         },
       },
-      tier0_narrative: {
-        memory_stream: [],
-        active_quests: [],
+    ],
+  },
+  config_mechanics: {
+    runtime: { state_defaults: { tier1_entity: { hp: 100, mana: 50 } } },
+  },
+  genesis_config: {
+    location: "A clearing",
+    set_design: "Morning light spills between the trees.",
+    narrator_tone: "Hopeful",
+  },
+});
+
+describe("GameInitService", () => {
+  let character: CharacterTemplate;
+  let compiled: ReturnType<typeof createCompiled>;
+  let saved: GameStateBundle | undefined;
+  const repository = {
+    getCompiledStoryById: vi.fn(),
+    getOwnedPlayerCharacter: vi.fn(),
+    createGameState: vi.fn(),
+    updateGameState: vi.fn(),
+    recordTurn: vi.fn(),
+  };
+  let service: GameInitService;
+  const initialize = () =>
+    service.initializeGame(
+      storyId,
+      { identity: { name: "Untrusted request name" } },
+      owner,
+      characterId,
+    );
+  const player = () => {
+    const entity = saved?.mechanical.entities[characterId];
+    if (!entity) throw Error("Expected saved player entity");
+    return entity.properties;
+  };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    compiled = createCompiled();
+    saved = undefined;
+    character = {
+      id: characterId,
+      user_id: owner,
+      name: "Test Player",
+      state_snapshot: {
+        tier1_entity: {
+          identity: {
+            name: "Test Player",
+            pronouns: "they/them",
+            role: "Adventurer",
+            age: 25,
+          },
+        },
       },
-    },
+    };
+    repository.getCompiledStoryById.mockResolvedValue(compiled);
+    repository.getOwnedPlayerCharacter.mockResolvedValue(character);
+    repository.createGameState.mockImplementation(
+      (_origin: unknown, bundle: GameStateBundle) => {
+        saved = bundle;
+        return Promise.resolve("game-state-id");
+      },
+    );
+    service = new GameInitService(
+      repository as unknown as StoriesRepository,
+      {} as IGameStateRepository,
+      {
+        generateOpeningNarrative: vi
+          .fn()
+          .mockResolvedValue("The story begins."),
+      } as unknown as NarrativeService,
+    );
   });
 
-  describe('Test 1: State Cloning (Deep Copy)', () => {
-    it('should create a deep copy of initial_state that does not affect the original', async () => {
-      const compiledStory = createMockCompiledStory();
-      const originalHp = (compiledStory.initial_state.tier1_mechanical as Record<string, unknown>).hp;
-
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
-      mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
-        // Modify the state to verify it's a copy
-        (state.tier1_mechanical as Record<string, unknown>).hp = 999;
-        return 'game-state-id';
-      });
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
+  describe("Test 1: State Cloning (Deep Copy)", () => {
+    it("should create a deep copy of pinned defaults and character values that does not affect the original", async () => {
+      const original = structuredClone({ compiled, character });
+      repository.createGameState.mockImplementation(
+        (_origin: unknown, bundle: GameStateBundle) => {
+          saved = bundle;
+          const properties = bundle.mechanical.entities[characterId].properties;
+          properties.hp = 999;
+          properties.identity.pronouns = "mutated";
+          return Promise.resolve("game-state-id");
         },
-      };
-
-      await service.initializeGame('story-id', playerInput, 'player-id');
-
-      // Verify the original CompiledStory was not modified
-      expect((compiledStory.initial_state.tier1_mechanical as Record<string, unknown>).hp).toBe(originalHp);
-      expect((compiledStory.initial_state.tier1_mechanical as Record<string, unknown>).hp).toBe(100);
+      );
+      await initialize();
+      expect({ compiled, character }).toEqual(original);
+      expect(
+        compiled.config_mechanics.runtime.state_defaults.tier1_entity.hp,
+      ).toBe(100);
     });
-
-    it('should preserve all initial state values in the cloned state', async () => {
-      const compiledStory = createMockCompiledStory();
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
-      mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
-        // Verify the cloned state has all original values
-        const tier1 = state.tier1_mechanical as Record<string, unknown>;
-        expect(tier1.hp).toBe(100);
-        expect(tier1.mana).toBe(50);
-        return 'game-state-id';
-      });
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
-        },
-      };
-
-      await service.initializeGame('story-id', playerInput, 'player-id');
-
-      expect(mockStoriesRepo.createGameState).toHaveBeenCalled();
+    it("should preserve all declared starting values in the saved state", async () => {
+      await initialize();
+      expect(player().hp).toBe(100);
+      expect(player().mana).toBe(50);
+      expect(repository.createGameState).toHaveBeenCalledWith(
+        null,
+        expect.any(Object),
+        owner,
+        storyId,
+        characterId,
+      );
     });
   });
-
-  describe('Test 2: Player Data Injection', () => {
-    it('should inject player identity into gameState.tier1_mechanical.entities.player.identity', async () => {
-      const compiledStory = createMockCompiledStory();
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
-      mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
-        const entities = (state.tier1_mechanical as Record<string, unknown>).entities as Record<string, unknown>;
-        const player = entities.player as Record<string, unknown>;
-        const identity = player.identity as Record<string, unknown>;
-
-        expect(identity.name).toBe('Test Player');
-        expect(identity.pronouns).toBe('they/them');
-        expect(identity.role).toBe('Adventurer');
-        expect(identity.age).toBe(25);
-
-        return 'game-state-id';
+  describe("Test 2: Player Data Injection", () => {
+    it("should inject the owned character identity into player properties", async () => {
+      await initialize();
+      expect(player().identity).toEqual({
+        name: "Test Player",
+        pronouns: "they/them",
+        role: "Adventurer",
+        age: 25,
       });
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
-          pronouns: 'they/them',
-          role: 'Adventurer',
-          age: 25,
-        },
-      };
-
-      await service.initializeGame('story-id', playerInput, 'player-id');
-
-      expect(mockStoriesRepo.createGameState).toHaveBeenCalled();
+      expect(player().name).toBe("Test Player");
     });
-
-    it('should inject appearance into player entity', async () => {
-      const compiledStory = createMockCompiledStory();
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
-      mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
-        const entities = (state.tier1_mechanical as Record<string, unknown>).entities as Record<string, unknown>;
-        const player = entities.player as Record<string, unknown>;
-
-        expect(player.appearance).toEqual({
-          height: 'tall',
-          build: 'athletic',
-        });
-
-        return 'game-state-id';
-      });
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
-        },
-        appearance: {
-          height: 'tall',
-          build: 'athletic',
-        },
-      };
-
-      await service.initializeGame('story-id', playerInput, 'player-id');
-
-      expect(mockStoriesRepo.createGameState).toHaveBeenCalled();
+    it("should inject appearance into player narrative visuals", async () => {
+      character.state_snapshot.appearance = "Tall and athletic";
+      await initialize();
+      expect(saved?.narrative.entity_visuals[characterId]).toBe(
+        "Tall and athletic",
+      );
+      expect(player().appearance).toBeUndefined();
     });
-
-    it('should inject narrative profile into tier0_narrative.player', async () => {
-      const compiledStory = createMockCompiledStory();
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
-      mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
-        const playerNarrative = (state.tier0_narrative as Record<string, unknown>).player as Record<string, unknown>;
-
-        expect(playerNarrative.backstory).toBe('A mysterious past');
-        expect(playerNarrative.personality_traits).toEqual(['brave', 'curious']);
-        expect(playerNarrative.drive).toBe('Seek the truth');
-        expect(playerNarrative.flaw).toBe('Too trusting');
-
-        return 'game-state-id';
+    it("should preserve the selected character profile rather than request overrides", async () => {
+      Object.assign(character.state_snapshot.tier1_entity ?? {}, {
+        backstory: "A mysterious past",
+        personality_traits: ["brave", "curious"],
+        drive: "Seek the truth",
+        flaw: "Too trusting",
       });
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
-        },
-        backstory: 'A mysterious past',
-        personality_traits: ['brave', 'curious'],
-        drive: 'Seek the truth',
-        flaw: 'Too trusting',
-      };
-
-      await service.initializeGame('story-id', playerInput, 'player-id');
-
-      expect(mockStoriesRepo.createGameState).toHaveBeenCalled();
+      await initialize();
+      expect(player().backstory).toBe("A mysterious past");
+      expect(player().personality_traits).toEqual(["brave", "curious"]);
+      expect(player().drive).toBe("Seek the truth");
+      expect(player().flaw).toBe("Too trusting");
     });
   });
-
-  describe('Test 3: Stats Preservation', () => {
-    it('should preserve stats generated by the Compiler (e.g., hp: 100)', async () => {
-      const compiledStory = createMockCompiledStory();
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
-      mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
-        const tier1 = state.tier1_mechanical as Record<string, unknown>;
-
-        // Verify stats from compiler are preserved
-        expect(tier1.hp).toBe(100);
-        expect(tier1.mana).toBe(50);
-
-        return 'game-state-id';
-      });
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
-        },
-      };
-
-      await service.initializeGame('story-id', playerInput, 'player-id');
-
-      expect(mockStoriesRepo.createGameState).toHaveBeenCalled();
+  describe("Test 3: Stats Preservation", () => {
+    it("should preserve stats declared by a custom compiled ruleset (e.g., hp: 100)", async () => {
+      await initialize();
+      expect(player().hp).toBe(100);
+      expect(player().mana).toBe(50);
     });
-
-    it('should preserve tier0_narrative structure from compiler', async () => {
-      const compiledStory = createMockCompiledStory();
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
-      mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
-        const tier0 = state.tier0_narrative as Record<string, unknown>;
-
-        // Verify tier0 structure is preserved
-        expect(Array.isArray(tier0.memory_stream)).toBe(true);
-        expect(Array.isArray(tier0.active_quests)).toBe(true);
-        expect((tier0.memory_stream as unknown[]).length).toBe(0);
-        expect((tier0.active_quests as unknown[]).length).toBe(0);
-
-        return 'game-state-id';
-      });
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
-        },
-      };
-
-      await service.initializeGame('story-id', playerInput, 'player-id');
-
-      expect(mockStoriesRepo.createGameState).toHaveBeenCalled();
+    it("should preserve frozen scene configuration in the narrative bundle", async () => {
+      await initialize();
+      expect(saved?.narrative.scene_context.location).toBe("A clearing");
+      expect(saved?.narrative.scene_context.atmosphere).toBe("Hopeful");
+      expect(saved?.narrative.director_instructions?.tone).toBe("Hopeful");
+      expect(saved?.narrative.dialogue_history).toEqual([
+        expect.objectContaining({
+          role: "narrator",
+          content: "The story begins.",
+        }),
+      ]);
     });
   });
-
-  describe('World Extensions', () => {
-    it('should inject world-specific extensions into player entity', async () => {
-      const compiledStory = createMockCompiledStory();
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(compiledStory);
-      mockStoriesRepo.createGameState.mockImplementation(async (storyId, state) => {
-        const entities = (state.tier1_mechanical as Record<string, unknown>).entities as Record<string, unknown>;
-        const player = entities.player as Record<string, unknown>;
-
-        // Verify world-specific extensions are stored
-        expect(player.essence_alignment).toBe('light');
-        expect(player.faction).toBe('Guardians');
-
-        return 'game-state-id';
+  describe("World Extensions", () => {
+    it("should inject world-specific character extensions into player properties", async () => {
+      Object.assign(character.state_snapshot.tier1_entity ?? {}, {
+        essence_alignment: "light",
+        faction: "Guardians",
       });
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
-        },
-        essence_alignment: 'light',
-        faction: 'Guardians',
-      };
-
-      await service.initializeGame('story-id', playerInput, 'player-id');
-
-      expect(mockStoriesRepo.createGameState).toHaveBeenCalled();
+      await initialize();
+      expect(player().essence_alignment).toBe("light");
+      expect(player().faction).toBe("Guardians");
     });
   });
-
-  describe('Error Handling', () => {
-    it('should throw error if compiled story not found', async () => {
-      mockStoriesRepo.getCompiledStoryById.mockResolvedValue(null);
-
-      const playerInput: PlayerInputDto = {
-        identity: {
-          name: 'Test Player',
-        },
-      };
-
-      await expect(
-        service.initializeGame('non-existent-id', playerInput, 'player-id')
-      ).rejects.toThrow('Compiled story not found');
+  describe("Error Handling", () => {
+    it("should throw error if compiled story not found", async () => {
+      repository.getCompiledStoryById.mockResolvedValue(null);
+      await expect(initialize()).rejects.toThrow("Compiled story not found");
+      expect(repository.createGameState).not.toHaveBeenCalled();
     });
   });
 });
-
