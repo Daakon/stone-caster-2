@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stonecaster landing page</title>
+<link rel="stylesheet" href="sc.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&amp;family=Fraunces:wght@600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,wght@0,400;1,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13}</style>
+</head>
+<body>
+<div style="width: 100%; background: #0b0a13; color: #ece8f6; font-family: 'DM Sans', system-ui, sans-serif;">
+
+<header style="border-bottom: 1px solid #2b2640; background: #12101c;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 32px; min-height: 64px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
+<a href="#top" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #ece8f6;">
+<span class="art" aria-hidden="true" style="width: 28px; height: 28px; border-radius: 999px; background: transparent;"><span class="ring" style="inset: 0;"></span><span class="ring" style="inset: 4px;"></span><span class="disc" style="inset: 8px;"></span></span>
+<span class="disp" style="font-size: 20px;">Stonecaster</span>
+</a>
+<nav aria-label="Main" style="display: flex; gap: 4px; flex: 1;">
+<a class="btn btn-ghost" href="#stories">Browse</a>
+<a class="btn btn-ghost" href="#create">Create</a>
+<a class="btn btn-ghost" href="#pricing">Pricing</a>
+</nav>
+<div style="display: flex; gap: 8px;">
+<a class="btn btn-ghost" href="#signin">Sign in</a>
+<a class="btn btn-p" href="story-page.html">Play free</a>
+</div>
+</div>
+</header>
+
+<section id="top" style="max-width: 1200px; margin: 0 auto; padding: 72px 32px 56px; display: flex; flex-wrap: wrap; gap: 48px; align-items: center;">
+<div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 20px;">
+<span class="over" style="color: #7ee7d8;">AI story worlds</span>
+<h1 class="disp" style="margin: 0; font-size: 56px; line-height: 1.02; letter-spacing: -0.02em;">Your party comes with you.</h1>
+<p class="prose" style="margin: 0; font-size: 20px; line-height: 1.6; color: #bfb9d3; max-width: 520px;">Play AI-driven stories where people have their own minds, and the companions you win over follow you into the next adventure.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+<a class="btn btn-p" href="story-page.html" style="min-height: 52px; padding: 0 24px; font-size: 16px;">Play a story free</a>
+<span style="font-size: 13px; color: #8f89a8;">No signup to start</span>
+</div>
+</div>
+<div class="card" style="flex: 1 1 480px; min-width: 0; padding: 24px; display: flex; flex-direction: column; gap: 16px; background: #12101c;">
+<img class="cover" src="assets/vanished-bond.svg" alt="Night over Emberlight Academy" style="height: 200px; border-radius: 10px;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span class="disp" style="font-size: 17px;">The Vanished Bond</span>
+<span class="tag tag-mode">Story</span>
+<span class="tag">Fantasy mystery</span>
+</div>
+<p class="prose" style="margin: 0; font-size: 19px; line-height: 1.7;">Rain hammers the slate roofs of <button class="el el-place">Emberlight Academy</button>. In the empty stall where <button class="el el-npc">Tessa's</button> bonded fox should be sleeping, you find a torn ribbon and the smell of scorched cedar. Across the yard, <button class="el el-npc">Lyra</button> watches you from the doorway, then looks quickly away.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<a class="chip" href="pick-character.html">Ask Lyra what she saw</a>
+<a class="chip" href="pick-character.html">Search the stall</a>
+<a class="chip" href="pick-character.html">Look at the ribbon</a>
+</div>
+<span style="font-size: 13px; color: #8f89a8;">Tap a choice to start this story as a guest, or tap a name to learn more.</span>
+</div>
+</section>
+
+<section id="stories" style="max-width: 1200px; margin: 0 auto; padding: 32px 32px 56px; display: flex; flex-direction: column; gap: 24px;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px;">
+<h2 class="disp" style="margin: 0; font-size: 32px; flex: 1;">Start with one of these</h2>
+<a href="#browse" style="font-weight: 600;">Browse all stories</a>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+
+<article class="card" style="overflow: hidden; display: flex; flex-direction: column;">
+<img class="cover" src="assets/vanished-bond.svg" alt="" style="height: 180px;">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 12px; flex: 1;">
+<div style="display: flex; gap: 8px;"><span class="tag tag-mode">Story</span><span class="tag">Teen</span><span class="tag">About 20 min</span></div>
+<h3 class="disp" style="margin: 0; font-size: 22px;">The Vanished Bond</h3>
+<p class="prose" style="margin: 0; font-size: 17px; line-height: 1.6; color: #bfb9d3;">A bonded creature vanishes overnight, and everyone at the academy has a reason to lie.</p>
+<div style="display: flex; align-items: center; gap: 8px; margin-top: auto;">
+<img class="av" src="assets/portrait-lyra.svg" alt="" style="width: 36px; height: 36px;">
+<img class="av" src="assets/portrait-tessa.svg" alt="" style="width: 36px; height: 36px; margin-left: -12px;">
+<img class="av" src="assets/portrait-merin.svg" alt="" style="width: 36px; height: 36px; margin-left: -12px;">
+<span style="font-size: 13px; color: #8f89a8; flex: 1;">Lyra, Tessa, Provost Merin</span>
+<a class="btn btn-p" href="story-page.html">Play</a>
+</div>
+</div>
+</article>
+
+<article class="card" style="overflow: hidden; display: flex; flex-direction: column;">
+<img class="cover" src="assets/ashfall.svg" alt="" style="height: 180px;">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 12px; flex: 1;">
+<div style="display: flex; gap: 8px;"><span class="tag tag-mode">Light RPG</span><span class="tag">Teen</span><span class="tag">About 30 min</span></div>
+<h3 class="disp" style="margin: 0; font-size: 22px;">Ashfall Expedition</h3>
+<p class="prose" style="margin: 0; font-size: 17px; line-height: 1.6; color: #bfb9d3;">An abandoned sanctuary in the ash hills. Bring whoever will follow you.</p>
+<div style="display: flex; align-items: center; gap: 8px; margin-top: auto;">
+<span class="tag" style="background: rgba(167,139,250,.14); color: #cdbdff;">Your companions can join</span>
+<span style="flex: 1;"></span>
+<a class="btn btn-p" href="story-page.html">Play</a>
+</div>
+</div>
+</article>
+
+<article class="card" style="overflow: hidden; display: flex; flex-direction: column;">
+<img class="cover" src="assets/saltmere.svg" alt="" style="height: 180px;">
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 12px; flex: 1;">
+<div style="display: flex; gap: 8px;"><span class="tag tag-mode">Full RPG</span><span class="tag">Mature</span><span class="tag">About 40 min</span></div>
+<h3 class="disp" style="margin: 0; font-size: 22px;">The Saltmere Delve</h3>
+<p class="prose" style="margin: 0; font-size: 17px; line-height: 1.6; color: #bfb9d3;">Stats, dice and a hired blade with her own agenda. Three floors down, the lamps go out.</p>
+<div style="display: flex; align-items: center; gap: 8px; margin-top: auto;">
+<span class="tag">Dice and stats from its template</span>
+<span style="flex: 1;"></span>
+<a class="btn btn-p" href="story-page.html">Play</a>
+</div>
+</div>
+</article>
+</div>
+</section>
+
+<section style="background: #12101c; border-top: 1px solid #2b2640; border-bottom: 1px solid #2b2640;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 56px 32px; display: flex; flex-direction: column; gap: 32px;">
+<h2 class="disp" style="margin: 0; font-size: 32px;">How it plays</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;">
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span class="mono" style="color: #2dd4bf; font-size: 13px;">01</span>
+<h3 class="disp" style="margin: 0; font-size: 22px;">Pick a story</h3>
+<p style="margin: 0; color: #bfb9d3; line-height: 1.6;">Choose a premade hero or make one in a sentence. You're reading within a minute.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span class="mono" style="color: #2dd4bf; font-size: 13px;">02</span>
+<h3 class="disp" style="margin: 0; font-size: 22px;">Play your way</h3>
+<p style="margin: 0; color: #bfb9d3; line-height: 1.6;">Do, Say or Look, tap a suggestion, or type anything. People answer with their own goals and secrets.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span class="mono" style="color: #2dd4bf; font-size: 13px;">03</span>
+<h3 class="disp" style="margin: 0; font-size: 22px;">Take your party onward</h3>
+<p style="margin: 0; color: #bfb9d3; line-height: 1.6;">Companions you recruit, and everything you've been through, carry into the next story in that world.</p>
+</div>
+</div>
+</div>
+</section>
+
+<section style="max-width: 1200px; margin: 0 auto; padding: 72px 32px; display: flex; flex-direction: column; gap: 32px;">
+<div style="display: flex; flex-direction: column; gap: 12px; max-width: 720px;">
+<span class="over" style="color: #7ee7d8;">Only on Stonecaster</span>
+<h2 class="disp" style="margin: 0; font-size: 40px; line-height: 1.1;">They don't stay behind.</h2>
+<p class="prose" style="margin: 0; font-size: 19px; line-height: 1.6; color: #bfb9d3;">Win someone over in one story and they can follow you into any other story set in the same world, even one written by a different creator. They remember what you did, and so does your character.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: stretch; gap: 16px;">
+<div class="card" style="flex: 1 1 380px; min-width: 0; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; gap: 8px; align-items: center;"><span class="over">Story one</span><span class="disp" style="font-size: 17px;">The Vanished Bond</span></div>
+<p class="prose" style="margin: 0; font-size: 18px; line-height: 1.65;">"Find my sister," Lyra says, "and I'll follow you anywhere." You give her your word.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;"><span class="delta">Lyra joined your party</span><span class="delta">Promise: find Lyra's sister</span></div>
+</div>
+<div aria-hidden="true" style="display: flex; align-items: center; justify-content: center; flex: 0 0 48px; color: #a78bfa;">
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+</div>
+<div class="card" style="flex: 1 1 380px; min-width: 0; padding: 24px; display: flex; flex-direction: column; gap: 12px; border-color: #a78bfa;">
+<div style="display: flex; gap: 8px; align-items: center;"><span class="over">Story two</span><span class="disp" style="font-size: 17px;">Ashfall Expedition</span></div>
+<p class="prose" style="margin: 0; font-size: 18px; line-height: 1.65;">At the sanctuary gate, Lyra stops you with a hand on your arm. "This is where the trail ends. You said you'd help me. Did you mean it?"</p>
+<div style="display: flex; align-items: center; gap: 8px;"><img class="av" src="assets/portrait-lyra.svg" alt="" style="width: 36px; height: 36px;"><span style="font-size: 13px; color: #8f89a8;">Lyra came with you from The Vanished Bond</span></div>
+</div>
+</div>
+</section>
+
+<section style="background: #12101c; border-top: 1px solid #2b2640; border-bottom: 1px solid #2b2640;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 72px 32px; display: flex; flex-wrap: wrap; gap: 48px; align-items: center;">
+<div style="flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<h2 class="disp" style="margin: 0; font-size: 40px; line-height: 1.1;">Tap any name.</h2>
+<p class="prose" style="margin: 0; font-size: 19px; line-height: 1.6; color: #bfb9d3;">People, places, items and lore in the story are links. Each opens a card with what you've learned so far, and nothing you haven't.</p>
+<p class="prose" style="margin: 0; font-size: 19px; line-height: 1.7;">You bow to <button class="el el-npc">Provost Merin</button> and slip the <button class="el el-item">ember key</button> into your sleeve before the <button class="el el-fac">Wardens of Ash</button> notice.</p>
+</div>
+<div class="card" style="flex: 0 1 380px; min-width: 0; padding: 20px; display: flex; flex-direction: column; gap: 14px; background: #211d33; box-shadow: 0 12px 32px rgba(0,0,0,.55);">
+<div style="display: flex; gap: 12px; align-items: center;">
+<img class="av" src="assets/portrait-merin.svg" alt="" style="width: 72px; height: 72px;">
+<div style="display: flex; flex-direction: column;"><span class="disp" style="font-size: 17px;">Provost Merin</span><span style="font-size: 13px; color: #bfb9d3;">Head of Emberlight Academy</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<span class="over">What you know</span>
+<p style="margin: 0; font-size: 15px; line-height: 22px;">Blames the stable hands for the missing fox.</p>
+<p style="margin: 0; font-size: 15px; line-height: 22px;">Keeps the aviary locked at night.</p>
+<span style="font-size: 13px; color: #8f89a8;">2 things learned · 1 still unknown</span>
+</div>
+<div style="display: flex; gap: 8px;"><button class="btn btn-p" style="flex: 1;">Talk to them</button><button class="btn" style="flex: 1;">More</button></div>
+</div>
+</div>
+</section>
+
+<section id="create" style="max-width: 1200px; margin: 0 auto; padding: 72px 32px; display: flex; flex-wrap: wrap; gap: 48px; align-items: center;">
+<div style="flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<span class="over" style="color: #7ee7d8;">For creators</span>
+<h2 class="disp" style="margin: 0; font-size: 40px; line-height: 1.1;">Make your own in a sentence.</h2>
+<p class="prose" style="margin: 0; font-size: 19px; line-height: 1.6; color: #bfb9d3;">Describe a story or a character. Play it right away, shape it while you play, and publish it to a world when it's ready.</p>
+<a class="btn btn-p" href="quick-create.html" style="align-self: flex-start;">Start creating</a>
+</div>
+<div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<div class="card" style="padding: 16px; display: flex; gap: 12px; align-items: center;">
+<span class="prose" style="flex: 1; font-size: 17px; color: #ece8f6;">A heist in a floating market where every guard is a retired thief.</span>
+<span class="btn btn-p" aria-hidden="true" style="min-width: 44px; padding: 0; border-radius: 999px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+</div>
+<div class="card" style="padding: 16px; display: flex; gap: 16px; align-items: center; border-color: #2dd4bf;">
+<div class="art" aria-hidden="true" style="width: 72px; height: 72px; border-radius: 10px; flex-shrink: 0;"><span class="ring" style="inset: 8px;"></span><span class="disc" style="inset: 26px; background: #f0c27a;"></span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0;">
+<span class="disp" style="font-size: 17px;">[Generated story title]</span>
+<span style="font-size: 13px; color: #bfb9d3;">Draft · 4 elements · Story</span>
+</div>
+<span class="btn">Play draft</span>
+</div>
+</div>
+</section>
+
+<section id="pricing" style="background: #12101c; border-top: 1px solid #2b2640;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 72px 32px; display: flex; flex-direction: column; gap: 32px;">
+<h2 class="disp" style="margin: 0; font-size: 32px;">Free to start</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;">
+<div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+<span class="disp" style="font-size: 22px;">Free</span>
+<span class="mono" style="color: #7ee7d8;">$0</span>
+<p style="margin: 0; color: #bfb9d3; line-height: 1.6;">Play as a guest, then get [starter amount] Stones when you save your story, plus a daily refill. Uploading your own images is free; generating one costs Stones.</p>
+<a class="btn btn-p" href="story-page.html">Start free</a>
+</div>
+<div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+<span class="disp" style="font-size: 22px;">[Paid tier one]</span>
+<span class="mono" style="color: #7ee7d8;">[Price] / month</span>
+<p style="margin: 0; color: #bfb9d3; line-height: 1.6;">Monthly Stones, premium storytellers, longer companion memory.</p>
+<a class="btn" href="#plans">See plans</a>
+</div>
+<div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+<span class="disp" style="font-size: 22px;">[Paid tier two]</span>
+<span class="mono" style="color: #7ee7d8;">[Price] / month</span>
+<p style="margin: 0; color: #bfb9d3; line-height: 1.6;">More Stones, priority during busy times, more creator drafts.</p>
+<a class="btn" href="#plans">See plans</a>
+</div>
+</div>
+</div>
+</section>
+
+<footer style="border-top: 1px solid #2b2640;">
+<div style="max-width: 1200px; margin: 0 auto; padding: 32px; display: flex; flex-wrap: wrap; gap: 24px; align-items: center; font-size: 13px; color: #8f89a8;">
+<span class="disp" style="font-size: 17px; color: #ece8f6;">Stonecaster</span>
+<span style="flex: 1;"></span>
+<a href="#guides">Guides</a>
+<a href="#content">Content policy</a>
+<a href="#privacy">Privacy</a>
+<a href="#terms">Terms</a>
+</div>
+</footer>
+</div>
+</body>
+</html>

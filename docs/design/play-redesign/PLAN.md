@@ -1,3 +1,8 @@
+> [!WARNING]
+> **SUPERSEDED v1 DESIGN PLAN — DO NOT IMPLEMENT**
+> This document describes the retired v1 Express / Chimera / deterministic-engine / ruleset-HUD architecture (`POST /api/games/:gameId/turn`, `chimera_game_states`).
+> **StoneCaster 2.0 runs in [`C:\Dev\StoneCaster-2`](file:///C:/Dev/StoneCaster-2)** under Fastify 5 (`/api/v2/play/*`), without a deterministic engine or ruleset HUD manifests. See [`C:\Dev\StoneCaster-2\docs\architecture\ADR\ADR-0002-ux-pack-and-conversion-alignment.md`](file:///C:/Dev/StoneCaster-2/docs/architecture/ADR/ADR-0002-ux-pack-and-conversion-alignment.md) and [`C:\Dev\StoneCaster-2\docs\ux\README.md`](file:///C:/Dev/StoneCaster-2/docs/ux/README.md).
+
 # Play screen redesign: implementation plan for approval
 
 Status: **planning only**. No phase is authorized by this document. Read with [SPEC.md](SPEC.md), [ROADMAP.md](ROADMAP.md), [tokens.css](tokens.css), and every board in `boards/` (including `as-built/`).

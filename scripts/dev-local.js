@@ -37,7 +37,8 @@ function run(name, command, args, env) {
     cwd: rootDir,
     env,
     stdio: 'inherit',
-    shell: false,
+    // Node refuses to spawn .cmd/.bat files without a shell on Windows (CVE-2024-27980).
+    shell: process.platform === 'win32',
   });
 
   child.on('error', (error) => {

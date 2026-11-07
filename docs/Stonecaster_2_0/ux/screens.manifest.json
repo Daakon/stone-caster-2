@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "updated": "2026-11-01",
+  "canvas": "https://claude.ai/artifact/Y6nuHfyRaCGK1GqAz2s8G6",
+  "plan": "https://claude.ai/artifact/NBcg1TdTHQKp3YZxZiyvqo",
+  "viewports": { "phone": [390, 844], "laptop": [1100, 800], "desktop": [1440, 900] },
+  "screens": [
+    { "id": "landing", "route": "/", "public": true, "drawnAt": [1440, 390], "html": "reference/landing.html", "png": ["screenshots/landing.png", "screenshots/landing-mobile.png"], "spec": "SCREENS.md#1-landing-landing", "phase": "A" },
+    { "id": "story-page", "route": "/s/:storySlug", "public": true, "drawnAt": [390], "html": "reference/story-page.html", "png": ["screenshots/story-page.png"], "spec": "SCREENS.md#2-story-page-story-page", "phase": "A" },
+    { "id": "pick-character", "route": "/s/:storySlug/start", "public": true, "drawnAt": [390], "html": "reference/pick-character.html", "png": ["screenshots/pick-character.png"], "spec": "SCREENS.md#3-pick-who-you-are-pick-character", "phase": "A" },
+    { "id": "play", "route": "/play/:runId", "public": false, "guestAllowed": true, "drawnAt": [390], "html": "reference/play.html", "png": ["screenshots/play.png"], "spec": "SCREENS.md#4-play-play-play-namecard-open", "phase": "A",
+      "states": [ { "id": "play-namecard-open", "html": "reference/play-namecard-open.html", "png": "screenshots/play-namecard-open.png" } ] },
+    { "id": "guest-save", "route": "overlay on /play/:runId", "public": false, "guestAllowed": true, "drawnAt": [390], "html": "reference/guest-save.html", "png": ["screenshots/guest-save.png"], "spec": "SCREENS.md#5-guest-save-prompt-guest-save", "phase": "A" },
+    { "id": "session-recap", "route": "/play/:runId/recap", "public": false, "drawnAt": [390], "html": "reference/session-recap.html", "png": ["screenshots/session-recap.png"], "spec": "SCREENS.md#6-session-recap-session-recap", "phase": "B" },
+    { "id": "characters-hub", "route": "/characters?world=:worldSlug", "public": false, "drawnAt": [390], "html": "reference/characters-hub.html", "png": ["screenshots/characters-hub.png"], "spec": "SCREENS.md#7-characters-hub-characters-hub", "phase": "B" },
+    { "id": "character-page", "route": "/characters/:characterId", "public": false, "drawnAt": [390], "html": "reference/character-page.html", "png": ["screenshots/character-page.png"], "spec": "SCREENS.md#8-character-page-character-page", "phase": "B" },
+    { "id": "new-character", "route": "/characters/new?world=:worldSlug", "public": false, "drawnAt": [390], "html": "reference/new-character.html", "png": ["screenshots/new-character.png"], "spec": "SCREENS.md#9-new-character-new-character", "phase": "B" },
+    { "id": "quick-create", "route": "/create", "public": false, "drawnAt": [390], "html": "reference/quick-create.html", "png": ["screenshots/quick-create.png"], "spec": "SCREENS.md#10-quick-create-quick-create", "phase": "C" }
+  ],
+  "notDrawnYet": ["browse", "world-page", "public-character-page", "pricing", "home-signed-in", "library", "account-stones", "stones-low-sheet", "publish-sheet", "guided-edit-sheet", "play-desktop-1100", "play-desktop-1440"]
+}

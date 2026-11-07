@@ -1,3 +1,8 @@
+> [!WARNING]
+> **SUPERSEDED REPOSITORY (LEGACY v1 ARCHIVE — DO NOT BUILD HERE)**
+> This folder (`C:\Dev\Stone Caster\stone-caster-2`) is the frozen v1 Express / Chimera donor archive.
+> **Active StoneCaster 2.0 development is in [`C:\Dev\StoneCaster-2`](file:///C:/Dev/StoneCaster-2)** (`/api/v2`, Fastify 5, `docs/ux/`, `ADR-0002`).
+
 # Stone Caster
 
 Repo rules for AI agents live in `.agent/rules/` and apply here.

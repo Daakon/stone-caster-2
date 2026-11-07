@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New character</title>
+<link rel="stylesheet" href="sc.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&amp;family=Fraunces:wght@600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,wght@0,400;1,400&amp;display=swap">
+<style>body{margin:0;background:#0b0a13}</style>
+</head>
+<body>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0b0a13; color: #ece8f6; font-family: 'DM Sans', system-ui, sans-serif; display: flex; flex-direction: column;">
+
+<div style="height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid #2b2640; background: #12101c; flex-shrink: 0;">
+<a class="btn btn-ghost" href="characters-hub.html" aria-label="Cancel" style="min-width: 44px; padding: 0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></a>
+<div style="display: flex; flex-direction: column;"><span style="font-size: 15px; font-weight: 600;">New character</span><span style="font-size: 12px; color: #8f89a8;">Emberlight Academy</span></div>
+</div>
+
+<div style="flex: 1; overflow-y: auto; padding: 20px 16px 120px; display: flex; flex-direction: column; gap: 20px;">
+
+<div style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+<img class="av av-me" src="assets/portrait-wren.svg" alt="Generated image of Wren" style="width: 128px; height: 128px;">
+<span style="font-size: 13px; color: #8f89a8;">Generated from Wren's one line</span>
+<div style="display: flex; gap: 8px; width: 100%;">
+<button class="btn" style="flex: 1; flex-direction: column; gap: 0; min-height: 56px; padding: 0 8px;"><span>Upload</span><span class="cost free">Free</span></button>
+<button class="btn" style="flex: 1; flex-direction: column; gap: 0; min-height: 56px; padding: 0 8px; border-color: #a78bfa;"><span>Regenerate</span><span class="cost">[N] Stones</span></button>
+<button class="btn" style="flex: 1; flex-direction: column; gap: 0; min-height: 56px; padding: 0 8px;"><span>Gallery</span><span class="cost free">Free</span></button>
+</div>
+</div>
+
+<div class="field"><label for="cn">Name</label><input id="cn" class="input" value="Wren"></div>
+<div class="field"><label for="cl">One line</label><input id="cl" class="input" value="A stable hand with a bond she hasn't told anyone about."><span style="font-size: 13px; color: #8f89a8;">Shown on your character card and in stories.</span></div>
+
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<span style="font-size: 13px; font-weight: 600; color: #bfb9d3;">Start from a template</span>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<button class="chip chip-on">Blank</button>
+<button class="chip">Dungeon Delver</button>
+<button class="chip">Simple skills</button>
+</div>
+<span style="font-size: 13px; line-height: 18px; color: #8f89a8;">Templates add custom instructions such as stats or abilities. You can edit them.</span>
+</div>
+
+<button class="card" aria-expanded="false" style="min-height: 64px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; color: #ece8f6; text-align: left; cursor: pointer; font-family: inherit;">
+<div style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+<span style="font-size: 15px; font-weight: 600;">More detail</span>
+<span style="font-size: 13px; color: #8f89a8;">Personality and background, appearance, custom instructions</span>
+</div>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#bfb9d3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+</button>
+
+<p style="margin: 0; font-size: 13px; line-height: 18px; color: #8f89a8;">Only a face, a name and one line are needed. The AI fills in a short profile you can change later, and your stories add to it as you play.</p>
+</div>
+
+<div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 20px; background: #12101c; border-top: 1px solid #2b2640; display: flex; flex-direction: column;">
+<a class="btn btn-p" href="character-page.html" style="min-height: 52px; font-size: 16px;">Create Wren</a>
+</div>
+</div>
+</body>
+</html>

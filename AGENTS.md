@@ -1,3 +1,8 @@
+> [!WARNING]
+> **SUPERSEDED REPOSITORY (LEGACY v1 ARCHIVE — DO NOT BUILD HERE)**
+> This folder (`C:\Dev\Stone Caster\stone-caster-2`) is the frozen v1 Express / Chimera / deterministic-engine donor archive.
+> **StoneCaster 2.0 lives in [`C:\Dev\StoneCaster-2`](file:///C:/Dev/StoneCaster-2)** (Fastify 5, `/api/v2`, runs & timelines, structured AI storyteller, `docs/ux/` + `ADR-0002`). Coding agents must read `C:\Dev\StoneCaster-2\AGENTS.md` and `C:\Dev\StoneCaster-2\docs\PROJECT_STATE.md` instead.
+
 # Stonecaster: instructions for coding agents
 
 This file is the shared entry point for every coding agent (Codex, Cursor, Copilot, Claude, Gemini and others). Tool-specific files (`CLAUDE.md`, `.cursor/rules/`, `.github/copilot-instructions.md`) point here.
